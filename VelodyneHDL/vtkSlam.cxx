@@ -264,7 +264,6 @@ public:
         }
       }
     }
-    cout << "Get value at position: (" << frameCenterX << "," <<  frameCenterY << "," << frameCenterZ << ") +- " << std::ceil(PointCloud_NbVoxelX / 2) << endl;
     return intersection;
   }
 
@@ -274,7 +273,7 @@ public:
     this->vizualisation.clear();
 
     // Voxel to filte because new points were add
-    int voxelToFilter[Grid_NbVoxelX][Grid_NbVoxelY][Grid_NbVoxelZ] = {0};
+    std::vector<std::vector<std::vector<int> > > voxelToFilter(Grid_NbVoxelX, std::vector<std::vector<int> >(Grid_NbVoxelY, std::vector<int>(Grid_NbVoxelZ, 0)));
 
     // Add points in the rolling grid
     int outlier = 0; // point who are not in the rolling grid
@@ -303,7 +302,7 @@ public:
       }
     }
 
-    std::cout << "Point outside rolling grid = " << outlier << endl;
+//    std::cout << "Point outside rolling grid = " << outlier << endl;
 
     // Filter the modify pointCloud
     pcl::VoxelGrid<Point> downSizeFilter;
@@ -333,8 +332,8 @@ public:
         }
       }
     }
-    cout << "Add value at position: (" << imin << "-" << imax <<"," << jmin << "-" << jmax <<"," << kmin << "-" << kmax << ")" << endl;
-    cout << "grid offset : " << grid_offsetX << ", " << grid_offsetY << ", " << grid_offsetZ << endl;
+//    cout << "Add value at position: (" << imin << "-" << imax <<"," << jmin << "-" << jmax <<"," << kmin << "-" << kmax << ")" << endl;
+//    cout << "grid offset : " << grid_offsetX << ", " << grid_offsetY << ", " << grid_offsetZ << endl;
   }
 
   // vizualize
@@ -513,7 +512,7 @@ vtkInformationVector **inputVector, vtkInformationVector *outputVector)
   vtkInformation *info = outputVector->GetInformationObject(0);
 
   // Fill output port
-  //output->ShallowCopy(this->Trajectory);
+  output->ShallowCopy(this->Trajectory);
 
   return 1;
 }
@@ -594,10 +593,10 @@ void vtkSlam::ResetAlgorithm()
 {
   this->DisplayMode = true; // switch to false to improve speed
   this->NeighborWidth = 5; // size indicated in Zhang paper
-  this->EgoMotionMaxIter = 25; // So that 5 icp will be made
-  this->MappingMaxIter = 25; // So that 5 icp will be made
-  this->MappingIcpFrequence = 5;
-  this->EgoMotionIcpFrequence = 5;
+  this->EgoMotion_MaxIter = 25; // So that 5 icp will be made
+  this->Mapping_MaxIter = 25; // So that 5 icp will be made
+  this->Mapping_IcpFrequence = 5;
+  this->EgoMotion_IcpFrequence = 5;
   this->MinDistanceToSensor = 3.0;
   this->MaxEdgePerScanLine = 40;
   this->MaxPlanarsPerScanLine = 60;
@@ -684,6 +683,21 @@ void vtkSlam::ResetAlgorithm()
   // if it is moving at a speed of 90 km/h and spinning at a rpm
   // of 600 rotation per minute
   this->MaxDistBetweenTwoFrames = (90.0 / 3.6) * (60.0 / 600.0);
+
+  // output of the vtk filter
+  this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
+  this->LineData = vtkSmartPointer<vtkPolyLine>::New();
+
+  // add the required array in the trajectory
+  vtkNew<vtkPoints> points;
+  vtkNew<vtkCellArray> cells;
+  CreateDataArray<vtkDoubleArray>("time", 0, this->Trajectory);
+  CreateDataArray<vtkDoubleArray>("roll", 0, this->Trajectory);
+  CreateDataArray<vtkDoubleArray>("pitch", 0, this->Trajectory);
+  CreateDataArray<vtkDoubleArray>("yaw", 0, this->Trajectory);
+  cells->InsertNextCell(this->LineData.GetPointer());
+  this->Trajectory->SetPoints(points.GetPointer());
+  this->Trajectory->SetLines(cells.GetPointer());
 }
 
 //-----------------------------------------------------------------------------
@@ -936,9 +950,6 @@ void vtkSlam::AddFrame(vtkPolyData* newFrame)
     // Compute the edges and planars keypoints
     this->ComputeKeyPoints(newFrame);
 
-//    Tworld << 0.1,0.1,0.1,1,1,1;
-
-    cout << "###LocalMap###" << endl;
     // Transform point cloud into world referential
     for (unsigned int i = 0; i < this->pclCurrentFrame->size(); ++i)
     {
@@ -947,9 +958,6 @@ void vtkSlam::AddFrame(vtkPolyData* newFrame)
     LocalMap->Roll(this->Tworld);
     LocalMap->Add(pclCurrentFrame);
 
-    cout << "Size of rolling grid : " << LocalMap->Size() << endl;
-
-    cout << "###EdgesPointsLocalMap###" << endl;
     // Transform point cloud into world referential
     pcl::PointCloud<Point>::Ptr CurrentEdgesPoints_w(new pcl::PointCloud<Point>());
     for (unsigned int i = 0; i < this->CurrentEdgesPoints->size(); ++i)
@@ -960,7 +968,6 @@ void vtkSlam::AddFrame(vtkPolyData* newFrame)
     EdgesPointsLocalMap->Roll(this->Tworld);
     EdgesPointsLocalMap->Add(CurrentEdgesPoints_w);
 
-    cout << "###PlanarPointsLocalMap###" << endl;
     // Transform point cloud into world referential
     pcl::PointCloud<Point>::Ptr CurrentPlanarsPoints_w(new pcl::PointCloud<Point>());
     for (unsigned int i = 0; i < this->CurrentPlanarsPoints->size(); ++i)
@@ -1003,7 +1010,7 @@ void vtkSlam::AddFrame(vtkPolyData* newFrame)
   // referential of the sensor at the end of
   // frame acquisition
   this->InitTime();
-  //this->TransformCurrentKeypointsToEnd();
+  this->TransformCurrentKeypointsToEnd();
   this->StopTimeAndDisplay("Undistortion");
 
   // Perform Mapping
@@ -1033,31 +1040,19 @@ void vtkSlam::AddFrame(vtkPolyData* newFrame)
   std::cout << "angles : " << std::endl << angles << std::endl;
   std::cout << "trans : " << std::endl << trans << std::endl;
 
-  // update new frame
-//  pcl::PointCloud<Point>::Ptr tmp = this->EdgesPointsLocalMap->Get(this->Tworld);
-//  // create points
-//  vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
-//  vtkSmartPointer<vtkCellArray> vertices = vtkSmartPointer<vtkCellArray>::New();
+  // Update vtkfilter output
+  this->Trajectory->GetPoints()->InsertNextPoint(this->Tworld[3], this->Tworld[4], this->Tworld[5]);
+  static_cast<vtkDoubleArray*>(this->Trajectory->GetPointData()->GetArray("time"))->InsertNextValue(newFrame->GetPointData()->GetArray("timestamp")->GetTuple1(0));
+  static_cast<vtkDoubleArray*>(this->Trajectory->GetPointData()->GetArray("pitch"))->InsertNextValue(this->Tworld[0]);
+  static_cast<vtkDoubleArray*>(this->Trajectory->GetPointData()->GetArray("roll"))->InsertNextValue(this->Tworld[1]);
+  static_cast<vtkDoubleArray*>(this->Trajectory->GetPointData()->GetArray("yaw"))->InsertNextValue(this->Tworld[2]);
 
-//  for (int i = 0 ; i < tmp->size(); i++)
-//  {
-//    float p[3] = {tmp->at(i).x, tmp->at(i).y, tmp->at(i).z};
+  this->LineData->GetPointIds()->InsertNextId(this->LineData->GetNumberOfPoints());
 
-//    // Create the topology of the point (a vertex)
-
-//    vtkIdType pid[1];
-//    pid[0] = points->InsertNextPoint(p);
-//    vertices->InsertNextCell(1,pid);
-
-//  }
-//  // Create a polydata object
-//  vtkSmartPointer<vtkPolyData> point = vtkSmartPointer<vtkPolyData>::New();
-
-//  // Set the points and vertices we created as the geometry and topology of the polydata
-//  point->SetPoints(points);
-//  point->SetVerts(vertices);
-
-//  newFrame = point;
+  //Add points and cells
+  vtkNew<vtkCellArray> cells;
+  cells->InsertNextCell(this->LineData.GetPointer());
+  this->Trajectory->SetLines(cells.GetPointer());
 
   return;
 }
@@ -2368,7 +2363,7 @@ void vtkSlam::ComputeEgoMotion()
   unsigned int nbrPlanesUsed = 0;
   unsigned int nbrRejection = 0;
   // ICP - Levenberg-Marquardt loop
-  for (unsigned int iterCount = 0; iterCount < this->EgoMotionMaxIter; ++iterCount)
+  for (unsigned int iterCount = 0; iterCount < this->EgoMotion_MaxIter; ++iterCount)
   {
     // Rotation and translation at this step
     Eigen::Matrix<double, 3, 3> R;
@@ -2376,7 +2371,7 @@ void vtkSlam::ComputeEgoMotion()
     R = GetRotationMatrix(this->Trelative);
     dT << this->Trelative(3), this->Trelative(4), this->Trelative(5);
 
-    if (iterCount % this->EgoMotionIcpFrequence == 0)
+    if (iterCount % this->EgoMotion_IcpFrequence == 0)
     {
       this->ResetDistanceParameters();
     }
@@ -2391,11 +2386,11 @@ void vtkSlam::ComputeEgoMotion()
       currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
 
       // Transform the current point in the frame L(t_start)
-      //this->TransformToStart(currentPoint, transformedPoint, this->Trelative);
-      //currentPoint = transformedPoint;
+//      this->TransformToStart(currentPoint, transformedPoint, this->Trelative);
+//      currentPoint = transformedPoint;
 
       // Find the closest correspondence edge line of the current edge point
-      if (iterCount % this->EgoMotionIcpFrequence == 0)
+      if (iterCount % this->EgoMotion_IcpFrequence == 0)
       {
         //this->FindEdgeLineMatch(currentPoint, kdtreePreviousEdges, matchEdgeIndex1, matchEdgeIndex2, edgeIndex, R, dT);
         this->ComputeLineDistanceParametersAccurate(kdtreePreviousEdges, R, dT, currentPoint, "egoMotion");
@@ -2414,11 +2409,11 @@ void vtkSlam::ComputeEgoMotion()
       currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
 
       // Transform the current point in the frame L(t_start)
-      //this->TransformToStart(currentPoint, transformedPoint, this->Trelative);
-      //currentPoint = transformedPoint;
+//      this->TransformToStart(currentPoint, transformedPoint, this->Trelative);
+//      currentPoint = transformedPoint;
 
       // Find the closest correspondence edge line of the current edge point
-      if (iterCount % this->EgoMotionIcpFrequence == 0)
+      if (iterCount % this->EgoMotion_IcpFrequence == 0)
       {
         //this->FindPlaneMatch(currentPoint, kdtreePreviousPlanes, matchPlaneIndex1, matchPlaneIndex2, matchPlaneIndex3, planarIndex, R, dT);
         this->ComputePlaneDistanceParametersAccurate(kdtreePreviousPlanes, R, dT, currentPoint, "egoMotion");
@@ -2528,15 +2523,13 @@ void vtkSlam::Mapping()
   kdtreeEdges->setInputCloud(subEdgesPointsLocalMap);
   kdtreePlanes->setInputCloud(subPlanarPointsLocalMap);
 
-//  cout << "Nb of Egde available for ICP : " << this->EdgesPointsLocalMap->Get(this->Tworld)->size() << " and Planes : " << this->PlanarPointsLocalMap->Get(this->Tworld)->size() << endl;
-
   unsigned int usedEdges = 0;
   unsigned int usedPlanes = 0;
 
   // ICP - Levenberg-Marquardt loop
-  for (int iterCount = 0; iterCount < this->MappingMaxIter; ++iterCount)
+  for (int iterCount = 0; iterCount < this->Mapping_MaxIter; ++iterCount)
   {
-    cout << "####### Iter : " << MappingIterMade << endl;
+//    cout << "####### Iter : " << MappingIterMade << endl;
     // Rotation and translation at this step      
     Eigen::Matrix<double, 3, 3> R;
     Eigen::Matrix<double, 3, 1> dT;
@@ -2548,7 +2541,7 @@ void vtkSlam::Mapping()
     Point currentPoint;
 
     // ### Perform matching every once in a while
-    if (iterCount % this->MappingIcpFrequence == 0)
+    if (iterCount % this->Mapping_IcpFrequence == 0)
     {
       // clear all data
       this->Xvalues.clear();
@@ -2613,7 +2606,6 @@ void vtkSlam::Mapping()
     // away from the solution to use the Gauss-Newton
     // algorithm. Increase lambda to drift toward gradient descent
     Eigen::Matrix<double, 6, 1> Tcandidate;
-    cout << "step : " << X << endl;
     Tcandidate = this->Tworld - X;
     Eigen::Matrix<double, 3, 3> Rcandidate = GetRotationMatrix(Tcandidate);
     Eigen::Matrix<double, 3, 1> dTcandidate;
@@ -2639,11 +2631,11 @@ void vtkSlam::Mapping()
 
     this->MappingIterMade = iterCount + 1;
 
-    std::cout << "edges : " << usedEdges << " planes : " << usedPlanes << std::endl;
-    std::cout << "Tworld : " << Tworld << endl;
-    std::cout << "Trel : " << this->Trelative << endl;
-    std::cout << "cost : " << newCost << endl;;
-    cout << "lambda : " << lambda << endl;
+//    std::cout << "edges : " << usedEdges << " planes : " << usedPlanes << std::endl;
+//    std::cout << "Tworld : " << Tworld << endl;
+//    std::cout << "Trel : " << this->Trelative << endl;
+//    std::cout << "cost : " << newCost << endl;;
+//    cout << "lambda : " << lambda << endl;
 
   }
 
