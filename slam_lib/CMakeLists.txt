@@ -23,6 +23,7 @@ set(HEADER_FILES
     SpinningSensorKeypointExtractor.h
     MotionModel.h
 )
+target_include_directories(slamlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 set_target_properties(slamlib PROPERTIES
     PUBLIC_HEADER "${HEADER_FILES}")
