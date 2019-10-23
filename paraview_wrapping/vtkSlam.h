@@ -79,10 +79,7 @@
 #include <Eigen/Dense>
 
 // LOCAL
-#include "vtkPCLConversions.h"
 #include "Slam.h"
-#include "KalmanFilter.h"
-#include "vtkTemporalTransforms.h"
 
 // This custom macro is needed to make the SlamManager time agnostic
 // The SlamManager need to know when RequestData is call, if it's due
@@ -241,7 +238,7 @@ private:
   void operator = (const vtkSlam&) = delete;
 
   // Polydata which represents the trajectory computed
-  vtkSmartPointer<vtkTemporalTransforms> Trajectory;
+  vtkSmartPointer<vtkPolyData> Trajectory;
   std::vector<size_t> GetLaserIdMapping(vtkTable *calib);
 
   // Indicate if we are in display mode or not

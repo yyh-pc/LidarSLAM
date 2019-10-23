@@ -1,4 +1,4 @@
-add_library(slamlib
+add_library(slamlib SHARED
     LidarPoint.h    
     Slam.cxx
     Slam.h

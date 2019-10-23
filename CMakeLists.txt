@@ -15,7 +15,7 @@ include(cmake/create_PCL_target.cmake)
 
 add_subdirectory(slam_lib)
 
-option(PARAVIEW_WRAPPING "Create a Paraview plugin (not implemented yet)" OFF)
+option(PARAVIEW_WRAPPING "Create a Paraview plugin" OFF)
 if (PARAVIEW_WRAPPING)
     add_subdirectory(paraview_wrapping)
 endif(PARAVIEW_WRAPPING)

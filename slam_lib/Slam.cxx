@@ -71,6 +71,7 @@
 // LOCAL
 #include "Slam.h"
 #include "CeresCostFunctions.h"
+#include "KDTreePCLAdaptor.h"
 // STD
 #include <sstream>
 #include <algorithm>
@@ -82,8 +83,6 @@
 #include <pcl/filters/voxel_grid.h>
 // CERES
 #include <ceres/ceres.h>
-// NANOFLANN
-#include <nanoflann.hpp>
 
 namespace {
 //-----------------------------------------------------------------------------
