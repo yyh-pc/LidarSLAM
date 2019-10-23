@@ -83,7 +83,6 @@
 
 #include "LidarPoint.h"
 #include "SpinningSensorKeypointExtractor.h"
-#include "KalmanFilter.h"
 #include "KDTreePCLAdaptor.h"
 #include "MotionModel.h"
 

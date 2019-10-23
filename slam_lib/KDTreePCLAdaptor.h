@@ -30,7 +30,7 @@
 // NANOFLANN
 #include <nanoflann.hpp>
 
-#include <LidarPoint.h>
+#include "LidarPoint.h"
 
 class KDTreePCLAdaptor
 {

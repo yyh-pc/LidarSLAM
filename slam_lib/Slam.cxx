@@ -71,7 +71,6 @@
 // LOCAL
 #include "Slam.h"
 #include "CeresCostFunctions.h"
-#include "vtkEigenTools.h"
 // STD
 #include <sstream>
 #include <algorithm>
@@ -87,6 +86,21 @@
 #include <nanoflann.hpp>
 
 namespace {
+//-----------------------------------------------------------------------------
+Eigen::Matrix3d RollPitchYawToMatrix(double roll, double pitch, double yaw)
+{
+  return Eigen::Matrix3d(Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ())
+                  * Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY())
+                  * Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX()));
+}
+
+
+//-----------------------------------------------------------------------------
+Eigen::Matrix3d RollPitchYawToMatrix(const Eigen::Vector3d& angles)
+{
+  return RollPitchYawToMatrix(angles(0), angles(1), angles(2));
+}
+
 //-----------------------------------------------------------------------------
 Eigen::Matrix3d GetRotationMatrix(Eigen::Matrix<double, 6, 1> T)
 {
