@@ -8,9 +8,13 @@ add_library(slamlib
     MotionModel.h
     )
     
-target_link_libraries(slamlib 
-    nanoflann::nanoflann
-    ${PCL_LIBRARIES}
+target_link_libraries(slamlib
+    PUBLIC
+      PCL::PCL
+    PRIVATE
+      ceres
+      Eigen3::Eigen
+      nanoflann::nanoflann
     )
 
 set(HEADER_FILES
