@@ -8,9 +8,13 @@ add_library(slamlib
     MotionModel.h
     )
     
-target_link_libraries(slamlib 
-    nanoflann::nanoflann
-    ${PCL_LIBRARIES}
+target_link_libraries(slamlib
+    PUBLIC
+      PCL::PCL
+    PRIVATE
+      ceres
+      Eigen3::Eigen
+      nanoflann::nanoflann
     )
 
 set(HEADER_FILES
@@ -19,6 +23,7 @@ set(HEADER_FILES
     SpinningSensorKeypointExtractor.h
     MotionModel.h
 )
+target_include_directories(slamlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 set_target_properties(slamlib PROPERTIES
     PUBLIC_HEADER "${HEADER_FILES}")
