@@ -15,19 +15,30 @@
 class LidarSlamNode
 {
 public:
-  using PointV = velodyne_pointcloud::PointXYZIR;  ///< Pointcloud published by velodyne driver
-  using PointS = Slam::Point;                      ///< Pointcloud needed by SLAM
+
+  using PointV = velodyne_pointcloud::PointXYZIR;
+  using CloudV = pcl::PointCloud<PointV>;  ///< Pointcloud published by velodyne driver
+  using PointS = Slam::Point;    
+  using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM
 
   LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh);
 
-  void scanCallback(const pcl::PointCloud<PointV>& cloud);
+  void scanCallback(const CloudV& cloud);
 
 private:
+
+  CloudS::Ptr convertToSlamPointCloud(const CloudV& cloudV);
+
+  void publishTfPoseCovar(const pcl::PCLHeader& headerCloudV, 
+                          const Transform& worldTransform, 
+                          const std::vector<double>& poseCovar);
+
   Slam slam_;
   std::vector<size_t> laserIdMapping_;
 
   // ROS publishers & subscribers
   ros::Publisher debugCloudPub_;
+  ros::Publisher poseCovarPub_;
   ros::Subscriber cloudSub_;
   tf2_ros::TransformBroadcaster tfBroadcaster_;
 };
