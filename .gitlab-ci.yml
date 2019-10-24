@@ -1,0 +1,14 @@
+stages:
+  - build
+
+# Build stage
+
+build::linux:
+  stage: build
+  script:
+    - echo Use additional cmake arguments that are defined by the runner $CMAKE_RUNNER_ARGS
+    - rm -rf build
+    - mkdir build
+    - cd build
+    - cmake $CMAKE_RUNNER_ARGS ..
+    - cmake --build . --config Release -- -j 4
