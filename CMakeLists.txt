@@ -11,7 +11,8 @@ find_package(Eigen3 REQUIRED)
 find_package(Ceres REQUIRED)
 
 find_package(PCL REQUIRED COMPONENTS common kdtree)
-include(cmake/create_PCL_target.cmake)
+include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
+add_definitions(${PCL_DEFINITIONS})
 
 add_subdirectory(slam_lib)
 
