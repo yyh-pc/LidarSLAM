@@ -8,13 +8,31 @@
 //------------------------------------------------------------------------------
 LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 {
-  // TODO : Init laser id mapping and nLasers with ROS param
-  size_t nLasers = 16;
-  laserIdMapping_.resize(nLasers);
-  for (unsigned int i = 0; i < laserIdMapping_.size(); i++)
-    laserIdMapping_[i] = i;
+  // Init laserIdMapping
+  std::vector<int> intLaserIdMapping;
+  int nLasers;
+  // Try to get it directly from ROS param
+  if (priv_nh.getParam("laser_id_mapping", intLaserIdMapping))
+  {
+    laserIdMapping_.assign(intLaserIdMapping.begin(), intLaserIdMapping.end());
+    ROS_INFO_STREAM("[SLAM] Using laser_id_mapping from ROS param.");
+  }
+  // Or only try to get number of lasers to build linear mapping
+  else if (priv_nh.getParam("n_lasers", nLasers))
+  {
+    laserIdMapping_.resize(nLasers);
+    for (int i = 0; i < nLasers; i++)
+      laserIdMapping_[i] = i;
+    ROS_INFO_STREAM("[SLAM] Using 0->" << nLasers << " linear laser_id_mapping from ROS param.");
+  }
+  // Otherwise, n_lasers will be guessed from 1st frame
+  else
+  {
+    ROS_WARN_STREAM("[SLAM] No laser_id_mapping nor n_lasers params found : "
+                    "n_lasers will be guessed from 1st frame to build linear mapping.");
+  }
 
-  // init ROS stuff
+  // Init ROS subscribers and publishers
   debugCloudPub_ = nh.advertise<CloudS>("debug_cloud", 1);
   poseCovarPub_ = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("slam_pose", 1);
   cloudSub_ = nh.subscribe("/velodyne_points", 1, &LidarSlamNode::scanCallback, this);
@@ -23,6 +41,26 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 //------------------------------------------------------------------------------
 void LidarSlamNode::scanCallback(const CloudV& cloudV)
 {
+  // Init laserIdMapping_ if not already done
+  if (!laserIdMapping_.size())
+  {
+    // Iterate through pointcloud to find max ring
+    int nLasers = 0;
+    for(const PointV& point : cloudV)
+    {
+      if (point.ring > nLasers)
+        nLasers = point.ring;
+    }
+    ++nLasers;
+
+    // Init laserIdMapping_ with linear mapping
+    laserIdMapping_.resize(nLasers);
+    for (int i = 0; i < nLasers; i++)
+      laserIdMapping_[i] = i;
+
+    ROS_INFO_STREAM("[SLAM] Using 0->" << nLasers << " linear laser_id_mapping.");
+  }
+
   // Convert pointcloud PointV type to expected PointS type
   CloudS::Ptr cloudS = convertToSlamPointCloud(cloudV);
 

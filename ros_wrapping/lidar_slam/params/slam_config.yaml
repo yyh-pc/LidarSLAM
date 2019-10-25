@@ -1,0 +1,2 @@
+# n_lasers: 16  # number of vertical lasers in LiDAR sensor (optional : if not given, will be guessed from 1st frame)
+# laser_id_mapping: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]  # mapping from ring id to laser id (optional. default : identity mapping)
