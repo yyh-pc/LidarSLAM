@@ -33,14 +33,23 @@ private:
                           const Transform& worldTransform, 
                           const std::vector<double>& poseCovar);
 
+  void publishFeaturesMaps(const CloudS::Ptr& cloudS);
+
+  // SLAM stuff
   Slam slam_;
   std::vector<size_t> laserIdMapping_;
 
   // ROS publishers & subscribers
-  ros::Publisher debugCloudPub_;
+  std::string slamOriginFrameId_ = "slam_init";
   ros::Publisher poseCovarPub_;
   ros::Subscriber cloudSub_;
   tf2_ros::TransformBroadcaster tfBroadcaster_;
+
+  // Debug publishers
+  ros::Publisher debugCloudPub_;
+  ros::Publisher edgesPub_, planarsPub_, blobsPub_;
+  bool publishEdges_ = false, publishPlanars_ = false, publishBlobs_ = false;
+
 };
 
 #endif // LIDAR_SLAM_NODE_H

@@ -6,7 +6,7 @@
   <!--- Run Rviz-->
   <node pkg="rviz" type="rviz" name="rviz" args="-d $(find lidar_slam)/params/slam.rviz" />
 
-  <!-- LiDAR SLAM -->
+  <!-- LiDAR SLAM : compute TF slam_init -> velodyne -->
   <node name="lidar_slam" pkg="lidar_slam" type="lidar_slam_node" output="screen">
     <rosparam file="$(find lidar_slam)/params/slam_config.yaml" command="load"/>
   </node>

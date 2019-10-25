@@ -8,6 +8,9 @@
 //------------------------------------------------------------------------------
 LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 {
+  // Get SLAM params
+  priv_nh.getParam("slam_origin_frame", slamOriginFrameId_);
+
   // Init laserIdMapping
   std::vector<int> intLaserIdMapping;
   int nLasers;
@@ -32,10 +35,23 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
                     "n_lasers will be guessed from 1st frame to build linear mapping.");
   }
 
-  // Init ROS subscribers and publishers
+  // Init optional publishers
+  priv_nh.getParam("publish_features_maps/edges", publishEdges_);
+  priv_nh.getParam("publish_features_maps/planars", publishPlanars_);
+  priv_nh.getParam("publish_features_maps/blobs", publishBlobs_);
+  if (publishEdges_)
+    edgesPub_ = nh.advertise<CloudS>("edges_features", 1);
+  if (publishPlanars_)
+    planarsPub_ = nh.advertise<CloudS>("planars_features", 1);
+  if (publishBlobs_)
+    blobsPub_ = nh.advertise<CloudS>("blobs_features", 1);
   debugCloudPub_ = nh.advertise<CloudS>("debug_cloud", 1);
+
+  // Init ROS subscribers and publishers
   poseCovarPub_ = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("slam_pose", 1);
-  cloudSub_ = nh.subscribe("/velodyne_points", 1, &LidarSlamNode::scanCallback, this);
+  cloudSub_ = nh.subscribe("velodyne_points", 1, &LidarSlamNode::scanCallback, this);
+
+  ROS_INFO_STREAM("\033[1;32m LiDAR SLAM is ready ! \033[0m");
 }
 
 //------------------------------------------------------------------------------
@@ -64,18 +80,18 @@ void LidarSlamNode::scanCallback(const CloudV& cloudV)
   // Convert pointcloud PointV type to expected PointS type
   CloudS::Ptr cloudS = convertToSlamPointCloud(cloudV);
 
-  // publish converted PC2
-  debugCloudPub_.publish(cloudS);
-
-  // run SLAM : register new frame and update position and mapping.
+  // Run SLAM : register new frame and update position and mapping.
   slam_.AddFrame(cloudS, laserIdMapping_);
 
   // Get the computed world transform so far
   Transform worldTransform = slam_.GetWorldTransform();
   std::vector<double> poseCovar = slam_.GetTransformCovariance();
 
-  // publish TF, pose and covariance
+  // Publish TF, pose and covariance
   publishTfPoseCovar(cloudV.header, worldTransform, poseCovar);
+
+  // Publish optional debug info
+  publishFeaturesMaps(cloudS);
 }
 
 //------------------------------------------------------------------------------
@@ -107,7 +123,7 @@ void LidarSlamNode::publishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
   // publish worldTransform
   geometry_msgs::TransformStamped tfMsg;
   pcl_conversions::fromPCL(headerCloudV, tfMsg.header);
-  tfMsg.header.frame_id = "slam_init";  // TODO : get frame_id from rosparam
+  tfMsg.header.frame_id = slamOriginFrameId_;
   tfMsg.child_frame_id = headerCloudV.frame_id;
   tfMsg.transform.translation.x = worldTransform.x;
   tfMsg.transform.translation.y = worldTransform.y;
@@ -137,4 +153,38 @@ void LidarSlamNode::publishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
                                   c[ 9], c[10], c[11],   c[ 6], c[ 7], c[ 8],
                                   c[15], c[16], c[17],   c[12], c[13], c[14]};
   poseCovarPub_.publish(poseCovarMsg);
+}
+
+void LidarSlamNode::publishFeaturesMaps(const CloudS::Ptr& cloudS)
+{
+  // Publish pointcloud only if someone is listening to it to spare bandwidth.
+  if (debugCloudPub_.getNumSubscribers())
+    debugCloudPub_.publish(cloudS);
+
+  pcl::PCLHeader msgHeader = cloudS->header;
+  msgHeader.frame_id = slamOriginFrameId_;
+
+  // Publish edges only if recquired and if someone is listening to it.
+  if (publishEdges_ && edgesPub_.getNumSubscribers())
+  {
+    CloudS::Ptr edgesCloud = slam_.GetEdgesMap();
+    edgesCloud->header = msgHeader;
+    edgesPub_.publish(edgesCloud);
+  }
+
+  // Publish planars only if recquired and if someone is listening to it.
+  if (publishPlanars_ && planarsPub_.getNumSubscribers())
+  {
+    CloudS::Ptr planarsCloud = slam_.GetPlanarsMap();
+    planarsCloud->header = msgHeader;
+    planarsPub_.publish(planarsCloud);
+  }
+
+  // Publish blobs only if recquired and if someone is listening to it.
+  if (publishBlobs_ && blobsPub_.getNumSubscribers())
+  {
+    CloudS::Ptr blobsCloud = slam_.GetBlobsMap();
+    blobsCloud->header = msgHeader;
+    blobsPub_.publish(blobsCloud);
+  }
 }
