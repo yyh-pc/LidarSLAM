@@ -5,6 +5,8 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <tf2/LinearMath/Quaternion.h>
 
+#include <chrono>
+
 //------------------------------------------------------------------------------
 LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 {
@@ -58,6 +60,9 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 //------------------------------------------------------------------------------
 void LidarSlamNode::scanCallback(const CloudV& cloudV)
 {
+  std::chrono::duration<double, std::milli> chrono_ms;
+  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+
   // Init laserIdMapping_ if not already done
   if (!laserIdMapping_.size())
   {
@@ -93,6 +98,9 @@ void LidarSlamNode::scanCallback(const CloudV& cloudV)
 
   // Publish optional debug info
   publishFeaturesMaps(cloudS);
+
+  chrono_ms = std::chrono::high_resolution_clock::now() - start;
+  std::cout << "SLAM perfomed in : " << chrono_ms.count() << " ms" << std::endl;
 }
 
 //------------------------------------------------------------------------------
