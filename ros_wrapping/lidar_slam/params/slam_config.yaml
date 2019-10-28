@@ -16,3 +16,43 @@ publish_features_maps:
   edges: true     # if true, edges features will be published to topic "edges_features"
   planars: true   # if true, planars features will be published to topic "planars_features"
   blobs: true     # if true, blobs features will be published to topic "blobs_features"
+
+# SLAM parameters (see Slam.h for description). Comment parameter to get default value.
+slam:
+
+  fast_slam: true                    # Use only planars keypoints used during EgoMotion for Mapping step, and not all.
+  undistortion: false                # Undistord the frame to correct rolling shutter distortion. CHECK
+  max_distance_for_ICP_matching: 20. # [m] Max distance allowed between two keypoints during ICP matching.
+
+  ego_motion_LM_max_iter: 15                    # Max number of iteration in the ego motion LM optimization step.
+  ego_motion_ICP_max_iter: 4                    # Max number of iterations of ICP matching.
+  ego_motion_line_distance_nbr_neighbors: 8
+  ego_motion_minimum_line_neighbor_rejection: 3
+  ego_motion_line_distance_factor: 5.
+  ego_motion_plane_distance_nbr_neighbors: 5
+  ego_motion_plane_distance_factor1: 35.
+  ego_motion_plane_distance_factor2: 8.
+  ego_motion_max_line_distance: 0.2
+  ego_motion_max_plane_distance: 0.2
+  ego_motion_init_loss_scale: 2.
+  ego_motion_final_loss_scale: 0.2
+
+  mapping_LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
+  mapping_ICP_max_iter: 3                     # Max number of iterations of ICP matching.
+  mapping_line_distance_nbr_neighbors: 10
+  mapping_minimum_line_neighbor_rejection: 4
+  mapping_line_distance_factor: 5.
+  mapping_plane_distance_nbr_neighbors: 5
+  mapping_plane_distance_factor1: 35.
+  mapping_plane_distance_factor2: 8.
+  mapping_max_line_distance: 0.2
+  mapping_max_plane_distance: 0.2
+  mapping_line_max_dist_inlier: 0.2
+  mapping_init_loss_scale: 0.7
+  mapping_final_loss_scale: 0.05
+
+  voxel_grid_leaf_size_edges: 0.45
+  voxel_grid_leaf_size_planes: 0.6
+  voxel_grid_leaf_size_blobs: 0.12
+  voxel_grid_size: 50
+  voxel_grid_resolution: 10

@@ -9,7 +9,7 @@
 LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 {
   // Get SLAM params
-  priv_nh.getParam("slam_origin_frame", slamOriginFrameId_);
+  SetSlamParameters(priv_nh);
 
   // Init laserIdMapping
   std::vector<int> intLaserIdMapping;
@@ -48,6 +48,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   debugCloudPub_ = nh.advertise<CloudS>("debug_cloud", 1);
 
   // Init ROS subscribers and publishers
+  priv_nh.getParam("slam_origin_frame", slamOriginFrameId_);
   poseCovarPub_ = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("slam_pose", 1);
   cloudSub_ = nh.subscribe("velodyne_points", 1, &LidarSlamNode::scanCallback, this);
 
@@ -187,4 +188,88 @@ void LidarSlamNode::publishFeaturesMaps(const CloudS::Ptr& cloudS)
     blobsCloud->header = msgHeader;
     blobsPub_.publish(blobsCloud);
   }
+}
+
+void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
+{
+  // common
+  bool fastSlam, undistortion;
+  double maxDistanceForICPMatching;
+  if (priv_nh.getParam("slam/fast_slam", fastSlam))
+    slam_.SetFastSlam(fastSlam);
+  if (priv_nh.getParam("slam/undistortion", undistortion))
+    slam_.SetUndistortion(undistortion);
+  if (priv_nh.getParam("slam/max_distance_for_ICP_matching", maxDistanceForICPMatching))
+    slam_.SetMaxDistanceForICPMatching(maxDistanceForICPMatching);
+
+  // ego motion
+  int egoMotionLMMaxIter, egoMotionICPMaxIter, egoMotionLineDistanceNbrNeighbors, egoMotionMinimumLineNeighborRejection, egoMotionPlaneDistanceNbrNeighbors;
+  double egoMotionLineDistancefactor, egoMotionPlaneDistancefactor1, egoMotionPlaneDistancefactor2, egoMotionMaxLineDistance, egoMotionMaxPlaneDistance, egoMotionInitLossScale, egoMotionFinalLossScale;
+  if (priv_nh.getParam("slam/ego_motion_LM_max_iter", egoMotionLMMaxIter))
+    slam_.SetEgoMotionLMMaxIter(egoMotionLMMaxIter);
+  if (priv_nh.getParam("slam/ego_motion_ICP_max_iter", egoMotionICPMaxIter))
+    slam_.SetEgoMotionICPMaxIter(egoMotionICPMaxIter);
+  if (priv_nh.getParam("slam/ego_motion_line_distance_nbr_neighbors", egoMotionLineDistanceNbrNeighbors))
+    slam_.SetEgoMotionLineDistanceNbrNeighbors(egoMotionLineDistanceNbrNeighbors);
+  if (priv_nh.getParam("slam/ego_motion_minimum_line_neighbor_rejection", egoMotionMinimumLineNeighborRejection))
+    slam_.SetEgoMotionMinimumLineNeighborRejection(egoMotionMinimumLineNeighborRejection);
+  if (priv_nh.getParam("slam/ego_motion_line_distance_factor", egoMotionLineDistancefactor))
+    slam_.SetEgoMotionLineDistancefactor(egoMotionLineDistancefactor);
+  if (priv_nh.getParam("slam/ego_motion_plane_distance_nbr_neighbors", egoMotionPlaneDistanceNbrNeighbors))
+    slam_.SetEgoMotionPlaneDistanceNbrNeighbors(egoMotionPlaneDistanceNbrNeighbors);
+  if (priv_nh.getParam("slam/ego_motion_plane_distance_factor1", egoMotionPlaneDistancefactor1))
+    slam_.SetEgoMotionPlaneDistancefactor1(egoMotionPlaneDistancefactor1);
+  if (priv_nh.getParam("slam/ego_motion_plane_distance_factor2", egoMotionPlaneDistancefactor2))
+    slam_.SetEgoMotionPlaneDistancefactor2(egoMotionPlaneDistancefactor2);
+  if (priv_nh.getParam("slam/ego_motion_max_line_distance", egoMotionMaxLineDistance))
+    slam_.SetEgoMotionMaxLineDistance(egoMotionMaxLineDistance);
+  if (priv_nh.getParam("slam/ego_motion_max_plane_distance", egoMotionMaxPlaneDistance))
+    slam_.SetEgoMotionMaxPlaneDistance(egoMotionMaxPlaneDistance);
+  if (priv_nh.getParam("slam/ego_motion_init_loss_scale", egoMotionInitLossScale))
+    slam_.SetEgoMotionInitLossScale(egoMotionInitLossScale);
+  if (priv_nh.getParam("slam/ego_motion_final_loss_scale", egoMotionFinalLossScale))
+    slam_.SetEgoMotionFinalLossScale(egoMotionFinalLossScale);
+
+  // mapping
+  int mappingLMMaxIter, mappingICPMaxIter, mappingLineDistanceNbrNeighbors, mappingMinimumLineNeighborRejection, mappingPlaneDistanceNbrNeighbors;
+  double mappingLineDistancefactor, mappingPlaneDistancefactor1, mappingPlaneDistancefactor2, mappingMaxLineDistance, mappingMaxPlaneDistance, mappingLineMaxDistInlier, mappingInitLossScale, mappingFinalLossScale;
+  if (priv_nh.getParam("slam/mapping_LM_max_iter", mappingLMMaxIter))
+    slam_.SetMappingLMMaxIter(mappingLMMaxIter);
+  if (priv_nh.getParam("slam/mapping_ICP_max_iter", mappingICPMaxIter))
+    slam_.SetMappingICPMaxIter(mappingICPMaxIter);
+  if (priv_nh.getParam("slam/mapping_line_distance_nbr_neighbors", mappingLineDistanceNbrNeighbors))
+    slam_.SetMappingLineDistanceNbrNeighbors(mappingLineDistanceNbrNeighbors);
+  if (priv_nh.getParam("slam/mapping_minimum_line_neighbor_rejection", mappingMinimumLineNeighborRejection))
+    slam_.SetMappingMinimumLineNeighborRejection(mappingMinimumLineNeighborRejection);
+  if (priv_nh.getParam("slam/mapping_line_distance_factor", mappingLineDistancefactor))
+    slam_.SetMappingLineDistancefactor(mappingLineDistancefactor);
+  if (priv_nh.getParam("slam/mapping_plane_distance_nbr_neighbors", mappingPlaneDistanceNbrNeighbors))
+    slam_.SetMappingPlaneDistanceNbrNeighbors(mappingPlaneDistanceNbrNeighbors);
+  if (priv_nh.getParam("slam/mapping_plane_distance_factor1", mappingPlaneDistancefactor1))
+    slam_.SetMappingPlaneDistancefactor1(mappingPlaneDistancefactor1);
+  if (priv_nh.getParam("slam/mapping_plane_distance_factor2", mappingPlaneDistancefactor2))
+    slam_.SetMappingPlaneDistancefactor2(mappingPlaneDistancefactor2);
+  if (priv_nh.getParam("slam/mapping_max_line_distance", mappingMaxLineDistance))
+    slam_.SetMappingMaxLineDistance(mappingMaxLineDistance);
+  if (priv_nh.getParam("slam/mapping_max_plane_distance", mappingMaxPlaneDistance))
+    slam_.SetMappingMaxPlaneDistance(mappingMaxPlaneDistance);
+  if (priv_nh.getParam("slam/mapping_line_max_dist_inlier", mappingLineMaxDistInlier))
+    slam_.SetMappingLineMaxDistInlier(mappingLineMaxDistInlier);
+  if (priv_nh.getParam("slam/mapping_init_loss_scale", mappingInitLossScale))
+    slam_.SetMappingInitLossScale(mappingInitLossScale);
+  if (priv_nh.getParam("slam/mapping_final_loss_scale", mappingFinalLossScale))
+    slam_.SetMappingFinalLossScale(mappingFinalLossScale);
+
+  // rolling grids
+  double voxelGridLeafSizeEdges, voxelGridLeafSizePlanes, voxelGridLeafSizeBlobs, voxelGridSize, voxelGridResolution;
+  if (priv_nh.getParam("slam/voxel_grid_leaf_size_edges", voxelGridLeafSizeEdges))
+    slam_.SetVoxelGridLeafSizeEdges(voxelGridLeafSizeEdges);
+  if (priv_nh.getParam("slam/voxel_grid_leaf_size_planes", voxelGridLeafSizePlanes))
+    slam_.SetVoxelGridLeafSizePlanes(voxelGridLeafSizePlanes);
+  if (priv_nh.getParam("slam/voxel_grid_leaf_size_blobs", voxelGridLeafSizeBlobs))
+    slam_.SetVoxelGridLeafSizeBlobs(voxelGridLeafSizeBlobs);
+  if (priv_nh.getParam("slam/voxel_grid_size", voxelGridSize))
+    slam_.SetVoxelGridSize(voxelGridSize);
+  if (priv_nh.getParam("slam/voxel_grid_resolution", voxelGridResolution))
+    slam_.SetVoxelGridResolution(voxelGridResolution);
 }

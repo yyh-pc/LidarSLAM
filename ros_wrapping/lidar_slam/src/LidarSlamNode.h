@@ -35,6 +35,8 @@ private:
 
   void publishFeaturesMaps(const CloudS::Ptr& cloudS);
 
+  void SetSlamParameters(ros::NodeHandle& priv_nh);
+
   // SLAM stuff
   Slam slam_;
   std::vector<size_t> laserIdMapping_;
