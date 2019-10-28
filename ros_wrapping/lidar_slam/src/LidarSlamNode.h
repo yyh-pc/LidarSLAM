@@ -40,6 +40,7 @@ private:
   // SLAM stuff
   Slam slam_;
   std::vector<size_t> laserIdMapping_;
+  double lidarFreq_ = 10.;
 
   // ROS publishers & subscribers
   std::string slamOriginFrameId_ = "slam_init";

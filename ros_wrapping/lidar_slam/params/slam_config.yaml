@@ -11,6 +11,9 @@
 # frame_id of SLAM map origin. SLAM will publish the TF slam_origin_frame -> velodyne.
 slam_origin_frame: "slam_init"
 
+# [Hz] Number of frames per second acquired by the LiDAR sensor (used to generate approximate point-wise timestamp)
+lidar_frequency: 10.
+
 # optional publishers
 publish_features_maps:
   edges: true     # if true, edges features will be published to topic "edges_features"
@@ -21,7 +24,7 @@ publish_features_maps:
 slam:
 
   fast_slam: true                    # Use only planars keypoints used during EgoMotion for Mapping step, and not all.
-  undistortion: false                # Undistord the frame to correct rolling shutter distortion. CHECK
+  undistortion: false                # Undistord the frame to correct rolling shutter distortion. DEBUG
   max_distance_for_ICP_matching: 20. # [m] Max distance allowed between two keypoints during ICP matching.
 
   ego_motion_LM_max_iter: 15                    # Max number of iteration in the ego motion LM optimization step.

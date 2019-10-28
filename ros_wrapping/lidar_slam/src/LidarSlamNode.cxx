@@ -37,6 +37,9 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
                     "n_lasers will be guessed from 1st frame to build linear mapping.");
   }
 
+  // Get LiDAR frequency
+  priv_nh.getParam("lidar_frequency", lidarFreq_);
+
   // Init optional publishers
   priv_nh.getParam("publish_features_maps/edges", publishEdges_);
   priv_nh.getParam("publish_features_maps/planars", publishPlanars_);
@@ -106,9 +109,16 @@ void LidarSlamNode::scanCallback(const CloudV& cloudV)
 //------------------------------------------------------------------------------
 LidarSlamNode::CloudS::Ptr LidarSlamNode::convertToSlamPointCloud(const CloudV& cloudV)
 {
+  // Init SLAM pointcloud
   CloudS::Ptr cloudS(new CloudS);
   cloudS->resize(cloudV.size());
   cloudS->header = cloudV.header;
+
+  // Get approximate timestamp of the first point
+  double stampInit = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();  // timestamp of last Velodyne raw packet
+  stampInit -= 1. / lidarFreq_;  // approximate timestamp of first Velodyne raw packet
+
+  // Build SLAM pointcloud
   for(unsigned int i = 0; i < cloudV.size(); i++)
   {
     const PointV& velodynePoint = cloudV[i];
@@ -118,7 +128,9 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::convertToSlamPointCloud(const CloudV& 
     slamPoint.z = velodynePoint.z;
     slamPoint.intensity = velodynePoint.intensity;
     slamPoint.laserId = velodynePoint.ring;
-    slamPoint.time =  std::atan2(velodynePoint.y, velodynePoint.x);
+    double frameAdvancement = (M_PI + std::atan2(velodynePoint.y, velodynePoint.x)) / (M_PI * 2);
+    slamPoint.time = stampInit + frameAdvancement / lidarFreq_;
+    // slamPoint.time = frameAdvancement;
     cloudS->at(i) = slamPoint;
   }
   return cloudS;
