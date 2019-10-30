@@ -1,7 +1,9 @@
 #include <ros/ros.h>
 #include "LidarSlamNode.h"
 
-/** Main node entry point. */
+/**
+ * @brief Main node entry point.
+ */
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "lidar_slam");
