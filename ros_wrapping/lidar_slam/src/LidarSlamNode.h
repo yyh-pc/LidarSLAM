@@ -38,20 +38,20 @@ private:
   void SetSlamParameters(ros::NodeHandle& priv_nh);
 
   // SLAM stuff
-  Slam slam_;
-  std::vector<size_t> laserIdMapping_;
-  double lidarFreq_ = 10.;
+  Slam LidarSlam;
+  std::vector<size_t> LaserIdMapping;
+  double LidarFreq = 10.;
 
   // ROS publishers & subscribers
-  std::string slamOriginFrameId_ = "slam_init";
-  ros::Publisher poseCovarPub_;
-  ros::Subscriber cloudSub_;
-  tf2_ros::TransformBroadcaster tfBroadcaster_;
+  std::string SlamOriginFrameId = "slam_init";
+  ros::Publisher PoseCovarPub;
+  ros::Subscriber CloudSub;
+  tf2_ros::TransformBroadcaster TfBroadcaster;
 
   // Debug publishers
-  ros::Publisher debugCloudPub_;
-  ros::Publisher edgesPub_, planarsPub_, blobsPub_;
-  bool publishEdges_ = false, publishPlanars_ = false, publishBlobs_ = false;
+  ros::Publisher DebugCloudPub;
+  ros::Publisher EdgesPub, PlanarsPub, BlobsPub;
+  bool PublishEdges = false, PublishPlanars = false, PublishBlobs = false;
 
 };
 

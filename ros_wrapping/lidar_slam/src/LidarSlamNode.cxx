@@ -19,15 +19,15 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // Try to get it directly from ROS param
   if (priv_nh.getParam("laser_id_mapping", intLaserIdMapping))
   {
-    laserIdMapping_.assign(intLaserIdMapping.begin(), intLaserIdMapping.end());
+    this->LaserIdMapping.assign(intLaserIdMapping.begin(), intLaserIdMapping.end());
     ROS_INFO_STREAM("[SLAM] Using laser_id_mapping from ROS param.");
   }
   // Or only try to get number of lasers to build linear mapping
   else if (priv_nh.getParam("n_lasers", nLasers))
   {
-    laserIdMapping_.resize(nLasers);
+    this->LaserIdMapping.resize(nLasers);
     for (int i = 0; i < nLasers; i++)
-      laserIdMapping_[i] = i;
+      this->LaserIdMapping[i] = i;
     ROS_INFO_STREAM("[SLAM] Using 0->" << nLasers << " linear laser_id_mapping from ROS param.");
   }
   // Otherwise, n_lasers will be guessed from 1st frame
@@ -38,24 +38,24 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   }
 
   // Get LiDAR frequency
-  priv_nh.getParam("lidar_frequency", lidarFreq_);
+  priv_nh.getParam("lidar_frequency", this->LidarFreq);
 
   // Init optional publishers
-  priv_nh.getParam("publish_features_maps/edges", publishEdges_);
-  priv_nh.getParam("publish_features_maps/planars", publishPlanars_);
-  priv_nh.getParam("publish_features_maps/blobs", publishBlobs_);
-  if (publishEdges_)
-    edgesPub_ = nh.advertise<CloudS>("edges_features", 1);
-  if (publishPlanars_)
-    planarsPub_ = nh.advertise<CloudS>("planars_features", 1);
-  if (publishBlobs_)
-    blobsPub_ = nh.advertise<CloudS>("blobs_features", 1);
-  debugCloudPub_ = nh.advertise<CloudS>("debug_cloud", 1);
+  priv_nh.getParam("publish_features_maps/edges", this->PublishEdges);
+  priv_nh.getParam("publish_features_maps/planars", this->PublishPlanars);
+  priv_nh.getParam("publish_features_maps/blobs", this->PublishBlobs);
+  if (this->PublishEdges)
+    this->EdgesPub = nh.advertise<CloudS>("edges_features", 1);
+  if (this->PublishPlanars)
+    this->PlanarsPub = nh.advertise<CloudS>("planars_features", 1);
+  if (this->PublishBlobs)
+    this->BlobsPub = nh.advertise<CloudS>("blobs_features", 1);
+  this->DebugCloudPub = nh.advertise<CloudS>("debug_cloud", 1);
 
   // Init ROS subscribers and publishers
-  priv_nh.getParam("slam_origin_frame", slamOriginFrameId_);
-  poseCovarPub_ = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("slam_pose", 1);
-  cloudSub_ = nh.subscribe("velodyne_points", 1, &LidarSlamNode::scanCallback, this);
+  priv_nh.getParam("slam_origin_frame", this->SlamOriginFrameId);
+  this->PoseCovarPub = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("slam_pose", 1);
+  this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::scanCallback, this);
 
   ROS_INFO_STREAM("\033[1;32m LiDAR SLAM is ready ! \033[0m");
 }
@@ -66,8 +66,8 @@ void LidarSlamNode::scanCallback(const CloudV& cloudV)
   std::chrono::duration<double, std::milli> chrono_ms;
   std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 
-  // Init laserIdMapping_ if not already done
-  if (!laserIdMapping_.size())
+  // Init this->LaserIdMapping if not already done
+  if (!this->LaserIdMapping.size())
   {
     // Iterate through pointcloud to find max ring
     int nLasers = 0;
@@ -78,10 +78,10 @@ void LidarSlamNode::scanCallback(const CloudV& cloudV)
     }
     ++nLasers;
 
-    // Init laserIdMapping_ with linear mapping
-    laserIdMapping_.resize(nLasers);
+    // Init this->LaserIdMapping with linear mapping
+    this->LaserIdMapping.resize(nLasers);
     for (int i = 0; i < nLasers; i++)
-      laserIdMapping_[i] = i;
+      this->LaserIdMapping[i] = i;
 
     ROS_INFO_STREAM("[SLAM] Using 0->" << nLasers << " linear laser_id_mapping.");
   }
@@ -90,11 +90,11 @@ void LidarSlamNode::scanCallback(const CloudV& cloudV)
   CloudS::Ptr cloudS = convertToSlamPointCloud(cloudV);
 
   // Run SLAM : register new frame and update position and mapping.
-  slam_.AddFrame(cloudS, laserIdMapping_);
+  this->LidarSlam.AddFrame(cloudS, this->LaserIdMapping);
 
   // Get the computed world transform so far
-  Transform worldTransform = slam_.GetWorldTransform();
-  std::vector<double> poseCovar = slam_.GetTransformCovariance();
+  Transform worldTransform = this->LidarSlam.GetWorldTransform();
+  std::vector<double> poseCovar = this->LidarSlam.GetTransformCovariance();
 
   // Publish TF, pose and covariance
   publishTfPoseCovar(cloudV.header, worldTransform, poseCovar);
@@ -116,7 +116,7 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::convertToSlamPointCloud(const CloudV& 
 
   // Get approximate timestamp of the first point
   double stampInit = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();  // timestamp of last Velodyne raw packet
-  stampInit -= 1. / lidarFreq_;  // approximate timestamp of first Velodyne raw packet
+  stampInit -= 1. / this->LidarFreq;  // approximate timestamp of first Velodyne raw packet
 
   // Build SLAM pointcloud
   for(unsigned int i = 0; i < cloudV.size(); i++)
@@ -129,7 +129,7 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::convertToSlamPointCloud(const CloudV& 
     slamPoint.intensity = velodynePoint.intensity;
     slamPoint.laserId = velodynePoint.ring;
     double frameAdvancement = (M_PI + std::atan2(velodynePoint.y, velodynePoint.x)) / (M_PI * 2);
-    slamPoint.time = stampInit + frameAdvancement / lidarFreq_;
+    slamPoint.time = stampInit + frameAdvancement / this->LidarFreq;
     // slamPoint.time = frameAdvancement;
     cloudS->at(i) = slamPoint;
   }
@@ -144,7 +144,7 @@ void LidarSlamNode::publishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
   // publish worldTransform
   geometry_msgs::TransformStamped tfMsg;
   pcl_conversions::fromPCL(headerCloudV, tfMsg.header);
-  tfMsg.header.frame_id = slamOriginFrameId_;
+  tfMsg.header.frame_id = this->SlamOriginFrameId;
   tfMsg.child_frame_id = headerCloudV.frame_id;
   tfMsg.transform.translation.x = worldTransform.x;
   tfMsg.transform.translation.y = worldTransform.y;
@@ -155,7 +155,7 @@ void LidarSlamNode::publishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
   tfMsg.transform.rotation.y = q.y();
   tfMsg.transform.rotation.z = q.z();
   tfMsg.transform.rotation.w = q.w();
-  tfBroadcaster_.sendTransform(tfMsg);
+  this->TfBroadcaster.sendTransform(tfMsg);
 
   // publish pose with covariance
   geometry_msgs::PoseWithCovarianceStamped poseCovarMsg;
@@ -173,123 +173,125 @@ void LidarSlamNode::publishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
                                   c[ 3], c[ 4], c[ 5],   c[ 0], c[ 1], c[ 2],
                                   c[ 9], c[10], c[11],   c[ 6], c[ 7], c[ 8],
                                   c[15], c[16], c[17],   c[12], c[13], c[14]};
-  poseCovarPub_.publish(poseCovarMsg);
+  this->PoseCovarPub.publish(poseCovarMsg);
 }
 
+//------------------------------------------------------------------------------
 void LidarSlamNode::publishFeaturesMaps(const CloudS::Ptr& cloudS)
 {
   // Publish pointcloud only if someone is listening to it to spare bandwidth.
-  if (debugCloudPub_.getNumSubscribers())
-    debugCloudPub_.publish(cloudS);
+  if (this->DebugCloudPub.getNumSubscribers())
+    this->DebugCloudPub.publish(cloudS);
 
   pcl::PCLHeader msgHeader = cloudS->header;
-  msgHeader.frame_id = slamOriginFrameId_;
+  msgHeader.frame_id = this->SlamOriginFrameId;
 
   // Publish edges only if recquired and if someone is listening to it.
-  if (publishEdges_ && edgesPub_.getNumSubscribers())
+  if (this->PublishEdges && this->EdgesPub.getNumSubscribers())
   {
-    CloudS::Ptr edgesCloud = slam_.GetEdgesMap();
+    CloudS::Ptr edgesCloud = this->LidarSlam.GetEdgesMap();
     edgesCloud->header = msgHeader;
-    edgesPub_.publish(edgesCloud);
+    this->EdgesPub.publish(edgesCloud);
   }
 
   // Publish planars only if recquired and if someone is listening to it.
-  if (publishPlanars_ && planarsPub_.getNumSubscribers())
+  if (this->PublishPlanars && this->PlanarsPub.getNumSubscribers())
   {
-    CloudS::Ptr planarsCloud = slam_.GetPlanarsMap();
+    CloudS::Ptr planarsCloud = this->LidarSlam.GetPlanarsMap();
     planarsCloud->header = msgHeader;
-    planarsPub_.publish(planarsCloud);
+    this->PlanarsPub.publish(planarsCloud);
   }
 
   // Publish blobs only if recquired and if someone is listening to it.
-  if (publishBlobs_ && blobsPub_.getNumSubscribers())
+  if (this->PublishBlobs && this->BlobsPub.getNumSubscribers())
   {
-    CloudS::Ptr blobsCloud = slam_.GetBlobsMap();
+    CloudS::Ptr blobsCloud = this->LidarSlam.GetBlobsMap();
     blobsCloud->header = msgHeader;
-    blobsPub_.publish(blobsCloud);
+    this->BlobsPub.publish(blobsCloud);
   }
 }
 
+//------------------------------------------------------------------------------
 void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
 {
   // common
   bool fastSlam, undistortion;
   double maxDistanceForICPMatching;
   if (priv_nh.getParam("slam/fast_slam", fastSlam))
-    slam_.SetFastSlam(fastSlam);
+    LidarSlam.SetFastSlam(fastSlam);
   if (priv_nh.getParam("slam/undistortion", undistortion))
-    slam_.SetUndistortion(undistortion);
+    LidarSlam.SetUndistortion(undistortion);
   if (priv_nh.getParam("slam/max_distance_for_ICP_matching", maxDistanceForICPMatching))
-    slam_.SetMaxDistanceForICPMatching(maxDistanceForICPMatching);
+    LidarSlam.SetMaxDistanceForICPMatching(maxDistanceForICPMatching);
 
   // ego motion
   int egoMotionLMMaxIter, egoMotionICPMaxIter, egoMotionLineDistanceNbrNeighbors, egoMotionMinimumLineNeighborRejection, egoMotionPlaneDistanceNbrNeighbors;
   double egoMotionLineDistancefactor, egoMotionPlaneDistancefactor1, egoMotionPlaneDistancefactor2, egoMotionMaxLineDistance, egoMotionMaxPlaneDistance, egoMotionInitLossScale, egoMotionFinalLossScale;
   if (priv_nh.getParam("slam/ego_motion_LM_max_iter", egoMotionLMMaxIter))
-    slam_.SetEgoMotionLMMaxIter(egoMotionLMMaxIter);
+    LidarSlam.SetEgoMotionLMMaxIter(egoMotionLMMaxIter);
   if (priv_nh.getParam("slam/ego_motion_ICP_max_iter", egoMotionICPMaxIter))
-    slam_.SetEgoMotionICPMaxIter(egoMotionICPMaxIter);
+    LidarSlam.SetEgoMotionICPMaxIter(egoMotionICPMaxIter);
   if (priv_nh.getParam("slam/ego_motion_line_distance_nbr_neighbors", egoMotionLineDistanceNbrNeighbors))
-    slam_.SetEgoMotionLineDistanceNbrNeighbors(egoMotionLineDistanceNbrNeighbors);
+    LidarSlam.SetEgoMotionLineDistanceNbrNeighbors(egoMotionLineDistanceNbrNeighbors);
   if (priv_nh.getParam("slam/ego_motion_minimum_line_neighbor_rejection", egoMotionMinimumLineNeighborRejection))
-    slam_.SetEgoMotionMinimumLineNeighborRejection(egoMotionMinimumLineNeighborRejection);
+    LidarSlam.SetEgoMotionMinimumLineNeighborRejection(egoMotionMinimumLineNeighborRejection);
   if (priv_nh.getParam("slam/ego_motion_line_distance_factor", egoMotionLineDistancefactor))
-    slam_.SetEgoMotionLineDistancefactor(egoMotionLineDistancefactor);
+    LidarSlam.SetEgoMotionLineDistancefactor(egoMotionLineDistancefactor);
   if (priv_nh.getParam("slam/ego_motion_plane_distance_nbr_neighbors", egoMotionPlaneDistanceNbrNeighbors))
-    slam_.SetEgoMotionPlaneDistanceNbrNeighbors(egoMotionPlaneDistanceNbrNeighbors);
+    LidarSlam.SetEgoMotionPlaneDistanceNbrNeighbors(egoMotionPlaneDistanceNbrNeighbors);
   if (priv_nh.getParam("slam/ego_motion_plane_distance_factor1", egoMotionPlaneDistancefactor1))
-    slam_.SetEgoMotionPlaneDistancefactor1(egoMotionPlaneDistancefactor1);
+    LidarSlam.SetEgoMotionPlaneDistancefactor1(egoMotionPlaneDistancefactor1);
   if (priv_nh.getParam("slam/ego_motion_plane_distance_factor2", egoMotionPlaneDistancefactor2))
-    slam_.SetEgoMotionPlaneDistancefactor2(egoMotionPlaneDistancefactor2);
+    LidarSlam.SetEgoMotionPlaneDistancefactor2(egoMotionPlaneDistancefactor2);
   if (priv_nh.getParam("slam/ego_motion_max_line_distance", egoMotionMaxLineDistance))
-    slam_.SetEgoMotionMaxLineDistance(egoMotionMaxLineDistance);
+    LidarSlam.SetEgoMotionMaxLineDistance(egoMotionMaxLineDistance);
   if (priv_nh.getParam("slam/ego_motion_max_plane_distance", egoMotionMaxPlaneDistance))
-    slam_.SetEgoMotionMaxPlaneDistance(egoMotionMaxPlaneDistance);
+    LidarSlam.SetEgoMotionMaxPlaneDistance(egoMotionMaxPlaneDistance);
   if (priv_nh.getParam("slam/ego_motion_init_loss_scale", egoMotionInitLossScale))
-    slam_.SetEgoMotionInitLossScale(egoMotionInitLossScale);
+    LidarSlam.SetEgoMotionInitLossScale(egoMotionInitLossScale);
   if (priv_nh.getParam("slam/ego_motion_final_loss_scale", egoMotionFinalLossScale))
-    slam_.SetEgoMotionFinalLossScale(egoMotionFinalLossScale);
+    LidarSlam.SetEgoMotionFinalLossScale(egoMotionFinalLossScale);
 
   // mapping
   int mappingLMMaxIter, mappingICPMaxIter, mappingLineDistanceNbrNeighbors, mappingMinimumLineNeighborRejection, mappingPlaneDistanceNbrNeighbors;
   double mappingLineDistancefactor, mappingPlaneDistancefactor1, mappingPlaneDistancefactor2, mappingMaxLineDistance, mappingMaxPlaneDistance, mappingLineMaxDistInlier, mappingInitLossScale, mappingFinalLossScale;
   if (priv_nh.getParam("slam/mapping_LM_max_iter", mappingLMMaxIter))
-    slam_.SetMappingLMMaxIter(mappingLMMaxIter);
+    LidarSlam.SetMappingLMMaxIter(mappingLMMaxIter);
   if (priv_nh.getParam("slam/mapping_ICP_max_iter", mappingICPMaxIter))
-    slam_.SetMappingICPMaxIter(mappingICPMaxIter);
+    LidarSlam.SetMappingICPMaxIter(mappingICPMaxIter);
   if (priv_nh.getParam("slam/mapping_line_distance_nbr_neighbors", mappingLineDistanceNbrNeighbors))
-    slam_.SetMappingLineDistanceNbrNeighbors(mappingLineDistanceNbrNeighbors);
+    LidarSlam.SetMappingLineDistanceNbrNeighbors(mappingLineDistanceNbrNeighbors);
   if (priv_nh.getParam("slam/mapping_minimum_line_neighbor_rejection", mappingMinimumLineNeighborRejection))
-    slam_.SetMappingMinimumLineNeighborRejection(mappingMinimumLineNeighborRejection);
+    LidarSlam.SetMappingMinimumLineNeighborRejection(mappingMinimumLineNeighborRejection);
   if (priv_nh.getParam("slam/mapping_line_distance_factor", mappingLineDistancefactor))
-    slam_.SetMappingLineDistancefactor(mappingLineDistancefactor);
+    LidarSlam.SetMappingLineDistancefactor(mappingLineDistancefactor);
   if (priv_nh.getParam("slam/mapping_plane_distance_nbr_neighbors", mappingPlaneDistanceNbrNeighbors))
-    slam_.SetMappingPlaneDistanceNbrNeighbors(mappingPlaneDistanceNbrNeighbors);
+    LidarSlam.SetMappingPlaneDistanceNbrNeighbors(mappingPlaneDistanceNbrNeighbors);
   if (priv_nh.getParam("slam/mapping_plane_distance_factor1", mappingPlaneDistancefactor1))
-    slam_.SetMappingPlaneDistancefactor1(mappingPlaneDistancefactor1);
+    LidarSlam.SetMappingPlaneDistancefactor1(mappingPlaneDistancefactor1);
   if (priv_nh.getParam("slam/mapping_plane_distance_factor2", mappingPlaneDistancefactor2))
-    slam_.SetMappingPlaneDistancefactor2(mappingPlaneDistancefactor2);
+    LidarSlam.SetMappingPlaneDistancefactor2(mappingPlaneDistancefactor2);
   if (priv_nh.getParam("slam/mapping_max_line_distance", mappingMaxLineDistance))
-    slam_.SetMappingMaxLineDistance(mappingMaxLineDistance);
+    LidarSlam.SetMappingMaxLineDistance(mappingMaxLineDistance);
   if (priv_nh.getParam("slam/mapping_max_plane_distance", mappingMaxPlaneDistance))
-    slam_.SetMappingMaxPlaneDistance(mappingMaxPlaneDistance);
+    LidarSlam.SetMappingMaxPlaneDistance(mappingMaxPlaneDistance);
   if (priv_nh.getParam("slam/mapping_line_max_dist_inlier", mappingLineMaxDistInlier))
-    slam_.SetMappingLineMaxDistInlier(mappingLineMaxDistInlier);
+    LidarSlam.SetMappingLineMaxDistInlier(mappingLineMaxDistInlier);
   if (priv_nh.getParam("slam/mapping_init_loss_scale", mappingInitLossScale))
-    slam_.SetMappingInitLossScale(mappingInitLossScale);
+    LidarSlam.SetMappingInitLossScale(mappingInitLossScale);
   if (priv_nh.getParam("slam/mapping_final_loss_scale", mappingFinalLossScale))
-    slam_.SetMappingFinalLossScale(mappingFinalLossScale);
+    LidarSlam.SetMappingFinalLossScale(mappingFinalLossScale);
 
   // rolling grids
   double voxelGridLeafSizeEdges, voxelGridLeafSizePlanes, voxelGridLeafSizeBlobs, voxelGridSize, voxelGridResolution;
   if (priv_nh.getParam("slam/voxel_grid_leaf_size_edges", voxelGridLeafSizeEdges))
-    slam_.SetVoxelGridLeafSizeEdges(voxelGridLeafSizeEdges);
+    LidarSlam.SetVoxelGridLeafSizeEdges(voxelGridLeafSizeEdges);
   if (priv_nh.getParam("slam/voxel_grid_leaf_size_planes", voxelGridLeafSizePlanes))
-    slam_.SetVoxelGridLeafSizePlanes(voxelGridLeafSizePlanes);
+    LidarSlam.SetVoxelGridLeafSizePlanes(voxelGridLeafSizePlanes);
   if (priv_nh.getParam("slam/voxel_grid_leaf_size_blobs", voxelGridLeafSizeBlobs))
-    slam_.SetVoxelGridLeafSizeBlobs(voxelGridLeafSizeBlobs);
+    LidarSlam.SetVoxelGridLeafSizeBlobs(voxelGridLeafSizeBlobs);
   if (priv_nh.getParam("slam/voxel_grid_size", voxelGridSize))
-    slam_.SetVoxelGridSize(voxelGridSize);
+    LidarSlam.SetVoxelGridSize(voxelGridSize);
   if (priv_nh.getParam("slam/voxel_grid_resolution", voxelGridResolution))
-    slam_.SetVoxelGridResolution(voxelGridResolution);
+    LidarSlam.SetVoxelGridResolution(voxelGridResolution);
 }
