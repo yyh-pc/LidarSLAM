@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.9)
 project(lidar_slam)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11 -O2)
+set(CMAKE_CXX_STANDARD 11)
+if (NOT CMAKE_BUILD_TYPE)
+    message(STATUS "No build type selected, default to RelWithDebInfo")
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif(NOT CMAKE_BUILD_TYPE)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
