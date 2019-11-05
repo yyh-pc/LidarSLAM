@@ -133,9 +133,6 @@ public:
   SetMacro(Verbose, bool)
   GetMacro(Verbose, bool)
 
-  GetMacro(MaxDistBetweenTwoFrames, double)
-  SetMacro(MaxDistBetweenTwoFrames, double)
-
   GetMacro(MaxDistanceForICPMatching, double)
   SetMacro(MaxDistanceForICPMatching, double)
 
@@ -282,16 +279,6 @@ private:
 
   // Number of frame that have been processed
   unsigned int NbrFrameProcessed = 0;
-
-  // The max distance allowed between two frames
-  // If the distance is over this limit, the ICP
-  // matching will not match point and the odometry
-  // will fail. It has to be setted according to the
-  // maximum speed of the vehicule used
-  // Represent the distance that the lidar has made during one sweep
-  // if it is moving at a speed of 90 km/h and spinning at a rpm
-  // of 600 rotation per minute
-  double MaxDistBetweenTwoFrames = (90.0 / 3.6) * (60.0 / 600.0);
 
   // Maximum number of iteration
   // in the ego motion optimization step

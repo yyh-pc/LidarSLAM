@@ -473,16 +473,12 @@ void Slam::Reset()
 Transform Slam::GetWorldTransform()
 {
   Transform t;
-
   t.x = this->Tworld(3);
   t.y = this->Tworld(4);
   t.z = this->Tworld(5);
-
-  Eigen::Matrix3d Rw = GetRotationMatrix(this->Tworld);
-  t.rx = std::atan2(Rw(2, 1), Rw(2, 2));
-  t.ry = -std::asin(Rw(2, 0));
-  t.rz = std::atan2(Rw(1, 0), Rw(0, 0));
-
+  t.rx = this->Tworld(0);
+  t.ry = this->Tworld(1);
+  t.rz = this->Tworld(2);
   return t;
 }
 
@@ -878,7 +874,6 @@ int Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes,
     return 2;
   }
 
-  // A = n*n.t
   A = n * n.transpose();
 
   // it would be the case if P1 = P2, P1 = P3
