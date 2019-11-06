@@ -11,7 +11,7 @@
 LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 {
   // Get SLAM params
-  SetSlamParameters(priv_nh);
+  this->SetSlamParameters(priv_nh);
 
   // Init laserIdMapping
   std::vector<int> intLaserIdMapping;
@@ -55,13 +55,13 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // Init ROS subscribers and publishers
   priv_nh.getParam("slam_origin_frame", this->SlamOriginFrameId);
   this->PoseCovarPub = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("slam_pose", 1);
-  this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::scanCallback, this);
+  this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::ScanCallback, this);
 
   ROS_INFO_STREAM("\033[1;32m LiDAR SLAM is ready ! \033[0m");
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::scanCallback(const CloudV& cloudV)
+void LidarSlamNode::ScanCallback(const CloudV& cloudV)
 {
   std::chrono::duration<double, std::milli> chrono_ms;
   std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
@@ -87,7 +87,7 @@ void LidarSlamNode::scanCallback(const CloudV& cloudV)
   }
 
   // Convert pointcloud PointV type to expected PointS type
-  CloudS::Ptr cloudS = convertToSlamPointCloud(cloudV);
+  CloudS::Ptr cloudS = this->ConvertToSlamPointCloud(cloudV);
 
   // Run SLAM : register new frame and update position and mapping.
   this->LidarSlam.AddFrame(cloudS, this->LaserIdMapping);
@@ -97,17 +97,17 @@ void LidarSlamNode::scanCallback(const CloudV& cloudV)
   std::vector<double> poseCovar = this->LidarSlam.GetTransformCovariance();
 
   // Publish TF, pose and covariance
-  publishTfPoseCovar(cloudV.header, worldTransform, poseCovar);
+  this->PublishTfPoseCovar(cloudV.header, worldTransform, poseCovar);
 
   // Publish optional debug info
-  publishFeaturesMaps(cloudS);
+  this->PublishFeaturesMaps(cloudS);
 
   chrono_ms = std::chrono::high_resolution_clock::now() - start;
   std::cout << "SLAM perfomed in : " << chrono_ms.count() << " ms" << std::endl;
 }
 
 //------------------------------------------------------------------------------
-LidarSlamNode::CloudS::Ptr LidarSlamNode::convertToSlamPointCloud(const CloudV& cloudV)
+LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& cloudV)
 {
   // Init SLAM pointcloud
   CloudS::Ptr cloudS(new CloudS);
@@ -137,8 +137,8 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::convertToSlamPointCloud(const CloudV& 
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::publishTfPoseCovar(const pcl::PCLHeader& headerCloudV, 
-                                       const Transform& worldTransform, 
+void LidarSlamNode::PublishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
+                                       const Transform& worldTransform,
                                        const std::vector<double>& poseCovar)
 {
   // publish worldTransform
@@ -177,7 +177,7 @@ void LidarSlamNode::publishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::publishFeaturesMaps(const CloudS::Ptr& cloudS)
+void LidarSlamNode::PublishFeaturesMaps(const CloudS::Ptr& cloudS)
 {
   // Publish pointcloud only if someone is listening to it to spare bandwidth.
   if (this->DebugCloudPub.getNumSubscribers())
@@ -294,4 +294,23 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
     LidarSlam.SetVoxelGridSize(voxelGridSize);
   if (priv_nh.getParam("slam/voxel_grid_resolution", voxelGridResolution))
     LidarSlam.SetVoxelGridResolution(voxelGridResolution);
+}
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Main node entry point.
+ */
+int main(int argc, char **argv)
+{
+  ros::init(argc, argv, "lidar_slam");
+  ros::NodeHandle nh;
+  ros::NodeHandle priv_nh("~");
+
+  // create lidar slam node, which subscribes to pointclouds
+  LidarSlamNode slam(nh, priv_nh);
+
+  // handle callbacks until shut down
+  ros::spin();
+
+  return 0;
 }

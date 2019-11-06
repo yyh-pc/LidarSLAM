@@ -5,8 +5,6 @@
 #include <ros/ros.h>
 #include <velodyne_pointcloud/point_types.h>
 #include <tf2_ros/transform_broadcaster.h>
-
-// PCL
 #include <pcl_ros/point_cloud.h>
 
 // SLAM
@@ -34,7 +32,7 @@ public:
    * @brief     New lidar frame callback, running SLAM and publishing TF.
    * @param[in] cloud New Lidar Frame, published by velodyne_pointcloud/cloud_node.
    */
-  void scanCallback(const CloudV& cloud);
+  void ScanCallback(const CloudV& cloud);
 
 private:
 
@@ -47,7 +45,7 @@ private:
    * Velodyne pointcloud has fields : x, y, z, intensity (float), ring (uint16).
    * Slam pointcloud has fields     : x, y, z, intensity (uint8), laserId (uint8), time (double).
    */
-  CloudS::Ptr convertToSlamPointCloud(const CloudV& cloudV);
+  CloudS::Ptr ConvertToSlamPointCloud(const CloudV& cloudV);
 
   //----------------------------------------------------------------------------
   /*!
@@ -58,8 +56,8 @@ private:
    *
    * NOTE : poseCovar encodes covariance for dof in this order : (rX, rY, rZ, X, Y, Z)
    */
-  void publishTfPoseCovar(const pcl::PCLHeader& headerCloudV, 
-                          const Transform& worldTransform, 
+  void PublishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
+                          const Transform& worldTransform,
                           const std::vector<double>& poseCovar);
 
   //----------------------------------------------------------------------------
@@ -67,7 +65,7 @@ private:
    * @brief     Publish additionnal info, such as Slam or features pointclouds.
    * @param[in] cloudS Slam pointcloud.
    */
-  void publishFeaturesMaps(const CloudS::Ptr& cloudS);
+  void PublishFeaturesMaps(const CloudS::Ptr& cloudS);
 
   //----------------------------------------------------------------------------
   /*!
