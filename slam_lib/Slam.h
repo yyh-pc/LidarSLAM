@@ -81,6 +81,7 @@
 
 #include <Eigen/Geometry>
 
+#include "Transform.h"
 #include "LidarPoint.h"
 #include "SpinningSensorKeypointExtractor.h"
 #include "KDTreePCLAdaptor.h"
@@ -102,34 +103,6 @@ enum WithinFrameTrajMode
   EgoMotionTraj = 0,
   MappingTraj = 1,
   UndistortionTraj = 2
-};
-
-struct Transform
-{
-  double time = 0;
-  union
-  {
-    double position[3] = { 0.0, 0.0, 0.0 };
-    struct {
-      double x;
-      double y;
-      double z;
-    };
-  };
-  union
-  {
-    double orientation[3] = { 0.0, 0.0, 0.0 };
-    struct {
-      double rx;
-      double ry;
-      double rz;
-    };
-  };
-
-  Transform() = default;
-  Transform(double t, const Eigen::Matrix<double, 6, 1>& data)
-    : time(t), x(data[0]), y(data[1]), z(data[2]),
-      rx(data[3]), ry(data[4]), rz(data[5]) {}
 };
 
 class Slam
