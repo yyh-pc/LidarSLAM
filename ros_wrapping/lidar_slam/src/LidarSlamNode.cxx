@@ -2,7 +2,7 @@
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <geometry_msgs/TransformStamped.h>
-#include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <nav_msgs/Odometry.h>
 #include <tf2/LinearMath/Quaternion.h>
 
 #include <chrono>
@@ -54,10 +54,10 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   // Init ROS subscribers and publishers
   priv_nh.getParam("slam_origin_frame", this->SlamOriginFrameId);
-  this->PoseCovarPub = nh.advertise<geometry_msgs::PoseWithCovarianceStamped>("slam_pose", 1);
+  this->PoseCovarPub = nh.advertise<nav_msgs::Odometry>("slam_pose", 1);
   this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::ScanCallback, this);
 
-  ROS_INFO_STREAM("\033[1;32m LiDAR SLAM is ready ! \033[0m");
+  ROS_INFO_STREAM("\033[1;32mLiDAR SLAM is ready !\033[0m");
 }
 
 //------------------------------------------------------------------------------
@@ -158,7 +158,7 @@ void LidarSlamNode::PublishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
   this->TfBroadcaster.sendTransform(tfMsg);
 
   // publish pose with covariance
-  geometry_msgs::PoseWithCovarianceStamped poseCovarMsg;
+  nav_msgs::Odometry poseCovarMsg;
   poseCovarMsg.header = tfMsg.header;
   poseCovarMsg.pose.pose.orientation = tfMsg.transform.rotation;
   poseCovarMsg.pose.pose.position.x = worldTransform.x;

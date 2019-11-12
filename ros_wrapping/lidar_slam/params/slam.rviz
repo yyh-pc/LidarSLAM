@@ -6,10 +6,11 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
-        - /PoseWithCovariance1/Covariance1/Position1
-        - /PoseWithCovariance1/Covariance1/Orientation1
-        - /Features Maps1
-      Splitter Ratio: 0.5941176414489746
+        - /SLAM odom1/Shape1
+        - /GPS odom1/Shape1
+        - /GPS odom1/Covariance1
+        - /GPS odom1/Covariance1/Position1
+      Splitter Ratio: 0.6705882549285889
     Tree Height: 728
   - Class: rviz/Selection
     Name: Selection
@@ -29,7 +30,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: Debug cloud
+    SyncSource: Slam cloud
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -38,7 +39,7 @@ Visualization Manager:
   Class: ""
   Displays:
     - Alpha: 0.5
-      Cell Size: 1
+      Cell Size: 5
       Class: rviz/Grid
       Color: 160; 160; 164
       Enabled: true
@@ -56,19 +57,35 @@ Visualization Manager:
       Reference Frame: <Fixed Frame>
       Value: true
     - Class: rviz/TF
-      Enabled: false
+      Enabled: true
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        gps:
+          Value: true
+        map:
+          Value: true
+        slam_init:
+          Value: true
+        utm:
+          Value: true
+        velodyne:
+          Value: true
       Marker Scale: 10
       Name: TF
       Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
-        {}
+        map:
+          slam_init:
+            velodyne:
+              {}
+        utm:
+          gps:
+            {}
       Update Interval: 0
-      Value: false
+      Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -110,7 +127,7 @@ Visualization Manager:
       Class: rviz/PointCloud2
       Color: 255; 255; 255
       Color Transformer: Intensity
-      Decay Time: 20
+      Decay Time: 60
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
@@ -129,11 +146,8 @@ Visualization Manager:
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
-    - Alpha: 1
-      Axes Length: 0.8999999761581421
-      Axes Radius: 0.10000000149011612
-      Class: rviz/PoseWithCovariance
-      Color: 255; 25; 0
+    - Angle Tolerance: 0.20000000298023224
+      Class: rviz/Odometry
       Covariance:
         Orientation:
           Alpha: 1
@@ -150,13 +164,77 @@ Visualization Manager:
           Value: true
         Value: true
       Enabled: true
-      Head Length: 0.30000001192092896
-      Head Radius: 0.10000000149011612
-      Name: PoseWithCovariance
-      Shaft Length: 1
-      Shaft Radius: 0.05000000074505806
-      Shape: Axes
+      Keep: 10000
+      Name: SLAM odom
+      Position Tolerance: 0.5
+      Shape:
+        Alpha: 1
+        Axes Length: 0.30000001192092896
+        Axes Radius: 0.05000000074505806
+        Color: 255; 25; 0
+        Head Length: 0.30000001192092896
+        Head Radius: 0.10000000149011612
+        Shaft Length: 1
+        Shaft Radius: 0.05000000074505806
+        Value: Axes
       Topic: /slam_pose
+      Unreliable: false
+      Value: true
+    - Angle Tolerance: 0.20000000298023224
+      Class: rviz/Odometry
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: false
+        Position:
+          Alpha: 0.30000001192092896
+          Color: 204; 51; 204
+          Scale: 1
+          Value: true
+        Value: true
+      Enabled: true
+      Keep: 10000
+      Name: GPS odom
+      Position Tolerance: 0.5
+      Shape:
+        Alpha: 1
+        Axes Length: 0.30000001192092896
+        Axes Radius: 0.05000000074505806
+        Color: 255; 25; 0
+        Head Length: 0.30000001192092896
+        Head Radius: 0.10000000149011612
+        Shaft Length: 1
+        Shaft Radius: 0.05000000074505806
+        Value: Axes
+      Topic: /gps_odom
+      Unreliable: false
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 0; 157; 255
+      Enabled: true
+      Head Diameter: 0.05000000074505806
+      Head Length: 0.029999999329447746
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.10000000149011612
+      Name: SLAM-GPS path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 0; 157; 255
+      Pose Style: Arrows
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.05000000074505806
+      Shaft Length: 0
+      Topic: /optim_slam_poses
       Unreliable: false
       Value: true
     - Class: rviz/Group
@@ -253,6 +331,164 @@ Visualization Manager:
           Value: true
       Enabled: false
       Name: Features Maps
+    - Class: rviz/Group
+      Displays:
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 242; 0; 46
+          Color Transformer: FlatColor
+          Decay Time: 10
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 4096
+          Min Color: 0; 0; 0
+          Min Intensity: 0
+          Name: Obstacles
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 2
+          Size (m): 0.009999999776482582
+          Style: Points
+          Topic: /obstacle_cloud
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Alpha: 0.5
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 115; 210; 22
+          Color Transformer: FlatColor
+          Decay Time: 10
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 4096
+          Min Color: 0; 0; 0
+          Min Intensity: 0
+          Name: Ground
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 2
+          Size (m): 0.009999999776482582
+          Style: Points
+          Topic: /ground_cloud
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+      Enabled: false
+      Name: Ground segmentation
+    - Class: rviz/Group
+      Displays:
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: FlatColor
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 255
+          Min Color: 0; 0; 0
+          Min Intensity: 1
+          Name: Ransac Region
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 3
+          Size (m): 0.009999999776482582
+          Style: Points
+          Topic: /ransac_region
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 0; 163; 255
+          Color Transformer: FlatColor
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 0
+          Min Color: 0; 0; 0
+          Min Intensity: 0
+          Name: Road edges
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 5
+          Size (m): 0.10000000149011612
+          Style: Points
+          Topic: /road_edges
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+        - Alpha: 1
+          Autocompute Intensity Bounds: true
+          Autocompute Value Bounds:
+            Max Value: 10
+            Min Value: -10
+            Value: true
+          Axis: Z
+          Channel Name: intensity
+          Class: rviz/PointCloud2
+          Color: 255; 255; 255
+          Color Transformer: Intensity
+          Decay Time: 0
+          Enabled: true
+          Invert Rainbow: false
+          Max Color: 255; 255; 255
+          Max Intensity: 255
+          Min Color: 0; 0; 0
+          Min Intensity: 1
+          Name: Local Cloud
+          Position Transformer: XYZ
+          Queue Size: 10
+          Selectable: true
+          Size (Pixels): 2
+          Size (m): 0.009999999776482582
+          Style: Points
+          Topic: /local_cloud
+          Unreliable: false
+          Use Fixed Frame: true
+          Use rainbow: true
+          Value: true
+      Enabled: false
+      Name: Road edge detection
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -281,7 +517,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 38.65114212036133
+      Distance: 34.785499572753906
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -296,10 +532,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3547975420951843
+      Pitch: 0.4503982365131378
       Target Frame: velodyne
       Value: Orbit (rviz)
-      Yaw: 1.070397973060608
+      Yaw: 1.0403976440429688
     Saved: ~
 Window Geometry:
   Displays:

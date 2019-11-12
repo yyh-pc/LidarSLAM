@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   geometry_msgs
   sensor_msgs
+  nav_msgs
   velodyne_pointcloud
 )
 
