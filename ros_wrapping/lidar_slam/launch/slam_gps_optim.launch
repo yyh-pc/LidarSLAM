@@ -1,0 +1,24 @@
+<launch>
+
+  <!-- SLAM -->
+  <include file="$(find lidar_slam)/launch/slam.launch"/>
+
+  <!-- GPS conversion : Lat/Lon to UTM X/Y -->
+  <!-- from sensor_msgs/NavSatFix to nav_msgs/Odometry -->
+  <node name="navsatfix_to_utm" pkg="gps_common" type="utm_odometry_node" output="screen">
+    <param name="frame_id" value="utm"/>
+    <param name="child_frame_id" value="gps"/>
+    <remap from="odom" to="gps_odom"/>
+  </node>
+  <!-- from novariant_capi/PositionGps to nav_msgs/Odometry -->
+  <node name="gps_to_utm" pkg="novariant_capi" type="gps_to_utm" output="screen">
+    <param name="frame_id" value="utm"/>
+    <param name="child_frame_id" value="gps"/>
+    <param name="tf_offset_to_map" value="true"/>
+    <remap from="gps_fix" to="gps_ihm_full"/>
+  </node>
+
+  <!-- Pose graph optimization using GPS and SLAM poses -->
+  <node name="pose_graph_optimization" pkg="lidar_slam" type="pose_graph_optimization_node" output="screen" />
+
+</launch>
