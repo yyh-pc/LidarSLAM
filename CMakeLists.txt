@@ -10,6 +10,8 @@ find_package(Eigen3 REQUIRED)
 
 find_package(Ceres REQUIRED)
 
+find_package(g2o REQUIRED)
+
 find_package(PCL REQUIRED COMPONENTS common kdtree)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
