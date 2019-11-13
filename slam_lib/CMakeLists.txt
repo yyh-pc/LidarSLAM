@@ -1,5 +1,6 @@
 add_library(slamlib
   LidarPoint.h
+  Transform.cxx
   Transform.h
   Slam.cxx
   Slam.h

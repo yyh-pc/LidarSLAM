@@ -13,19 +13,9 @@ namespace Eigen
 namespace
 {
   //----------------------------------------------------------------------------
-  Eigen::Isometry3d GetTransform(const Transform& pose)
-  {
-    Eigen::Translation3d trans(pose.x, pose.y, pose.z);
-    Eigen::Quaterniond rot(Eigen::AngleAxisd(pose.rz, Eigen::Vector3d::UnitZ()) *
-                           Eigen::AngleAxisd(pose.ry, Eigen::Vector3d::UnitY()) *
-                           Eigen::AngleAxisd(pose.rx, Eigen::Vector3d::UnitX()));
-    return Eigen::Isometry3d(trans * rot);
-  }
-
-  //----------------------------------------------------------------------------
   Eigen::Isometry3d GetRelativeTransform(const Transform& pose1, const Transform& pose2)
   {
-    return GetTransform(pose1).inverse() * GetTransform(pose2);
+    return pose1.GetIsometry().inverse() * pose2.GetIsometry();
   }
 
   //----------------------------------------------------------------------------
@@ -229,11 +219,11 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   for (unsigned int i = 0; i < nbSlamPoses; ++i)
   {
     // Get current SLAM pose
-    Eigen::Isometry3d H = GetTransform(transSlamPoses[i]);
+    Eigen::Isometry3d H = transSlamPoses[i].GetIsometry();
 
     // Add SLAM pose (position + orientation) as a vertex
     g2o::VertexSE3* poseVertex = new g2o::VertexSE3;
-    g2o::SE3Quat pose(H.linear(), H.translation());  // CHECK H.linear() instead of H.rotation() ?
+    g2o::SE3Quat pose(H.linear(), H.translation());
     poseVertex->setId(++idCount);
     poseVertex->setEstimate(pose);
     poseVertex->setFixed(false);
@@ -260,19 +250,9 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   int prevFoundId = -1;
   for (unsigned int i = 0; i < nbGpsPoses; ++i)
   {
-    // Get current GPS pose
-    Eigen::Isometry3d H = GetTransform(transGpsPoses[i]);
-
-    // Add GPS pose (position) as a vertex
-    auto poseVertex = std::make_unique<g2o::VertexPointXYZ>();
-    poseVertex->setId(++idCount);
-    poseVertex->setEstimate(H.translation());
-    poseVertex->setFixed(true);
-    this->GraphOptimizer.addVertex(poseVertex.release());
-
-    // Add an edge between the temporal closest SLAM vertex
     // TODO can be optimized in order to not search again through all slam poses.
     int foundId = FindClosestSlamPose(transGpsPoses[i], transSlamPoses);
+
     // Check matching validity, and ensure that the found slam pose is different
     // from the previous one (to prevent matching a single SLAM point to 2 
     // different GPS points).
@@ -281,8 +261,19 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
     {
       prevFoundId = foundId;
 
+       // Get current GPS pose and covariance
+      Eigen::Isometry3d H = transGpsPoses[i].GetIsometry();
       Eigen::Map<Eigen::Matrix3d> covMatrix((double*) gpsCov[i].data());
 
+      // Add GPS position as a vertex
+      auto poseVertex = std::make_unique<g2o::VertexPointXYZ>();
+      poseVertex->setId(++idCount);
+      poseVertex->setEstimate(H.translation());
+      poseVertex->setFixed(true);
+      poseVertex->setMarginalized(true);
+      this->GraphOptimizer.addVertex(poseVertex.release());
+
+      // Add an edge between the temporal closest SLAM vertex
       auto gpsEdge = std::make_unique<g2o::EdgeSE3PointXYZ>();
       gpsEdge->vertices()[1] = this->GraphOptimizer.vertex(idCount);
       gpsEdge->vertices()[0] = this->GraphOptimizer.vertex(foundId); // get the temporal closest SLAM vertex

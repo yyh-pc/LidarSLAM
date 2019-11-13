@@ -165,9 +165,7 @@ void PoseGraphOptimizationNode::RunOptimizationCallback(const std_msgs::Empty& m
     poseMsg.pose.position.z = pose.z;
 
     // Fill orientation
-    Eigen::Quaterniond quat(Eigen::AngleAxisd(pose.rz, Eigen::Vector3d::UnitZ()) *
-                            Eigen::AngleAxisd(pose.ry, Eigen::Vector3d::UnitY()) *
-                            Eigen::AngleAxisd(pose.rx, Eigen::Vector3d::UnitX()));
+    Eigen::Quaterniond quat = pose.GetRotation();
     poseMsg.pose.orientation.w = quat.w();
     poseMsg.pose.orientation.x = quat.x();
     poseMsg.pose.orientation.y = quat.y();
