@@ -8,12 +8,25 @@ PoseGraphOptimizationNode::PoseGraphOptimizationNode(ros::NodeHandle& nh, ros::N
   : TfListener(TfBuffer)
 {
   // Init algo parameters
-  this->Algo.SetGPSCalibration(0., 0., 0.);
-  this->Algo.SetNbIteration(30);
-  this->Algo.SetVerbose(true);
-  this->Algo.SetG2OFileName("/home/nicolas/pose_graph_opitmization.g2o");
-  this->Algo.SetSaveG2OFile(true);
-  this->Algo.SetTimeOffset(0.);
+  bool verbose;
+  int nbIterations;
+  double timeOffset;
+  std::string g2oFileName;
+  std::vector<double> gpsCalib;
+  priv_nh.param("output_frame_id", this->OutputFrameId, this->OutputFrameId);
+  if (priv_nh.getParam("n_iterations", nbIterations))
+    this->Algo.SetNbIteration(nbIterations);
+  if (priv_nh.getParam("time_offset", timeOffset))
+    this->Algo.SetTimeOffset(timeOffset);
+  if (priv_nh.getParam("verbose", verbose))
+    this->Algo.SetVerbose(verbose);
+  if (priv_nh.getParam("g2o_file_name", g2oFileName))
+  {
+    this->Algo.SetSaveG2OFile(!g2oFileName.empty());
+    this->Algo.SetG2OFileName(g2oFileName);
+  }
+  if (priv_nh.getParam("tf_sensor_to_gps", gpsCalib))
+    this->Algo.SetGPSCalibration(gpsCalib[0], gpsCalib[1], gpsCalib[2], gpsCalib[3], gpsCalib[4], gpsCalib[5]);
 
   // Init ROS subscribers and publishers
   this->OptimSlamPosesPub = nh.advertise<nav_msgs::Path>("optim_slam_poses", 1);

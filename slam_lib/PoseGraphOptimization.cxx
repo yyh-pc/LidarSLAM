@@ -127,13 +127,16 @@ PoseGraphOptimization::PoseGraphOptimization()
 }
 
 //------------------------------------------------------------------------------
-void PoseGraphOptimization::SetGPSCalibration(double x, double y, double z)
+void PoseGraphOptimization::SetGPSCalibration(double x, double y, double z, double rx, double ry, double rz)
 {
   auto* GPSOffset = dynamic_cast<g2o::ParameterSE3Offset*>(this->GraphOptimizer.parameter(0));
   if (GPSOffset)
   {
     Eigen::Translation3d t(x, y, z);
-    Eigen::Isometry3d Trans(t);
+    Eigen::Quaterniond r(Eigen::AngleAxisd(rz, Eigen::Vector3d::UnitZ()) *
+                         Eigen::AngleAxisd(ry, Eigen::Vector3d::UnitY()) *
+                         Eigen::AngleAxisd(rx, Eigen::Vector3d::UnitX()));
+    Eigen::Isometry3d Trans(r * t);
     GPSOffset->setOffset(Trans);
   }
   else

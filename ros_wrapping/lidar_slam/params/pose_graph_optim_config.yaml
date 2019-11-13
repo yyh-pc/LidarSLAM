@@ -1,0 +1,11 @@
+#################################################
+#  SLAM/GPS Pose graph optimization parameters  #
+#################################################
+
+output_frame_id: "slam_init"
+
+n_iterations: 1000
+time_offset: 0.
+tf_sensor_to_gps: [0., 0., 0., 0., -0.3, 0.]  # Pose (x, y, z, rx, ry, rz) of the GPS in the referential of the sensor that produce the trajectory to optimize
+verbose: true
+g2o_file_name: "/home/nicolas/pose_graph_opitmization.g2o"

@@ -33,8 +33,8 @@ class PoseGraphOptimization
 public:
   PoseGraphOptimization();
 
-  //! Position of the GPS in the referential of the sensor that produce the trajectory to optimize
-  void SetGPSCalibration(double x, double y, double z);
+  //! Pose of the GPS in the referential of the sensor that produce the trajectory to optimize
+  void SetGPSCalibration(double x, double y, double z, double rx, double ry, double rz);
 
   //! Compute optimized Slam trajectory using GPS ground-control points.
   bool Process(const std::vector<Transform>& slamPoses,

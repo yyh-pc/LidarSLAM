@@ -19,6 +19,8 @@
   </node>
 
   <!-- Pose graph optimization using GPS and SLAM poses -->
-  <node name="pose_graph_optimization" pkg="lidar_slam" type="pose_graph_optimization_node" output="screen" />
+  <node name="pose_graph_optimization" pkg="lidar_slam" type="pose_graph_optimization_node" output="screen">
+    <rosparam file="$(find lidar_slam)/params/pose_graph_optim_config.yaml" command="load"/>
+  </node>
 
 </launch>
