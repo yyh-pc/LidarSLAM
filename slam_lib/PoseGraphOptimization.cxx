@@ -129,22 +129,23 @@ PoseGraphOptimization::PoseGraphOptimization()
 //------------------------------------------------------------------------------
 void PoseGraphOptimization::SetGPSCalibration(double x, double y, double z, double rx, double ry, double rz)
 {
-  auto* GPSOffset = dynamic_cast<g2o::ParameterSE3Offset*>(this->GraphOptimizer.parameter(0));
-  if (GPSOffset)
-  {
-    Eigen::Translation3d t(x, y, z);
-    Eigen::Quaterniond r(Eigen::AngleAxisd(rz, Eigen::Vector3d::UnitZ()) *
-                         Eigen::AngleAxisd(ry, Eigen::Vector3d::UnitY()) *
-                         Eigen::AngleAxisd(rx, Eigen::Vector3d::UnitX()));
-    Eigen::Isometry3d Trans(r * t);
-    GPSOffset->setOffset(Trans);
-  }
-  else
-  {
-    std::cerr << "ERROR : The first g2o parameter is not an SO3 Offset" << std::endl;
-  }
+  Eigen::Translation3d t(x, y, z);
+  Eigen::Quaterniond r(Eigen::AngleAxisd(rz, Eigen::Vector3d::UnitZ()) *
+                       Eigen::AngleAxisd(ry, Eigen::Vector3d::UnitY()) *
+                       Eigen::AngleAxisd(rx, Eigen::Vector3d::UnitX()));
+  Eigen::Isometry3d transform(r * t);
+  this->SetGPSCalibration(transform);
 }
 
+//------------------------------------------------------------------------------
+void PoseGraphOptimization::SetGPSCalibration(const Eigen::Isometry3d& sensorToGps)
+{
+  auto* GPSOffset = dynamic_cast<g2o::ParameterSE3Offset*>(this->GraphOptimizer.parameter(0));
+  if (GPSOffset)
+    GPSOffset->setOffset(sensorToGps);
+  else
+    std::cerr << "ERROR : The first g2o parameter is not an SO3 Offset" << std::endl;
+}
 
 //------------------------------------------------------------------------------
 bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
