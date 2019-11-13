@@ -61,7 +61,7 @@ private:
   std::string G2OFileName = "";
   int NbIteration = 30;
   bool Verbose = false;
-  double TimeOffset = 0;
+  double TimeOffset = 0;  ///< GPS time = SLAM time + TimeOffset
 };
 
 #endif // POSE_GRAPH_OPTIMIZATION_H

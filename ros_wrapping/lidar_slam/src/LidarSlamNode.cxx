@@ -160,6 +160,7 @@ void LidarSlamNode::PublishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
   // publish pose with covariance
   nav_msgs::Odometry poseCovarMsg;
   poseCovarMsg.header = tfMsg.header;
+  poseCovarMsg.child_frame_id = tfMsg.header.frame_id;
   poseCovarMsg.pose.pose.orientation = tfMsg.transform.rotation;
   poseCovarMsg.pose.pose.position.x = worldTransform.x;
   poseCovarMsg.pose.pose.position.y = worldTransform.y;

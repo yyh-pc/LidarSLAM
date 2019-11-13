@@ -57,10 +57,7 @@ void PoseGraphOptimizationNode::SlamPoseCallback(const nav_msgs::Odometry& msg)
                          slamPose.orientation.z);
   Transform pose(time, trans, rot);
 
-  // Unpack covariance
-  // CHECK DoF order, (X, Y, Z, rX, rY, rZ) or (rX, rY, rZ, X, Y, Z)
-  // std::array<double, 36> covar;
-  // std::copy(covar.begin(), covar.end(), (double*) msg.pose.covariance.begin());
+  // Unpack covariance and change DoF order from (X, Y, Z, rX, rY, rZ) to (rX, rY, rZ, X, Y, Z)
   const auto& c = msg.pose.covariance; 
   std::array<double, 36> covar = {c[21], c[22], c[23],   c[18], c[19], c[20],
                                   c[27], c[28], c[29],   c[24], c[25], c[26],
@@ -99,14 +96,11 @@ void PoseGraphOptimizationNode::GpsPoseCallback(const nav_msgs::Odometry& msg)
                          gpsPose.orientation.z);
   Transform pose(time, trans, rot);
 
-  // Unpack covariance
+  // Unpack position covariance only
   const auto& c = msg.pose.covariance; 
   std::array<double, 9> covar = {c[ 0], c[ 1], c[ 2],
                                  c[ 6], c[ 7], c[ 8],
                                  c[12], c[13], c[14]};
-  // std::array<double, 9> covar = {1e-3,    0,    0,
-  //                                   0, 1e-3,    0,
-  //                                   0,    0, 1e-3};
 
   // Save for later optimization
   this->GpsPoses.push_back(pose);

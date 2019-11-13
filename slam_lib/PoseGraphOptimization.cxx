@@ -5,6 +5,8 @@
 #include <g2o/solvers/eigen/linear_solver_eigen.h>
 #include <g2o/types/slam3d/types_slam3d.h>
 
+#include <pcl/registration/icp.h>
+
 namespace Eigen
 {
   using Matrix6d = Eigen::Matrix<double, 6, 6>;
@@ -23,10 +25,10 @@ namespace
    * @brief Find closest SLAM point index matching with a GPS point.
    * @param[in] gpsPose     The GPS point to match.
    * @param[in] slamPoses   The SLAM points to search in.
-   * @param[in] maxTimeDiff The maximum time difference allowed between a 
+   * @param[in] maxTimeDiff The maximum time difference allowed between a
    *                        GPS/SLAM pair of points to be considered matching.
    * @return The index of the closest SLAM point.
-   * 
+   *
    * NOTE : The assertion of sorted vectors is done (time is increasing through poses).
    */
   int FindClosestSlamPose(const Transform& gpsPose, const std::vector<Transform>& slamPoses, double maxTimeDiff = 0.1)
@@ -53,59 +55,73 @@ namespace
   }
 
   //----------------------------------------------------------------------------
-  Eigen::Translation3d ComputeBarycenter(const std::vector<Transform>& poses)
+  Eigen::Translation3d ComputeRoughTranslationOffset(const std::vector<Transform>& slamPoses,
+                                                     const std::vector<Transform>& gpsPoses)
   {
-    Eigen::Translation3d barycenter(0., 0., 0.);
-    for (const auto& pose : poses)
-    {
-      barycenter.x() = barycenter.x() + pose.x;
-      barycenter.y() = barycenter.y() + pose.y;
-      barycenter.z() = barycenter.z() + pose.z;
-    }
-    unsigned int nbPose = poses.size();
-    barycenter.x() = barycenter.x() / nbPose;
-    barycenter.y() = barycenter.y() / nbPose;
-    barycenter.z() = barycenter.z() / nbPose;
-
-    return barycenter;
-  }
-
-  //----------------------------------------------------------------------------
-  Eigen::Translation3d ComputeTranslationOffset(const std::vector<Transform>& slamPoses,
-                                                const std::vector<Transform>& gpsPoses)
-  {
-    // DEBUG
-    // Eigen::Translation3d barycenterSlam = ComputeBarycenter(slamPoses);
-    // Eigen::Translation3d barycenterGPS = ComputeBarycenter(gpsPoses);
-    // Eigen::Translation3d translation(barycenterSlam.x() - barycenterGPS.x(),
-    //                                  barycenterSlam.y() - barycenterGPS.y(),
-    //                                  barycenterSlam.z() - barycenterGPS.z());
-    Eigen::Translation3d translation(slamPoses[0].x - gpsPoses[0].x,
-                                     slamPoses[0].y - gpsPoses[0].y,
-                                     slamPoses[0].z - gpsPoses[0].z);
+    Eigen::Translation3d translation(gpsPoses[0].x - slamPoses[0].x,
+                                     gpsPoses[0].y - slamPoses[0].y,
+                                     gpsPoses[0].z - slamPoses[0].z);
     return translation;
   }
 
   //----------------------------------------------------------------------------
-  Eigen::Quaterniond ComputeRotationOffset(const std::vector<Transform>& slamPoses,
-                                           const std::vector<Transform>& gpsPoses)
+  Eigen::Quaterniond ComputeRoughRotationOffset(const std::vector<Transform>& slamPoses,
+                                                const std::vector<Transform>& gpsPoses)
   {
     // Get approximate SLAM trajectory direction
-    unsigned int nbSlamPoses = slamPoses.size();
-    Eigen::Vector3d slamDirection(slamPoses[nbSlamPoses -1].x - slamPoses[0].x,
-                                  slamPoses[nbSlamPoses -1].y - slamPoses[0].y,
-                                  slamPoses[nbSlamPoses -1].z - slamPoses[0].z);
+    Eigen::Vector3d slamDirection(slamPoses.back().x - slamPoses[0].x,
+                                  slamPoses.back().y - slamPoses[0].y,
+                                  slamPoses.back().z - slamPoses[0].z);
 
     // Get approximate GPS trajectory direction
-    unsigned int nbGpsPoses = gpsPoses.size();
-    Eigen::Vector3d gpsDirection(gpsPoses[nbGpsPoses -1].x - gpsPoses[0].x,
-                                 gpsPoses[nbGpsPoses -1].y - gpsPoses[0].y,
-                                 gpsPoses[nbGpsPoses -1].z - gpsPoses[0].z);
+    Eigen::Vector3d gpsDirection(gpsPoses.back().x - gpsPoses[0].x,
+                                 gpsPoses.back().y - gpsPoses[0].y,
+                                 gpsPoses.back().z - gpsPoses[0].z);
 
     // Compute approximate heading alignment from GPS to SLAM
-    Eigen::Quaterniond rotation;
-    rotation = Eigen::Quaterniond::FromTwoVectors(gpsDirection, slamDirection);
+    Eigen::Quaterniond rotation = Eigen::Quaterniond::FromTwoVectors(slamDirection, gpsDirection);
     return rotation;
+  }
+
+  //----------------------------------------------------------------------------
+  Eigen::Isometry3d ComputeTransformOffset(const std::vector<Transform>& slamPoses,
+                                           const std::vector<Transform>& gpsPoses)
+  {
+    std::cout << "Running ICP..." << std::endl;
+
+    // Convert to PCL pointclouds
+    pcl::PointCloud<pcl::PointXYZ>::Ptr slamCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    for (const auto& pose: slamPoses)
+      slamCloud->push_back(pcl::PointXYZ(pose.x, pose.y, pose.z));
+    pcl::PointCloud<pcl::PointXYZ>::Ptr gpsCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    for (const auto& pose: gpsPoses)
+      gpsCloud->push_back(pcl::PointXYZ(pose.x, pose.y, pose.z));
+
+    // Compute rough transormation to get better initialization
+    Eigen::Translation3d translation = ComputeRoughTranslationOffset(slamPoses, gpsPoses);
+    Eigen::Quaterniond rotation = ComputeRoughRotationOffset(slamPoses, gpsPoses);
+    Eigen::Isometry3d roughTransform(rotation * translation);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr roughOptimSlamCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::transformPointCloud(*slamCloud, *roughOptimSlamCloud, roughTransform.matrix());
+
+    // Run ICP for transform refinement
+    pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ, double> icp;
+    icp.setMaximumIterations(50);
+    icp.setInputSource(roughOptimSlamCloud);
+    icp.setInputTarget(gpsCloud);
+    pcl::PointCloud<pcl::PointXYZ> optimSlamCloud;
+    icp.align(optimSlamCloud);
+    Eigen::Isometry3d fineTransform(icp.getFinalTransformation());
+
+    std::cout << "ICP has converged:" << icp.hasConverged()
+              << "\nICP score: " << icp.getFitnessScore()
+              << "\nICP transform:\n" << fineTransform.matrix()
+              << "\nRough transform:\n" << roughTransform.matrix()
+              << "\nFinal transform:\n" << (fineTransform * roughTransform).matrix()
+              << std::endl;
+
+    // Compose rough and precise transforms
+    return fineTransform * roughTransform;
   }
 }
 
@@ -114,6 +130,7 @@ namespace
 PoseGraphOptimization::PoseGraphOptimization()
 {
   // create optimizer
+  // TODO change optimizer
   g2o::SparseOptimizer optimizer;
   optimizer.setVerbose(true);
   auto linearSolver = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>>();
@@ -182,39 +199,25 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
     return false;
   }
 
-  // Compute translation between gps and slam data
-  Eigen::Translation3d translation = ComputeTranslationOffset(slamPoses, gpsPoses);
-  translation = translation.inverse();
+ // Compute transformation from SLAM to GPS data
+ // TODO Impose transform to have no roll
+  Eigen::Isometry3d tfSlamToGps = ComputeTransformOffset(slamPoses, gpsPoses);
 
-  // Compute rotation between gps and slam data
-  Eigen::Quaterniond rotation = ComputeRotationOffset(slamPoses, gpsPoses);
-
-  // Apply transformation to GPS position
-  std::vector<Transform> transGpsPoses = gpsPoses;  // DEBUG
-  // std::vector<Transform> transGpsPoses(nbGpsPoses);
-  // for (unsigned int i = 0; i < nbGpsPoses; ++i)
-  // {
-  //   Eigen::Vector3d initialGpsPose(gpsPoses[i].x, gpsPoses[i].y, gpsPoses[i].z);
-  //   Eigen::Vector3d finalGpsPose(translation * initialGpsPose);
-  //   transGpsPoses[i].x = finalGpsPose.x();
-  //   transGpsPoses[i].y = finalGpsPose.y();
-  //   transGpsPoses[i].z = finalGpsPose.z();
-  //   transGpsPoses[i].time = gpsPoses[i].time + this->TimeOffset;
-  // }
-
-  // Apply transformation to SLAM position
-  std::vector<Transform> transSlamPoses = slamPoses;  // DEBUG
-  // std::vector<Transform> transSlamPoses(nbSlamPoses);
-  // for (unsigned int i = 0; i < nbSlamPoses; ++i)
-  // {
-  //   Eigen::Vector3d initialSlamPose(slamPoses[i].x, slamPoses[i].y, slamPoses[i].z);
-  //   Eigen::Vector3d finalSlamPose(rotation * initialSlamPose);
-  //   // Eigen::Vector3d finalSlamPose(rotation * translation * initialSlamPose);
-  //   transSlamPoses[i].x = finalSlamPose.x();
-  //   transSlamPoses[i].y = finalSlamPose.y();
-  //   transSlamPoses[i].z = finalSlamPose.z();
-  //   transSlamPoses[i].time = slamPoses[i].time;
-  // }
+  // Apply transformation to SLAM poses
+  std::vector<Transform> transSlamPoses(nbSlamPoses);
+  for (unsigned int i = 0; i < nbSlamPoses; ++i)
+  {
+    // // DEBUG what about rotation part ?!
+    // Eigen::Vector3d initialSlamPose(slamPoses[i].x, slamPoses[i].y, slamPoses[i].z);
+    // Eigen::Vector3d finalSlamPose(tfSlamToGps * initialSlamPose);
+    // transSlamPoses[i].x = finalSlamPose.x();
+    // transSlamPoses[i].y = finalSlamPose.y();
+    // transSlamPoses[i].z = finalSlamPose.z();
+    // transSlamPoses[i].time = slamPoses[i].time + this->TimeOffset;
+    // TODO Use this instead
+    Eigen::Isometry3d finalSlamPose(tfSlamToGps * slamPoses[i].GetIsometry());
+    transSlamPoses[i] = Transform(slamPoses[i].time + this->TimeOffset, finalSlamPose);
+  }
 
   this->GraphOptimizer.clear();
   int idCount = -1;
@@ -255,7 +258,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   for (unsigned int i = 0; i < nbGpsPoses; ++i)
   {
     // TODO can be optimized in order to not search again through all slam poses.
-    int foundId = FindClosestSlamPose(transGpsPoses[i], transSlamPoses);
+    int foundId = FindClosestSlamPose(gpsPoses[i], transSlamPoses);
 
     // Check matching validity, and ensure that the found slam pose is different
     // from the previous one (to prevent matching a single SLAM point to 2 
@@ -266,7 +269,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
       prevFoundId = foundId;
 
        // Get current GPS pose and covariance
-      Eigen::Isometry3d H = transGpsPoses[i].GetIsometry();
+      Eigen::Isometry3d H = gpsPoses[i].GetIsometry();
       Eigen::Map<Eigen::Matrix3d> covMatrix((double*) gpsCov[i].data());
 
       // Add GPS position as a vertex
