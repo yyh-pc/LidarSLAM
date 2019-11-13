@@ -22,6 +22,20 @@ Transform::Transform(double t, const Eigen::Vector3d& trans, const Eigen::Vector
 {}
 
 //------------------------------------------------------------------------------
+Transform::Transform(double t, const Eigen::Isometry3d& transform)
+  : time(t)
+{
+  Eigen::Translation3d trans(transform.translation());
+  x = trans.x();
+  y = trans.y();
+  z = trans.z();
+  Eigen::Vector3d rpy = transform.rotation().eulerAngles(2, 1, 0);
+  rx = rpy(0);
+  ry = rpy(1);
+  rz = rpy(2);
+}
+
+//------------------------------------------------------------------------------
 Transform::Transform(double t, const Eigen::Translation3d& trans, const Eigen::Quaterniond& rot)
   : time(t),
     x(trans.x()), y(trans.y()), z(trans.z())

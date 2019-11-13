@@ -30,6 +30,8 @@ struct Transform
 
   Transform(double t, const Eigen::Vector3d& trans, const Eigen::Vector3d& rpy);
 
+  Transform(double t, const Eigen::Isometry3d& transform);
+
   Transform(double t, const Eigen::Translation3d& trans, const Eigen::Quaterniond& rot);
 
   Eigen::Isometry3d GetIsometry() const;
