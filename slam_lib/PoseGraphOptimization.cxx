@@ -213,7 +213,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   // }
 
   this->GraphOptimizer.clear();
-  int idCount = 0;
+  int idCount = -1;
 
   // Handle SLAM data
   for (unsigned int i = 0; i < nbSlamPoses; ++i)
@@ -293,9 +293,25 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
       std::cout << "WARNING : Could not save the g2o graph. Please specify a filename" << std::endl;
   }
 
+  // Print debug info
+  if (this->Verbose)
+  {
+    std::cout << "\nThe Graph is composed of: \n"
+              << "\t " << nbSlamPoses     << "\t SLAM vertices \n"
+              << "\t " << nbSlamPoses - 1 << "\t SLAM edges \n"
+              << "\t " << this->GraphOptimizer.vertices().size() - nbSlamPoses    << "\t GPS vertices \n"
+              << "\t " << this->GraphOptimizer.edges().size() - (nbSlamPoses - 1) << "\t GPS/SLAM edges \n";
+  }
+
   // Optimize the graph
   this->GraphOptimizer.initializeOptimization();
-  this->GraphOptimizer.optimize(this->NbIteration);
+  int iterations = this->GraphOptimizer.optimize(this->NbIteration);
+
+  // Print debug info
+  if (this->Verbose)
+  {
+    std::cout << "Pose graph optimization succeeded in " << iterations << " iterations.\n" << std::endl;
+  }
 
   // Set the output data
   optimizedSlamPoses.clear();
@@ -314,17 +330,6 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
       Eigen::Quaterniond rot(data[6], data[3], data[4], data[5]);
       optimizedSlamPoses[i] = Transform(time, trans, rot);
     }
-  }
-
-  // Print debug info
-  if (this->Verbose)
-  {
-    std::cout << "\nThe Graph is composed of: \n"
-              << "\t " << nbSlamPoses     << "\t slam vertices \n"
-              << "\t " << nbSlamPoses - 1 << "\t slam edges \n"
-              << "\t " << nbGpsPoses      << "\t GPS vertices \n"
-              << "\t " << this->GraphOptimizer.vertices().size() - (nbSlamPoses - 1) << "\t GPS edges \n"
-              << std::endl;
   }
 
   return true;
