@@ -1,3 +1,6 @@
+#ifndef TRANSFORM_H
+#define TRANSFORM_H
+
 #include <Eigen/Geometry>
 
 struct Transform
@@ -40,3 +43,5 @@ struct Transform
 
   Eigen::Quaterniond GetRotation() const;
 };
+
+#endif // TRANSFORM_H

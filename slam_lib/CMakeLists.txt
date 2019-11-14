@@ -10,6 +10,8 @@ add_library(slamlib
   MotionModel.h
   PoseGraphOptimization.cxx
   PoseGraphOptimization.h
+  GlobalTrajectoriesRegistration.cxx
+  GlobalTrajectoriesRegistration.h
   )
 
 target_link_libraries(slamlib
@@ -30,6 +32,7 @@ set(HEADER_FILES
   SpinningSensorKeypointExtractor.h
   MotionModel.h
   PoseGraphOptimization.h
+  GlobalTrajectoriesRegistration.h
   )
 
 set_target_properties(slamlib PROPERTIES
