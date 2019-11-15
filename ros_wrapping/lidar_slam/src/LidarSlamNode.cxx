@@ -1,8 +1,8 @@
 #include "LidarSlamNode.h"
+#include "GlobalTrajectoriesRegistration.h"
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <geometry_msgs/TransformStamped.h>
-#include <nav_msgs/Odometry.h>
 #include <tf2/LinearMath/Quaternion.h>
 
 #include <chrono>
@@ -39,6 +39,12 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   // Get LiDAR frequency
   priv_nh.getParam("lidar_frequency", this->LidarFreq);
+
+  // Init optionnal GPS use
+  priv_nh.getParam("gps/publish_gps_to_slam_tf", this->PublishGpsToSlamTf);
+  if (this->PublishGpsToSlamTf)
+    this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
+  priv_nh.getParam("gps/nbr_calibration_points", this->NbrCalibrationPoints);
 
   // Init optional publishers
   priv_nh.getParam("publish_features_maps/edges", this->PublishEdges);
@@ -103,7 +109,74 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   this->PublishFeaturesMaps(cloudS);
 
   chrono_ms = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "SLAM perfomed in : " << chrono_ms.count() << " ms" << std::endl;
+  std::cout << "SLAM performed in : " << chrono_ms.count() << " ms" << std::endl;
+
+  // If GPS/SLAM calibration is needed, save SLAM pose for later use
+  if (this->PublishGpsToSlamTf)
+  {
+    worldTransform.time = cloudV.header.stamp * 1e6;
+    this->SlamPoses.push_back(worldTransform);
+  }
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
+{
+  if (this->PublishGpsToSlamTf)
+  {
+    // Add and save GPS pose for later optimization
+    double time = msg.header.stamp.toSec();
+    Eigen::Translation3d trans(msg.pose.pose.position.x,
+                              msg.pose.pose.position.y,
+                              msg.pose.pose.position.z);
+    Eigen::Quaterniond rot(msg.pose.pose.orientation.w,
+                          msg.pose.pose.orientation.x,
+                          msg.pose.pose.orientation.y,
+                          msg.pose.pose.orientation.z);
+    this->GpsPoses.push_back(Transform(time, trans, rot));
+
+    // If we have enough GPS and SLAM points, run calibration
+    // TODO : run calibration in separated thread
+    if (this->GpsPoses.size() >= this->NbrCalibrationPoints &&
+        this->SlamPoses.size() >= this->NbrCalibrationPoints)
+    {
+      std::cout << "Running SLAM/GPS calibration (" << this->SlamPoses.size() << " slam points, "
+                << this->GpsPoses.size() << " gps points)" << std::endl;
+
+      // Run calibration
+      GlobalTrajectoriesRegistration registration;
+      registration.SetVerbose(true);  // TODO set verbose mode according to flag
+      Eigen::Isometry3d tfSlamToGps;
+      if (registration.ComputeTransformOffset(this->SlamPoses, this->GpsPoses, tfSlamToGps))
+      {
+        // TODO DEBUG publish ICP-matched trajectories
+
+        // (TODO Set SLAM initial transform)
+
+        // TODO Publish static tf with calibration
+        Eigen::Translation3d translation(tfSlamToGps.translation());
+        Eigen::Quaterniond rotation(tfSlamToGps.rotation());
+        geometry_msgs::TransformStamped tfStamped;
+        tfStamped.header.stamp = ros::Time::now();
+        tfStamped.header.frame_id = msg.header.frame_id; // CHECK
+        tfStamped.child_frame_id = this->SlamOriginFrameId;
+        tfStamped.transform.translation.x = translation.x();
+        tfStamped.transform.translation.y = translation.y();
+        tfStamped.transform.translation.z = translation.z();
+        tfStamped.transform.rotation.x = rotation.x();
+        tfStamped.transform.rotation.y = rotation.y();
+        tfStamped.transform.rotation.z = rotation.z();
+        tfStamped.transform.rotation.w = rotation.w();
+        this->StaticTfBroadcaster.sendTransform(tfStamped);
+
+        ROS_INFO_STREAM("\033[1;32mGlobal transform from SLAM to GPS successfully estimated to :\n"
+                        << tfSlamToGps.matrix() << "\033[0m");
+
+        // Stop saving SLAM/GPS poses
+        this->PublishGpsToSlamTf = false;
+      }
+    }
+  }
 }
 
 //------------------------------------------------------------------------------

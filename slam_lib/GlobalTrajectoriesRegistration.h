@@ -21,6 +21,8 @@ public:
 
   SetMacro(NbrIcpIterations, unsigned int)
 
+  SetMacro(InitWithRoughEstimate, bool)
+
   SetMacro(Verbose, bool)
 
   //----------------------------------------------------------------------------
@@ -34,6 +36,19 @@ public:
   bool ComputeTransformOffset(const std::vector<Transform>& fromPoses,
                               const std::vector<Transform>& toPoses,
                               Eigen::Isometry3d& offset);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief Compute approximate global translation/rotation offset between two
+   *        trajectories using only first and last points.
+   * @param[in]  fromPoses The initial trajectory.
+   * @param[in]  toPoses   The final trajectory.
+   * @param[out] offset    The approximate global transform from 'fromPoses' to 'toPoses'.
+   * @return true if offset has been computed correctly, false if error occured.
+   */
+  static bool ComputeRoughTransformOffset(const std::vector<Transform>& fromPoses,
+                                          const std::vector<Transform>& toPoses,
+                                          Eigen::Isometry3d& offset);
 
 private:
 
@@ -61,6 +76,7 @@ private:
 private:
 
   unsigned int NbrIcpIterations = 50;
+  bool InitWithRoughEstimate = true;
   bool Verbose = false;
 };
 

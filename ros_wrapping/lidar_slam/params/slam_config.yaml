@@ -20,6 +20,10 @@ publish_features_maps:
   planars: true   # if true, planars features will be published to topic "planars_features"
   blobs: true     # if true, blobs features will be published to topic "blobs_features"
 
+gps:
+  publish_gps_to_slam_tf: true  # if true, subscribe to gps topic 'gps_odom', try to fit gps trajectory to slam trajectory, and publish static TF to link 'gps_odom/header/frame_id' to 'slam_origin_frame'
+  nbr_calibration_points: 200  # Minimum number of GPS/SLAM points to use for GPS/SLAM sensors calibration. Node wil accumulate points until this number is reached to start calibration.
+
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
 

@@ -5,7 +5,9 @@
 #include <ros/ros.h>
 #include <velodyne_pointcloud/point_types.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include <tf2_ros/static_transform_broadcaster.h>
 #include <pcl_ros/point_cloud.h>
+#include <nav_msgs/Odometry.h>
 
 // SLAM
 #include <Slam.h>
@@ -33,6 +35,13 @@ public:
    * @param[in] cloud New Lidar Frame, published by velodyne_pointcloud/cloud_node.
    */
   void ScanCallback(const CloudV& cloud);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief     Optionnal GPS odom callback, accumulating poses for SLAM/GPS calibration.
+   * @param[in] msg Converted GPS pose with its associated covariance.
+   */
+  void GpsCallback(const nav_msgs::Odometry& msg);
 
 private:
 
@@ -81,11 +90,19 @@ private:
   std::vector<size_t> LaserIdMapping;
   double LidarFreq = 10.;
 
-  // ROS publishers & subscribers
+  // Basic publishers & subscribers
   std::string SlamOriginFrameId = "slam_init";
   ros::Publisher PoseCovarPub;
   ros::Subscriber CloudSub;
   tf2_ros::TransformBroadcaster TfBroadcaster;
+
+  // Optionnal GPS use
+  bool PublishGpsToSlamTf = false;
+  int NbrCalibrationPoints = 4;
+  std::vector<Transform> SlamPoses;
+  std::vector<Transform> GpsPoses;
+  ros::Subscriber GpsOdomSub;
+  tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
 
   // Debug publishers
   ros::Publisher DebugCloudPub;

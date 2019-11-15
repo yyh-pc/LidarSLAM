@@ -1,10 +1,27 @@
 #include "GlobalTrajectoriesRegistration.h"
 
+namespace
+{
+  Eigen::Isometry3d OppositeTransform(const Eigen::Isometry3d& a2b)
+  {
+    Eigen::Isometry3d b2a;
+    b2a.translation() = -a2b.translation();
+    b2a.linear() = a2b.linear().transpose();
+    return b2a;
+  }
+}
+
 //------------------------------------------------------------------------------
 bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Transform>& fromPoses,
                                                             const std::vector<Transform>& toPoses,
                                                             Eigen::Isometry3d& offset)
 {
+  // TODO Use timestamps to filter out outliers points
+
+  // TODO It is better (faster, more accurate and correct score estimation) to fit a
+  // sparser trajectory to a denser one. As a result, if 'toPoses' is sparser
+  // than 'fromPoses', swap source and target for ICP.
+
   // Convert to PCL pointclouds
   pcl::PointCloud<pcl::PointXYZ>::Ptr fromCloud(new pcl::PointCloud<pcl::PointXYZ>);
   for (const auto& pose: fromPoses)
@@ -13,36 +30,43 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
   for (const auto& pose: toPoses)
     toCloud->push_back(pcl::PointXYZ(pose.x, pose.y, pose.z));
 
-  // Compute rough transormation to get better initialization
-  Eigen::Translation3d translation = this->ComputeRoughTranslationOffset(fromPoses[0], toPoses[0]);
-  Eigen::Quaterniond rotation = this->ComputeRoughRotationOffset(fromPoses[0], fromPoses.back(), toPoses[0], toPoses.back());
-  Eigen::Isometry3d roughTransform(rotation * translation);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr roughOptimCloud(new pcl::PointCloud<pcl::PointXYZ>);
-  pcl::transformPointCloud(*fromCloud, *roughOptimCloud, roughTransform.matrix());
+  // Compute rough transformation to get better initialization if needed
+  Eigen::Isometry3d roughTransform = Eigen::Isometry3d::Identity();
+  if (this->InitWithRoughEstimate)
+    this->ComputeRoughTransformOffset(fromPoses, toPoses, roughTransform);
 
   // Run ICP for transform refinement
+  pcl::PointCloud<pcl::PointXYZ> optimCloud;
   pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ, double> icp;
   icp.setMaximumIterations(this->NbrIcpIterations);
-  icp.setInputSource(roughOptimCloud);
+  icp.setInputSource(fromCloud);
   icp.setInputTarget(toCloud);
-  pcl::PointCloud<pcl::PointXYZ> optimCloud;
-  icp.align(optimCloud);
-  Eigen::Isometry3d fineTransform(icp.getFinalTransformation());
-
-  // Compose rough and precise transforms
-  offset = fineTransform * roughTransform;
+  icp.align(optimCloud, roughTransform.matrix());
+  offset = icp.getFinalTransformation();
 
   if (this->Verbose)
   {
     std::cout << "ICP has converged:" << icp.hasConverged()
               << "\nICP score: " << icp.getFitnessScore()
               << "\nRough transform:\n" << roughTransform.matrix()
-              << "\nICP transform:\n" << fineTransform.matrix()
+              << "\nICP transform:\n" << (offset * roughTransform.inverse()).matrix()  // CHECK
               << "\nFinal transform:\n" << offset.matrix()
               << std::endl;
   }
 
   return icp.hasConverged();
+}
+
+//------------------------------------------------------------------------------
+bool GlobalTrajectoriesRegistration::ComputeRoughTransformOffset(const std::vector<Transform>& fromPoses,
+                                                                 const std::vector<Transform>& toPoses,
+                                                                 Eigen::Isometry3d& offset)
+{
+  Eigen::Translation3d translation = ComputeRoughTranslationOffset(fromPoses.back(), toPoses.back());
+  Eigen::Quaterniond rotation = ComputeRoughRotationOffset(fromPoses[0], fromPoses.back(),
+                                                           toPoses[0], toPoses.back());
+  offset = translation * rotation;
+  return true;
 }
 
 //------------------------------------------------------------------------------
