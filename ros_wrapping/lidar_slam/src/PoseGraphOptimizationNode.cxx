@@ -43,7 +43,15 @@ void PoseGraphOptimizationNode::SlamPoseCallback(const nav_msgs::Odometry& msg)
   // Transform pose to output frame
   geometry_msgs::TransformStamped tfStamped;
   geometry_msgs::Pose slamPose;
-  tfStamped = this->TfBuffer.lookupTransform(this->OutputFrameId, msg.header.frame_id, msg.header.stamp, ros::Duration(1.));
+  try
+  {
+    tfStamped = this->TfBuffer.lookupTransform(this->OutputFrameId, msg.header.frame_id, msg.header.stamp, ros::Duration(1.));
+  }
+  catch (tf2::TransformException& ex)
+  {
+    ROS_WARN("%s", ex.what());
+    return;
+  }
   tf2::doTransform(msg.pose.pose, slamPose, tfStamped);
 
   // Unpack SLAM pose
@@ -75,14 +83,22 @@ void PoseGraphOptimizationNode::SlamPoseCallback(const nav_msgs::Odometry& msg)
 //------------------------------------------------------------------------------
 void PoseGraphOptimizationNode::GpsPoseCallback(const nav_msgs::Odometry& msg)
 {
-  // DEBUG drop 19 messages over 20
-  // if (msg.header.seq % 50)
-  //   return;
+  // DEBUG drop 49 messages over 50
+  if (msg.header.seq % 50)
+    return;
 
   // Transform pose to output frame
   geometry_msgs::TransformStamped tfStamped;
   geometry_msgs::Pose gpsPose;
-  tfStamped = this->TfBuffer.lookupTransform(this->OutputFrameId, msg.header.frame_id, msg.header.stamp, ros::Duration(1.));
+  try
+  {
+    tfStamped = this->TfBuffer.lookupTransform(this->OutputFrameId, msg.header.frame_id, msg.header.stamp, ros::Duration(1.));
+  }
+  catch (tf2::TransformException& ex)
+  {
+    ROS_WARN("%s", ex.what());
+    return;
+  }
   tf2::doTransform(msg.pose.pose, gpsPose, tfStamped);
 
   // Unpack GPS pose
