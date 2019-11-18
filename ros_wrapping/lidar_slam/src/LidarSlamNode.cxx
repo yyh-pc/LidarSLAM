@@ -3,6 +3,7 @@
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <nav_msgs/Path.h>
 #include <tf2/LinearMath/Quaternion.h>
 
 #include <chrono>
@@ -47,9 +48,15 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("gps/nbr_calibration_points", this->NbrCalibrationPoints);
 
   // Init optional publishers
+  priv_nh.getParam("gps/publish_icp_trajectories", this->PublishIcpTrajectories);
   priv_nh.getParam("publish_features_maps/edges", this->PublishEdges);
   priv_nh.getParam("publish_features_maps/planars", this->PublishPlanars);
   priv_nh.getParam("publish_features_maps/blobs", this->PublishBlobs);
+  if (this->PublishIcpTrajectories)
+  {
+    this->GpsPathPub = nh.advertise<nav_msgs::Path>("icp_gps", 1);
+    this->SlamPathPub = nh.advertise<nav_msgs::Path>("icp_slam", 1);
+  }
   if (this->PublishEdges)
     this->EdgesPub = nh.advertise<CloudS>("edges_features", 1);
   if (this->PublishPlanars)
@@ -149,7 +156,47 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
       Eigen::Isometry3d tfSlamToGps;
       if (registration.ComputeTransformOffset(this->SlamPoses, this->GpsPoses, tfSlamToGps))
       {
-        // TODO DEBUG publish ICP-matched trajectories
+        // Publish ICP-matched trajectories
+        if (this->PublishIcpTrajectories)
+        {
+          nav_msgs::Path gpsPath;
+          gpsPath.header = msg.header;
+          for (const Transform& pose: this->GpsPoses)
+          {
+            geometry_msgs::PoseStamped poseStamped;
+            // poseStamped.header.stamp = ros::Time(pose.time);
+            poseStamped.header.frame_id = gpsPath.header.frame_id;
+            poseStamped.pose.position.x = pose.x;
+            poseStamped.pose.position.y = pose.y;
+            poseStamped.pose.position.z = pose.z;
+            Eigen::Quaterniond rot = pose.GetRotation();
+            poseStamped.pose.orientation.w = rot.w();
+            poseStamped.pose.orientation.x = rot.x();
+            poseStamped.pose.orientation.y = rot.y();
+            poseStamped.pose.orientation.z = rot.z();
+            gpsPath.poses.push_back(poseStamped);
+          }
+          this->GpsPathPub.publish(gpsPath);
+          nav_msgs::Path slamPath;
+          slamPath.header = msg.header;
+          for (const Transform& pose: this->SlamPoses)
+          {
+            Transform newPose(pose.time, tfSlamToGps * pose.GetIsometry());
+            geometry_msgs::PoseStamped poseStamped;
+            // poseStamped.header.stamp = ros::Time(newPose.time);
+            poseStamped.header.frame_id = gpsPath.header.frame_id;
+            poseStamped.pose.position.x = newPose.x;
+            poseStamped.pose.position.y = newPose.y;
+            poseStamped.pose.position.z = newPose.z;
+            Eigen::Quaterniond rot = newPose.GetRotation();
+            poseStamped.pose.orientation.w = rot.w();
+            poseStamped.pose.orientation.x = rot.x();
+            poseStamped.pose.orientation.y = rot.y();
+            poseStamped.pose.orientation.z = rot.z();
+            slamPath.poses.push_back(poseStamped);
+          }
+          this->SlamPathPub.publish(slamPath);
+        }
 
         // (TODO Set SLAM initial transform)
 

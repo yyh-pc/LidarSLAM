@@ -23,6 +23,7 @@ publish_features_maps:
 gps:
   publish_gps_to_slam_tf: true  # if true, subscribe to gps topic 'gps_odom', try to fit gps trajectory to slam trajectory, and publish static TF to link 'gps_odom/header/frame_id' to 'slam_origin_frame'
   nbr_calibration_points: 200  # Minimum number of GPS/SLAM points to use for GPS/SLAM sensors calibration. Node wil accumulate points until this number is reached to start calibration.
+  publish_icp_trajectories: true  # Used for debug only to check calibration. If true, publish ICP-aligned GPS and SLAM trajectories to 'ip_gps' and 'icp_slam' topics.
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:

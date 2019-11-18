@@ -105,8 +105,10 @@ private:
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
 
   // Debug publishers
+  ros::Publisher GpsPathPub, SlamPathPub;
   ros::Publisher DebugCloudPub;
   ros::Publisher EdgesPub, PlanarsPub, BlobsPub;
+  bool PublishIcpTrajectories = false;
   bool PublishEdges = false, PublishPlanars = false, PublishBlobs = false;
 };
 
