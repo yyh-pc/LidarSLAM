@@ -4,20 +4,22 @@
   <include file="$(find lidar_slam)/launch/slam.launch"/>
 
   <!-- GPS conversion : Lat/Lon to UTM X/Y -->
-  <!-- from sensor_msgs/NavSatFix to nav_msgs/Odometry -->
+  <!-- (WARNING depreciated) from sensor_msgs/NavSatFix to nav_msgs/Odometry -->
   <node name="navsatfix_to_utm" pkg="gps_common" type="utm_odometry_node" output="screen">
     <param name="frame_id" value="utm"/>
     <param name="child_frame_id" value="gps"/>
     <remap from="odom" to="gps_odom"/>
   </node>
-  <!-- from novariant_capi/PositionGps to nav_msgs/Odometry -->
-  <node name="gps_to_utm" pkg="novariant_capi" type="gps_to_utm" output="screen">
+  <!-- TODO from sensor_msgs/NavSatFix to gps_common/GPSFix -->
+  <!-- from novariant_capi/PositionGps to gps_common/GPSFix -->
+  <include file="$(find novariant_capi)/launch/gps_fix_conversion.launch"/>
+  <!-- from gps_common/GPSFix to nav_msgs/Odometry -->
+  <node name="gps_to_utm" pkg="gps_conversions" type="gps_to_utm" output="screen">
     <param name="frame_id" value="utm"/>
     <param name="child_frame_id" value="gps"/>
     <param name="map_frame_id" value="map"/>
     <param name="tf_offset_to_map" value="true"/>
     <param name="origin_on_first_pose" value="true"/>
-    <remap from="gps_fix" to="gps_ihm_full"/>
   </node>
 
   <!-- Pose graph optimization using GPS and SLAM poses -->
