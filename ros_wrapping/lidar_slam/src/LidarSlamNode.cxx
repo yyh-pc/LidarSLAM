@@ -54,8 +54,8 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("publish_features_maps/blobs", this->PublishBlobs);
   if (this->PublishIcpTrajectories)
   {
-    this->GpsPathPub = nh.advertise<nav_msgs::Path>("icp_gps", 1);
-    this->SlamPathPub = nh.advertise<nav_msgs::Path>("icp_slam", 1);
+    this->GpsPathPub = nh.advertise<nav_msgs::Path>("icp_gps", 1, true);
+    this->SlamPathPub = nh.advertise<nav_msgs::Path>("icp_slam", 1, true);
   }
   if (this->PublishEdges)
     this->EdgesPub = nh.advertise<CloudS>("edges_features", 1);
@@ -121,7 +121,7 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   // If GPS/SLAM calibration is needed, save SLAM pose for later use
   if (this->PublishGpsToSlamTf)
   {
-    worldTransform.time = cloudV.header.stamp * 1e6;
+    worldTransform.time = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();
     this->SlamPoses.push_back(worldTransform);
   }
 }
@@ -164,7 +164,7 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
           for (const Transform& pose: this->GpsPoses)
           {
             geometry_msgs::PoseStamped poseStamped;
-            // poseStamped.header.stamp = ros::Time(pose.time);
+            poseStamped.header.stamp = ros::Time(pose.time);
             poseStamped.header.frame_id = gpsPath.header.frame_id;
             poseStamped.pose.position.x = pose.x;
             poseStamped.pose.position.y = pose.y;
@@ -183,7 +183,7 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
           {
             Transform newPose(pose.time, tfSlamToGps * pose.GetIsometry());
             geometry_msgs::PoseStamped poseStamped;
-            // poseStamped.header.stamp = ros::Time(newPose.time);
+            poseStamped.header.stamp = ros::Time(newPose.time);
             poseStamped.header.frame_id = gpsPath.header.frame_id;
             poseStamped.pose.position.x = newPose.x;
             poseStamped.pose.position.y = newPose.y;

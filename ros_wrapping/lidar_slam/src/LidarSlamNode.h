@@ -98,7 +98,7 @@ private:
 
   // Optionnal GPS use
   bool PublishGpsToSlamTf = false;
-  int NbrCalibrationPoints = 4;
+  int NbrCalibrationPoints = 50;
   std::vector<Transform> SlamPoses;
   std::vector<Transform> GpsPoses;
   ros::Subscriber GpsOdomSub;
