@@ -42,12 +42,12 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("lidar_frequency", this->LidarFreq);
 
   // Init optionnal GPS use
-  priv_nh.getParam("gps/calibrate_slam_to_gps", this->CalibrateSlamGps);
+  priv_nh.getParam("gps_calibration/enable", this->CalibrateSlamGps);
   if (this->CalibrateSlamGps)
     this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
-  priv_nh.getParam("gps/nbr_calibration_points", this->NbrCalibrationPoints);
-  priv_nh.getParam("gps/calibration_no_roll", this->CalibrationNoRoll);
-  priv_nh.getParam("gps/lidar_to_gps_offset", this->LidarToGpsOffset);
+  priv_nh.getParam("gps_calibration/n_points", this->NbrCalibrationPoints);
+  priv_nh.getParam("gps_calibration/no_roll", this->CalibrationNoRoll);
+  priv_nh.getParam("gps_calibration/lidar_to_gps_offset", this->LidarToGpsOffset);
 
   // Init optional publishers
   priv_nh.getParam("gps/publish_icp_trajectories", this->PublishIcpTrajectories);
