@@ -23,6 +23,8 @@ public:
 
   SetMacro(InitWithRoughEstimate, bool)
 
+  SetMacro(NoRoll, bool)
+
   SetMacro(Verbose, bool)
 
   //----------------------------------------------------------------------------
@@ -75,9 +77,10 @@ private:
 
 private:
 
-  unsigned int NbrIcpIterations = 50;
-  bool InitWithRoughEstimate = true;
-  bool Verbose = false;
+  unsigned int NbrIcpIterations = 50;  ///< Max number of iterations to do in ICP matching.
+  bool InitWithRoughEstimate = true;   ///< Init ICP with a rough estimate of the transform to help convergence.
+  bool NoRoll = false;   ///< If true, roll angle (X axis) will be set to 0 in output transform.
+  bool Verbose = false;  ///< If true, print some debug info.
 };
 
 #endif // GLOBAL_TRAJECTORIES_REGISTRATION_H

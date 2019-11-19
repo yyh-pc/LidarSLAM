@@ -44,6 +44,19 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
   icp.align(optimCloud, roughTransform.matrix());
   offset = icp.getFinalTransformation();
 
+  // DEBUG If requested, impose no roll angle
+  if (this->NoRoll)
+  {
+    // Eigen::Vector3d rpy = offset.rotation().eulerAngles(0, 1, 2);
+    // rpy(0) = 0.;
+    // offset.linear() = Eigen::Matrix3d(Eigen::AngleAxisd(rpy(0), Eigen::Vector3d::UnitX())
+    //                                 * Eigen::AngleAxisd(rpy(1), Eigen::Vector3d::UnitY())
+    //                                 * Eigen::AngleAxisd(rpy(2), Eigen::Vector3d::UnitZ()));
+    Eigen::Vector3d rpy = offset.inverse().linear().eulerAngles(0, 1, 2);
+    offset = Eigen::AngleAxisd(rpy(0), Eigen::Vector3d::UnitX()) * offset;
+  }
+
+  // TODO ICP transform display is not correct
   if (this->Verbose)
   {
     std::cout << "ICP has converged:" << icp.hasConverged()

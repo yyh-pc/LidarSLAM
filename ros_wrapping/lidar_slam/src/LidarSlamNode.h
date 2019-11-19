@@ -97,8 +97,10 @@ private:
   tf2_ros::TransformBroadcaster TfBroadcaster;
 
   // Optionnal GPS use
-  bool PublishGpsToSlamTf = false;
+  bool CalibrateSlamGps = false;
   int NbrCalibrationPoints = 50;
+  bool CalibrationNoRoll = false;  // DEBUG
+  std::vector<double> LidarToGpsOffset;  ///< (X, Y, Z) position of the GPS antenna in LiDAR coordinates.
   std::vector<Transform> SlamPoses;
   std::vector<Transform> GpsPoses;
   ros::Subscriber GpsOdomSub;
