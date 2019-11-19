@@ -31,6 +31,17 @@ void GpsToUtmNode::GpsPoseCallback(const gps_common::GPSFix& msg)
   gpsPoint.altitude = msg.altitude;
   geodesy::UTMPoint utmPoint(gpsPoint);
 
+  // Store UTM zone/band and publish it to rosparam if it changed
+  if ((utmPoint.zone != this->UtmZone) || (utmPoint.band != this->UtmBand))
+  {
+    this->UtmZone = utmPoint.zone;
+    this->UtmBand = utmPoint.band;
+    std::string utmBandLetter(&this->UtmBand, 1);
+    ros::param::set("/utm_zone", (int) this->UtmZone);
+    ros::param::set("/utm_band", utmBandLetter);
+    ROS_WARN_STREAM("UTM zone/band changed to " << (int) utmPoint.zone << utmPoint.band << " and saved to rosparam.");
+  }
+
   // Save 1st GPS pose
   if (!this->firstGpsPose.isValid())
     this->firstGpsPose = UtmPose(utmPoint.easting, utmPoint.northing, utmPoint.altitude, msg.track);

@@ -50,6 +50,10 @@ private:
   tf2_ros::TransformBroadcaster TfBroadcaster;
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
 
+  // UTM Band/zone
+  char UtmBand;     ///< MGRS latitude band letter.
+  uint8_t UtmZone;  ///< UTM longitude zone number.
+
   // Parameters
   std::string FrameId;
   std::string ChildFrameId;

@@ -22,6 +22,13 @@
     <param name="origin_on_first_pose" value="true"/>
   </node>
 
+  <!-- SLAM to WGS84 conversion : UTM X/Y to GPS Lat/Lon -->
+  <node name="slam_to_gps" pkg="gps_conversions" type="odom_to_gps" output="screen">
+    <param name="utm_frame_id" value="utm"/>
+    <remap from="odom" to="slam_odom"/>
+    <remap from="fix" to="slam_fix"/>
+  </node>
+
   <!-- Pose graph optimization using GPS and SLAM poses -->
   <node name="pose_graph_optimization" pkg="lidar_slam" type="pose_graph_optimization_node" output="screen">
     <rosparam file="$(find lidar_slam)/params/pose_graph_optim_config.yaml" command="load"/>
