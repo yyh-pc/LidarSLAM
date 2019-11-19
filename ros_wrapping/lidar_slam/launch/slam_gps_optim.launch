@@ -4,15 +4,19 @@
   <include file="$(find lidar_slam)/launch/slam.launch"/>
 
   <!-- GPS conversion : Lat/Lon to UTM X/Y -->
-  <!-- (WARNING depreciated) from sensor_msgs/NavSatFix to nav_msgs/Odometry -->
-  <node name="navsatfix_to_utm" pkg="gps_common" type="utm_odometry_node" output="screen">
-    <param name="frame_id" value="utm"/>
-    <param name="child_frame_id" value="gps"/>
-    <remap from="odom" to="gps_odom"/>
+  <!-- from sensor_msgs/NavSatFix to gps_common/GPSFix (old Colas GPS msg) -->
+  <node name="navsatfix_to_gpsfix" pkg="gps_conversions" type="navsatfix_to_gpsfix" output="screen">
+    <param name="magnetic_dip" value="0."/>
+    <remap from="nav_sat_fix" to="fix"/>
   </node>
-  <!-- TODO from sensor_msgs/NavSatFix to gps_common/GPSFix -->
-  <!-- from novariant_capi/PositionGps to gps_common/GPSFix -->
-  <include file="$(find novariant_capi)/launch/gps_fix_conversion.launch"/>
+  <!-- from novariant_capi/PositionGps to gps_common/GPSFix (new Colas GPS msg) -->
+  <node name="gps_fix_conversion" pkg="novariant_capi" type="gps_fix_conversion" output="screen">
+    <param name="err_position_horz" value="0.1"/>
+    <param name="err_position_vert" value="0.2"/>
+    <param name="err_orientation_horz" value="3.14159"/>
+    <param name="err_orientation_vert" value="0.08"/>
+    <param name="magnetic_dip" value="0."/>
+  </node>
   <!-- from gps_common/GPSFix to nav_msgs/Odometry -->
   <node name="gps_to_utm" pkg="gps_conversions" type="gps_to_utm" output="screen">
     <param name="frame_id" value="utm"/>
