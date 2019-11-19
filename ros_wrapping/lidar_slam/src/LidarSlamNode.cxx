@@ -67,7 +67,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   // Init ROS subscribers and publishers
   priv_nh.getParam("slam_origin_frame", this->SlamOriginFrameId);
-  this->PoseCovarPub = nh.advertise<nav_msgs::Odometry>("slam_pose", 1);
+  this->PoseCovarPub = nh.advertise<nav_msgs::Odometry>("slam_odom", 1);
   this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::ScanCallback, this);
 
   ROS_INFO_STREAM("\033[1;32mLiDAR SLAM is ready !\033[0m");
@@ -110,7 +110,7 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   std::vector<double> poseCovar = this->LidarSlam.GetTransformCovariance();
 
   // Publish TF, pose and covariance
-  this->PublishTfPoseCovar(cloudV.header, worldTransform, poseCovar);
+  this->PublishTfOdom(cloudV.header, worldTransform, poseCovar);
 
   // Publish optional debug info
   this->PublishFeaturesMaps(cloudS);
@@ -257,9 +257,9 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::PublishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
-                                       const Transform& worldTransform,
-                                       const std::vector<double>& poseCovar)
+void LidarSlamNode::PublishTfOdom(const pcl::PCLHeader& headerCloudV,
+                                  const Transform& worldTransform,
+                                  const std::vector<double>& poseCovar)
 {
   // publish worldTransform
   geometry_msgs::TransformStamped tfMsg;
@@ -278,23 +278,23 @@ void LidarSlamNode::PublishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
   this->TfBroadcaster.sendTransform(tfMsg);
 
   // publish pose with covariance
-  nav_msgs::Odometry poseCovarMsg;
-  poseCovarMsg.header = tfMsg.header;
-  poseCovarMsg.child_frame_id = tfMsg.header.frame_id;
-  poseCovarMsg.pose.pose.orientation = tfMsg.transform.rotation;
-  poseCovarMsg.pose.pose.position.x = worldTransform.x;
-  poseCovarMsg.pose.pose.position.y = worldTransform.y;
-  poseCovarMsg.pose.pose.position.z = worldTransform.z;
+  nav_msgs::Odometry odomMsg;
+  odomMsg.header = tfMsg.header;
+  odomMsg.child_frame_id = tfMsg.child_frame_id;
+  odomMsg.pose.pose.orientation = tfMsg.transform.rotation;
+  odomMsg.pose.pose.position.x = worldTransform.x;
+  odomMsg.pose.pose.position.y = worldTransform.y;
+  odomMsg.pose.pose.position.z = worldTransform.z;
   // Reshape covariance from parameters (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
   const std::vector<double>& c = poseCovar;
-  poseCovarMsg.pose.covariance = {c[21], c[22], c[23],   c[18], c[19], c[20],
-                                  c[27], c[28], c[29],   c[24], c[25], c[26],
-                                  c[33], c[34], c[35],   c[30], c[31], c[32],
+  odomMsg.pose.covariance = {c[21], c[22], c[23],   c[18], c[19], c[20],
+                             c[27], c[28], c[29],   c[24], c[25], c[26],
+                             c[33], c[34], c[35],   c[30], c[31], c[32],
 
-                                  c[ 3], c[ 4], c[ 5],   c[ 0], c[ 1], c[ 2],
-                                  c[ 9], c[10], c[11],   c[ 6], c[ 7], c[ 8],
-                                  c[15], c[16], c[17],   c[12], c[13], c[14]};
-  this->PoseCovarPub.publish(poseCovarMsg);
+                             c[ 3], c[ 4], c[ 5],   c[ 0], c[ 1], c[ 2],
+                             c[ 9], c[10], c[11],   c[ 6], c[ 7], c[ 8],
+                             c[15], c[16], c[17],   c[12], c[13], c[14]};
+  this->PoseCovarPub.publish(odomMsg);
 }
 
 //------------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 #include "PoseGraphOptimizationNode.h"
- #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <nav_msgs/Path.h>
 #include <chrono>
 
@@ -30,7 +30,7 @@ PoseGraphOptimizationNode::PoseGraphOptimizationNode(ros::NodeHandle& nh, ros::N
 
   // Init ROS subscribers and publishers
   this->OptimSlamPosesPub = nh.advertise<nav_msgs::Path>("optim_slam_poses", 1);
-  this->SlamPoseSub = nh.subscribe("slam_pose", 10, &PoseGraphOptimizationNode::SlamPoseCallback, this);
+  this->SlamPoseSub = nh.subscribe("slam_odom", 10, &PoseGraphOptimizationNode::SlamPoseCallback, this);
   this->GpsPoseSub = nh.subscribe("gps_odom", 10, &PoseGraphOptimizationNode::GpsPoseCallback, this);
   this->RunOptimizationSub = nh.subscribe("run_pose_graph_optim", 1, &PoseGraphOptimizationNode::RunOptimizationCallback, this);
 

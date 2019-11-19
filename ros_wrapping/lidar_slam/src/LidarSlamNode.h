@@ -65,9 +65,9 @@ private:
    *
    * NOTE : poseCovar encodes covariance for dof in this order : (rX, rY, rZ, X, Y, Z)
    */
-  void PublishTfPoseCovar(const pcl::PCLHeader& headerCloudV,
-                          const Transform& worldTransform,
-                          const std::vector<double>& poseCovar);
+  void PublishTfOdom(const pcl::PCLHeader& headerCloudV,
+                     const Transform& worldTransform,
+                     const std::vector<double>& poseCovar);
 
   //----------------------------------------------------------------------------
   /*!

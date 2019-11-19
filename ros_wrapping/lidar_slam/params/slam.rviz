@@ -7,6 +7,8 @@ Panels:
         - /Global Options1
         - /Status1
         - /SLAM odom1/Shape1
+        - /SLAM odom1/Covariance1
+        - /SLAM odom1/Covariance1/Position1
         - /GPS odom1/Shape1
         - /GPS odom1/Covariance1
         - /GPS odom1/Covariance1/Position1
@@ -150,19 +152,19 @@ Visualization Manager:
       Class: rviz/Odometry
       Covariance:
         Orientation:
-          Alpha: 1
+          Alpha: 0.4000000059604645
           Color: 255; 255; 127
           Color Style: Unique
           Frame: Local
           Offset: 1
           Scale: 1
-          Value: true
+          Value: false
         Position:
-          Alpha: 1
+          Alpha: 0.4000000059604645
           Color: 252; 233; 79
           Scale: 1
           Value: true
-        Value: false
+        Value: true
       Enabled: true
       Keep: 10000
       Name: SLAM odom
@@ -177,7 +179,7 @@ Visualization Manager:
         Shaft Length: 1
         Shaft Radius: 0.05000000074505806
         Value: Axes
-      Topic: /slam_pose
+      Topic: /slam_odom
       Unreliable: false
       Value: true
     - Angle Tolerance: 0.20000000298023224
@@ -192,8 +194,8 @@ Visualization Manager:
           Scale: 1
           Value: false
         Position:
-          Alpha: 0.30000001192092896
-          Color: 204; 51; 204
+          Alpha: 0.5
+          Color: 255; 85; 255
           Scale: 1
           Value: true
         Value: true
@@ -567,7 +569,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 43.63492965698242
+      Distance: 47.39085388183594
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -582,10 +584,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9703980684280396
+      Pitch: 0.7697973847389221
       Target Frame: gps
       Value: Orbit (rviz)
-      Yaw: 0.37039822340011597
+      Yaw: 0.855402946472168
     Saved: ~
 Window Geometry:
   Displays:
