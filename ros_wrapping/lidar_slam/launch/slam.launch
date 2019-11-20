@@ -19,15 +19,15 @@
     <param name="gps_calibration/enable" value="$(arg gps)"/>
   </node>
 
-  <!-- GPS use : if enabled, launch GPS/UTM conversions nodes -->
-  <group if="$(arg gps)">
-    <include file="$(find lidar_slam)/launch/gps_conversions.launch"/>
-  </group>
+  <!-- Launch GPS/UTM conversions nodes -->
+  <include file="$(find lidar_slam)/launch/gps_conversions.launch"/>
 
-  <!-- GPS use : if disabled, provide GPS/LiDAR calibration -->
+  <!-- If GPS/SLAM auto-calibration is disabled, provide GPS/LiDAR calibration :
+        - 1st GPS full orientation (X front, Y left, Z up) in local map (=1st GPS position (+ orientation if available) in UTM projection)
+        - GPS sensor to LiDAR sensor offset. -->
   <group unless="$(arg gps)">
-    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_map_to_slam_init" args="0.121 -0.197 0.173 0 0.3 0 /map /slam_init"/>
-    <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="tf_map_to_slam_init" args="0.121 -0.197 0.173 3.09226 2.87494 -3.06356 /map /slam_init"/> -->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_gpsinit_to_gpsheading" args="0 0 0 0 0 0 /gps_init /gps_heading"/>
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_gpsheading_to_slaminit" args="0.121 -0.197 0.173 0 0.3 0 /gps_heading /slam_init"/>
   </group>
 
 </launch>

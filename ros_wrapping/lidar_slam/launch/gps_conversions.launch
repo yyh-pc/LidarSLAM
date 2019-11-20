@@ -1,6 +1,5 @@
 <launch>
 
-  <!-- GPS conversion : Lat/Lon to UTM X/Y -->
   <!-- from sensor_msgs/NavSatFix to gps_common/GPSFix (old GPS msg) -->
   <node name="navsatfix_to_gpsfix" pkg="gps_conversions" type="navsatfix_to_gpsfix" output="screen">
     <param name="magnetic_dip" value="0."/>
@@ -14,11 +13,12 @@
     <param name="err_orientation_vert" value="0.08"/>
     <param name="magnetic_dip" value="0."/>
   </node>
-  <!-- from gps_common/GPSFix to nav_msgs/Odometry -->
+
+  <!-- GPS projection : Lat/Lon to UTM X/Y, from gps_common/GPSFix to nav_msgs/Odometry -->
   <node name="gps_to_utm" pkg="gps_conversions" type="gps_to_utm" output="screen">
     <param name="frame_id" value="utm"/>
     <param name="child_frame_id" value="gps"/>
-    <param name="map_frame_id" value="map"/>
+    <param name="map_frame_id" value="gps_init"/>
     <param name="tf_offset_to_map" value="true"/>
     <param name="origin_on_first_pose" value="true"/>
   </node>
