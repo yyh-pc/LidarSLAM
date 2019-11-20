@@ -21,6 +21,7 @@
     <param name="map_frame_id" value="gps_init"/>
     <param name="tf_offset_to_map" value="true"/>
     <param name="origin_on_first_pose" value="true"/>
+    <param name="time_offset" value="0."/>
   </node>
 
   <!-- SLAM to WGS84 conversion : UTM X/Y to GPS Lat/Lon -->

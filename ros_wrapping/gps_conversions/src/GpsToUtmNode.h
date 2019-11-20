@@ -58,10 +58,10 @@ private:
   std::string FrameId;
   std::string ChildFrameId;
   std::string MapFrameId = "map";
-
-  bool PublishTfToMap = false;  ///< true: publish a static TF from FrameId to MapFrameId to match 1st GPS pose to local map. 
+  double TimeOffset = 0.;          ///< Output odom time = GPS time + TimeOffset
+  bool PublishTfToMap = false;     ///< true: publish a static TF from FrameId to MapFrameId to match 1st GPS pose to local map.
   bool OriginOnFirstPose = false;  ///< false: publish gps pose in UTM coordinates. true: publish pose in MapFrameId (= 1st GPS pose).
-  UtmPose firstGpsPose;  ///< 1st GPS pose received, used only if OriginOnFirstPose = true.
+  UtmPose firstGpsPose;            ///< 1st GPS pose received, used only if OriginOnFirstPose = true.
 };
 
 #endif // GPS_TO_UTM_NODE_H

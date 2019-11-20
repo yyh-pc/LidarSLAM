@@ -13,6 +13,7 @@ GpsToUtmNode::GpsToUtmNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("map_frame_id", this->MapFrameId);
   priv_nh.getParam("tf_offset_to_map", this->PublishTfToMap);
   priv_nh.getParam("origin_on_first_pose", this->OriginOnFirstPose);
+  priv_nh.getParam("time_offset", this->TimeOffset);
 
   // Init ROS publishers & subscribers
   this->UtmPosePub = nh.advertise<nav_msgs::Odometry>("gps_odom", 10);
@@ -49,7 +50,7 @@ void GpsToUtmNode::GpsPoseCallback(const gps_common::GPSFix& msg)
   // Fill odometry header
   nav_msgs::Odometry odomMsg;
   odomMsg.header = msg.header;
-  odomMsg.header.stamp = ros::Time::now();  // TODO : use corrected msg time
+  odomMsg.header.stamp += ros::Duration(this->TimeOffset);
   if (!this->FrameId.empty())
     odomMsg.header.frame_id = this->FrameId;
   if (this->OriginOnFirstPose)
