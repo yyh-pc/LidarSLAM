@@ -14,6 +14,9 @@ slam_origin_frame: "slam_init"
 # [Hz] Number of frames per second acquired by the LiDAR sensor (used to generate approximate point-wise timestamp)
 lidar_frequency: 10.
 
+# Verbose mode
+verbose: true
+
 # optional publishers
 publish_features_maps:
   edges: true     # if true, edges features will be published to topic "edges_features"

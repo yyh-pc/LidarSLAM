@@ -594,14 +594,17 @@ void Slam::AddFrame(pcl::PointCloud<Slam::Point>::Ptr pc, std::vector<size_t> la
   this->NbrFrameProcessed++;
 
   // Motion and localization parameters estimation information display
-  Eigen::Vector3d angles, trans;
-  angles << Rad2Deg(this->Trelative(0)), Rad2Deg(this->Trelative(1)), Rad2Deg(this->Trelative(2));
-  trans << this->Trelative(3), this->Trelative(4), this->Trelative(5);
-  std::cout << "Ego-Motion estimation: angles = [" << angles.transpose() << "] translation: [" << trans.transpose() << "]" << std::endl;
-  angles << Rad2Deg(this->Tworld(0)), Rad2Deg(this->Tworld(1)), Rad2Deg(this->Tworld(2));
-  trans << this->Tworld(3), this->Tworld(4), this->Tworld(5);
-  std::cout << "Localiazion estimation: angles = [" << angles.transpose() << "] translation: [" << trans.transpose() << "]"
-            << std::endl << std::endl << std::endl;
+  if (this->Verbose)
+  {
+    Eigen::Vector3d angles, trans;
+    angles << Rad2Deg(this->Trelative(0)), Rad2Deg(this->Trelative(1)), Rad2Deg(this->Trelative(2));
+    trans << this->Trelative(3), this->Trelative(4), this->Trelative(5);
+    std::cout << "Ego-Motion estimation: angles = [" << angles.transpose() << "] translation: [" << trans.transpose() << "]" << std::endl;
+    angles << Rad2Deg(this->Tworld(0)), Rad2Deg(this->Tworld(1)), Rad2Deg(this->Tworld(2));
+    trans << this->Tworld(3), this->Tworld(4), this->Tworld(5);
+    std::cout << "Localiazion estimation: angles = [" << angles.transpose() << "] translation: [" << trans.transpose() << "]"
+              << std::endl << std::endl << std::endl;
+  }
 
   // Update Trajectory
   this->Trajectory.emplace_back(Transform(time, this->Tworld));
@@ -1187,9 +1190,12 @@ void Slam::ComputeEgoMotion()
   KDTreePCLAdaptor kdtreePreviousEdges(this->PreviousEdgesPoints);
   KDTreePCLAdaptor kdtreePreviousPlanes(this->PreviousPlanarsPoints);
 
-  std::cout << "========== Ego-Motion ==========" << std::endl;
-  std::cout << "previous edges: " << this->PreviousEdgesPoints->size() << " current edges: " << this->CurrentEdgesPoints->size() << std::endl;
-  std::cout << "previous planes: " << this->PreviousPlanarsPoints->size() << " current planes: " << this->CurrentPlanarsPoints->size() << std::endl;
+  if (this->Verbose)
+  {
+    std::cout << "========== Ego-Motion ==========" << std::endl;
+    std::cout << "previous edges: " << this->PreviousEdgesPoints->size() << " current edges: " << this->CurrentEdgesPoints->size() << std::endl;
+    std::cout << "previous planes: " << this->PreviousPlanarsPoints->size() << " current planes: " << this->CurrentPlanarsPoints->size() << std::endl;
+  }
 
   unsigned int usedEdges = 0;
   unsigned int usedPlanes = 0;
@@ -1302,7 +1308,8 @@ void Slam::ComputeEgoMotion()
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    std::cout << summary.BriefReport() << std::endl;
+    if (this->Verbose)
+      std::cout << summary.BriefReport() << std::endl;
 
     // If no L-M iteration has been made since the
     // last ICP matching it means we reached a local
@@ -1315,8 +1322,11 @@ void Slam::ComputeEgoMotion()
 
   this->EgoMotionEdgesPointsUsed = usedEdges;
   this->EgoMotionPlanesPointsUsed  = usedPlanes;
-  std::cout << "used keypoints : " << this->Xvalues.size() << std::endl;
-  std::cout << "edges : " << usedEdges << " planes : " << usedPlanes << std::endl;
+  if (this->Verbose)
+  {
+    std::cout << "used keypoints : " << this->Xvalues.size() << std::endl;
+    std::cout << "edges : " << usedEdges << " planes : " << usedPlanes << std::endl;
+  }
 
   // Integrate the relative motion
   // to the world transformation
@@ -1361,9 +1371,12 @@ void Slam::Mapping()
   KDTreePCLAdaptor kdtreePlanes(subPlanarPointsLocalMap);
   pcl::KdTreeFLANN<Slam::Point>::Ptr kdtreeBlobs;
 
-  std::cout << "========== Mapping ==========" << std::endl;
-  std::cout << "Edges extracted from map: " << subEdgesPointsLocalMap->points.size()
-            << "Planes extracted from map: " << subPlanarPointsLocalMap->points.size() << std::endl;
+  if (this->Verbose)
+  {
+    std::cout << "========== Mapping ==========" << std::endl;
+    std::cout << "Edges extracted from map: " << subEdgesPointsLocalMap->points.size()
+              << "Planes extracted from map: " << subPlanarPointsLocalMap->points.size() << std::endl;
+  }
 
   if (!this->FastSlam)
   {
@@ -1491,7 +1504,8 @@ void Slam::Mapping()
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    std::cout << summary.BriefReport() << std::endl;
+    if (this->Verbose)
+      std::cout << summary.BriefReport() << std::endl;
 
     // If no L-M iteration has been made since the
     // last ICP matching it means we reached a local
@@ -1530,12 +1544,15 @@ void Slam::Mapping()
   this->MappingPlanesPointsUsed = usedPlanes;
   this->MappingBlobsPointsUsed = usedBlobs;
 
-  std::cout << "Matches used: Total: " << this->Xvalues.size()
-            << " edges: " << usedEdges << " planes: " << usedPlanes << " blobs: " << usedBlobs << std::endl;
+  if (this->Verbose)
+  {
+    std::cout << "Matches used: Total: " << this->Xvalues.size()
+              << " edges: " << usedEdges << " planes: " << usedPlanes << " blobs: " << usedBlobs << std::endl;
 
-  std::cout << "Covariance Eigen values: " << D.transpose() << std::endl;
-  std::cout << "Maximum variance eigen vector: " << eig.eigenvectors().col(5).transpose() << std::endl;
-  std::cout << "Maximum variance: " << D(5) << std::endl;
+    std::cout << "Covariance Eigen values: " << D.transpose() << std::endl;
+    std::cout << "Maximum variance eigen vector: " << eig.eigenvectors().col(5).transpose() << std::endl;
+    std::cout << "Maximum variance: " << D(5) << std::endl;
+  }
 
   if (this->Undistortion)
   {

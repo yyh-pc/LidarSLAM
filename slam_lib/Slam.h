@@ -128,6 +128,9 @@ public:
   pcl::PointCloud<Point>::Ptr GetPlanarsMap();
   pcl::PointCloud<Point>::Ptr GetBlobsMap();
 
+  SetMacro(Verbose, bool)
+  GetMacro(Verbose, bool)
+
   GetMacro(MaxDistBetweenTwoFrames, double)
   SetMacro(MaxDistBetweenTwoFrames, double)
 
@@ -487,7 +490,13 @@ private:
   // Display mode will add arrays showing some
   // results of the slam algorithm such as
   // the keypoints extracted, curvature etc
-  bool DisplayMode = false;
+  bool DisplayMode = false;  // TODO : delete, useless
+
+  // Indicate if we are in display mode or not
+  // Verbose mode will print some information such as
+  // number of keypoints extracted, estimated pose and covariance,
+  // optimization results or computation duration
+  bool Verbose = false;
 
   // Identity matrix
   Eigen::Matrix3d I3 = Eigen::Matrix3d::Identity();

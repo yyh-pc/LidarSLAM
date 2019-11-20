@@ -41,6 +41,10 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // Get LiDAR frequency
   priv_nh.getParam("lidar_frequency", this->LidarFreq);
 
+  // Get verbose mode
+  priv_nh.getParam("verbose", this->Verbose);
+  this->LidarSlam.SetVerbose(this->Verbose);
+
   // Init optionnal GPS use
   priv_nh.getParam("gps_calibration/enable", this->CalibrateSlamGps);
   if (this->CalibrateSlamGps)
@@ -403,7 +407,7 @@ void LidarSlamNode::GpsSlamCalibration()
   // Run calibration
   GlobalTrajectoriesRegistration registration;
   registration.SetNoRoll(this->CalibrationNoRoll);  // DEBUG
-  registration.SetVerbose(true);  // TODO set verbose mode according to flag
+  registration.SetVerbose(this->Verbose);
   Eigen::Isometry3d tfSlamToGps;
   if (!registration.ComputeTransformOffset(slamPoses, gpsPoses, tfSlamToGps))
   {
