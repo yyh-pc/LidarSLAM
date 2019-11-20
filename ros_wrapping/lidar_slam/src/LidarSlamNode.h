@@ -8,6 +8,7 @@
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <pcl_ros/point_cloud.h>
 #include <nav_msgs/Odometry.h>
+#include <std_msgs/Empty.h>
 
 // SLAM
 #include <Slam.h>
@@ -42,6 +43,15 @@ public:
    * @param[in] msg Converted GPS pose with its associated covariance.
    */
   void GpsCallback(const nav_msgs::Odometry& msg);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief     Triggers GpsSlamCalibration(), which runs GPS/SLAM calibration
+   *            from recorded GPS and SLAM poses, and publish static TF to link
+   *            SlamOriginFrameId to GPS frame.
+   * @param[in] msg (Unused)
+   */
+  void RunGpsSlamCalibrationCallback(const std_msgs::Empty&);
 
 private:
 
@@ -84,6 +94,13 @@ private:
   void SetSlamParameters(ros::NodeHandle& priv_nh);
 
   //----------------------------------------------------------------------------
+  /*!
+   * @brief Run GPS/SLAM calibration from recorded GPS and SLAM poses, and
+   *        publish static TF to link SlamOriginFrameId to GPS frame.
+   */
+  void GpsSlamCalibration();
+
+  //----------------------------------------------------------------------------
 
   // SLAM stuff
   Slam LidarSlam;
@@ -97,13 +114,15 @@ private:
   tf2_ros::TransformBroadcaster TfBroadcaster;
 
   // Optionnal GPS use
+  std::string GpsOriginFrameId = "gps_init";
   bool CalibrateSlamGps = false;
-  int NbrCalibrationPoints = 50;
+  int NbrCalibrationPoints = 50;   // DEBUG unused
   bool CalibrationNoRoll = false;  // DEBUG
   std::vector<double> LidarToGpsOffset;  ///< (X, Y, Z) position of the GPS antenna in LiDAR coordinates.
   std::vector<Transform> SlamPoses;
   std::vector<Transform> GpsPoses;
   ros::Subscriber GpsOdomSub;
+  ros::Subscriber GpsSlamCalibrationSub;
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
 
   // Debug publishers
