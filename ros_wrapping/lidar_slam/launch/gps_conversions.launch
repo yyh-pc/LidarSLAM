@@ -6,7 +6,7 @@
     <remap from="nav_sat_fix" to="fix"/>
   </node>
   <!-- from novariant_capi/PositionGps to gps_common/GPSFix (new GPS msg) -->
-  <node name="gps_fix_conversion" pkg="novariant_capi" type="gps_fix_conversion" output="screen">
+  <node name="gps_fix_conversion" pkg="novariant_capi_compatibility" type="gps_fix_conversion" output="screen">
     <param name="err_position_horz" value="0.1"/>
     <param name="err_position_vert" value="0.2"/>
     <param name="err_orientation_horz" value="3.14159"/>

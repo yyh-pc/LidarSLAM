@@ -53,7 +53,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("gps_calibration/lidar_to_gps_offset", this->LidarToGpsOffset);
 
   // Init optional publishers
-  priv_nh.getParam("gps/publish_icp_trajectories", this->PublishIcpTrajectories);
+  priv_nh.getParam("gps_calibration/publish_icp_trajectories", this->PublishIcpTrajectories);
   priv_nh.getParam("publish_features_maps/edges", this->PublishEdges);
   priv_nh.getParam("publish_features_maps/planars", this->PublishPlanars);
   priv_nh.getParam("publish_features_maps/blobs", this->PublishBlobs);

@@ -216,7 +216,6 @@ public:
       }
       frameCenterY++;
       this->VoxelGridPosition[1]--;
-//      cout << "bottom";
     }
 
     // shift the voxel grid to the top

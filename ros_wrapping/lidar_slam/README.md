@@ -2,7 +2,7 @@
 
 - [lidar_slam](#lidar_slam)
   - [LiDAR SLAM node](#lidar-slam-node)
-  - [Description and usage](#description-and-usage)
+    - [Description and usage](#description-and-usage)
     - [GPS/SLAM calibration](#gpsslam-calibration)
     - [About the published TF tree](#about-the-published-tf-tree)
   - [Pose graph optimization node](#pose-graph-optimization-node)
@@ -11,7 +11,7 @@ Wrapping for Kitware LiDAR-only SLAM. It can also use GPS data to publish SLAM o
 
 ## LiDAR SLAM node
 
-## Description and usage
+### Description and usage
 
 The raw SLAM node subscribes to velodyne pointclouds, and publishes the lidar odometry (as well as TF) of the current pose with respect to the initial pose.
 

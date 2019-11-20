@@ -228,7 +228,7 @@ public:
   std::shared_ptr<SpinningSensorKeypointExtractor> GetKeyPointsExtractor() { return this->KeyPointsExtractor; }
 
 private:
-  std::vector<Transform> Trajectory;
+  std::vector<Transform> Trajectory;  // CHECK unused ?
 
   // Array used only for debug purposes
   double EgoMotionEdgesPointsUsed;

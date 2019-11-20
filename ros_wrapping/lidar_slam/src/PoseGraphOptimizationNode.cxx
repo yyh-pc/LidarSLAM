@@ -124,7 +124,7 @@ void PoseGraphOptimizationNode::GpsPoseCallback(const nav_msgs::Odometry& msg)
 }
 
 //------------------------------------------------------------------------------
-void PoseGraphOptimizationNode::RunOptimizationCallback(const std_msgs::Empty& msg)
+void PoseGraphOptimizationNode::RunOptimizationCallback(const std_msgs::Empty&)
 {
   // Init timer
   ROS_INFO_STREAM("Pose graph optimization started.");

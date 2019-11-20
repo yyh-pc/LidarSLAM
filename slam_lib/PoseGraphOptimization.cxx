@@ -177,8 +177,8 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
 
       // Add edge to pose graph
       auto slamEdge = std::make_unique<g2o::EdgeSE3>();
-      slamEdge->vertices()[0] = this->GraphOptimizer.vertex(i - 1);
-      slamEdge->vertices()[1] = this->GraphOptimizer.vertex(i);
+      slamEdge->setVertex(0, this->GraphOptimizer.vertex(i - 1));
+      slamEdge->setVertex(1, this->GraphOptimizer.vertex(i));
       slamEdge->setMeasurement(H_rel);
       slamEdge->setInformation(covMatrix.inverse());
       this->GraphOptimizer.addEdge(slamEdge.release());
@@ -214,12 +214,20 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
 
       // Add an edge between the temporal closest SLAM vertex
       auto gpsEdge = std::make_unique<g2o::EdgeSE3PointXYZ>();
-      gpsEdge->vertices()[1] = this->GraphOptimizer.vertex(idCount);
-      gpsEdge->vertices()[0] = this->GraphOptimizer.vertex(foundId); // get the temporal closest SLAM vertex
+      gpsEdge->setVertex(0, this->GraphOptimizer.vertex(foundId));
+      gpsEdge->setVertex(1, this->GraphOptimizer.vertex(idCount));
       gpsEdge->setMeasurement(Eigen::Vector3d::Zero());  // CHECK we want to merge this SLAM point to this GPS point
       gpsEdge->setInformation(covMatrix.inverse());
       gpsEdge->setParameterId(0, 0); // tel the edge to use the Lidar/GPS calibration which is define inside the graph
       this->GraphOptimizer.addEdge(gpsEdge.release());
+
+      // // Add unary edge to closest SLAM vertex
+      // auto gpsEdge = std::make_unique<g2o::EdgeSE3XYZPrior>();
+      // gpsEdge->setVertex(0, this->GraphOptimizer.vertex(foundId));
+      // gpsEdge->setMeasurement(H.inverse().translation());
+      // gpsEdge->setInformation(covMatrix.inverse());
+      // gpsEdge->setParameterId(0, 0); // tel the edge to use the Lidar/GPS calibration which is define inside the graph
+      // this->GraphOptimizer.addEdge(gpsEdge.release());
     }
   }
 

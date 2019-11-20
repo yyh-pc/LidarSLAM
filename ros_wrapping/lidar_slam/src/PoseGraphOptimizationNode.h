@@ -41,7 +41,7 @@ public:
    * @brief     Run pose graph optimization from GPS and SLAM poses, and publish optimized LiDAR trajectory.
    * @param[in] msg (Unused)
    */
-  void RunOptimizationCallback(const std_msgs::Empty& msg);
+  void RunOptimizationCallback(const std_msgs::Empty&);
 
 private:
 
