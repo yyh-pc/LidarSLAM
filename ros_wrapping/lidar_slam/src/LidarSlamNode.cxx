@@ -48,7 +48,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
     this->GpsSlamCalibrationSub = nh.subscribe("run_gps_slam_calibration", 1, &LidarSlamNode::RunGpsSlamCalibrationCallback, this);
   }
-  priv_nh.getParam("gps_calibration/n_points", this->NbrCalibrationPoints);
+  priv_nh.getParam("gps_calibration/pose_timeout", this->CalibrationPoseTimeout);
   priv_nh.getParam("gps_calibration/no_roll", this->CalibrationNoRoll);
   priv_nh.getParam("gps_calibration/lidar_to_gps_offset", this->LidarToGpsOffset);
 
@@ -126,9 +126,11 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   // If GPS/SLAM calibration is needed, save SLAM pose for later use
   if (this->CalibrateSlamGps)
   {
+    // Add new pose to buffer
     worldTransform.time = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();
     this->SlamPoses.push_back(worldTransform);
-    if (this->SlamPoses.size() > this->NbrCalibrationPoints)
+    // Forget all previous poses older than CalibrationPoseTimeout
+    while (this->SlamPoses.front().time < worldTransform.time - this->CalibrationPoseTimeout)
       this->SlamPoses.pop_front();
   }
 }
@@ -139,6 +141,7 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
   // If GPS/SLAM calibration is needed, save GPS pose for later use
   if (this->CalibrateSlamGps)
   {
+    // Add new pose to buffer
     this->GpsOriginFrameId = msg.header.frame_id;
     double time = msg.header.stamp.toSec();
     Eigen::Translation3d trans(msg.pose.pose.position.x,
@@ -149,7 +152,9 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
                            msg.pose.pose.orientation.y,
                            msg.pose.pose.orientation.z);
     this->GpsPoses.push_back(Transform(time, trans, rot));
-    if (this->GpsPoses.size() > this->NbrCalibrationPoints)
+
+    // Forget all previous poses older than CalibrationPoseTimeout
+    while (this->GpsPoses.front().time < time - this->CalibrationPoseTimeout)
       this->GpsPoses.pop_front();
   }
 }

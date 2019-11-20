@@ -116,8 +116,8 @@ private:
   // Optionnal GPS use
   std::string GpsOriginFrameId = "gps_init";
   bool CalibrateSlamGps = false;
-  int NbrCalibrationPoints = 100;
   bool CalibrationNoRoll = false;  // DEBUG
+  double CalibrationPoseTimeout = 15.;  ///< [s] GPS/SLAM poses older than that are forgotten.
   std::vector<double> LidarToGpsOffset;  ///< (X, Y, Z) position of the GPS antenna in LiDAR coordinates.
   std::deque<Transform> SlamPoses;
   std::deque<Transform> GpsPoses;

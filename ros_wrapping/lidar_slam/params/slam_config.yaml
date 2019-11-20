@@ -24,8 +24,8 @@ publish_features_maps:
 # It requires GPS pose published on 'gps_odom' topic as a nav_msgs/Odometry message.
 # GPS/SLAM calibration can be triggered by publishing 'run_gps_slam_calibration' topic.
 gps_calibration:
-  enable: true      # If true, subscribe to gps topic 'gps_odom', try to fit GPS trajectory to SLAM trajectory, and publish static TF to link 'gps_odom/header/frame_id' to 'slam_origin_frame' (WARNING Can be overridden in slam.launch with gps:=false).
-  n_points: 200     # Maximum number of GPS/SLAM points to use for GPS/SLAM sensors calibration. Calibration will use at most last (more recent) n_points received.
+  enable: true       # If true, subscribe to gps topic 'gps_odom', try to fit GPS trajectory to SLAM trajectory, and publish static TF to link 'gps_odom/header/frame_id' to 'slam_origin_frame' (WARNING Can be overridden in slam.launch with gps:=false).
+  pose_timeout: 15.  # [s] GPS/SLAM poses older than that are forgotten and not used for calibration.
   lidar_to_gps_offset: [-0.121, 0.197, -0.173]  # Position of the GPS in LiDAR coordinates (help to estimate a better calibration).
   no_roll: false                   # If true, impose calibration to have no pitch rotation. DEBUG
   publish_icp_trajectories: true   # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps' and 'icp_slam' latched topics ((Used for debug only to check calibration).
