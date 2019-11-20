@@ -23,7 +23,7 @@ publish_features_maps:
 # Optionnal use of GPS to calibrate SLAM pose to GPS coordinates.
 # It requires GPS pose published on 'gps_odom' topic as a nav_msgs/Odometry message.
 gps_calibration:
-  enable: true      # If true, subscribe to gps topic 'gps_odom', try to fit GPS trajectory to SLAM trajectory, and publish static TF to link 'gps_odom/header/frame_id' to 'slam_origin_frame'
+  enable: true      # If true, subscribe to gps topic 'gps_odom', try to fit GPS trajectory to SLAM trajectory, and publish static TF to link 'gps_odom/header/frame_id' to 'slam_origin_frame' (WARNING Can be overridden in slam.launch with gps:=false).
   n_points: 170     # Minimum number of GPS/SLAM points to use for GPS/SLAM sensors calibration. Node wil accumulate points until this number is reached to start calibration.
   lidar_to_gps_offset: [-0.121, 0.197, -0.173]  # Position of the GPS in LiDAR coordinates (help to estimate a better calibration).
   no_roll: true                   # If true, impose calibration to have no pitch rotation. DEBUG
