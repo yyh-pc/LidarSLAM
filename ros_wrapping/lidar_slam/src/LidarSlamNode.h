@@ -116,11 +116,11 @@ private:
   // Optionnal GPS use
   std::string GpsOriginFrameId = "gps_init";
   bool CalibrateSlamGps = false;
-  int NbrCalibrationPoints = 50;   // DEBUG unused
+  int NbrCalibrationPoints = 100;
   bool CalibrationNoRoll = false;  // DEBUG
   std::vector<double> LidarToGpsOffset;  ///< (X, Y, Z) position of the GPS antenna in LiDAR coordinates.
-  std::vector<Transform> SlamPoses;
-  std::vector<Transform> GpsPoses;
+  std::deque<Transform> SlamPoses;
+  std::deque<Transform> GpsPoses;
   ros::Subscriber GpsOdomSub;
   ros::Subscriber GpsSlamCalibrationSub;
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
