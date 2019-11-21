@@ -26,8 +26,8 @@
         - 1st GPS full orientation (X front, Y left, Z up) in local map (=1st GPS position (+ orientation if available) in UTM projection)
         - GPS sensor to LiDAR sensor offset. -->
   <group unless="$(arg gps)">
-    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_gpsinit_to_gpsheading" args="0 0 0 0 0 0 /gps_init /gps_heading"/>
-    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_gpsheading_to_slaminit" args="0.121 -0.197 0.173 0 0.3 0 /gps_heading /slam_init"/>
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_gpsinit_to_gpsheading" args="0 0 0 0 0 0 /gps_init /gps_init_full_pose"/>
+    <node pkg="tf2_ros" type="static_transform_publisher" name="tf_gpsheading_to_slaminit" args="0 0 0 0 0 0 /gps_init_full_pose /slam_init"/>
   </group>
 
 </launch>

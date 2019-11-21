@@ -28,7 +28,7 @@ When using it in real conditions, use :
 roslaunch lidar_slam slam.launch use_sim_time:=false
 ```
 
-This launch file will start a *lidar_slam_node*, a pre-configured RViz session, and GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
+This launch file will start a *lidar_slam_node*, a pre-configured RViz session, and GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below). Input pointcloud fix must be a *sensor_msgs/PointCloud2* message (of points `velodyne_pointcloud::PointXYZIR`) published on topic '*velodyne_points*'. Input GPS fix must be a *gps_common/GPSFix* message published on topic '*gps_fix*'.
 
 ### GPS/SLAM calibration
 
@@ -36,7 +36,7 @@ To be able to publish local SLAM odometry as GPS coordinates, it is necessary to
 
 If these full 3D transforms are perfectly known, fill them in `launch/slam.launch` to ensure that the correct transformation is applied to output SLAM pose to the WGS84 format.
 
-If these transforms are unknown, the SLAM node can try to auto-compute them for you. If this GPS/SLAM calibration is enabled, the node records the last GPS and SLAM positions (and forgets the ones older than a pre-defined timeout threshold). The calibration process can be triggered at any time by publishing an empty message to '*run_gps_slam_calibration*' topic. When triggered, the recorded SLAM and GPS trajectories are aligned with ICP matching, giving the full 3D static transform to link a SLAM pose into GPS coordinates, published on TF server.
+If these transforms are unknown, the SLAM node can try to auto-compute them for you. If this GPS/SLAM calibration is enabled, the node subscribes to the topic '*gps_odom*' records the last GPS and SLAM positions (and forgets the ones older than a pre-defined timeout threshold). The calibration process can be triggered at any time by publishing an empty message to '*run_gps_slam_calibration*' topic. When triggered, the recorded SLAM and GPS trajectories are aligned with ICP matching, giving the full 3D static transform to link a SLAM pose into GPS coordinates, published on TF server.
 1. NOTE: During this auto-calibration process, GPS position should be precise enough to guarantee a robust calibration.
 2. NOTE: As registration is done via ICP without any other prior, the trajectories need to have some turns in order to fully constrain the problem. If the movement is only following a straight line, 1 rotation remains unconstrained, and could lead to serious artefacts.
 3. NOTE: To fix this straight line case, a supplementary prior can be introduced, imposing for example the output calibration to have no roll angle (hypothesis of flat ground plane in front direction). However, if ground is not flat, it could also lead to bad calibration.
