@@ -383,33 +383,34 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
 void LidarSlamNode::GpsSlamCalibration()
 {
   // Transform to modifiable vectors
-  std::vector<Transform> slamPoses(this->SlamPoses.begin(), this->SlamPoses.end());
-  std::vector<Transform>gpsPoses(this->GpsPoses.begin(), this->GpsPoses.end());
+  std::vector<Transform> slamToLidarPoses(this->SlamPoses.begin(), this->SlamPoses.end());
+  std::vector<Transform> worldToGpsPoses(this->GpsPoses.begin(), this->GpsPoses.end());
 
-  // If a sensors offset is given, use it to compute GPS antenna position according to SLAM
+  // If a sensors offset is given, use it to compute real GPS antenna position in SLAM coordinates
+  Eigen::Isometry3d lidarToGpsOffset = Eigen::Isometry3d::Identity();
   if (!this->LidarToGpsOffset.empty())
   {
-    Eigen::Vector3d lidarToGpsOffset(this->LidarToGpsOffset[0],
-                                     this->LidarToGpsOffset[1],
-                                     this->LidarToGpsOffset[2]);
-    std::cout << "Transforming SLAM positions to GPS positions using LIDAR/GPS offset :\n"
-              << lidarToGpsOffset << std::endl;
-    for (Transform& slamPose : slamPoses)
+    Transform lidarToGpsTransform(0., this->LidarToGpsOffset[0], this->LidarToGpsOffset[1], this->LidarToGpsOffset[2],
+                                      this->LidarToGpsOffset[3], this->LidarToGpsOffset[4], this->LidarToGpsOffset[5]);
+    lidarToGpsOffset = lidarToGpsTransform.GetIsometry();
+    std::cout << "Transforming LiDAR pose acquired by SLAM to GPS antenna pose using LIDAR to GPS antenna offset :\n"
+              << lidarToGpsOffset.matrix() << std::endl;
+    for (Transform& slamToGpsPose : slamToLidarPoses)
     {
-      Eigen::Isometry3d slamPoseInSlam = slamPose.GetIsometry();
-      Eigen::Vector3d gpsPoseInSlam(slamPoseInSlam * lidarToGpsOffset);
-      slamPose.x = gpsPoseInSlam(0);
-      slamPose.y = gpsPoseInSlam(1);
-      slamPose.z = gpsPoseInSlam(2);
+      Eigen::Isometry3d slamToLidar = slamToGpsPose.GetIsometry();
+      Eigen::Isometry3d slamToGps(lidarToGpsOffset * slamToLidar);
+      slamToGpsPose = Transform(slamToGpsPose.time, slamToGps);
     }
   }
+  // At this point, we now have GPS antenna poses in SLAM coordinates.
+  std::vector<Transform>& slamToGpsPoses = slamToLidarPoses;
 
-  // Run calibration
+  // Run calibration : compute transform from SLAM to WORLD
   GlobalTrajectoriesRegistration registration;
   registration.SetNoRoll(this->CalibrationNoRoll);  // DEBUG
   registration.SetVerbose(this->Verbose);
-  Eigen::Isometry3d tfSlamToGps;
-  if (!registration.ComputeTransformOffset(slamPoses, gpsPoses, tfSlamToGps))
+  Eigen::Isometry3d worldToSlam;
+  if (!registration.ComputeTransformOffset(slamToGpsPoses, worldToGpsPoses, worldToSlam))
   {
     ROS_ERROR_STREAM("GPS/SLAM calibration failed.");
     return;
@@ -418,10 +419,11 @@ void LidarSlamNode::GpsSlamCalibration()
   // Publish ICP-matched trajectories
   if (this->PublishIcpTrajectories)
   {
+    // GPS antenna trajectory acquired from GPS in WORLD coordinates
     nav_msgs::Path gpsPath;
     gpsPath.header.frame_id = this->GpsOriginFrameId;
     gpsPath.header.stamp = ros::Time::now();
-    for (const Transform& pose: gpsPoses)
+    for (const Transform& pose: worldToGpsPoses)
     {
       geometry_msgs::PoseStamped poseStamped;
       poseStamped.header.stamp = ros::Time(pose.time);
@@ -437,11 +439,12 @@ void LidarSlamNode::GpsSlamCalibration()
       gpsPath.poses.push_back(poseStamped);
     }
     this->GpsPathPub.publish(gpsPath);
+    // GPS antenna trajectory acquired from SLAM in WORLD coordinates
     nav_msgs::Path slamPath;
     slamPath.header = gpsPath.header;
-    for (const Transform& pose: slamPoses)
+    for (const Transform& pose: slamToGpsPoses)
     {
-      Transform newPose(pose.time, tfSlamToGps * pose.GetIsometry());
+      Transform newPose(pose.time, worldToSlam * pose.GetIsometry());
       geometry_msgs::PoseStamped poseStamped;
       poseStamped.header.stamp = ros::Time(newPose.time);
       poseStamped.header.frame_id = gpsPath.header.frame_id;
@@ -458,18 +461,9 @@ void LidarSlamNode::GpsSlamCalibration()
     this->SlamPathPub.publish(slamPath);
   }
 
-  // Add GPS/LiDAR offset to transform
-  if (!this->LidarToGpsOffset.empty())
-  {
-    Eigen::Translation3d lidarToGpsTrans(-this->LidarToGpsOffset[0],
-                                          -this->LidarToGpsOffset[1],
-                                          -this->LidarToGpsOffset[2]);
-    tfSlamToGps = tfSlamToGps * lidarToGpsTrans;
-  }
-
-  // Publish static tf with calibration to link GPS (UTM) frame to SLAM origin
-  Eigen::Translation3d translation(tfSlamToGps.translation());
-  Eigen::Quaterniond rotation(tfSlamToGps.rotation());
+  // Publish static tf with calibration to link world (UTM) frame to SLAM origin
+  Eigen::Translation3d translation(worldToSlam.translation());
+  Eigen::Quaterniond rotation(worldToSlam.rotation());
   geometry_msgs::TransformStamped tfStamped;
   tfStamped.header.stamp = ros::Time::now();
   tfStamped.header.frame_id = this->GpsOriginFrameId;
@@ -483,15 +477,16 @@ void LidarSlamNode::GpsSlamCalibration()
   tfStamped.transform.rotation.w = rotation.w();
   this->StaticTfBroadcaster.sendTransform(tfStamped);
 
-  Eigen::Vector3d xyz = tfSlamToGps.translation();
-  Eigen::Vector3d ypr = tfSlamToGps.linear().eulerAngles(2, 1, 0);
+  Eigen::Vector3d xyz = worldToSlam.translation();
+  Eigen::Vector3d ypr = worldToSlam.linear().eulerAngles(2, 1, 0);
   ROS_INFO_STREAM("\033[1;32m" <<
-                  "Global transform from SLAM ('" << this->SlamOriginFrameId << "') "
-                  "to GPS ('" << this->GpsOriginFrameId << "') "
-                  "successfully estimated to :\n" << tfSlamToGps.matrix() <<
+                  "Global transform from GPS ('" << this->GpsOriginFrameId << "') "
+                  "to SLAM ('" << this->SlamOriginFrameId << "') "
+                  "successfully estimated to :\n" << worldToSlam.matrix() <<
                   "\n(tf2 static transform : " <<
                   xyz(0) << " " << xyz(1) << " " << xyz(2) << " " <<
                   ypr(0) << " " << ypr(1) << " " << ypr(2) <<
+                  " /" << this->GpsOriginFrameId << " /" << this->SlamOriginFrameId <<
                   ")\033[0m");
 }
 

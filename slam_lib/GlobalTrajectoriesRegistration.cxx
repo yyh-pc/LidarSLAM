@@ -1,39 +1,28 @@
 #include "GlobalTrajectoriesRegistration.h"
 
-namespace
-{
-  Eigen::Isometry3d OppositeTransform(const Eigen::Isometry3d& a2b)
-  {
-    Eigen::Isometry3d b2a;
-    b2a.translation() = -a2b.translation();
-    b2a.linear() = a2b.linear().transpose();
-    return b2a;
-  }
-}
-
 //------------------------------------------------------------------------------
-bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Transform>& fromPoses,
-                                                            const std::vector<Transform>& toPoses,
-                                                            Eigen::Isometry3d& offset)
+bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Transform>& initPoses,
+                                                            const std::vector<Transform>& finalPoses,
+                                                            Eigen::Isometry3d& initToFinal)
 {
   // TODO Use timestamps to filter out outliers points
 
   // TODO It is better (faster, more accurate and correct score estimation) to fit a
-  // sparser trajectory to a denser one. As a result, if 'toPoses' is sparser
-  // than 'fromPoses', swap source and target for ICP.
+  // sparser trajectory to a denser one. As a result, if 'finalPoses' is sparser
+  // than 'initPoses', swap source and target for ICP.
+
+  // Compute rough transformation to get better initialization if needed
+  Eigen::Isometry3d initToRough = Eigen::Isometry3d::Identity();
+  if (this->InitWithRoughEstimate)
+    this->ComputeRoughTransformOffset(initPoses, finalPoses, initToRough);
 
   // Convert to PCL pointclouds
   pcl::PointCloud<pcl::PointXYZ>::Ptr fromCloud(new pcl::PointCloud<pcl::PointXYZ>);
-  for (const auto& pose: fromPoses)
+  for (const auto& pose: initPoses)
     fromCloud->push_back(pcl::PointXYZ(pose.x, pose.y, pose.z));
   pcl::PointCloud<pcl::PointXYZ>::Ptr toCloud(new pcl::PointCloud<pcl::PointXYZ>);
-  for (const auto& pose: toPoses)
+  for (const auto& pose: finalPoses)
     toCloud->push_back(pcl::PointXYZ(pose.x, pose.y, pose.z));
-
-  // Compute rough transformation to get better initialization if needed
-  Eigen::Isometry3d roughTransform = Eigen::Isometry3d::Identity();
-  if (this->InitWithRoughEstimate)
-    this->ComputeRoughTransformOffset(fromPoses, toPoses, roughTransform);
 
   // Run ICP for transform refinement
   pcl::PointCloud<pcl::PointXYZ> optimCloud;
@@ -41,29 +30,29 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
   icp.setMaximumIterations(this->NbrIcpIterations);
   icp.setInputSource(fromCloud);
   icp.setInputTarget(toCloud);
-  icp.align(optimCloud, roughTransform.matrix());
-  offset = icp.getFinalTransformation();
+  icp.align(optimCloud, initToRough.matrix());
+  initToFinal = icp.getFinalTransformation();
 
   // DEBUG If requested, impose no roll angle
   if (this->NoRoll)
   {
-    // Eigen::Vector3d rpy = offset.rotation().eulerAngles(0, 1, 2);
+    // Eigen::Vector3d rpy = initToFinal.rotation().eulerAngles(0, 1, 2);
     // rpy(0) = 0.;
-    // offset.linear() = Eigen::Matrix3d(Eigen::AngleAxisd(rpy(0), Eigen::Vector3d::UnitX())
+    // initToFinal.linear() = Eigen::Matrix3d(Eigen::AngleAxisd(rpy(0), Eigen::Vector3d::UnitX())
     //                                 * Eigen::AngleAxisd(rpy(1), Eigen::Vector3d::UnitY())
     //                                 * Eigen::AngleAxisd(rpy(2), Eigen::Vector3d::UnitZ()));
-    Eigen::Vector3d rpy = offset.inverse().linear().eulerAngles(0, 1, 2);
-    offset = Eigen::AngleAxisd(rpy(0), Eigen::Vector3d::UnitX()) * offset;
+    Eigen::Vector3d rpy = initToFinal.inverse().linear().eulerAngles(0, 1, 2);
+    initToFinal = Eigen::AngleAxisd(rpy(0), Eigen::Vector3d::UnitX()) * initToFinal;
   }
 
-  // TODO ICP transform display is not correct
+  // Print estimated transforms
   if (this->Verbose)
   {
     std::cout << "ICP has converged:" << icp.hasConverged()
               << "\nICP score: " << icp.getFitnessScore()
-              << "\nRough transform:\n" << roughTransform.matrix()
-              << "\nICP transform:\n" << (offset * roughTransform.inverse()).matrix()  // CHECK
-              << "\nFinal transform:\n" << offset.matrix()
+              << "\nRough transform:\n" << initToRough.matrix()
+              << "\nICP transform:\n" << (initToRough.inverse() * initToFinal).matrix()
+              << "\nFinal transform:\n" << initToFinal.matrix()
               << std::endl;
   }
 
@@ -71,41 +60,41 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
 }
 
 //------------------------------------------------------------------------------
-bool GlobalTrajectoriesRegistration::ComputeRoughTransformOffset(const std::vector<Transform>& fromPoses,
-                                                                 const std::vector<Transform>& toPoses,
-                                                                 Eigen::Isometry3d& offset)
+bool GlobalTrajectoriesRegistration::ComputeRoughTransformOffset(const std::vector<Transform>& initPoses,
+                                                                 const std::vector<Transform>& finalPoses,
+                                                                 Eigen::Isometry3d& initToFinal)
 {
-  Eigen::Translation3d translation = ComputeRoughTranslationOffset(fromPoses.back(), toPoses.back());
-  Eigen::Quaterniond rotation = ComputeRoughRotationOffset(fromPoses[0], fromPoses.back(),
-                                                           toPoses[0], toPoses.back());
-  offset = translation * rotation;
+  Eigen::Translation3d translation = ComputeRoughTranslationOffset(initPoses[0], finalPoses[0]);
+  Eigen::Quaterniond rotation = ComputeRoughRotationOffset(initPoses[0], initPoses.back(),
+                                                           finalPoses[0], finalPoses.back());
+  initToFinal = translation * rotation;
   return true;
 }
 
 //------------------------------------------------------------------------------
-Eigen::Translation3d GlobalTrajectoriesRegistration::ComputeRoughTranslationOffset(const Transform& fromPose,
-                                                                                   const Transform& toPose)
+Eigen::Translation3d GlobalTrajectoriesRegistration::ComputeRoughTranslationOffset(const Transform& initPose,
+                                                                                   const Transform& finalPose)
 {
-  return Eigen::Translation3d(toPose.x - fromPose.x,
-                              toPose.y - fromPose.y,
-                              toPose.z - fromPose.z);
+  return Eigen::Translation3d(finalPose.x - initPose.x,
+                              finalPose.y - initPose.y,
+                              finalPose.z - initPose.z);
 }
 
 //------------------------------------------------------------------------------
-Eigen::Quaterniond GlobalTrajectoriesRegistration::ComputeRoughRotationOffset(const Transform& fromPose1,
-                                                                              const Transform& fromPose2,
-                                                                              const Transform& toPose1,
-                                                                              const Transform& toPose2)
+Eigen::Quaterniond GlobalTrajectoriesRegistration::ComputeRoughRotationOffset(const Transform& initPoseFrom,
+                                                                              const Transform& initPoseTo,
+                                                                              const Transform& finalPoseFrom,
+                                                                              const Transform& finalPoseTo)
 {
-  // Get fromPose direction
-  Eigen::Vector3d fromDirection(fromPose2.x - fromPose1.x,
-                                fromPose2.y - fromPose1.y,
-                                fromPose2.z - fromPose1.z);
+  // Get approximate initPose direction
+  Eigen::Vector3d fromDirection(initPoseTo.x - initPoseFrom.x,
+                                initPoseTo.y - initPoseFrom.y,
+                                initPoseTo.z - initPoseFrom.z);
 
-  // Get approximate GPS trajectory direction
-  Eigen::Vector3d toDirection(toPose2.x - toPose1.x,
-                              toPose2.y - toPose1.y,
-                              toPose2.z - toPose1.z);
+  // Get approximate finalPose direction
+  Eigen::Vector3d toDirection(finalPoseTo.x - finalPoseFrom.x,
+                              finalPoseTo.y - finalPoseFrom.y,
+                              finalPoseTo.z - finalPoseFrom.z);
 
   // Compute orientation alignment between two sub-trajectories
   return Eigen::Quaterniond::FromTwoVectors(fromDirection, toDirection);

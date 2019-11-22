@@ -79,7 +79,7 @@ void PoseGraphOptimization::SetGPSCalibration(double x, double y, double z, doub
   Eigen::Quaterniond r(Eigen::AngleAxisd(rz, Eigen::Vector3d::UnitZ()) *
                        Eigen::AngleAxisd(ry, Eigen::Vector3d::UnitY()) *
                        Eigen::AngleAxisd(rx, Eigen::Vector3d::UnitX()));
-  Eigen::Isometry3d transform(r * t);
+  Eigen::Isometry3d transform(t * r);
   this->SetGPSCalibration(transform);
 }
 

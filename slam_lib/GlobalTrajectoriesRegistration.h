@@ -30,50 +30,56 @@ public:
   //----------------------------------------------------------------------------
   /*!
    * @brief Compute global translation/rotation offset between two trajectories.
-   * @param[in]  fromPoses The initial trajectory.
-   * @param[in]  toPoses   The final trajectory.
-   * @param[out] offset    The global transform from 'fromPoses' to 'toPoses'.
-   * @return true if offset has been computed correctly, false if error occured.
+   * @param[in]  initPoses   The initial trajectory.
+   * @param[in]  finalPoses  The final trajectory.
+   * @param[out] initToFinal The global transform to apply to 'initPoses' to get 'finalPoses'.
+   * @return true if initToFinal has been computed correctly, false if error occured.
+   * 
+   * NOTE : The returned transform is the one to transform each initPose to a finalPose such that :
+   *        finalPose = initToFinal * initPose
    */
-  bool ComputeTransformOffset(const std::vector<Transform>& fromPoses,
-                              const std::vector<Transform>& toPoses,
-                              Eigen::Isometry3d& offset);
+  bool ComputeTransformOffset(const std::vector<Transform>& initPoses,
+                              const std::vector<Transform>& finalPoses,
+                              Eigen::Isometry3d& initToFinal);
 
   //----------------------------------------------------------------------------
   /*!
    * @brief Compute approximate global translation/rotation offset between two
    *        trajectories using only first and last points.
-   * @param[in]  fromPoses The initial trajectory.
-   * @param[in]  toPoses   The final trajectory.
-   * @param[out] offset    The approximate global transform from 'fromPoses' to 'toPoses'.
-   * @return true if offset has been computed correctly, false if error occured.
+   * @param[in]  initPoses   The initial trajectory.
+   * @param[in]  finalPoses  The final trajectory.
+   * @param[out] initToFinal The global transform to apply to 'initPoses' to get 'finalPoses'.
+   * @return true if initToFinal has been computed correctly, false if error occured.
+   * 
+   * NOTE : The returned transform is the one to transform each initPose to a finalPose such that :
+   *        finalPose = initToFinal * initPose
    */
-  static bool ComputeRoughTransformOffset(const std::vector<Transform>& fromPoses,
-                                          const std::vector<Transform>& toPoses,
-                                          Eigen::Isometry3d& offset);
+  static bool ComputeRoughTransformOffset(const std::vector<Transform>& initPoses,
+                                          const std::vector<Transform>& finalPoses,
+                                          Eigen::Isometry3d& initToFinal);
 
 private:
 
   //----------------------------------------------------------------------------
   /*!
    * @brief Compute translation offset between two poses.
-   * @param[in] fromPose The initial point.
-   * @param[in] toPose   The final point.
-   * @return The translation from 'fromPose' to 'toPose'.
+   * @param[in] initPose  The initial point.
+   * @param[in] finalPose The final point.
+   * @return The translation from 'initPose' to 'finalPose'.
    */
-  static Eigen::Translation3d ComputeRoughTranslationOffset(const Transform& fromPose, const Transform& toPose);
+  static Eigen::Translation3d ComputeRoughTranslationOffset(const Transform& initPose, const Transform& finalPose);
 
   //----------------------------------------------------------------------------
   /*!
    * @brief Compute orientation offset between two trajectories.
-   * @param[in] fromPose1 The initial point of the initial trajectory.
-   * @param[in] fromPose2 The final point of the initial trajectory.
-   * @param[in] toPose1   The initial point of the final trajectory.
-   * @param[in] toPose2   The final point of the final trajectory.
-   * @return The rotation from (fromPose1, fromPose2) to (toPose1, toPose2).
+   * @param[in] initPoseFrom  The initial point of the initial trajectory.
+   * @param[in] initPoseTo    The final point of the initial trajectory.
+   * @param[in] finalPoseFrom The initial point of the final trajectory.
+   * @param[in] finalPoseTo   The final point of the final trajectory.
+   * @return The rotation from (initPoseFrom, initPoseTo) to (finalPoseFrom, finalPoseTo).
    */
-  static Eigen::Quaterniond ComputeRoughRotationOffset(const Transform& fromPose1, const Transform& fromPose2,
-                                                       const Transform& toPose1, const Transform& toPose2);
+  static Eigen::Quaterniond ComputeRoughRotationOffset(const Transform& initPoseFrom, const Transform& initPoseTo,
+                                                       const Transform& finalPoseFrom, const Transform& finalPoseTo);
 
 private:
 

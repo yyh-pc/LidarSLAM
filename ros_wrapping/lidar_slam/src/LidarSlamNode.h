@@ -119,7 +119,7 @@ private:
   bool CalibrateSlamGps = false;
   bool CalibrationNoRoll = false;  // DEBUG
   double CalibrationPoseTimeout = 15.;  ///< [s] GPS/SLAM poses older than that are forgotten.
-  std::vector<double> LidarToGpsOffset;  ///< (X, Y, Z) position of the GPS antenna in LiDAR coordinates.
+  std::vector<double> LidarToGpsOffset;  ///< (X, Y, Z, roll, pitch, yaw) pose of the GPS antenna in LiDAR coordinates.
   std::deque<Transform> SlamPoses;
   std::deque<Transform> GpsPoses;
   ros::Subscriber GpsOdomSub;

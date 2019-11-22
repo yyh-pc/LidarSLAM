@@ -1,10 +1,10 @@
 #include "Transform.h"
 
 //------------------------------------------------------------------------------
-Transform::Transform(double t_, double x_, double y_, double z_, double rx_, double ry_, double rz_)
-  : time(t_),
-    x(x_), y(y_), z(z_),
-    rx(rx_), ry(ry_), rz(rz_)
+Transform::Transform(double t, double x, double y, double z, double roll, double pitch, double yaw)
+  : time(t),
+    x(x), y(y), z(z),
+    rx(roll), ry(pitch), rz(yaw)
 {}
 
 //------------------------------------------------------------------------------
@@ -29,10 +29,10 @@ Transform::Transform(double t, const Eigen::Isometry3d& transform)
   x = trans.x();
   y = trans.y();
   z = trans.z();
-  Eigen::Vector3d rpy = transform.rotation().eulerAngles(2, 1, 0);
-  rx = rpy(0);
-  ry = rpy(1);
-  rz = rpy(2);
+  Eigen::Vector3d ypr = transform.rotation().eulerAngles(2, 1, 0);
+  rx = ypr(2);
+  ry = ypr(1);
+  rz = ypr(0);
 }
 
 //------------------------------------------------------------------------------
@@ -40,10 +40,10 @@ Transform::Transform(double t, const Eigen::Translation3d& trans, const Eigen::Q
   : time(t),
     x(trans.x()), y(trans.y()), z(trans.z())
 {
-  Eigen::Vector3d rpy = rot.normalized().matrix().eulerAngles(2, 1, 0);
-  rx = rpy(0);
-  ry = rpy(1);
-  rz = rpy(2);
+  Eigen::Vector3d ypr = rot.normalized().matrix().eulerAngles(2, 1, 0);
+  rx = ypr(2);
+  ry = ypr(1);
+  rz = ypr(0);
 }
 
 //------------------------------------------------------------------------------
