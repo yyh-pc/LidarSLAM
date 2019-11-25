@@ -2,14 +2,15 @@
 #  Real-time LiDAR SLAM parameters  #
 #####################################
 
-## number of vertical lasers in LiDAR sensor (optional : if not given, it will be guessed from 1st frame)
+## Number of vertical lasers in LiDAR sensor (optional : if not given, it will be guessed from 1st frame)
 # n_lasers: 16
 
-## mapping from ring id to laser id (optional, default : identity mapping)
+## Mapping from ring id to laser id (optional, default : identity mapping)
 # laser_id_mapping: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
-# frame_id of SLAM map origin. SLAM will publish the TF slam_origin_frame -> velodyne.
-slam_origin_frame: "slam_init"
+# SLAM will publish the TF slam_origin_frame -> slam_output_frame.
+slam_origin_frame: "slam_init"   # Frame id of SLAM map origin.
+# slam_output_frame: "velodyne"  # Frame id of the current SLAM pose (default : use frame_id of the input pointcloud).
 
 # [Hz] Number of frames per second acquired by the LiDAR sensor (used to generate approximate point-wise timestamp)
 lidar_frequency: 10.
@@ -17,21 +18,28 @@ lidar_frequency: 10.
 # Verbose mode
 verbose: true
 
-# optional publishers
+# Optional publishers
 publish_features_maps:
   edges: true     # if true, edges features will be published to topic "edges_features"
   planars: true   # if true, planars features will be published to topic "planars_features"
   blobs: true     # if true, blobs features will be published to topic "blobs_features"
 
-# Optionnal use of GPS to calibrate SLAM pose to GPS coordinates.
-# It requires GPS pose published on 'gps_odom' topic as a nav_msgs/Odometry message.
-# GPS/SLAM calibration can be triggered by publishing 'run_gps_slam_calibration' topic.
-gps_calibration:
-  enable: false       # If true, subscribe to gps topic 'gps_odom', try to fit GPS trajectory to SLAM trajectory, and publish static TF to link 'gps_odom/header/frame_id' to 'slam_origin_frame' (WARNING Can be overridden in slam.launch with gps:=false).
-  pose_timeout: 15.  # [s] GPS/SLAM poses older than that are forgotten and not used for calibration.
-  lidar_to_gps_offset: [0., 0., 0.]  # Position of the GPS in LiDAR coordinates (help to estimate a better calibration).
-  no_roll: false                   # If true, impose calibration to have no pitch rotation. DEBUG
-  publish_icp_trajectories: true   # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps' and 'icp_slam' latched topics ((Used for debug only to check calibration).
+# Optionnal GPS-like pose publication
+gps:
+
+  # Optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor.
+  output_gps_pose: false            # Outputs GPS antenna pose instead of LiDAR's.
+  output_gps_pose_frame_id: "slam"  # Frame id of the GPS antenna pose computed by SLAM if output_gps_pose=true (overrides slam_output_frame).
+  gps_to_lidar_offset: [0., 0., 0., 0., 0., 0.]  # Pose (X, Y, Z, roll, pitch, yaw) of the LiDAR in GPS antenna coordinates  (also help to estimate a better calibration).
+
+  # Optionnal use of GPS data to calibrate output SLAM pose to world coordinates.
+  # It requires GPS pose published on 'gps_odom' topic as a nav_msgs/Odometry message.
+  # GPS/SLAM calibration can be triggered by publishing 'run_gps_slam_calibration' topic.
+  calibration:
+    enable: false      # If true, subscribe to gps topic 'gps_odom', try to fit GPS trajectory to SLAM trajectory, and publish static TF to link 'gps_odom/header/frame_id' to 'slam_origin_frame' (WARNING Can be overridden in slam.launch with gps:=false).
+    pose_timeout: 20.  # [s] GPS/SLAM poses older than that are forgotten and not used for calibration.
+    no_roll: false                   # If true, impose calibration to have no pitch rotation. DEBUG
+    publish_icp_trajectories: true   # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps' and 'icp_slam' latched topics.
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:

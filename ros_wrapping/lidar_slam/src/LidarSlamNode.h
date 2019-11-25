@@ -70,13 +70,13 @@ private:
   /*!
    * @brief     Publish TF and PoseWithCovariance.
    * @param[in] headerCloudV   Header to use to fill seq and stamp of output msgs.
-   * @param[in] worldTransform Transform from slam_init to velodyne to send.
+   * @param[in] slamToLidar Transform from slam_init to velodyne to send.
    * @param[in] poseCovar      Covariance associated to full 6 dof pose.
    *
    * NOTE : poseCovar encodes covariance for dof in this order : (rX, rY, rZ, X, Y, Z)
    */
   void PublishTfOdom(const pcl::PCLHeader& headerCloudV,
-                     const Transform& worldTransform,
+                     const Transform& slamToLidar,
                      const std::vector<double>& poseCovar);
 
   //----------------------------------------------------------------------------
@@ -109,19 +109,24 @@ private:
   bool Verbose = false;
 
   // Basic publishers & subscribers
-  std::string SlamOriginFrameId = "slam_init";
+  std::string SlamOriginFrameId = "slam_init";  ///< Frame id of SLAM map origin.
+  std::string SlamOutputFrameId;  ///< Frame id of current SLAM pose (default : use frame_id of the input pointcloud).
   ros::Publisher PoseCovarPub;
   ros::Subscriber CloudSub;
   tf2_ros::TransformBroadcaster TfBroadcaster;
 
-  // Optionnal GPS use
-  std::string GpsOriginFrameId = "gps_init";
-  bool CalibrateSlamGps = false;
-  bool CalibrationNoRoll = false;  // DEBUG
-  double CalibrationPoseTimeout = 15.;  ///< [s] GPS/SLAM poses older than that are forgotten.
-  std::vector<double> LidarToGpsOffset;  ///< (X, Y, Z, roll, pitch, yaw) pose of the GPS antenna in LiDAR coordinates.
-  std::deque<Transform> SlamPoses;
-  std::deque<Transform> GpsPoses;
+  // Optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor.
+  bool OutputGpsPose = false;                 ///< Output GPS antenna pose instead of LiDAR's.
+  std::string OutputGpsPoseFrameId = "slam";  ///< Frame id of the GPS antenna pose computed by SLAM if OutputGpsPose=true.
+  Eigen::Isometry3d LidarToGpsOffset = Eigen::Isometry3d::Identity(); ///< Pose of the GPS antenna in LiDAR coordinates.
+
+  // Optionnal use of GPS data to calibrate output SLAM pose to world coordinates.
+  std::string GpsOriginFrameId = "gps_init";  ///< Storage of GPS odometry msg frame_id.
+  bool CalibrateSlamGps = false;              ///< Enable GPS/SLAM calibration, and therefore
+  bool CalibrationNoRoll = false;             // DEBUG
+  double CalibrationPoseTimeout = 15.;        ///< [s] GPS/SLAM poses older than that are forgotten.
+  std::deque<Transform> SlamPoses;            ///< Buffer of last computed SLAM poses.
+  std::deque<Transform> GpsPoses;             ///< Buffer of last received GPS poses.
   ros::Subscriber GpsOdomSub;
   ros::Subscriber GpsSlamCalibrationSub;
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;

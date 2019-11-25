@@ -14,6 +14,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // Get SLAM params
   this->SetSlamParameters(priv_nh);
 
+  // ***************************************************************************
   // Init laserIdMapping
   std::vector<int> intLaserIdMapping;
   int nLasers;
@@ -38,6 +39,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
                     "n_lasers will be guessed from 1st frame to build linear mapping.");
   }
 
+  // ***************************************************************************
   // Get LiDAR frequency
   priv_nh.getParam("lidar_frequency", this->LidarFreq);
 
@@ -45,22 +47,36 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("verbose", this->Verbose);
   this->LidarSlam.SetVerbose(this->Verbose);
 
-  // Init optionnal GPS use
-  priv_nh.getParam("gps_calibration/enable", this->CalibrateSlamGps);
+  // Get frame IDs
+  priv_nh.getParam("slam_origin_frame", this->SlamOriginFrameId);
+  priv_nh.getParam("slam_output_frame", this->SlamOutputFrameId);
+
+  // ***************************************************************************
+  // Init optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor
+  priv_nh.getParam("gps/output_gps_pose", this->OutputGpsPose);
+  priv_nh.getParam("gps/output_gps_pose_frame_id", this->OutputGpsPoseFrameId);
+  std::vector<double> GpsToLidarOffset;
+  priv_nh.getParam("gps/gps_to_lidar_offset", GpsToLidarOffset);
+  Transform GpsToLidarTransform(0., GpsToLidarOffset[0], GpsToLidarOffset[1], GpsToLidarOffset[2],
+                                    GpsToLidarOffset[3], GpsToLidarOffset[4], GpsToLidarOffset[5]);
+  this->LidarToGpsOffset = GpsToLidarTransform.GetIsometry().inverse();
+
+  // Init optionnal use of GPS data to calibrate output SLAM pose to world coordinates.
+  priv_nh.getParam("gps/calibration/enable", this->CalibrateSlamGps);
   if (this->CalibrateSlamGps)
   {
     this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
     this->GpsSlamCalibrationSub = nh.subscribe("run_gps_slam_calibration", 1, &LidarSlamNode::RunGpsSlamCalibrationCallback, this);
   }
-  priv_nh.getParam("gps_calibration/pose_timeout", this->CalibrationPoseTimeout);
-  priv_nh.getParam("gps_calibration/no_roll", this->CalibrationNoRoll);
-  priv_nh.getParam("gps_calibration/lidar_to_gps_offset", this->LidarToGpsOffset);
+  priv_nh.getParam("gps/calibration/pose_timeout", this->CalibrationPoseTimeout);
+  priv_nh.getParam("gps/calibration/no_roll", this->CalibrationNoRoll);
 
-  // Init optional publishers
-  priv_nh.getParam("gps_calibration/publish_icp_trajectories", this->PublishIcpTrajectories);
+  // ***************************************************************************
+  // Init debug publishers
   priv_nh.getParam("publish_features_maps/edges", this->PublishEdges);
   priv_nh.getParam("publish_features_maps/planars", this->PublishPlanars);
   priv_nh.getParam("publish_features_maps/blobs", this->PublishBlobs);
+  priv_nh.getParam("gps/calibration/publish_icp_trajectories", this->PublishIcpTrajectories);
   if (this->PublishIcpTrajectories)
   {
     this->GpsPathPub = nh.advertise<nav_msgs::Path>("icp_gps", 1, true);
@@ -74,8 +90,8 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     this->BlobsPub = nh.advertise<CloudS>("blobs_features", 1);
   this->DebugCloudPub = nh.advertise<CloudS>("debug_cloud", 1);
 
+  // ***************************************************************************
   // Init ROS subscribers and publishers
-  priv_nh.getParam("slam_origin_frame", this->SlamOriginFrameId);
   this->PoseCovarPub = nh.advertise<nav_msgs::Odometry>("slam_odom", 1);
   this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::ScanCallback, this);
 
@@ -115,11 +131,12 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   this->LidarSlam.AddFrame(cloudS, this->LaserIdMapping);
 
   // Get the computed world transform so far
-  Transform worldTransform = this->LidarSlam.GetWorldTransform();
+  Transform slamToLidar = this->LidarSlam.GetWorldTransform();
+  slamToLidar.time = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();
   std::vector<double> poseCovar = this->LidarSlam.GetTransformCovariance();
 
   // Publish TF, pose and covariance
-  this->PublishTfOdom(cloudV.header, worldTransform, poseCovar);
+  this->PublishTfOdom(cloudV.header, slamToLidar, poseCovar);
 
   // Publish optional debug info
   this->PublishFeaturesMaps(cloudS);
@@ -131,10 +148,10 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   if (this->CalibrateSlamGps)
   {
     // Add new pose to buffer
-    worldTransform.time = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();
-    this->SlamPoses.push_back(worldTransform);
+    slamToLidar.time = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();
+    this->SlamPoses.push_back(slamToLidar);
     // Forget all previous poses older than CalibrationPoseTimeout
-    while (this->SlamPoses.front().time < worldTransform.time - this->CalibrationPoseTimeout)
+    while (this->SlamPoses.front().time < slamToLidar.time - this->CalibrationPoseTimeout)
       this->SlamPoses.pop_front();
   }
 }
@@ -195,6 +212,8 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
   CloudS::Ptr cloudS(new CloudS);
   cloudS->resize(cloudV.size());
   cloudS->header = cloudV.header;
+  if (!this->SlamOutputFrameId.empty())
+    cloudS->header.frame_id = this->SlamOutputFrameId;
 
   // Get approximate timestamp of the first point
   double stampInit = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();  // timestamp of last Velodyne raw packet
@@ -220,33 +239,68 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
 
 //------------------------------------------------------------------------------
 void LidarSlamNode::PublishTfOdom(const pcl::PCLHeader& headerCloudV,
-                                  const Transform& worldTransform,
+                                  const Transform& slamToLidar,
                                   const std::vector<double>& poseCovar)
 {
-  // publish worldTransform
+  // publish TF from SlamOriginFrameId to PointCloud frame_id (raw SLAM output)
   geometry_msgs::TransformStamped tfMsg;
-  pcl_conversions::fromPCL(headerCloudV, tfMsg.header);
+  tfMsg.header = pcl_conversions::fromPCL(headerCloudV);
   tfMsg.header.frame_id = this->SlamOriginFrameId;
-  tfMsg.child_frame_id = headerCloudV.frame_id;
-  tfMsg.transform.translation.x = worldTransform.x;
-  tfMsg.transform.translation.y = worldTransform.y;
-  tfMsg.transform.translation.z = worldTransform.z;
-  tf2::Quaternion q;
-  q.setRPY(worldTransform.rx, worldTransform.ry, worldTransform.rz);
+  tfMsg.child_frame_id = this->SlamOutputFrameId.empty() ? headerCloudV.frame_id : this->SlamOutputFrameId;
+  tfMsg.transform.translation.x = slamToLidar.x;
+  tfMsg.transform.translation.y = slamToLidar.y;
+  tfMsg.transform.translation.z = slamToLidar.z;
+  Eigen::Quaterniond q = slamToLidar.GetRotation();
   tfMsg.transform.rotation.x = q.x();
   tfMsg.transform.rotation.y = q.y();
   tfMsg.transform.rotation.z = q.z();
   tfMsg.transform.rotation.w = q.w();
   this->TfBroadcaster.sendTransform(tfMsg);
 
+  Transform slamPose = slamToLidar;
+
+  // If we need to output GPS antenna pose instead of LiDAR's, transform LiDAR pose and covariance
+  if (this->OutputGpsPose)
+  {
+    // Publish once TF from LiDAR to GPS antenna
+    if (this->LidarSlam.GetNbrFrameProcessed() == 1)
+    {
+      geometry_msgs::TransformStamped TfLidarToSlam;
+      TfLidarToSlam.header = tfMsg.header;
+      TfLidarToSlam.header.frame_id = tfMsg.child_frame_id;
+      TfLidarToSlam.child_frame_id = this->OutputGpsPoseFrameId;
+      Eigen::Translation3d trans(this->LidarToGpsOffset.translation());
+      TfLidarToSlam.transform.translation.x = trans.x();
+      TfLidarToSlam.transform.translation.y = trans.y();
+      TfLidarToSlam.transform.translation.z = trans.z();
+      Eigen::Quaterniond rot(this->LidarToGpsOffset.linear());
+      TfLidarToSlam.transform.rotation.x = rot.x();
+      TfLidarToSlam.transform.rotation.y = rot.y();
+      TfLidarToSlam.transform.rotation.z = rot.z();
+      TfLidarToSlam.transform.rotation.w = rot.w();
+      this->StaticTfBroadcaster.sendTransform(TfLidarToSlam);
+    }
+
+    // Transform pose
+    Eigen::Isometry3d slamToLidarPose = slamToLidar.GetIsometry();
+    Eigen::Isometry3d slamToGpsPose(slamToLidarPose * this->LidarToGpsOffset);
+    slamPose = Transform(slamToLidar.time, slamToGpsPose);
+
+    // TODO Transform covariance to correct lever arm induced by LidarToGpsOffset
+  }
+
   // publish pose with covariance
   nav_msgs::Odometry odomMsg;
   odomMsg.header = tfMsg.header;
-  odomMsg.child_frame_id = tfMsg.child_frame_id;
-  odomMsg.pose.pose.orientation = tfMsg.transform.rotation;
-  odomMsg.pose.pose.position.x = worldTransform.x;
-  odomMsg.pose.pose.position.y = worldTransform.y;
-  odomMsg.pose.pose.position.z = worldTransform.z;
+  odomMsg.child_frame_id = this->OutputGpsPose ? this->OutputGpsPoseFrameId : tfMsg.child_frame_id;
+  odomMsg.pose.pose.position.x = slamPose.x;
+  odomMsg.pose.pose.position.y = slamPose.y;
+  odomMsg.pose.pose.position.z = slamPose.z;
+  q = slamPose.GetRotation();
+  odomMsg.pose.pose.orientation.x = q.x();
+  odomMsg.pose.pose.orientation.y = q.y();
+  odomMsg.pose.pose.orientation.z = q.z();
+  odomMsg.pose.pose.orientation.w = q.w();
   // Reshape covariance from parameters (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
   const std::vector<double>& c = poseCovar;
   odomMsg.pose.covariance = {c[21], c[22], c[23],   c[18], c[19], c[20],
@@ -387,18 +441,14 @@ void LidarSlamNode::GpsSlamCalibration()
   std::vector<Transform> worldToGpsPoses(this->GpsPoses.begin(), this->GpsPoses.end());
 
   // If a sensors offset is given, use it to compute real GPS antenna position in SLAM coordinates
-  Eigen::Isometry3d lidarToGpsOffset = Eigen::Isometry3d::Identity();
-  if (!this->LidarToGpsOffset.empty())
+  if (!this->LidarToGpsOffset.isApprox(Eigen::Isometry3d::Identity()))
   {
-    Transform lidarToGpsTransform(0., this->LidarToGpsOffset[0], this->LidarToGpsOffset[1], this->LidarToGpsOffset[2],
-                                      this->LidarToGpsOffset[3], this->LidarToGpsOffset[4], this->LidarToGpsOffset[5]);
-    lidarToGpsOffset = lidarToGpsTransform.GetIsometry();
     std::cout << "Transforming LiDAR pose acquired by SLAM to GPS antenna pose using LIDAR to GPS antenna offset :\n"
-              << lidarToGpsOffset.matrix() << std::endl;
+              << this->LidarToGpsOffset.matrix() << std::endl;
     for (Transform& slamToGpsPose : slamToLidarPoses)
     {
       Eigen::Isometry3d slamToLidar = slamToGpsPose.GetIsometry();
-      Eigen::Isometry3d slamToGps(lidarToGpsOffset * slamToLidar);
+      Eigen::Isometry3d slamToGps(slamToLidar * this->LidarToGpsOffset);
       slamToGpsPose = Transform(slamToGpsPose.time, slamToGps);
     }
   }

@@ -6,6 +6,7 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /TF1/Frames1
         - /SLAM odom1/Shape1
         - /SLAM odom1/Covariance1
         - /SLAM odom1/Covariance1/Position1
@@ -63,26 +64,13 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        gps:
-          Value: true
-        gps_init:
-          Value: true
-        slam_init:
-          Value: true
-        utm:
-          Value: true
-        velodyne:
-          Value: true
       Marker Scale: 10
       Name: TF
       Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
-        utm:
-          gps_init:
-            gps:
-              {}
+        {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -157,7 +145,7 @@ Visualization Manager:
           Scale: 1
           Value: false
         Position:
-          Alpha: 0.4000000059604645
+          Alpha: 0.5
           Color: 252; 233; 79
           Scale: 1
           Value: true
@@ -191,7 +179,7 @@ Visualization Manager:
           Scale: 1
           Value: false
         Position:
-          Alpha: 0.30000001192092896
+          Alpha: 0.5
           Color: 255; 85; 255
           Scale: 1
           Value: true
@@ -339,7 +327,7 @@ Visualization Manager:
           Enabled: true
           Head Diameter: 0.10000000149011612
           Head Length: 0.10000000149011612
-          Length: 0.30000001192092896
+          Length: 0.25
           Line Style: Lines
           Line Width: 0.029999999329447746
           Name: ICP GPS
@@ -362,7 +350,7 @@ Visualization Manager:
           Enabled: true
           Head Diameter: 0.10000000149011612
           Head Length: 0.10000000149011612
-          Length: 0.30000001192092896
+          Length: 0.25
           Line Style: Lines
           Line Width: 0.029999999329447746
           Name: ICP SLAM
@@ -566,7 +554,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 48.87112045288086
+      Distance: 50
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -581,10 +569,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.7003982663154602
+      Pitch: 0.9703980684280396
       Target Frame: gps
       Value: Orbit (rviz)
-      Yaw: 0.8653981685638428
+      Yaw: 1.0553925037384033
     Saved: ~
 Window Geometry:
   Displays:

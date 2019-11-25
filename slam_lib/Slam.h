@@ -128,6 +128,8 @@ public:
   pcl::PointCloud<Point>::Ptr GetPlanarsMap();
   pcl::PointCloud<Point>::Ptr GetBlobsMap();
 
+  GetMacro(NbrFrameProcessed, unsigned int)
+
   SetMacro(Verbose, bool)
   GetMacro(Verbose, bool)
 
