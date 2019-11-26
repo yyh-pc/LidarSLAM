@@ -8,8 +8,6 @@ add_library(slamlib
   SpinningSensorKeypointExtractor.h
   MotionModel.cxx
   MotionModel.h
-  PoseGraphOptimization.cxx
-  PoseGraphOptimization.h
   GlobalTrajectoriesRegistration.cxx
   GlobalTrajectoriesRegistration.h
   )
@@ -18,11 +16,9 @@ target_link_libraries(slamlib
   PUBLIC
     ${PCL_LIBRARIES}
     nanoflann::nanoflann
-    g2o::core
   PRIVATE
     ceres
     Eigen3::Eigen
-    g2o::types_slam3d
   )
 
 set(HEADER_FILES
@@ -31,7 +27,6 @@ set(HEADER_FILES
   Slam.h
   SpinningSensorKeypointExtractor.h
   MotionModel.h
-  PoseGraphOptimization.h
   GlobalTrajectoriesRegistration.h
   )
 

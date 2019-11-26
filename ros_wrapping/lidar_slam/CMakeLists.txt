@@ -142,7 +142,6 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(lidar_slam_node src/LidarSlamNode.cxx)
-add_executable(pose_graph_optimization_node src/PoseGraphOptimizationNode.cxx)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -156,10 +155,6 @@ add_executable(pose_graph_optimization_node src/PoseGraphOptimizationNode.cxx)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(lidar_slam_node
-  ${catkin_LIBRARIES}
-  slamlib
-)
-target_link_libraries(pose_graph_optimization_node
   ${catkin_LIBRARIES}
   slamlib
 )
