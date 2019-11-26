@@ -16,7 +16,7 @@
   <!-- LiDAR SLAM : compute TF slam_init -> velodyne -->
   <node name="lidar_slam" pkg="lidar_slam" type="lidar_slam_node" output="screen">
     <rosparam file="$(find lidar_slam)/params/slam_config.yaml" command="load"/>
-    <param name="gps_calibration/enable" value="$(arg gps)"/>
+    <param name="gps/calibration/enable" value="$(arg gps)"/>
   </node>
 
   <!-- Launch GPS/UTM conversions nodes -->

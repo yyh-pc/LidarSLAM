@@ -3,6 +3,7 @@
 - [lidar_slam](#lidar_slam)
   - [LiDAR SLAM node](#lidar-slam-node)
     - [Description and usage](#description-and-usage)
+    - [SLAM output as GPS antenna pose](#slam-output-as-gps-antenna-pose)
     - [GPS/SLAM calibration](#gpsslam-calibration)
     - [About the published TF tree](#about-the-published-tf-tree)
   - [Pose graph optimization node](#pose-graph-optimization-node)
@@ -30,6 +31,12 @@ roslaunch lidar_slam slam.launch use_sim_time:=false
 
 This launch file will start a *lidar_slam_node*, a pre-configured RViz session, and GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below). Input pointcloud fix must be a *sensor_msgs/PointCloud2* message (of points `velodyne_pointcloud::PointXYZIR`) published on topic '*velodyne_points*'. Input GPS fix must be a *gps_common/GPSFix* message published on topic '*gps_fix*'.
 
+### SLAM output as GPS antenna pose
+
+LiDAR SLAM is often used when GPS is unreliable, by providing a continuous trajectory for a short time period. However, the output SLAM pose matches with LiDAR sensor pose, which may be quite different from GPS antenna pose. To easily substitute GPS with SLAM in these no satellite-signal zones, it is possible to tell the SLAM node to output the odometry (and TF) corresponding to GPS sensor pose instead of LiDAR's.
+
+To enable this GPS antenna pose publication instead of LiDAR's, set `gps/output_gps_pose` parameter to `true`, give the name (`output_gps_pose_frame_id`) of the new frame attached to GPS antenna, and provide the transform between GPS and LiDAR sensors.
+
 ### GPS/SLAM calibration
 
 To be able to publish local SLAM odometry as GPS coordinates, it is necessary to link SLAM initial pose to a 3D GPS pose (position + orientation) transformed into cartesian space with UTM projection. However, full 3D GPS pose is rarely known (we generally only have 3D position and sometimes an approximate yaw heading angle), and the calibration from GPS antenna to LiDAR sensor is always approximate (3D translation offset is more/less correct, but 3D rotation is unknown).
@@ -50,7 +57,7 @@ rostopic pub -1 /run_gps_slam_calibration std_msgs/Empty "{}"  # Trigger GPS/SLA
 
 ### About the published TF tree
 
-Here is the complete TF tree maintained by different nodes as well as descriptions of each frame :
+Here is the complete TF tree maintained by different nodes as well as descriptions of each frame (default frame names) :
 
 ```bash
 utm
@@ -58,13 +65,15 @@ utm
     |__ gps
     |__ slam_init
         |__ velodyne
+            |__ (slam)
 ```
 
-- **utm**: "world" fixed frame, corresponding to the origin of the current considered UTM zone/band in which GPS coordinates are projected into.
+- **utm**: "world" ENU fixed frame, corresponding to the origin of the current considered UTM zone/band in which GPS coordinates are projected into.
 - **gps_init**: first received GPS pose. It defines the origin of the local map, easier to use than UTM frame (because coordinates in UTM frames can be very large, leading to floating points discretization errors). If the GPS data provides an orientation, this frame is oriented alongside this direction. Otherwise, the frame orientation remains unchanged, and corresponds to UTM East-North-Up (ENU) coordinates, offset by the 1st GPS position. The static TF `utm -> gps_init` is published by `gps_conversions/gps_to_utm` node.
-- **gps**: current GPS pose (pose of the GPS antenna). The TF `gps_init -> gps` is published by `gps_conversions/gps_to_utm` node.
+- **gps**: current GPS pose (pose (or position if orientation isn't provided) of the GPS antenna). The TF `gps_init -> gps` is published by `gps_conversions/gps_to_utm` node.
 - **slam_init**: initial pose of the SLAM, which is the pose of the velodyne sensor of the first received pointcloud. The static TF `gps_init -> slam_init` is published either by `lidar_slam/lidar_slam_node` node (in case of GPS/SLAM auto-calibration) or manually set with tf2 static publishers in `lidar_slam/launch/slam.launch` (in case of pre-defined calibration).
 - **velodyne**: current pose of the velodyne sensor, according to SLAM. The TF `slam_init -> velodyne` is published by `lidar_slam/lidar_slam_node` node.
+- **slam**: (optionnal) current pose of the GPS antenna, according to SLAM. This TF is published only if `gps/output_gps_pose` is enabled. This pose can be directly compared to the *gps* frame, and should exactly match if SLAM was perfect. The static TF `velodyne -> slam` is published by `lidar_slam/lidar_slam_node` node according to `gps/gps_to_lidar_offset` parameter value.
 
 
 ## Pose graph optimization node
