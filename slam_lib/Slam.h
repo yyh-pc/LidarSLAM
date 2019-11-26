@@ -130,8 +130,8 @@ public:
 
   GetMacro(NbrFrameProcessed, unsigned int)
 
-  SetMacro(Verbose, bool)
-  GetMacro(Verbose, bool)
+  SetMacro(Verbose, int)
+  GetMacro(Verbose, int)
 
   GetMacro(MaxDistanceForICPMatching, double)
   SetMacro(MaxDistanceForICPMatching, double)
@@ -475,17 +475,12 @@ private:
   // Set the lidar maximun range
   void SetLidarMaximunRange(const double maxRange);
 
-  // Indicate if we are in display mode or not
-  // Display mode will add arrays showing some
-  // results of the slam algorithm such as
-  // the keypoints extracted, curvature etc
-  bool DisplayMode = false;  // TODO : delete, useless
-
-  // Indicate if we are in display mode or not
-  // Verbose mode will print some information such as
-  // number of keypoints extracted, estimated pose and covariance,
-  // optimization results or computation duration
-  bool Verbose = false;
+  // Indicate verbosity level to display more or less information :
+  // 0: print errors, warnings or one time info
+  // 1: 0 + frame number, total frame processing time
+  // 2: 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary
+  // 3: 2 + functions duration, ceres optimization summary
+  int Verbose = 2;
 
   // Identity matrix
   Eigen::Matrix3d I3 = Eigen::Matrix3d::Identity();

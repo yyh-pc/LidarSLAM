@@ -101,9 +101,6 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 //------------------------------------------------------------------------------
 void LidarSlamNode::ScanCallback(const CloudV& cloudV)
 {
-  std::chrono::duration<double, std::milli> chrono_ms;
-  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
-
   // Init this->LaserIdMapping if not already done
   if (!this->LaserIdMapping.size())
   {
@@ -140,9 +137,6 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
 
   // Publish optional debug info
   this->PublishFeaturesMaps(cloudS);
-
-  chrono_ms = std::chrono::high_resolution_clock::now() - start;
-  std::cout << "SLAM performed in : " << chrono_ms.count() << " ms" << std::endl;
 
   // If GPS/SLAM calibration is needed, save SLAM pose for later use
   if (this->CalibrateSlamGps)
@@ -442,8 +436,9 @@ void LidarSlamNode::GpsSlamCalibration()
   // If a sensors offset is given, use it to compute real GPS antenna position in SLAM coordinates
   if (!this->LidarToGpsOffset.isApprox(Eigen::Isometry3d::Identity()))
   {
-    std::cout << "Transforming LiDAR pose acquired by SLAM to GPS antenna pose using LIDAR to GPS antenna offset :\n"
-              << this->LidarToGpsOffset.matrix() << std::endl;
+    if (this->Verbose >= 2)
+      std::cout << "Transforming LiDAR pose acquired by SLAM to GPS antenna pose using LIDAR to GPS antenna offset :"
+                << std::endl << this->LidarToGpsOffset.matrix() << std::endl;
     for (Transform& slamToGpsPose : slamToLidarPoses)
     {
       Eigen::Isometry3d slamToLidar = slamToGpsPose.GetIsometry();
@@ -457,7 +452,7 @@ void LidarSlamNode::GpsSlamCalibration()
   // Run calibration : compute transform from SLAM to WORLD
   GlobalTrajectoriesRegistration registration;
   registration.SetNoRoll(this->CalibrationNoRoll);  // DEBUG
-  registration.SetVerbose(this->Verbose);
+  registration.SetVerbose(this->Verbose >= 2);
   Eigen::Isometry3d worldToSlam;
   if (!registration.ComputeTransformOffset(slamToGpsPoses, worldToGpsPoses, worldToSlam))
   {

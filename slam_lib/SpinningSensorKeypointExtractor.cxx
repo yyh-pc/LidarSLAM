@@ -792,11 +792,6 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(std::pow(p.x, 2) + std::pow(p.y, 2) + std::pow(p.z, 2)));
   }
   this->FarestKeypointDist = std::sqrt(this->FarestKeypointDist);
-
-  // keypoints extraction informations
-  std::cout << "Extracted Edges: " << this->EdgesPoints->size() << " Planars: "
-            << this->PlanarsPoints->size() << " Blobs: "
-            << this->BlobsPoints->size() << std::endl;
 }
 
 //-----------------------------------------------------------------------------

@@ -106,7 +106,7 @@ private:
   Slam LidarSlam;
   std::vector<size_t> LaserIdMapping;
   double LidarFreq = 10.;
-  bool Verbose = false;
+  int Verbose = 1;
 
   // Basic publishers & subscribers
   std::string SlamOriginFrameId = "slam_init";  ///< Frame id of SLAM map origin.

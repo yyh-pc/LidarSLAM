@@ -75,7 +75,7 @@
 #include <sstream>
 #include <algorithm>
 #include <cmath>
-#include <ctime>
+#include <chrono>
 // EIGEN
 #include <Eigen/Dense>
 // PCL
@@ -85,6 +85,9 @@
 // NANOFLANN
 #include <nanoflann.hpp>
 
+#define PRINT_VERBOSE(minVerboseLevel, stream) if (this->Verbose >= (minVerboseLevel)) {std::cout << stream << std::endl;}
+#define IF_VERBOSE(minVerboseLevel, command) if (this->Verbose >= (minVerboseLevel)) { command; }
+
 namespace {
 //-----------------------------------------------------------------------------
 Eigen::Matrix3d RollPitchYawToMatrix(double roll, double pitch, double yaw)
@@ -93,7 +96,6 @@ Eigen::Matrix3d RollPitchYawToMatrix(double roll, double pitch, double yaw)
                   * Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY())
                   * Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX()));
 }
-
 
 //-----------------------------------------------------------------------------
 Eigen::Matrix3d RollPitchYawToMatrix(const Eigen::Vector3d& angles)
@@ -111,20 +113,19 @@ Eigen::Matrix3d GetRotationMatrix(Eigen::Matrix<double, 6, 1> T)
 }
 
 //-----------------------------------------------------------------------------
-std::clock_t startTime;
+std::chrono::high_resolution_clock::time_point startTime;
 
 //-----------------------------------------------------------------------------
 void InitTime()
 {
-  startTime = std::clock();
+  startTime = std::chrono::high_resolution_clock::now();
 }
 
 //-----------------------------------------------------------------------------
 void StopTimeAndDisplay(std::string functionName)
 {
-  std::clock_t endTime = std::clock();
-  double dt = static_cast<double>(endTime - startTime) / CLOCKS_PER_SEC;
-  std::cout << "  -time elapsed in function <" << functionName << "> : " << dt << " sec" << std::endl;
+  std::chrono::duration<double, std::milli> chrono_ms = std::chrono::high_resolution_clock::now() - startTime;
+  std::cout << "  - time elapsed in function <" << functionName << "> : " << chrono_ms.count() << " ms" << std::endl;
 }
 
 //-----------------------------------------------------------------------------
@@ -518,16 +519,17 @@ pcl::PointCloud<Slam::Point>::Ptr Slam::GetBlobsMap()
 //-----------------------------------------------------------------------------
 void Slam::AddFrame(pcl::PointCloud<Slam::Point>::Ptr pc, std::vector<size_t> laserIdMapping)
 {
+  std::chrono::high_resolution_clock::time_point beginTime = std::chrono::high_resolution_clock::now();
+
   if (pc->size() == 0)
   {
     std::cout << "Slam entry is an empty pointcloud" << std::endl;
     return;
   }
 
-  std::cout << "#########################################################" << std::endl
-            << "Processing frame : " << this->NbrFrameProcessed << std:: endl
-            << "#########################################################" << std::endl
-            << std::endl;
+  PRINT_VERBOSE(2, std::endl << "#########################################################");
+  PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
+  PRINT_VERBOSE(2, "#########################################################" << std::endl);
 
   double time = pc->points[0].time;
 
@@ -554,50 +556,57 @@ void Slam::AddFrame(pcl::PointCloud<Slam::Point>::Ptr pc, std::vector<size_t> la
   }
 
   // Compute the edges and planars keypoints
-  InitTime();
+  IF_VERBOSE(3, InitTime());
   this->KeyPointsExtractor->ComputeKeyPoints(pc, laserIdMapping);
   this->CurrentEdgesPoints = this->KeyPointsExtractor->GetEdgePoints();
   this->CurrentPlanarsPoints = this->KeyPointsExtractor->GetPlanarPoints();
   this->CurrentBlobsPoints = this->KeyPointsExtractor->GetBlobPoints();
-  StopTimeAndDisplay("Keypoints extraction");
+  PRINT_VERBOSE(2, "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
+                                           << this->CurrentPlanarsPoints->size() << " planes, "
+                                           << this->CurrentBlobsPoints->size()   << " blobs.");
+  IF_VERBOSE(3, StopTimeAndDisplay("Keypoints extraction"));
 
   // Perfom EgoMotion
-  InitTime();
+  IF_VERBOSE(3, InitTime());
   this->ComputeEgoMotion();
-  StopTimeAndDisplay("Ego-Motion");
+  IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion"));
 
   // Transform the current keypoints to the
   // referential of the sensor at the end of
   // frame acquisition
-  InitTime();
+  //IF_VERBOSE(3, InitTime());
   //this->TransformCurrentKeypointsToEnd();
-  StopTimeAndDisplay("Undistortion");
+  //IF_VERBOSE(3, StopTimeAndDisplay("Undistortion"));
 
   // Perform Mapping
-  InitTime();
+  IF_VERBOSE(3, InitTime());
   this->Mapping();
-  StopTimeAndDisplay("Mapping");
-
+  IF_VERBOSE(3, StopTimeAndDisplay("Mapping"));
+  
   // Current keypoints become previous ones
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;
   this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
   this->NbrFrameProcessed++;
 
+  // Update Trajectory
+  this->Trajectory.emplace_back(Transform(time, this->Tworld));
+
   // Motion and localization parameters estimation information display
-  if (this->Verbose)
+  if (this->Verbose >= 2)
   {
+    std::cout << "========== SLAM results ==========" << std::endl;
     Eigen::Vector3d angles, trans;
     angles << Rad2Deg(this->Trelative(0)), Rad2Deg(this->Trelative(1)), Rad2Deg(this->Trelative(2));
     trans << this->Trelative(3), this->Trelative(4), this->Trelative(5);
-    std::cout << "Ego-Motion estimation: angles = [" << angles.transpose() << "] translation: [" << trans.transpose() << "]" << std::endl;
+    std::cout << "Ego-Motion:   angles = [" << angles.transpose() << "] translation = [" << trans.transpose() << "]" << std::endl;
     angles << Rad2Deg(this->Tworld(0)), Rad2Deg(this->Tworld(1)), Rad2Deg(this->Tworld(2));
     trans << this->Tworld(3), this->Tworld(4), this->Tworld(5);
-    std::cout << "Localiazion estimation: angles = [" << angles.transpose() << "] translation: [" << trans.transpose() << "]"
-              << std::endl << std::endl << std::endl;
+    std::cout << "Localization: angles = [" << angles.transpose() << "] translation = [" << trans.transpose() << "]" << std::endl;
   }
 
-  // Update Trajectory
-  this->Trajectory.emplace_back(Transform(time, this->Tworld));
+  // Frame processing duration
+  std::chrono::duration<double, std::milli> chrono_ms = std::chrono::high_resolution_clock::now() - beginTime;
+  PRINT_VERBOSE(1, "Frame processed in " << chrono_ms.count() << " ms");
 }
 
 //-----------------------------------------------------------------------------
@@ -1179,12 +1188,9 @@ void Slam::ComputeEgoMotion()
   KDTreePCLAdaptor kdtreePreviousEdges(this->PreviousEdgesPoints);
   KDTreePCLAdaptor kdtreePreviousPlanes(this->PreviousPlanarsPoints);
 
-  if (this->Verbose)
-  {
-    std::cout << "========== Ego-Motion ==========" << std::endl;
-    std::cout << "previous edges: " << this->PreviousEdgesPoints->size() << " current edges: " << this->CurrentEdgesPoints->size() << std::endl;
-    std::cout << "previous planes: " << this->PreviousPlanarsPoints->size() << " current planes: " << this->CurrentPlanarsPoints->size() << std::endl;
-  }
+  PRINT_VERBOSE(2, "========== Ego-Motion ==========" << std::endl <<
+                   "previous edges: " << this->PreviousEdgesPoints->size() << ", current edges: " << this->CurrentEdgesPoints->size() << std::endl <<
+                   "previous planes: " << this->PreviousPlanarsPoints->size() << ", current planes: " << this->CurrentPlanarsPoints->size());
 
   unsigned int usedEdges = 0;
   unsigned int usedPlanes = 0;
@@ -1236,7 +1242,7 @@ void Slam::ComputeEgoMotion()
       }
     }
 
-    // loop over planars if there is enought previous planar keypoints
+    // loop over planars if there is enough previous planar keypoints
     if (this->PreviousPlanarsPoints->size() > this->EgoMotionPlaneDistanceNbrNeighbors)
     {
       for (unsigned int planarIndex = 0; planarIndex < this->CurrentPlanarsPoints->size(); ++planarIndex)
@@ -1297,8 +1303,7 @@ void Slam::ComputeEgoMotion()
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    if (this->Verbose)
-      std::cout << summary.BriefReport() << std::endl;
+    PRINT_VERBOSE(3, summary.BriefReport());
 
     // If no L-M iteration has been made since the
     // last ICP matching it means we reached a local
@@ -1311,14 +1316,10 @@ void Slam::ComputeEgoMotion()
 
   this->EgoMotionEdgesPointsUsed = usedEdges;
   this->EgoMotionPlanesPointsUsed  = usedPlanes;
-  if (this->Verbose)
-  {
-    std::cout << "used keypoints : " << this->Xvalues.size() << std::endl;
-    std::cout << "edges : " << usedEdges << " planes : " << usedPlanes << std::endl;
-  }
+  PRINT_VERBOSE(2, "Used keypoints : " << this->Xvalues.size() <<
+                   " (" << usedEdges << " edges, " << usedPlanes << " planes).");
 
-  // Integrate the relative motion
-  // to the world transformation
+  // Integrate the relative motion to the world transformation
   this->UpdateTworldUsingTrelative();
 }
 
@@ -1360,12 +1361,9 @@ void Slam::Mapping()
   KDTreePCLAdaptor kdtreePlanes(subPlanarPointsLocalMap);
   pcl::KdTreeFLANN<Slam::Point>::Ptr kdtreeBlobs;
 
-  if (this->Verbose)
-  {
-    std::cout << "========== Mapping ==========" << std::endl;
-    std::cout << "Edges extracted from map: " << subEdgesPointsLocalMap->points.size()
-              << "Planes extracted from map: " << subPlanarPointsLocalMap->points.size() << std::endl;
-  }
+  PRINT_VERBOSE(2, "========== Mapping ==========" << std::endl <<
+                   "Edges extracted from map: " << subEdgesPointsLocalMap->points.size() << ", "
+                   "Planes extracted from map: " << subPlanarPointsLocalMap->points.size());
 
   if (!this->FastSlam)
   {
@@ -1453,8 +1451,8 @@ void Slam::Mapping()
     // Skip this frame if there is too few geometric keypoints matched
     if ((usedPlanes + usedEdges + usedBlobs) < 20)
     {
-      std::cout << "Too few geometric features, loop breaked" << std::endl;
-      std::cout << "planes: " << usedPlanes << " edges: " << usedEdges << " Blobs: " << usedBlobs << std::endl;
+      std::cout << "Too few geometric features, loop breaked "
+                << "(" << usedPlanes << "planes, " << usedEdges << " edges, " << usedBlobs << " blobs)." << std::endl;
       break;
     }
 
@@ -1493,8 +1491,7 @@ void Slam::Mapping()
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
-    if (this->Verbose)
-      std::cout << summary.BriefReport() << std::endl;
+    PRINT_VERBOSE(3, summary.BriefReport());
 
     // If no L-M iteration has been made since the
     // last ICP matching it means we reached a local
@@ -1533,15 +1530,11 @@ void Slam::Mapping()
   this->MappingPlanesPointsUsed = usedPlanes;
   this->MappingBlobsPointsUsed = usedBlobs;
 
-  if (this->Verbose)
-  {
-    std::cout << "Matches used: Total: " << this->Xvalues.size()
-              << " edges: " << usedEdges << " planes: " << usedPlanes << " blobs: " << usedBlobs << std::endl;
-
-    std::cout << "Covariance Eigen values: " << D.transpose() << std::endl;
-    std::cout << "Maximum variance eigen vector: " << eig.eigenvectors().col(5).transpose() << std::endl;
-    std::cout << "Maximum variance: " << D(5) << std::endl;
-  }
+  PRINT_VERBOSE(2, "Matches used: " << this->Xvalues.size() << " "
+                   "(" << usedEdges << " edges, " << usedPlanes << " planes, " << usedBlobs << " blobs)." << std::endl <<
+                   "Covariance eigen values: " << D.transpose() << std::endl <<
+                   "Maximum variance eigen vector: " << eig.eigenvectors().col(5).transpose() << std::endl <<
+                   "Maximum variance: " << D(5));
 
   if (this->Undistortion)
   {

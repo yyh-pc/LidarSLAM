@@ -15,8 +15,12 @@ slam_origin_frame: "slam_init"   # Frame id of SLAM map origin.
 # [Hz] Number of frames per second acquired by the LiDAR sensor (used to generate approximate point-wise timestamp)
 lidar_frequency: 10.
 
-# Verbose mode
-verbose: true
+# Verbosity level :
+#  0) print errors, warnings or one time info
+#  1) 0 + frame number, total frame processing time
+#  2) 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary
+#  3) 2 + functions duration, ceres optimization summary
+verbose: 2
 
 # Optional publishers
 publish_features_maps:
