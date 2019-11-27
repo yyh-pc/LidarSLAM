@@ -75,9 +75,7 @@ bool GlobalTrajectoriesRegistration::ComputeRoughTransformOffset(const std::vect
 Eigen::Translation3d GlobalTrajectoriesRegistration::ComputeRoughTranslationOffset(const Transform& initPose,
                                                                                    const Transform& finalPose)
 {
-  return Eigen::Translation3d(finalPose.x() - initPose.x(),
-                              finalPose.y() - initPose.y(),
-                              finalPose.z() - initPose.z());
+  return Eigen::Translation3d(finalPose.GetPosition() - initPose.GetPosition());
 }
 
 //------------------------------------------------------------------------------
@@ -87,15 +85,9 @@ Eigen::Quaterniond GlobalTrajectoriesRegistration::ComputeRoughRotationOffset(co
                                                                               const Transform& finalPoseTo)
 {
   // Get approximate initPose direction
-  Eigen::Vector3d fromDirection(initPoseTo.x() - initPoseFrom.x(),
-                                initPoseTo.y() - initPoseFrom.y(),
-                                initPoseTo.z() - initPoseFrom.z());
-
+  Eigen::Vector3d initDirection = initPoseTo.GetPosition() - initPoseFrom.GetPosition();
   // Get approximate finalPose direction
-  Eigen::Vector3d toDirection(finalPoseTo.x() - finalPoseFrom.x(),
-                              finalPoseTo.y() - finalPoseFrom.y(),
-                              finalPoseTo.z() - finalPoseFrom.z());
-
+  Eigen::Vector3d finalDirection = finalPoseTo.GetPosition() - finalPoseFrom.GetPosition();
   // Compute orientation alignment between two sub-trajectories
-  return Eigen::Quaterniond::FromTwoVectors(fromDirection, toDirection);
+  return Eigen::Quaterniond::FromTwoVectors(initDirection, finalDirection);
 }

@@ -36,6 +36,8 @@ struct Transform
 
   Eigen::Isometry3d GetIsometry() const {return this->isometry;}
 
+  Eigen::Vector3d GetPosition() const {return this->isometry.translation();}
+
   Eigen::Translation3d GetTranslation() const {return Eigen::Translation3d(this->isometry.translation());}
 
   Eigen::Quaterniond GetRotation() const {return Eigen::Quaterniond(this->isometry.linear());}
