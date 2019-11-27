@@ -44,8 +44,8 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("lidar_frequency", this->LidarFreq);
 
   // Get verbose mode
-  priv_nh.getParam("verbose", this->Verbose);
-  this->LidarSlam.SetVerbose(this->Verbose);
+  priv_nh.getParam("verbosity", this->Verbosity);
+  this->LidarSlam.SetVerbosity(this->Verbosity);
 
   // Get frame IDs
   priv_nh.getParam("slam_origin_frame", this->SlamOriginFrameId);
@@ -436,7 +436,7 @@ void LidarSlamNode::GpsSlamCalibration()
   // If a sensors offset is given, use it to compute real GPS antenna position in SLAM coordinates
   if (!this->LidarToGpsOffset.isApprox(Eigen::Isometry3d::Identity()))
   {
-    if (this->Verbose >= 2)
+    if (this->Verbosity >= 2)
       std::cout << "Transforming LiDAR pose acquired by SLAM to GPS antenna pose using LIDAR to GPS antenna offset :"
                 << std::endl << this->LidarToGpsOffset.matrix() << std::endl;
     for (Transform& slamToGpsPose : slamToLidarPoses)
@@ -452,7 +452,7 @@ void LidarSlamNode::GpsSlamCalibration()
   // Run calibration : compute transform from SLAM to WORLD
   GlobalTrajectoriesRegistration registration;
   registration.SetNoRoll(this->CalibrationNoRoll);  // DEBUG
-  registration.SetVerbose(this->Verbose >= 2);
+  registration.SetVerbose(this->Verbosity >= 2);
   Eigen::Isometry3d worldToSlam;
   if (!registration.ComputeTransformOffset(slamToGpsPoses, worldToGpsPoses, worldToSlam))
   {

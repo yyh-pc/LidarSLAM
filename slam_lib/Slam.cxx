@@ -85,8 +85,8 @@
 // NANOFLANN
 #include <nanoflann.hpp>
 
-#define PRINT_VERBOSE(minVerboseLevel, stream) if (this->Verbose >= (minVerboseLevel)) {std::cout << stream << std::endl;}
-#define IF_VERBOSE(minVerboseLevel, command) if (this->Verbose >= (minVerboseLevel)) { command; }
+#define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
+#define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
 
 namespace {
 //-----------------------------------------------------------------------------
@@ -592,7 +592,7 @@ void Slam::AddFrame(pcl::PointCloud<Slam::Point>::Ptr pc, std::vector<size_t> la
   this->Trajectory.emplace_back(Transform(time, this->Tworld));
 
   // Motion and localization parameters estimation information display
-  if (this->Verbose >= 2)
+  if (this->Verbosity >= 2)
   {
     std::cout << "========== SLAM results ==========" << std::endl;
     Eigen::Vector3d angles, trans;

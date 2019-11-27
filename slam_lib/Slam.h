@@ -130,8 +130,8 @@ public:
 
   GetMacro(NbrFrameProcessed, unsigned int)
 
-  SetMacro(Verbose, int)
-  GetMacro(Verbose, int)
+  SetMacro(Verbosity, int)
+  GetMacro(Verbosity, int)
 
   GetMacro(MaxDistanceForICPMatching, double)
   SetMacro(MaxDistanceForICPMatching, double)
@@ -480,7 +480,7 @@ private:
   // 1: 0 + frame number, total frame processing time
   // 2: 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary
   // 3: 2 + functions duration, ceres optimization summary
-  int Verbose = 2;
+  int Verbosity = 2;
 
   // Identity matrix
   Eigen::Matrix3d I3 = Eigen::Matrix3d::Identity();
