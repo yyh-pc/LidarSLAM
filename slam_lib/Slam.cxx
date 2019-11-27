@@ -472,14 +472,8 @@ void Slam::Reset()
 //-----------------------------------------------------------------------------
 Transform Slam::GetWorldTransform()
 {
-  Transform t;
-  t.x = this->Tworld(3);
-  t.y = this->Tworld(4);
-  t.z = this->Tworld(5);
-  t.rx = this->Tworld(0);
-  t.ry = this->Tworld(1);
-  t.rz = this->Tworld(2);
-  return t;
+  return Transform(0., this->Tworld(3), this->Tworld(4), this->Tworld(5),
+                       this->Tworld(0), this->Tworld(1), this->Tworld(2));
 }
 
 //-----------------------------------------------------------------------------

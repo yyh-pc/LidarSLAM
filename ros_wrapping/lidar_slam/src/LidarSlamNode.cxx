@@ -247,9 +247,9 @@ void LidarSlamNode::PublishTfOdom(const pcl::PCLHeader& headerCloudV,
   tfMsg.header = pcl_conversions::fromPCL(headerCloudV);
   tfMsg.header.frame_id = this->SlamOriginFrameId;
   tfMsg.child_frame_id = this->SlamOutputFrameId.empty() ? headerCloudV.frame_id : this->SlamOutputFrameId;
-  tfMsg.transform.translation.x = slamToLidar.x;
-  tfMsg.transform.translation.y = slamToLidar.y;
-  tfMsg.transform.translation.z = slamToLidar.z;
+  tfMsg.transform.translation.x = slamToLidar.x();
+  tfMsg.transform.translation.y = slamToLidar.y();
+  tfMsg.transform.translation.z = slamToLidar.z();
   Eigen::Quaterniond q = slamToLidar.GetRotation();
   tfMsg.transform.rotation.x = q.x();
   tfMsg.transform.rotation.y = q.y();
@@ -282,8 +282,7 @@ void LidarSlamNode::PublishTfOdom(const pcl::PCLHeader& headerCloudV,
     }
 
     // Transform pose
-    Eigen::Isometry3d slamToLidarPose = slamToLidar.GetIsometry();
-    Eigen::Isometry3d slamToGpsPose(slamToLidarPose * this->LidarToGpsOffset);
+    Eigen::Isometry3d slamToGpsPose(slamToLidar.GetIsometry() * this->LidarToGpsOffset);
     slamPose = Transform(slamToLidar.time, slamToGpsPose);
 
     // TODO Transform covariance to correct lever arm induced by LidarToGpsOffset
@@ -293,9 +292,9 @@ void LidarSlamNode::PublishTfOdom(const pcl::PCLHeader& headerCloudV,
   nav_msgs::Odometry odomMsg;
   odomMsg.header = tfMsg.header;
   odomMsg.child_frame_id = this->OutputGpsPose ? this->OutputGpsPoseFrameId : tfMsg.child_frame_id;
-  odomMsg.pose.pose.position.x = slamPose.x;
-  odomMsg.pose.pose.position.y = slamPose.y;
-  odomMsg.pose.pose.position.z = slamPose.z;
+  odomMsg.pose.pose.position.x = slamPose.x();
+  odomMsg.pose.pose.position.y = slamPose.y();
+  odomMsg.pose.pose.position.z = slamPose.z();
   q = slamPose.GetRotation();
   odomMsg.pose.pose.orientation.x = q.x();
   odomMsg.pose.pose.orientation.y = q.y();
@@ -478,9 +477,9 @@ void LidarSlamNode::GpsSlamCalibration()
       geometry_msgs::PoseStamped poseStamped;
       poseStamped.header.stamp = ros::Time(pose.time);
       poseStamped.header.frame_id = gpsPath.header.frame_id;
-      poseStamped.pose.position.x = pose.x;
-      poseStamped.pose.position.y = pose.y;
-      poseStamped.pose.position.z = pose.z;
+      poseStamped.pose.position.x = pose.x();
+      poseStamped.pose.position.y = pose.y();
+      poseStamped.pose.position.z = pose.z();
       Eigen::Quaterniond rot = pose.GetRotation();
       poseStamped.pose.orientation.w = rot.w();
       poseStamped.pose.orientation.x = rot.x();
@@ -498,9 +497,9 @@ void LidarSlamNode::GpsSlamCalibration()
       geometry_msgs::PoseStamped poseStamped;
       poseStamped.header.stamp = ros::Time(newPose.time);
       poseStamped.header.frame_id = gpsPath.header.frame_id;
-      poseStamped.pose.position.x = newPose.x;
-      poseStamped.pose.position.y = newPose.y;
-      poseStamped.pose.position.z = newPose.z;
+      poseStamped.pose.position.x = newPose.x();
+      poseStamped.pose.position.y = newPose.y();
+      poseStamped.pose.position.z = newPose.z();
       Eigen::Quaterniond rot = newPose.GetRotation();
       poseStamped.pose.orientation.w = rot.w();
       poseStamped.pose.orientation.x = rot.x();
