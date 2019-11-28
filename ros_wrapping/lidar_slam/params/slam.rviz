@@ -64,13 +64,28 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        gps:
+          Value: true
+        gps_init:
+          Value: true
+        slam:
+          Value: true
+        slam_init:
+          Value: true
+        utm:
+          Value: true
+        velodyne:
+          Value: true
       Marker Scale: 10
       Name: TF
       Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
-        {}
+        utm:
+          gps_init:
+            gps:
+              {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -554,7 +569,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 50
+      Distance: 70
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -569,10 +584,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.9703980684280396
+      Pitch: 0.7853981852531433
       Target Frame: gps
       Value: Orbit (rviz)
-      Yaw: 1.0553925037384033
+      Yaw: 0.7853981852531433
     Saved: ~
 Window Geometry:
   Displays:

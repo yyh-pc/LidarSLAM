@@ -79,6 +79,6 @@ utm
 
 ## Pose graph optimization node
 
-This post-processing node records GPS and SLAM trajectories, and tries to correct SLAM drift by matching SLAM poses to temporal closest GPS poses. The goal is then to use this corrected SLAM trajectory to correct once and for all SLAM mapping, and enable a localization only mode using this pre-built valid map.
+This post-processing node records GPS and SLAM trajectories, and tries to correct SLAM drift by matching SLAM poses to temporal closest GPS poses. The pose graph optimization is achieved with G2O optimization framework. The goal is then to use this corrected SLAM trajectory to correct once and for all SLAM mapping, and enable a localization only mode using this pre-built valid map.
 
-WARNING: This node is under heavy development, and is not released yet.
+WARNING: This node is still under heavy development, its use may be buggy.

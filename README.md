@@ -33,6 +33,7 @@ Dependencies are listed in the table below along with the version used during de
 | Eigen      | 3.3.4          |
 | Ceres      | 1.13.0         |
 | PCL        | 1.8            |
+| g2o        | 1.0.0 (master) |
 
 ### Installation
 
