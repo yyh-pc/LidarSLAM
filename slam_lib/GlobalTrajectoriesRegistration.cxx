@@ -7,9 +7,17 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
 {
   // TODO Use timestamps to filter out outliers points
 
-  // TODO It is better (faster, more accurate and correct score estimation) to fit a
-  // sparser trajectory to a denser one. As a result, if 'finalPoses' is sparser
-  // than 'initPoses', swap source and target for ICP.
+  unsigned int nbInitPoses = initPoses.size();
+  unsigned int nbFinalPoses = finalPoses.size();
+
+  // Check input vector sizes (at least 2 elements)
+  if ((nbInitPoses < 2) || (nbFinalPoses < 2))
+  {
+    std::cerr << "[ERROR] Init and Final trajectories must have at least 2 points "
+              << "(Got " << nbInitPoses << " Init points and " << nbFinalPoses << " Final points)."
+              << std::endl;
+    return false;
+  }
 
   // Compute rough transformation to get better initialization if needed
   Eigen::Isometry3d initToRough = Eigen::Isometry3d::Identity();
@@ -24,6 +32,18 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
   for (const Transform& pose: finalPoses)
     toCloud->push_back(pcl::PointXYZ(pose.x(), pose.y(), pose.z()));
 
+  // It is better (faster, more accurate and correct score estimation) to fit a
+  // sparser trajectory to a denser one. As a result, if 'finalPoses' is sparser
+  // than 'initPoses', swap source and target for ICP.
+  bool swapInitAndFinal = nbInitPoses > nbFinalPoses;
+  if (swapInitAndFinal)
+  {
+    if (this->Verbose)
+      std::cout << "Swaping Init and Final trajectories." << std::endl;
+    std::swap(fromCloud, toCloud);
+    initToRough = initToRough.inverse();
+  }
+
   // Run ICP for transform refinement
   pcl::PointCloud<pcl::PointXYZ> optimCloud;
   pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ, double> icp;
@@ -32,6 +52,13 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
   icp.setInputTarget(toCloud);
   icp.align(optimCloud, initToRough.matrix());
   initToFinal = icp.getFinalTransformation();
+
+  // Swap back init and final trajectories.
+  if (swapInitAndFinal)
+  {
+    initToRough = initToRough.inverse();
+    initToFinal = initToFinal.inverse();
+  }
 
   // DEBUG If requested, impose no roll angle
   if (this->NoRoll)

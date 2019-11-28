@@ -30,13 +30,15 @@ public:
   //----------------------------------------------------------------------------
   /*!
    * @brief Compute global translation/rotation offset between two trajectories.
-   * @param[in]  initPoses   The initial trajectory.
-   * @param[in]  finalPoses  The final trajectory.
+   * @param[in]  initPoses   The initial trajectory (only positions will be used).
+   * @param[in]  finalPoses  The final trajectory (only positions will be used).
    * @param[out] initToFinal The global transform to apply to 'initPoses' to get 'finalPoses'.
    * @return true if initToFinal has been computed correctly, false if error occured.
    * 
-   * NOTE : The returned transform is the one to transform each initPose to a finalPose such that :
-   *        finalPose = initToFinal * initPose
+   * NOTE 1 : The returned transform is the one to transform each initPose to a finalPose such that :
+   *          finalPose = initToFinal * initPose
+   *
+   * NOTE 2 : Matching is done only based on positions, orientations are ignored.
    */
   bool ComputeTransformOffset(const std::vector<Transform>& initPoses,
                               const std::vector<Transform>& finalPoses,
@@ -46,8 +48,8 @@ public:
   /*!
    * @brief Compute approximate global translation/rotation offset between two
    *        trajectories using only first and last points.
-   * @param[in]  initPoses   The initial trajectory.
-   * @param[in]  finalPoses  The final trajectory.
+   * @param[in]  initPoses   The initial trajectory (only positions will be used).
+   * @param[in]  finalPoses  The final trajectory (only positions will be used).
    * @param[out] initToFinal The global transform to apply to 'initPoses' to get 'finalPoses'.
    * @return true if initToFinal has been computed correctly, false if error occured.
    * 
