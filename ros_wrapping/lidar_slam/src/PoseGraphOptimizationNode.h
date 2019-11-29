@@ -59,8 +59,6 @@ private:
   ros::Subscriber GpsPoseSub;
   ros::Subscriber RunOptimizationSub;
   ros::Publisher OptimSlamPosesPub;
-
-  std::string GpsFrameId;
 };
 
 #endif // POSE_GRAPH_OPTIMIZATION_NODE_H

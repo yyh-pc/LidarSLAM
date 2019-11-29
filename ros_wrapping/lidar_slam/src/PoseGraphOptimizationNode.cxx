@@ -1,6 +1,9 @@
 #include "PoseGraphOptimizationNode.h"
+#include "ros_transform_utils.h"
+
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <nav_msgs/Path.h>
+
 #include <chrono>
 
 //------------------------------------------------------------------------------
@@ -39,22 +42,12 @@ PoseGraphOptimizationNode::PoseGraphOptimizationNode(ros::NodeHandle& nh, ros::N
 void PoseGraphOptimizationNode::SlamPoseCallback(const nav_msgs::Odometry& msg)
 {
   // Unpack SLAM pose
-  double time = msg.header.stamp.toSec();
-  Eigen::Translation3d trans(msg.pose.pose.position.x,
-                             msg.pose.pose.position.y,
-                             msg.pose.pose.position.z);
-  Eigen::Quaterniond rot(msg.pose.pose.orientation.w,
-                         msg.pose.pose.orientation.x,
-                         msg.pose.pose.orientation.y,
-                         msg.pose.pose.orientation.z);
-  Transform pose(time, trans, rot);
+  Transform pose = PoseMsgToTransform(msg.pose.pose, msg.header.stamp.toSec(), msg.header.frame_id);
+  this->SlamPoses.push_back(pose);
 
   // Unpack covariance
   std::array<double, 36> covar;
   std::copy(msg.pose.covariance.begin(), msg.pose.covariance.end(), covar.begin());
-
-  // Save for later optimization
-  this->SlamPoses.push_back(pose);
   this->SlamCovariances.push_back(covar);
 }
 
@@ -69,25 +62,14 @@ void PoseGraphOptimizationNode::GpsPoseCallback(const nav_msgs::Odometry& msg)
   //   return;
 
   // Unpack GPS pose
-  this->GpsFrameId = msg.header.frame_id;
-  double time = msg.header.stamp.toSec();
-  Eigen::Translation3d trans(msg.pose.pose.position.x,
-                             msg.pose.pose.position.y,
-                             msg.pose.pose.position.z);
-  Eigen::Quaterniond rot(msg.pose.pose.orientation.w,
-                         msg.pose.pose.orientation.x,
-                         msg.pose.pose.orientation.y,
-                         msg.pose.pose.orientation.z);
-  Transform pose(time, trans, rot);
+  Transform pose = PoseMsgToTransform(msg.pose.pose, msg.header.stamp.toSec(), msg.header.frame_id);
+  this->GpsPoses.push_back(pose);
 
   // Unpack position covariance only
   const auto& c = msg.pose.covariance; 
   std::array<double, 9> covar = {c[ 0], c[ 1], c[ 2],
                                  c[ 6], c[ 7], c[ 8],
                                  c[12], c[13], c[14]};
-
-  // Save for later optimization
-  this->GpsPoses.push_back(pose);
   this->GpsCovariances.push_back(covar);
 }
 
@@ -115,23 +97,10 @@ void PoseGraphOptimizationNode::RunOptimizationCallback(const std_msgs::Empty&)
 
   // Publish optimized SLAM trajectory
   nav_msgs::Path optimSlamTraj;
-  optimSlamTraj.header.frame_id = this->GpsFrameId;
+  optimSlamTraj.header.frame_id = this->GpsPoses[0].frameid;
   optimSlamTraj.header.stamp = ros::Time::now();
   for (const Transform& pose: optimizedSlamPoses)
-  {
-    geometry_msgs::PoseStamped poseMsg;
-    poseMsg.header.frame_id = this->GpsFrameId;
-    poseMsg.header.stamp = ros::Time(pose.time);
-    poseMsg.pose.position.x = pose.x();
-    poseMsg.pose.position.y = pose.y();
-    poseMsg.pose.position.z = pose.z();
-    Eigen::Quaterniond quat = pose.GetRotation();
-    poseMsg.pose.orientation.w = quat.w();
-    poseMsg.pose.orientation.x = quat.x();
-    poseMsg.pose.orientation.y = quat.y();
-    poseMsg.pose.orientation.z = quat.z();
-    optimSlamTraj.poses.push_back(poseMsg);
-  }
+    optimSlamTraj.poses.push_back(TransformToPoseStampedMsg(pose));
   this->OptimSlamPosesPub.publish(optimSlamTraj);
 }
 

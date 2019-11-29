@@ -69,14 +69,12 @@ private:
   //----------------------------------------------------------------------------
   /*!
    * @brief     Publish TF and PoseWithCovariance.
-   * @param[in] headerCloudV   Header to use to fill seq and stamp of output msgs.
    * @param[in] slamToLidar Transform from slam_init to velodyne to send.
-   * @param[in] poseCovar      Covariance associated to full 6 dof pose.
+   * @param[in] poseCovar   Covariance associated to full 6 DOF pose.
    *
    * NOTE : poseCovar encodes covariance for dof in this order : (rX, rY, rZ, X, Y, Z)
    */
-  void PublishTfOdom(const pcl::PCLHeader& headerCloudV,
-                     const Transform& slamToLidar,
+  void PublishTfOdom(const Transform& slamToLidar,
                      const std::vector<double>& poseCovar);
 
   //----------------------------------------------------------------------------
@@ -121,7 +119,6 @@ private:
   Eigen::Isometry3d LidarToGpsOffset = Eigen::Isometry3d::Identity(); ///< Pose of the GPS antenna in LiDAR coordinates.
 
   // Optionnal use of GPS data to calibrate output SLAM pose to world coordinates.
-  std::string GpsOriginFrameId = "gps_init";  ///< Storage of GPS odometry msg frame_id.
   bool CalibrateSlamGps = false;              ///< Enable GPS/SLAM calibration, and therefore
   bool CalibrationNoRoll = false;             // DEBUG
   double CalibrationPoseTimeout = 15.;        ///< [s] GPS/SLAM poses older than that are forgotten.

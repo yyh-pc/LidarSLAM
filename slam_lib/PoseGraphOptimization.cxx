@@ -61,7 +61,7 @@ PoseGraphOptimization::PoseGraphOptimization()
   // create optimizer
   // TODO change optimizer
   g2o::SparseOptimizer optimizer;
-  optimizer.setVerbose(true);
+  optimizer.setVerbose(this->Verbose);
   auto linearSolver = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>>();
   auto* solver = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
   this->GraphOptimizer.setAlgorithm(solver);
@@ -139,7 +139,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   for (unsigned int i = 0; i < nbSlamPoses; ++i)
   {
     Eigen::Isometry3d finalSlamPose(worldToSlam * slamPoses[i].GetIsometry());
-    transSlamPoses[i] = Transform(slamPoses[i].time + this->TimeOffset, finalSlamPose);
+    transSlamPoses[i] = Transform(finalSlamPose, slamPoses[i].time + this->TimeOffset, slamPoses[i].frameid);
   }
 
   // Clear and build the pose graph to optimize
@@ -186,10 +186,9 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
     double data[7];
     v->getEstimateData(data);
     // Fill new optimized trajectory
-    double time = transSlamPoses[i].time;
     Eigen::Translation3d trans(data[0], data[1], data[2]);
     Eigen::Quaterniond rot(data[6], data[3], data[4], data[5]);
-    optimizedSlamPoses[i] = Transform(time, trans, rot);
+    optimizedSlamPoses[i] = Transform(trans, rot, transSlamPoses[i].time, transSlamPoses[i].frameid);
   }
 
   return true;

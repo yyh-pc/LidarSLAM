@@ -473,8 +473,7 @@ void Slam::Reset()
 //-----------------------------------------------------------------------------
 Transform Slam::GetWorldTransform()
 {
-  return Transform(0., this->Tworld(3), this->Tworld(4), this->Tworld(5),
-                       this->Tworld(0), this->Tworld(1), this->Tworld(2));
+  return this->Trajectory.back();
 }
 
 //-----------------------------------------------------------------------------
@@ -552,6 +551,11 @@ void Slam::AddFrame(pcl::PointCloud<Slam::Point>::Ptr pc, std::vector<size_t> la
     this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
     this->PreviousBlobsPoints = this->CurrentBlobsPoints;
     this->NbrFrameProcessed++;
+
+   // Update Trajectory
+    this->Trajectory.emplace_back(this->Tworld(3), this->Tworld(4), this->Tworld(5),
+                                  this->Tworld(0), this->Tworld(1), this->Tworld(2),
+                                  time, pc->header.frame_id);
     return;
   }
 
@@ -589,7 +593,9 @@ void Slam::AddFrame(pcl::PointCloud<Slam::Point>::Ptr pc, std::vector<size_t> la
   this->NbrFrameProcessed++;
 
   // Update Trajectory
-  this->Trajectory.emplace_back(Transform(time, this->Tworld));
+  this->Trajectory.emplace_back(this->Tworld(3), this->Tworld(4), this->Tworld(5),
+                                this->Tworld(0), this->Tworld(1), this->Tworld(2),
+                                time, pc->header.frame_id);
 
   // Motion and localization parameters estimation information display
   if (this->Verbosity >= 2)

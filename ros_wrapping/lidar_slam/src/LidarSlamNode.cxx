@@ -1,5 +1,6 @@
 #include "LidarSlamNode.h"
-#include "GlobalTrajectoriesRegistration.h"
+#include "ros_transform_utils.h"
+#include <GlobalTrajectoriesRegistration.h>
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <geometry_msgs/TransformStamped.h>
@@ -57,8 +58,8 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("gps/output_gps_pose_frame_id", this->OutputGpsPoseFrameId);
   std::vector<double> GpsToLidarOffset;
   priv_nh.getParam("gps/gps_to_lidar_offset", GpsToLidarOffset);
-  Transform GpsToLidarTransform(0., GpsToLidarOffset[0], GpsToLidarOffset[1], GpsToLidarOffset[2],
-                                    GpsToLidarOffset[3], GpsToLidarOffset[4], GpsToLidarOffset[5]);
+  Transform GpsToLidarTransform(GpsToLidarOffset[0], GpsToLidarOffset[1], GpsToLidarOffset[2],
+                                GpsToLidarOffset[3], GpsToLidarOffset[4], GpsToLidarOffset[5]);
   this->LidarToGpsOffset = GpsToLidarTransform.GetIsometry().inverse();
 
   // Init optionnal use of GPS data to calibrate output SLAM pose to world coordinates.
@@ -130,10 +131,11 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   // Get the computed world transform so far
   Transform slamToLidar = this->LidarSlam.GetWorldTransform();
   slamToLidar.time = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();
+  slamToLidar.frameid = cloudV.header.frame_id;
   std::vector<double> poseCovar = this->LidarSlam.GetTransformCovariance();
 
   // Publish TF, pose and covariance
-  this->PublishTfOdom(cloudV.header, slamToLidar, poseCovar);
+  this->PublishTfOdom(slamToLidar, poseCovar);
 
   // Publish optional debug info
   this->PublishFeaturesMaps(cloudS);
@@ -142,10 +144,9 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   if (this->CalibrateSlamGps)
   {
     // Add new pose to buffer
-    slamToLidar.time = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();
     this->SlamPoses.push_back(slamToLidar);
     // Forget all previous poses older than CalibrationPoseTimeout
-    while (this->SlamPoses.front().time < slamToLidar.time - this->CalibrationPoseTimeout)
+    while (slamToLidar.time - this->SlamPoses.front().time > this->CalibrationPoseTimeout)
       this->SlamPoses.pop_front();
   }
 }
@@ -157,19 +158,9 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
   if (this->CalibrateSlamGps)
   {
     // Add new pose to buffer
-    this->GpsOriginFrameId = msg.header.frame_id;
-    double time = msg.header.stamp.toSec();
-    Eigen::Translation3d trans(msg.pose.pose.position.x,
-                               msg.pose.pose.position.y,
-                               msg.pose.pose.position.z);
-    Eigen::Quaterniond rot(msg.pose.pose.orientation.w,
-                           msg.pose.pose.orientation.x,
-                           msg.pose.pose.orientation.y,
-                           msg.pose.pose.orientation.z);
-    this->GpsPoses.push_back(Transform(time, trans, rot));
-
+    this->GpsPoses.push_back(PoseMsgToTransform(msg.pose.pose, msg.header.stamp.toSec(), msg.header.frame_id));
     // Forget all previous poses older than CalibrationPoseTimeout
-    while (this->GpsPoses.front().time < time - this->CalibrationPoseTimeout)
+    while (this->GpsPoses.back().time - this->GpsPoses.front().time > this->CalibrationPoseTimeout)
       this->GpsPoses.pop_front();
   }
 }
@@ -232,23 +223,15 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::PublishTfOdom(const pcl::PCLHeader& headerCloudV,
-                                  const Transform& slamToLidar,
+void LidarSlamNode::PublishTfOdom(const Transform& slamToLidar,
                                   const std::vector<double>& poseCovar)
 {
   // publish TF from SlamOriginFrameId to PointCloud frame_id (raw SLAM output)
   geometry_msgs::TransformStamped tfMsg;
-  tfMsg.header = pcl_conversions::fromPCL(headerCloudV);
+  tfMsg.header.stamp = ros::Time(slamToLidar.time);
   tfMsg.header.frame_id = this->SlamOriginFrameId;
-  tfMsg.child_frame_id = this->SlamOutputFrameId.empty() ? headerCloudV.frame_id : this->SlamOutputFrameId;
-  tfMsg.transform.translation.x = slamToLidar.x();
-  tfMsg.transform.translation.y = slamToLidar.y();
-  tfMsg.transform.translation.z = slamToLidar.z();
-  Eigen::Quaterniond q = slamToLidar.GetRotation();
-  tfMsg.transform.rotation.x = q.x();
-  tfMsg.transform.rotation.y = q.y();
-  tfMsg.transform.rotation.z = q.z();
-  tfMsg.transform.rotation.w = q.w();
+  tfMsg.child_frame_id = this->SlamOutputFrameId.empty() ? slamToLidar.frameid : this->SlamOutputFrameId;
+  tfMsg.transform = TransformToTfMsg(slamToLidar);
   this->TfBroadcaster.sendTransform(tfMsg);
 
   Transform slamPose = slamToLidar;
@@ -263,21 +246,13 @@ void LidarSlamNode::PublishTfOdom(const pcl::PCLHeader& headerCloudV,
       TfLidarToSlam.header = tfMsg.header;
       TfLidarToSlam.header.frame_id = tfMsg.child_frame_id;
       TfLidarToSlam.child_frame_id = this->OutputGpsPoseFrameId;
-      Eigen::Translation3d trans(this->LidarToGpsOffset.translation());
-      TfLidarToSlam.transform.translation.x = trans.x();
-      TfLidarToSlam.transform.translation.y = trans.y();
-      TfLidarToSlam.transform.translation.z = trans.z();
-      Eigen::Quaterniond rot(this->LidarToGpsOffset.linear());
-      TfLidarToSlam.transform.rotation.x = rot.x();
-      TfLidarToSlam.transform.rotation.y = rot.y();
-      TfLidarToSlam.transform.rotation.z = rot.z();
-      TfLidarToSlam.transform.rotation.w = rot.w();
+      TfLidarToSlam.transform = TransformToTfMsg(Transform(this->LidarToGpsOffset));
       this->StaticTfBroadcaster.sendTransform(TfLidarToSlam);
     }
 
     // Transform pose
     Eigen::Isometry3d slamToGpsPose(slamToLidar.GetIsometry() * this->LidarToGpsOffset);
-    slamPose = Transform(slamToLidar.time, slamToGpsPose);
+    slamPose.transform = slamToGpsPose;
 
     // TODO Transform covariance to correct lever arm induced by LidarToGpsOffset
   }
@@ -286,14 +261,7 @@ void LidarSlamNode::PublishTfOdom(const pcl::PCLHeader& headerCloudV,
   nav_msgs::Odometry odomMsg;
   odomMsg.header = tfMsg.header;
   odomMsg.child_frame_id = this->OutputGpsPose ? this->OutputGpsPoseFrameId : tfMsg.child_frame_id;
-  odomMsg.pose.pose.position.x = slamPose.x();
-  odomMsg.pose.pose.position.y = slamPose.y();
-  odomMsg.pose.pose.position.z = slamPose.z();
-  q = slamPose.GetRotation();
-  odomMsg.pose.pose.orientation.x = q.x();
-  odomMsg.pose.pose.orientation.y = q.y();
-  odomMsg.pose.pose.orientation.z = q.z();
-  odomMsg.pose.pose.orientation.w = q.w();
+  odomMsg.pose.pose = TransformToPoseMsg(slamPose);
   // Reshape covariance from parameters (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
   const std::vector<double>& c = poseCovar;
   odomMsg.pose.covariance = {c[21], c[22], c[23],   c[18], c[19], c[20],
@@ -443,7 +411,7 @@ void LidarSlamNode::GpsSlamCalibration()
     {
       Eigen::Isometry3d slamToLidar = slamToGpsPose.GetIsometry();
       Eigen::Isometry3d slamToGps(slamToLidar * this->LidarToGpsOffset);
-      slamToGpsPose = Transform(slamToGpsPose.time, slamToGps);
+      slamToGpsPose.transform = slamToGps;
     }
   }
   // At this point, we now have GPS antenna poses in SLAM coordinates.
@@ -465,22 +433,11 @@ void LidarSlamNode::GpsSlamCalibration()
   {
     // GPS antenna trajectory acquired from GPS in WORLD coordinates
     nav_msgs::Path gpsPath;
-    gpsPath.header.frame_id = this->GpsOriginFrameId;
+    gpsPath.header.frame_id = this->GpsPoses[0].frameid;
     gpsPath.header.stamp = ros::Time::now();
     for (const Transform& pose: worldToGpsPoses)
     {
-      geometry_msgs::PoseStamped poseStamped;
-      poseStamped.header.stamp = ros::Time(pose.time);
-      poseStamped.header.frame_id = gpsPath.header.frame_id;
-      poseStamped.pose.position.x = pose.x();
-      poseStamped.pose.position.y = pose.y();
-      poseStamped.pose.position.z = pose.z();
-      Eigen::Quaterniond rot = pose.GetRotation();
-      poseStamped.pose.orientation.w = rot.w();
-      poseStamped.pose.orientation.x = rot.x();
-      poseStamped.pose.orientation.y = rot.y();
-      poseStamped.pose.orientation.z = rot.z();
-      gpsPath.poses.push_back(poseStamped);
+      gpsPath.poses.push_back(TransformToPoseStampedMsg(pose));
     }
     this->GpsPathPub.publish(gpsPath);
     // GPS antenna trajectory acquired from SLAM in WORLD coordinates
@@ -488,49 +445,30 @@ void LidarSlamNode::GpsSlamCalibration()
     slamPath.header = gpsPath.header;
     for (const Transform& pose: slamToGpsPoses)
     {
-      Transform newPose(pose.time, worldToSlam * pose.GetIsometry());
-      geometry_msgs::PoseStamped poseStamped;
-      poseStamped.header.stamp = ros::Time(newPose.time);
-      poseStamped.header.frame_id = gpsPath.header.frame_id;
-      poseStamped.pose.position.x = newPose.x();
-      poseStamped.pose.position.y = newPose.y();
-      poseStamped.pose.position.z = newPose.z();
-      Eigen::Quaterniond rot = newPose.GetRotation();
-      poseStamped.pose.orientation.w = rot.w();
-      poseStamped.pose.orientation.x = rot.x();
-      poseStamped.pose.orientation.y = rot.y();
-      poseStamped.pose.orientation.z = rot.z();
-      slamPath.poses.push_back(poseStamped);
+      Transform newPose(worldToSlam * pose.GetIsometry(), pose.time, pose.frameid);
+      slamPath.poses.push_back(TransformToPoseStampedMsg(newPose));
     }
     this->SlamPathPub.publish(slamPath);
   }
 
   // Publish static tf with calibration to link world (UTM) frame to SLAM origin
-  Eigen::Translation3d translation(worldToSlam.translation());
-  Eigen::Quaterniond rotation(worldToSlam.rotation());
   geometry_msgs::TransformStamped tfStamped;
   tfStamped.header.stamp = ros::Time::now();
-  tfStamped.header.frame_id = this->GpsOriginFrameId;
+  tfStamped.header.frame_id = this->GpsPoses[0].frameid;
   tfStamped.child_frame_id = this->SlamOriginFrameId;
-  tfStamped.transform.translation.x = translation.x();
-  tfStamped.transform.translation.y = translation.y();
-  tfStamped.transform.translation.z = translation.z();
-  tfStamped.transform.rotation.x = rotation.x();
-  tfStamped.transform.rotation.y = rotation.y();
-  tfStamped.transform.rotation.z = rotation.z();
-  tfStamped.transform.rotation.w = rotation.w();
+  tfStamped.transform = TransformToTfMsg(Transform(worldToSlam));
   this->StaticTfBroadcaster.sendTransform(tfStamped);
 
   Eigen::Vector3d xyz = worldToSlam.translation();
   Eigen::Vector3d ypr = worldToSlam.linear().eulerAngles(2, 1, 0);
   ROS_INFO_STREAM("\033[1;32m" <<
-                  "Global transform from GPS ('" << this->GpsOriginFrameId << "') "
+                  "Global transform from GPS ('" << this->GpsPoses[0].frameid << "') "
                   "to SLAM ('" << this->SlamOriginFrameId << "') "
                   "successfully estimated to :\n" << worldToSlam.matrix() <<
                   "\n(tf2 static transform : " <<
                   xyz(0) << " " << xyz(1) << " " << xyz(2) << " " <<
                   ypr(0) << " " << ypr(1) << " " << ypr(2) <<
-                  " /" << this->GpsOriginFrameId << " /" << this->SlamOriginFrameId <<
+                  " /" << this->GpsPoses[0].frameid << " /" << this->SlamOriginFrameId <<
                   ")\033[0m");
 }
 
