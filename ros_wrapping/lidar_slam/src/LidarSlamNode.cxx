@@ -132,7 +132,7 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   Transform slamToLidar = this->LidarSlam.GetWorldTransform();
   slamToLidar.time = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();
   slamToLidar.frameid = cloudV.header.frame_id;
-  std::vector<double> poseCovar = this->LidarSlam.GetTransformCovariance();
+  std::array<double, 36> poseCovar = this->LidarSlam.GetTransformCovariance();
 
   // Publish TF, pose and covariance
   this->PublishTfOdom(slamToLidar, poseCovar);
@@ -224,7 +224,7 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
 
 //------------------------------------------------------------------------------
 void LidarSlamNode::PublishTfOdom(const Transform& slamToLidar,
-                                  const std::vector<double>& poseCovar)
+                                  const std::array<double, 36>& poseCovar)
 {
   // publish TF from SlamOriginFrameId to PointCloud frame_id (raw SLAM output)
   geometry_msgs::TransformStamped tfMsg;
@@ -263,7 +263,7 @@ void LidarSlamNode::PublishTfOdom(const Transform& slamToLidar,
   odomMsg.child_frame_id = this->OutputGpsPose ? this->OutputGpsPoseFrameId : tfMsg.child_frame_id;
   odomMsg.pose.pose = TransformToPoseMsg(slamPose);
   // Reshape covariance from parameters (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
-  const std::vector<double>& c = poseCovar;
+  const std::array<double, 36>& c = poseCovar;
   odomMsg.pose.covariance = {c[21], c[22], c[23],   c[18], c[19], c[20],
                              c[27], c[28], c[29],   c[24], c[25], c[26],
                              c[33], c[34], c[35],   c[30], c[31], c[32],

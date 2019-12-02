@@ -19,8 +19,9 @@ lidar_frequency: 10.
 #  0) print errors, warnings or one time info
 #  1) 0 + frame number, total frame processing time
 #  2) 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary
-#  3) 2 + functions duration, ceres optimization summary
-verbosity: 2
+#  3) 2 + sub-problems processing duration
+#  4) 3 + ceres optimization summary
+verbosity: 3
 
 # Optional publishers
 publish_features_maps:

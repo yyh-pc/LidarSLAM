@@ -135,11 +135,12 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   registration.ComputeTransformOffset(slamPoses, gpsPoses, worldToSlam);
 
   // Apply transformation to SLAM poses
-  std::vector<Transform> transSlamPoses(nbSlamPoses);
-  for (unsigned int i = 0; i < nbSlamPoses; ++i)
+  std::vector<Transform> transSlamPoses;
+  transSlamPoses.reserve(nbSlamPoses);
+  for (const Transform& slamPose: slamPoses)
   {
-    Eigen::Isometry3d finalSlamPose(worldToSlam * slamPoses[i].GetIsometry());
-    transSlamPoses[i] = Transform(finalSlamPose, slamPoses[i].time + this->TimeOffset, slamPoses[i].frameid);
+    Eigen::Isometry3d finalSlamPose(worldToSlam * slamPose.GetIsometry());
+    transSlamPoses.emplace_back(finalSlamPose, slamPose.time + this->TimeOffset, slamPose.frameid);
   }
 
   // Clear and build the pose graph to optimize
@@ -178,7 +179,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
 
   // Set the output optimized data
   optimizedSlamPoses.clear();
-  optimizedSlamPoses.resize(nbSlamPoses);
+  optimizedSlamPoses.reserve(nbSlamPoses);
   for (int i = 0; i < nbSlamPoses; ++i)
   {
     // Get optimized SLAM vertex pose
@@ -188,7 +189,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
     // Fill new optimized trajectory
     Eigen::Translation3d trans(data[0], data[1], data[2]);
     Eigen::Quaterniond rot(data[6], data[3], data[4], data[5]);
-    optimizedSlamPoses[i] = Transform(trans, rot, transSlamPoses[i].time, transSlamPoses[i].frameid);
+    optimizedSlamPoses.emplace_back(trans, rot, transSlamPoses[i].time, transSlamPoses[i].frameid);
   }
 
   return true;

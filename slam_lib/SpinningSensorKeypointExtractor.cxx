@@ -207,7 +207,8 @@ void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
 }
 
 //-----------------------------------------------------------------------------
-void SpinningSensorKeypointExtractor::ComputeKeyPoints(pcl::PointCloud<Point>::Ptr pc, std::vector<size_t> laserIdMapping)
+void SpinningSensorKeypointExtractor::ComputeKeyPoints(const pcl::PointCloud<Point>::Ptr& pc,
+                                                       const std::vector<size_t>& laserIdMapping)
 {
   if (this->LaserIdMapping.empty())
   {

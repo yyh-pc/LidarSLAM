@@ -75,7 +75,7 @@ private:
    * NOTE : poseCovar encodes covariance for dof in this order : (rX, rY, rZ, X, Y, Z)
    */
   void PublishTfOdom(const Transform& slamToLidar,
-                     const std::vector<double>& poseCovar);
+                     const std::array<double, 36>& poseCovar);
 
   //----------------------------------------------------------------------------
   /*!
