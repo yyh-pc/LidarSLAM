@@ -490,7 +490,7 @@ void Slam::Reset()
 //-----------------------------------------------------------------------------
 Transform Slam::GetWorldTransform()
 {
-  return this->Trajectory.back();
+  return this->LogTrajectory.back();
 }
 
 //-----------------------------------------------------------------------------
@@ -546,35 +546,6 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
   PRINT_VERBOSE(2, "#########################################################" << std::endl);
 
-  double time = pc->points[0].time;
-
-  // If the new frame is the first one we just add the
-  // extracted keypoints into the map without running
-  // odometry and mapping steps
-  if (this->NbrFrameProcessed == 0)
-  {
-    // Compute the edges and planars keypoints
-    this->KeyPointsExtractor->ComputeKeyPoints(pc, laserIdMapping);
-    this->CurrentEdgesPoints = this->KeyPointsExtractor->GetEdgePoints();
-    this->CurrentPlanarsPoints = this->KeyPointsExtractor->GetPlanarPoints();
-    this->CurrentBlobsPoints = this->KeyPointsExtractor->GetBlobPoints();
-
-    // update map using tworld
-    this->UpdateMapsUsingTworld();
-
-    // Current keypoints become previous ones
-    this->PreviousEdgesPoints = this->CurrentEdgesPoints;
-    this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
-    this->PreviousBlobsPoints = this->CurrentBlobsPoints;
-    this->NbrFrameProcessed++;
-
-   // Update Trajectory
-    this->Trajectory.emplace_back(this->Tworld(3), this->Tworld(4), this->Tworld(5),
-                                  this->Tworld(0), this->Tworld(1), this->Tworld(2),
-                                  time, pc->header.frame_id);
-    return;
-  }
-
   // Compute the edges and planars keypoints
   IF_VERBOSE(3, InitTime());
   this->KeyPointsExtractor->ComputeKeyPoints(pc, laserIdMapping);
@@ -587,33 +558,45 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
                                            << this->CurrentBlobsPoints->size()   << " blobs.");
   IF_VERBOSE(3, StopTimeAndDisplay("Keypoints extraction"));
 
-  // Perfom EgoMotion
-  IF_VERBOSE(3, InitTime());
-  this->ComputeEgoMotion();
-  IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion"));
+  // If the new frame is the first one we just add the
+  // extracted keypoints into the map without running
+  // odometry and mapping steps
+  if (this->NbrFrameProcessed > 0)
+  {
+    // Perfom EgoMotion
+    IF_VERBOSE(3, InitTime());
+    this->ComputeEgoMotion();
+    IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion"));
 
-  // Transform the current keypoints to the
-  // referential of the sensor at the end of
-  // frame acquisition
-  //IF_VERBOSE(3, InitTime());
-  //this->TransformCurrentKeypointsToEnd();
-  //IF_VERBOSE(3, StopTimeAndDisplay("Undistortion"));
+    // Transform the current keypoints to the
+    // referential of the sensor at the end of
+    // frame acquisition
+    //IF_VERBOSE(3, InitTime());
+    //this->TransformCurrentKeypointsToEnd();
+    //IF_VERBOSE(3, StopTimeAndDisplay("Undistortion"));
 
-  // Perform Mapping
+    // Perform Mapping
+    IF_VERBOSE(3, InitTime());
+    this->Mapping();
+    IF_VERBOSE(3, StopTimeAndDisplay("Mapping"));
+  }
+
+  // Update keypoints maps
   IF_VERBOSE(3, InitTime());
-  this->Mapping();
-  IF_VERBOSE(3, StopTimeAndDisplay("Mapping"));
+  this->UpdateMapsUsingTworld();
+  IF_VERBOSE(3, StopTimeAndDisplay("Maps update"));
   
+  // Update the PreviousTworld data
+  this->PreviousTworld = this->Tworld;
+
   // Current keypoints become previous ones
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;
   this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
   this->PreviousBlobsPoints = this->CurrentBlobsPoints;
   this->NbrFrameProcessed++;
 
-  // Update Trajectory
-  this->Trajectory.emplace_back(this->Tworld(3), this->Tworld(4), this->Tworld(5),
-                                this->Tworld(0), this->Tworld(1), this->Tworld(2),
-                                time, pc->header.frame_id);
+  // Log current frame processing results : pose, covariance and keypoints.
+  this->LogCurrentFrameState(pc->header.stamp * 1e-6, pc->header.frame_id);
 
   // Motion and localization parameters estimation information display
   if (this->Verbosity >= 2)
@@ -1026,13 +1009,7 @@ void Slam::Mapping()
     }
   }
 
-  // Add the current computed transform to the list
-  this->TworldList.push_back(this->Tworld);
-
   // CHECK order of next steps : UpdateMapsUsingTworld, UpdateCurrentKeypointsUsingTworld, CreateWithinFrameTrajectory
-
-  // Update maps
-  this->UpdateMapsUsingTworld();
 
   // Transform the current keypoints
   // in the sensor reference frame
@@ -1045,9 +1022,6 @@ void Slam::Mapping()
   // Compute the undistortion interpolator before replacing previousTworld
   // this interpolator will be used to output the mapped current frame
   this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MappingTraj);
-
-  // Update the PreviousTworld data
-  this->PreviousTworld = this->Tworld;
 }
 
 //-----------------------------------------------------------------------------
@@ -1168,6 +1142,48 @@ void Slam::UpdateCurrentKeypointsUsingTworld()
   this->ExpressPointCloudInOtherReferencial(this->CurrentEdgesPoints);
   this->ExpressPointCloudInOtherReferencial(this->CurrentPlanarsPoints);
   this->ExpressPointCloudInOtherReferencial(this->CurrentBlobsPoints);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::LogCurrentFrameState(double time, const std::string& frameId)
+{
+  // If logging is enabled
+  if (this->LoggingTimeout)
+  {
+    // Save current frame data to buffer
+    this->LogTrajectory.emplace_back(this->Tworld(3), this->Tworld(4), this->Tworld(5),
+                                     this->Tworld(0), this->Tworld(1), this->Tworld(2),
+                                     time, frameId);
+    this->LogCovariances.emplace_back(FlipAndConvertCovariance(this->TworldCovariance));
+    this->LogEdgesPoints.emplace_back(this->CurrentEdgesPoints);
+    this->LogPlanarsPoints.emplace_back(this->CurrentPlanarsPoints);
+    if (!this->FastSlam)
+      this->LogBlobsPoints.emplace_back(this->CurrentBlobsPoints);
+
+    // If a timeout is defined, forget too old data
+    if (this->LoggingTimeout > 0)
+    {
+      // Forget all previous data older than LoggingTimeout
+      while (this->LogTrajectory.back().time - this->LogTrajectory.front().time > this->LoggingTimeout)
+      {
+        this->LogTrajectory.pop_front();
+        this->LogCovariances.pop_front();
+        this->LogEdgesPoints.pop_front();
+        this->LogPlanarsPoints.pop_front();
+        if (!this->FastSlam)
+          this->LogEdgesPoints.pop_front();
+      }
+    }
+  }
+
+  // If logging is disabled
+  else
+  {
+    this->LogTrajectory.clear();
+    this->LogTrajectory.emplace_back(this->Tworld(3), this->Tworld(4), this->Tworld(5),
+                                     this->Tworld(0), this->Tworld(1), this->Tworld(2),
+                                     time, frameId);
+  }
 }
 
 //==============================================================================

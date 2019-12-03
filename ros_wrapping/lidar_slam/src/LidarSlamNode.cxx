@@ -304,11 +304,13 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
 {
   // common
   bool fastSlam, undistortion;
-  double maxDistanceForICPMatching;
+  double loggingTimeout, maxDistanceForICPMatching;
   if (priv_nh.getParam("slam/fast_slam", fastSlam))
     LidarSlam.SetFastSlam(fastSlam);
   if (priv_nh.getParam("slam/undistortion", undistortion))
     LidarSlam.SetUndistortion(undistortion);
+  if (priv_nh.getParam("slam/logging_timeout", loggingTimeout))
+    LidarSlam.SetLoggingTimeout(loggingTimeout);
   if (priv_nh.getParam("slam/max_distance_for_ICP_matching", maxDistanceForICPMatching))
     LidarSlam.SetMaxDistanceForICPMatching(maxDistanceForICPMatching);
 

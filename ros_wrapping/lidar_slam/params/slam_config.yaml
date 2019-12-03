@@ -49,9 +49,16 @@ gps:
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
 
-  fast_slam: true                    # Use only planars keypoints used during EgoMotion for Mapping step, and not all.
-  undistortion: false                # Undistord the frame to correct rolling shutter distortion. DEBUG
-  max_distance_for_ICP_matching: 20. # [m] Max distance allowed between two keypoints during ICP matching.
+  fast_slam: true      # Use only planars keypoints used during EgoMotion for Mapping step, and not all.
+  undistortion: false  # Undistord the frame to correct rolling shutter distortion. DEBUG
+
+  # Optionnal logging of computed pose, mapping covariance and keypoints of each processed frame.
+  #  - A value of 0. will disable logging.
+  #  - A negative value will log all incoming data, without any timeout.
+  #  - A positive value will keep only most recent data, forgetting all previous data older than LoggingTimeout seconds.
+  logging_timeout: 0.  # [s]
+
+  max_distance_for_ICP_matching: 20.            # [m] Max distance allowed between two keypoints during ICP matching.
 
   ego_motion_LM_max_iter: 15                    # Max number of iteration in the ego motion LM optimization step.
   ego_motion_ICP_max_iter: 4                    # Max number of iterations of ICP matching.

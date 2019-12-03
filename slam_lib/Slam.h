@@ -77,6 +77,8 @@
 #define PCL_NO_PRECOMPILE
 #endif
 
+#include <deque>
+
 #include <pcl/kdtree/kdtree_flann.h>
 
 #include <Eigen/Geometry>
@@ -155,6 +157,9 @@ public:
 
   SetMacro(Undistortion, bool)
   GetMacro(Undistortion, bool)
+
+  SetMacro(LoggingTimeout, double)
+  GetMacro(LoggingTimeout, double)
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -282,6 +287,16 @@ private:
   // 4: 3 + ceres optimization summary
   int Verbosity = 3;
 
+  // Optionnal log of computed pose, mapping covariance and keypoints of each
+  // processed frame.
+  // - A value of 0. will disable logging.
+  // - A negative value will log all incoming data, without any timeout.
+  // - A positive value will keep only the most recent data, forgetting all
+  //   previous data older than LoggingTimeout seconds.
+  // WARNING : A big value of LoggingTimeout may lead to an important memory
+  //           consumption if SLAM is run for a long time.
+  double LoggingTimeout = 0.;
+
   // ---------------------------------------------------------------------------
   //   Trajectory and transforms
   // ---------------------------------------------------------------------------
@@ -301,16 +316,19 @@ private:
   // estimation error about the 6-DoF parameters
   Eigen::Matrix<double, 6, 6> TworldCovariance = Eigen::Matrix<double, 6, 6>::Identity();
 
-  // Computed trajectory of the sensor
-  // i.e the list of transforms computed
-  std::vector<Eigen::Matrix<double, 6, 1> > TworldList;  // CHECK unused, delete ?
-  std::vector<Transform> Trajectory;  // CHECK unused ?
-
   // Represents estimated samples of the trajectory
   // of the sensor within a lidar frame. The orientation
   // and position of the sensor at a random time t can then
   // be obtained using an interpolation
   SampledSensorPath WithinFrameTrajectory;
+
+  // Computed trajectory of the sensor (the list of past computed poses,
+  // covariances and keypoints of each frame).
+  std::deque<Transform> LogTrajectory;
+  std::deque<std::array<double, 36>> LogCovariances;
+  std::deque<PointCloud::Ptr> LogEdgesPoints;
+  std::deque<PointCloud::Ptr> LogPlanarsPoints;
+  std::deque<PointCloud::Ptr> LogBlobsPoints;
 
   // ---------------------------------------------------------------------------
   //   Keypoints extraction and maps
@@ -469,6 +487,9 @@ private:
   // correspond to the one attached to the sensor
   // at the time of the end of the frame
   void UpdateCurrentKeypointsUsingTworld();
+
+  // Log current frame processing results : pose, covariance and keypoints.
+  void LogCurrentFrameState(double time, const std::string& frameId);
 
   // ---------------------------------------------------------------------------
   //   Geometrical transformations
