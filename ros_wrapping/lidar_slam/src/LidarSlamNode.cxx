@@ -66,7 +66,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("gps/calibration/enable", this->CalibrateSlamGps);
   if (this->CalibrateSlamGps)
   {
-    this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
+    this->GpsOdomSub = nh.subscribe("gps_odom", 3, &LidarSlamNode::GpsCallback, this);
     this->GpsSlamCalibrationSub = nh.subscribe("run_gps_slam_calibration", 1, &LidarSlamNode::RunGpsSlamCalibrationCallback, this);
   }
   priv_nh.getParam("gps/calibration/pose_timeout", this->CalibrationPoseTimeout);
@@ -89,12 +89,12 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     this->PlanarsPub = nh.advertise<CloudS>("planars_features", 1);
   if (this->PublishBlobs)
     this->BlobsPub = nh.advertise<CloudS>("blobs_features", 1);
-  this->DebugCloudPub = nh.advertise<CloudS>("debug_cloud", 1);
+  this->SlamCloudPub = nh.advertise<CloudS>("slam_cloud", 1);
 
   // ***************************************************************************
   // Init ROS subscribers and publishers
   this->PoseCovarPub = nh.advertise<nav_msgs::Odometry>("slam_odom", 1);
-  this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::ScanCallback, this);
+  this->CloudSub = nh.subscribe("velodyne_points", 3, &LidarSlamNode::ScanCallback, this);
 
   ROS_INFO_STREAM("\033[1;32mLiDAR SLAM is ready !\033[0m");
 }
@@ -130,15 +130,16 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
 
   // Get the computed world transform so far
   Transform slamToLidar = this->LidarSlam.GetWorldTransform();
-  slamToLidar.time = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();
-  slamToLidar.frameid = cloudV.header.frame_id;
   std::array<double, 36> poseCovar = this->LidarSlam.GetTransformCovariance();
 
   // Publish TF, pose and covariance
   this->PublishTfOdom(slamToLidar, poseCovar);
 
-  // Publish optional debug info
-  this->PublishFeaturesMaps(cloudS);
+  // Publish optional info
+  // (publish pointclouds only if someone is listening to it to spare bandwidth)
+  if (this->SlamCloudPub.getNumSubscribers())
+    this->SlamCloudPub.publish(cloudS);
+  this->PublishFeaturesMaps(cloudS->header.stamp);
 
   // If GPS/SLAM calibration is needed, save SLAM pose for later use
   if (this->CalibrateSlamGps)
@@ -186,7 +187,7 @@ void LidarSlamNode::RunGpsSlamCalibrationCallback(const std_msgs::Empty&)
   else
   {
     ROS_ERROR_STREAM("Cannot run GPS/SLAM calibration as it has not been enabled. "
-                     "Please set 'gps_calibration/enable' private parameter to 'true'.");
+                     "Please set 'gps/calibration/enable' private parameter to 'true'.");
   }
 }
 
@@ -262,26 +263,15 @@ void LidarSlamNode::PublishTfOdom(const Transform& slamToLidar,
   odomMsg.header = tfMsg.header;
   odomMsg.child_frame_id = this->OutputGpsPose ? this->OutputGpsPoseFrameId : tfMsg.child_frame_id;
   odomMsg.pose.pose = TransformToPoseMsg(slamPose);
-  // Reshape covariance from parameters (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
-  const std::array<double, 36>& c = poseCovar;
-  odomMsg.pose.covariance = {c[21], c[22], c[23],   c[18], c[19], c[20],
-                             c[27], c[28], c[29],   c[24], c[25], c[26],
-                             c[33], c[34], c[35],   c[30], c[31], c[32],
-
-                             c[ 3], c[ 4], c[ 5],   c[ 0], c[ 1], c[ 2],
-                             c[ 9], c[10], c[11],   c[ 6], c[ 7], c[ 8],
-                             c[15], c[16], c[17],   c[12], c[13], c[14]};
+  std::copy(poseCovar.begin(), poseCovar.end(), odomMsg.pose.covariance.begin());
   this->PoseCovarPub.publish(odomMsg);
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::PublishFeaturesMaps(const CloudS::Ptr& cloudS)
+void LidarSlamNode::PublishFeaturesMaps(uint64_t pclStamp)
 {
-  // Publish pointcloud only if someone is listening to it to spare bandwidth.
-  if (this->DebugCloudPub.getNumSubscribers())
-    this->DebugCloudPub.publish(cloudS);
-
-  pcl::PCLHeader msgHeader = cloudS->header;
+  pcl::PCLHeader msgHeader;
+  msgHeader.stamp = pclStamp;
   msgHeader.frame_id = this->SlamOriginFrameId;
 
   // Publish edges only if recquired and if someone is listening to it.

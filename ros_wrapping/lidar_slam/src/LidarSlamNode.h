@@ -72,17 +72,17 @@ private:
    * @param[in] slamToLidar Transform from slam_init to velodyne to send.
    * @param[in] poseCovar   Covariance associated to full 6 DOF pose.
    *
-   * NOTE : poseCovar encodes covariance for dof in this order : (rX, rY, rZ, X, Y, Z)
+   * NOTE : poseCovar encodes covariance for DoF in this order : (X, Y, Z, rX, rY, rZ)
    */
   void PublishTfOdom(const Transform& slamToLidar,
                      const std::array<double, 36>& poseCovar);
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief     Publish additionnal info, such as Slam or features pointclouds.
-   * @param[in] cloudS Slam pointcloud.
+   * @brief     Publish SLAM features maps.
+   * @param[in] pclStamp Timestamp of the maps (number of µs since UNIX epoch).
    */
-  void PublishFeaturesMaps(const CloudS::Ptr& cloudS);
+  void PublishFeaturesMaps(uint64_t pclStamp = 0);
 
   //----------------------------------------------------------------------------
   /*!
@@ -130,7 +130,7 @@ private:
 
   // Debug publishers
   ros::Publisher GpsPathPub, SlamPathPub;
-  ros::Publisher DebugCloudPub;
+  ros::Publisher SlamCloudPub;
   ros::Publisher EdgesPub, PlanarsPub, BlobsPub;
   bool PublishIcpTrajectories = false;
   bool PublishEdges = false, PublishPlanars = false, PublishBlobs = false;

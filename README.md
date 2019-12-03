@@ -61,7 +61,7 @@ Ensure all *slam_lib* dependencies are respected. Specific ROS packages dependen
 
 ### Installation
 
-Clone this git repo directly into your catkin directory, and run `catkin_make`. It will automatically build *slam_lib* before ROS packages.
+Clone this git repo directly into your catkin directory, and run `catkin_make -DCMAKE_BUILD_TYPE=RelWithDebInfo` or `catkin_make -DCMAKE_BUILD_TYPE=Release` (to turn on optimizations, necessary when using Eigen). It will automatically build *slam_lib* before ROS packages.
 
 ### Usage
 

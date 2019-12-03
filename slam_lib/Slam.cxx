@@ -113,6 +113,21 @@ Eigen::Matrix3d GetRotationMatrix(Eigen::Matrix<double, 6, 1> T)
 }
 
 //-----------------------------------------------------------------------------
+std::array<double, 36> FlipAndConvertCovariance(const Eigen::Matrix<double, 6, 6>& covar)
+{
+  // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
+  const double* c = covar.data();
+  std::array<double, 36> cov = {c[21], c[22], c[23],   c[18], c[19], c[20],
+                                c[27], c[28], c[29],   c[24], c[25], c[26],
+                                c[33], c[34], c[35],   c[30], c[31], c[32],
+
+                                c[ 3], c[ 4], c[ 5],   c[ 0], c[ 1], c[ 2],
+                                c[ 9], c[10], c[11],   c[ 6], c[ 7], c[ 8],
+                                c[15], c[16], c[17],   c[12], c[13], c[14]};
+  return cov;
+}
+
+//-----------------------------------------------------------------------------
 std::chrono::high_resolution_clock::time_point startTime;
 
 //-----------------------------------------------------------------------------
@@ -297,7 +312,7 @@ public:
           {
             continue;
           }
-          Slam::PointCloud:: Ptr voxel = this->grid[i][j][k];
+          Slam::PointCloud::Ptr voxel = this->grid[i][j][k];
           for (unsigned int l = 0; l < voxel->size(); l++)
           {
             intersection->push_back(voxel->at(l));
@@ -320,7 +335,7 @@ public:
       {
         for (int k = 0; k < VoxelSize; k++)
         {
-          Slam::PointCloud:: Ptr voxel = this->grid[i][j][k];
+          Slam::PointCloud::Ptr voxel = this->grid[i][j][k];
           for (unsigned int l = 0; l < voxel->size(); l++)
           {
             intersection->push_back(voxel->at(l));
@@ -340,19 +355,18 @@ public:
       return;
     }
 
-    // Voxel to filte because new points were add
+    // Voxel to filter because new points were added
     std::vector<std::vector<std::vector<int> > > voxelToFilter(VoxelSize, std::vector<std::vector<int> >(VoxelSize, std::vector<int>(VoxelSize, 0)));
 
     // Add points in the rolling grid
     int outlier = 0; // point who are not in the rolling grid
     for (unsigned int i = 0; i < pointcloud->size(); i++)
     {
-      Slam::Point pts = pointcloud->points[i];
+      Slam::Point& pts = pointcloud->points[i];
       // find the closest coordinate
       int cubeIdxX = std::floor(pts.x / this->VoxelSize) - this->VoxelGridPosition[0];
       int cubeIdxY = std::floor(pts.y / this->VoxelSize) - this->VoxelGridPosition[1];
       int cubeIdxZ = std::floor(pts.z / this->VoxelSize) - this->VoxelGridPosition[2];
-
 
       if (cubeIdxX >= 0 && cubeIdxX < this->VoxelSize &&
         cubeIdxY >= 0 && cubeIdxY < this->VoxelSize &&
@@ -482,9 +496,8 @@ Transform Slam::GetWorldTransform()
 //-----------------------------------------------------------------------------
 std::array<double, 36> Slam::GetTransformCovariance()
 {
-  std::array<double, 36> cov;
-  std::copy(this->TworldCovariance.data(), this->TworldCovariance.data() + 36, cov.data());
-  return cov;
+  // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
+  return FlipAndConvertCovariance(this->TworldCovariance);
 }
 
 //-----------------------------------------------------------------------------
@@ -594,6 +607,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   // Current keypoints become previous ones
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;
   this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
+  this->PreviousBlobsPoints = this->CurrentBlobsPoints;
   this->NbrFrameProcessed++;
 
   // Update Trajectory
@@ -1061,10 +1075,7 @@ void Slam::UpdateMapsUsingTworld()
   updateMap(this->EdgesPointsLocalMap, this->CurrentEdgesPoints);
   updateMap(this->PlanarPointsLocalMap, this->CurrentPlanarsPoints);
   if (!this->FastSlam)
-  {
     updateMap(this->BlobsPointsLocalMap, this->CurrentBlobsPoints);
-  }
-
 }
 
 //-----------------------------------------------------------------------------
@@ -1456,7 +1467,7 @@ int Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes,
   this->Pvalues.emplace_back(mean);
   this->Xvalues.emplace_back(P0);
   this->residualCoefficient.emplace_back(s);
-  this->TimeValues.emplace_back(p.intensity);
+  this->TimeValues.emplace_back(p.intensity);  // CHECK not time?
   return 6;
 }
 

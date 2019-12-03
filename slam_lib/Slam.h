@@ -130,7 +130,7 @@ public:
   // Get the computed world transform so far (current pose relative to initial pose)
   Transform GetWorldTransform();
   // Get the covariance of the last mapping step (mapping the current frame to the last map)
-  // DoF order : rX, rY, rZ, X, Y, Z
+  // DoF order : X, Y, Z, rX, rY, rZ
   std::array<double, 36> GetTransformCovariance();
 
   // Get keypoints maps
