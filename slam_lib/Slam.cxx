@@ -129,19 +129,17 @@ std::array<double, 36> FlipAndConvertCovariance(const Eigen::Matrix<double, 6, 6
 }
 
 //-----------------------------------------------------------------------------
-std::chrono::high_resolution_clock::time_point startTime;
+std::unordered_map<std::string, std::chrono::high_resolution_clock::time_point> startTimes;
 
-//-----------------------------------------------------------------------------
-void InitTime()
+void InitTime(const std::string& functionName)
 {
-  startTime = std::chrono::high_resolution_clock::now();
+  startTimes[functionName] = std::chrono::high_resolution_clock::now();
 }
 
-//-----------------------------------------------------------------------------
-void StopTimeAndDisplay(std::string functionName)
+void StopTimeAndDisplay(const std::string& functionName)
 {
-  std::chrono::duration<double, std::milli> chrono_ms = std::chrono::high_resolution_clock::now() - startTime;
-  std::cout << "  - time elapsed in function <" << functionName << "> : " << chrono_ms.count() << " ms" << std::endl;
+  std::chrono::duration<double, std::milli> chrono_ms = std::chrono::high_resolution_clock::now() - startTimes[functionName];
+  std::cout << "  -> " << functionName << " took : " << chrono_ms.count() << " ms" << std::endl;
 }
 
 //-----------------------------------------------------------------------------
@@ -549,7 +547,7 @@ Slam::PointCloud::Ptr Slam::GetBlobsMap()
 //-----------------------------------------------------------------------------
 void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping)
 {
-  std::chrono::high_resolution_clock::time_point beginTime = std::chrono::high_resolution_clock::now();
+  IF_VERBOSE(1, InitTime("SLAM frame processing"));
 
   if (pc->size() == 0)
   {
@@ -562,7 +560,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   PRINT_VERBOSE(2, "#########################################################" << std::endl);
 
   // Compute the edges and planars keypoints
-  IF_VERBOSE(3, InitTime());
+  IF_VERBOSE(3, InitTime("Keypoints extraction"));
   this->KeyPointsExtractor->ComputeKeyPoints(pc, laserIdMapping);
   this->CurrentEdgesPoints = this->KeyPointsExtractor->GetEdgePoints();
   this->CurrentPlanarsPoints = this->KeyPointsExtractor->GetPlanarPoints();
@@ -579,25 +577,25 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   if (this->NbrFrameProcessed > 0)
   {
     // Perfom EgoMotion
-    IF_VERBOSE(3, InitTime());
+    IF_VERBOSE(3, InitTime("Ego-Motion"));
     this->ComputeEgoMotion();
     IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion"));
 
     // Transform the current keypoints to the
     // referential of the sensor at the end of
     // frame acquisition
-    //IF_VERBOSE(3, InitTime());
+    //IF_VERBOSE(3, InitTime("Undistortion"));
     //this->TransformCurrentKeypointsToEnd();
     //IF_VERBOSE(3, StopTimeAndDisplay("Undistortion"));
 
     // Perform Mapping
-    IF_VERBOSE(3, InitTime());
+    IF_VERBOSE(3, InitTime("Mapping"));
     this->Mapping();
     IF_VERBOSE(3, StopTimeAndDisplay("Mapping"));
   }
 
   // Update keypoints maps
-  IF_VERBOSE(3, InitTime());
+  IF_VERBOSE(3, InitTime("Maps update"));
   this->UpdateMapsUsingTworld();
   IF_VERBOSE(3, StopTimeAndDisplay("Maps update"));
   
@@ -627,8 +625,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   }
 
   // Frame processing duration
-  std::chrono::duration<double, std::milli> chrono_ms = std::chrono::high_resolution_clock::now() - beginTime;
-  PRINT_VERBOSE(1, "Frame processed in " << chrono_ms.count() << " ms");
+  IF_VERBOSE(1, StopTimeAndDisplay("SLAM frame processing"));
 }
 
 //-----------------------------------------------------------------------------
@@ -637,7 +634,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                     const Eigen::Vector3d& gpsToSensorOffset,
                                     const std::string& g2oFileName)
 {
-  std::chrono::high_resolution_clock::time_point beginTime = std::chrono::high_resolution_clock::now();
+  IF_VERBOSE(1, InitTime("Pose graph optimization"));
 
   // Transform to modifiable vectors
   std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
@@ -692,8 +689,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   }
 
   // Processing duration
-  std::chrono::duration<double, std::milli> chrono_ms = std::chrono::high_resolution_clock::now() - beginTime;
-  PRINT_VERBOSE(1, "Pose graph optimization processed in " << chrono_ms.count() << " ms");
+  IF_VERBOSE(1, StopTimeAndDisplay("Pose graph optimization"));
 }
 
 //==============================================================================
