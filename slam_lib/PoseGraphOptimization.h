@@ -33,8 +33,9 @@ class PoseGraphOptimization
 public:
   PoseGraphOptimization();
 
-  //! Pose of the sensor that produces the trajectory to optimize in GPS antenna cordinates.
-  void SetGpsToSensorCalibration(double x, double y, double z, double rx, double ry, double rz);
+  //! Position (pose) of the sensor that produces the trajectory to optimize in GPS antenna cordinates.
+  //! As only GPS position is used, only translation offset will be used.
+  void SetGpsToSensorCalibration(double x, double y, double z, double rx = 0, double ry = 0, double rz = 0);
   void SetGpsToSensorCalibration(const Eigen::Isometry3d& gpsToSensor);
 
   //! Compute optimized SLAM trajectory using GPS ground-control points.

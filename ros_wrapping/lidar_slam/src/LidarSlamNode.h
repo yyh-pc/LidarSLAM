@@ -53,6 +53,15 @@ public:
    */
   void RunGpsSlamCalibrationCallback(const std_msgs::Empty&);
 
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief     Run pose graph optimization from GPS and SLAM poses, correcting
+   *            SLAM trajectory as well as SLAM maps, and publish optimized
+   *            LiDAR trajectory.
+   * @param[in] msg (Unused)
+   */
+  void RunPoseGraphOptimizationCallback(const std_msgs::Empty&);
+
 private:
 
   //----------------------------------------------------------------------------
@@ -118,14 +127,17 @@ private:
   std::string OutputGpsPoseFrameId = "slam";  ///< Frame id of the GPS antenna pose computed by SLAM if OutputGpsPose=true.
   Eigen::Isometry3d LidarToGpsOffset = Eigen::Isometry3d::Identity(); ///< Pose of the GPS antenna in LiDAR coordinates.
 
-  // Optionnal use of GPS data to calibrate output SLAM pose to world coordinates.
+  // Optionnal use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization.
   bool CalibrateSlamGps = false;              ///< Enable GPS/SLAM calibration, and therefore
   bool CalibrationNoRoll = false;             // DEBUG
   double CalibrationPoseTimeout = 15.;        ///< [s] GPS/SLAM poses older than that are forgotten.
   std::deque<Transform> SlamPoses;            ///< Buffer of last computed SLAM poses.
   std::deque<Transform> GpsPoses;             ///< Buffer of last received GPS poses.
+  std::deque<std::array<double, 9>> GpsCovars;  ///< Buffer of last received GPS positions covariances.
   ros::Subscriber GpsOdomSub;
   ros::Subscriber GpsSlamCalibrationSub;
+  ros::Subscriber PoseGraphOptimizationSub;
+  ros::Publisher OptimizedSlamTrajectoryPub;
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
 
   // Debug publishers

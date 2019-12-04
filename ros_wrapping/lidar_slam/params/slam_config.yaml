@@ -56,6 +56,7 @@ slam:
   #  - A value of 0. will disable logging.
   #  - A negative value will log all incoming data, without any timeout.
   #  - A positive value will keep only most recent data, forgetting all previous data older than LoggingTimeout seconds.
+  # Logged data will be used for pose graph optimization or GPS antenna/Lidar sensor calibration using GPS data.
   logging_timeout: 0.  # [s]
 
   max_distance_for_ICP_matching: 20.            # [m] Max distance allowed between two keypoints during ICP matching.

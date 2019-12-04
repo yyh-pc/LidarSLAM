@@ -135,6 +135,11 @@ public:
   // DoF order : X, Y, Z, rX, rY, rZ
   std::array<double, 36> GetTransformCovariance();
 
+  // Get the whole trajectory and covariances of each step (aggregated WorldTransforms and TransformCovariances).
+  // (buffer of temporal length LoggingTimeout)
+  std::vector<Transform> GetTrajectory();
+  std::vector<std::array<double, 36>> GetCovariances();
+
   // Get keypoints maps
   PointCloud::Ptr GetEdgesMap();
   PointCloud::Ptr GetPlanarsMap();
@@ -144,6 +149,14 @@ public:
   GetMacro(NbrFrameProcessed, unsigned int)
 
   std::unordered_map<std::string, double> GetDebugInformation();
+
+  // Run pose graph optimization using GPS trajectory to improve SLAM maps and trajectory.
+  // Each GPS position must have an associated precision covariance.
+  // TODO : run that in a separated thread.
+  void RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
+                                const std::vector<std::array<double, 9>>& gpsCovariances,
+                                const Eigen::Vector3d& gpsToSensorOffset = Eigen::Vector3d::Zero(),
+                                const std::string& g2oFileName = "");
 
   // ---------------------------------------------------------------------------
   //   General parameters

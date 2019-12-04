@@ -72,6 +72,10 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("gps/calibration/pose_timeout", this->CalibrationPoseTimeout);
   priv_nh.getParam("gps/calibration/no_roll", this->CalibrationNoRoll);
 
+  // Init optionnal use of GPS data to perform pose graph optimization to correct SLAM poses and maps.
+  this->PoseGraphOptimizationSub = nh.subscribe("run_pose_graph_optim", 1, &LidarSlamNode::RunPoseGraphOptimizationCallback, this);
+  this->OptimizedSlamTrajectoryPub = nh.advertise<nav_msgs::Path>("optim_slam_traj", 1);
+
   // ***************************************************************************
   // Init debug publishers
   priv_nh.getParam("publish_features_maps/edges", this->PublishEdges);
@@ -158,11 +162,19 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
   // If GPS/SLAM calibration is needed, save GPS pose for later use
   if (this->CalibrateSlamGps)
   {
-    // Add new pose to buffer
-    this->GpsPoses.push_back(PoseMsgToTransform(msg.pose.pose, msg.header.stamp.toSec(), msg.header.frame_id));
+    // Add new pose and its covariance to buffer
+    const auto& c = msg.pose.covariance;
+    std::array<double, 9> gpsCovar = {c[ 0], c[ 1], c[ 2],
+                                      c[ 6], c[ 7], c[ 8],
+                                      c[12], c[13], c[14]};
+    this->GpsPoses.emplace_back(PoseMsgToTransform(msg.pose.pose, msg.header.stamp.toSec(), msg.header.frame_id));
+    this->GpsCovars.emplace_back(gpsCovar);
     // Forget all previous poses older than CalibrationPoseTimeout
     while (this->GpsPoses.back().time - this->GpsPoses.front().time > this->CalibrationPoseTimeout)
+    {
       this->GpsPoses.pop_front();
+      this->GpsCovars.pop_front();
+    }
   }
 }
 
@@ -189,6 +201,43 @@ void LidarSlamNode::RunGpsSlamCalibrationCallback(const std_msgs::Empty&)
     ROS_ERROR_STREAM("Cannot run GPS/SLAM calibration as it has not been enabled. "
                      "Please set 'gps/calibration/enable' private parameter to 'true'.");
   }
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::RunPoseGraphOptimizationCallback(const std_msgs::Empty&)
+{
+  // Transform to modifiable vectors
+  std::vector<Transform> worldToGpsPositions(this->GpsPoses.begin(), this->GpsPoses.end());
+  std::vector<std::array<double, 9>> worldToGpsCovars(this->GpsCovars.begin(), this->GpsCovars.end());
+
+  // Run pose graph optimization
+  this->LidarSlam.RunPoseGraphOptimization(worldToGpsPositions, worldToGpsCovars,
+                                           this->LidarToGpsOffset.inverse().translation());
+
+  // Publish static tf with calibration to link world (UTM) frame to SLAM origin
+  geometry_msgs::TransformStamped tfStamped;
+  tfStamped.header.stamp = ros::Time(this->SlamPoses.back().time);
+  tfStamped.header.frame_id = this->GpsPoses[0].frameid;
+  tfStamped.child_frame_id = this->SlamOriginFrameId;
+  tfStamped.transform = TransformToTfMsg(Transform());
+  this->StaticTfBroadcaster.sendTransform(tfStamped);
+
+  // Update the display of the computed world transform so far
+  Transform slamToLidar = this->LidarSlam.GetWorldTransform();
+  std::array<double, 36> poseCovar = this->LidarSlam.GetTransformCovariance();
+  this->PublishTfOdom(slamToLidar, poseCovar);
+
+  // Update features maps display
+  this->PublishFeaturesMaps(slamToLidar.time * 1e6);
+
+  // Publish optimized SLAM trajectory
+  std::vector<Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
+  nav_msgs::Path optimSlamTraj;
+  optimSlamTraj.header.frame_id = this->GpsPoses[0].frameid;
+  optimSlamTraj.header.stamp = ros::Time(slamToLidar.time);
+  for (const Transform& pose: optimizedSlamPoses)
+    optimSlamTraj.poses.push_back(TransformToPoseStampedMsg(pose));
+  this->OptimizedSlamTrajectoryPub.publish(optimSlamTraj);
 }
 
 //------------------------------------------------------------------------------

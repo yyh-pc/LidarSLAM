@@ -71,6 +71,7 @@
 // LOCAL
 #include "Slam.h"
 #include "CeresCostFunctions.h"
+#include "PoseGraphOptimization.h"
 // STD
 #include <sstream>
 #include <algorithm>
@@ -501,6 +502,20 @@ std::array<double, 36> Slam::GetTransformCovariance()
 }
 
 //-----------------------------------------------------------------------------
+std::vector<Transform> Slam::GetTrajectory()
+{
+  std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
+  return slamPoses;
+}
+
+//-----------------------------------------------------------------------------
+std::vector<std::array<double, 36>> Slam::GetCovariances()
+{
+  std::vector<std::array<double, 36>> slamCovariances(this->LogCovariances.begin(), this->LogCovariances.end());
+  return slamCovariances;
+}
+
+//-----------------------------------------------------------------------------
 std::unordered_map<std::string, double> Slam::GetDebugInformation()
 {
   std::unordered_map<std::string, double> map;
@@ -614,6 +629,71 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   // Frame processing duration
   std::chrono::duration<double, std::milli> chrono_ms = std::chrono::high_resolution_clock::now() - beginTime;
   PRINT_VERBOSE(1, "Frame processed in " << chrono_ms.count() << " ms");
+}
+
+//-----------------------------------------------------------------------------
+void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
+                                    const std::vector<std::array<double, 9>>& gpsCovariances,
+                                    const Eigen::Vector3d& gpsToSensorOffset,
+                                    const std::string& g2oFileName)
+{
+  std::chrono::high_resolution_clock::time_point beginTime = std::chrono::high_resolution_clock::now();
+
+  // Transform to modifiable vectors
+  std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
+  std::vector<std::array<double, 36>> slamCovariances(this->LogCovariances.begin(), this->LogCovariances.end());
+
+  if (this->LoggingTimeout == 0.)
+  {
+    std::cout << "[WARNING] SLAM logging is not enabled : covariances will be "
+                 "arbitrarly set and maps will not be optimized during pose "
+                 "graph optimization." << std::endl;
+
+    // Set all poses covariances equal to twice the last one if we did not log it
+    std::array<double, 36> fakeSlamCovariance = FlipAndConvertCovariance(this->TworldCovariance * 2);
+    for (unsigned int i = 0; i < slamPoses.size(); i++)
+      slamCovariances.emplace_back(fakeSlamCovariance);
+  }
+
+  // Init pose graph optimizer
+  PoseGraphOptimization poseGraphOptimization;
+  poseGraphOptimization.SetNbIteration(500);
+  poseGraphOptimization.SetVerbose(this->Verbosity >= 2);
+  poseGraphOptimization.SetSaveG2OFile(!g2oFileName.empty());
+  poseGraphOptimization.SetG2OFileName(g2oFileName);
+  poseGraphOptimization.SetGpsToSensorCalibration(gpsToSensorOffset.x(), gpsToSensorOffset.y(), gpsToSensorOffset.z());
+
+  // Run pose graph optimization
+  // TODO : templatize poseGraphOptimization to accept any STL container and avoid deque <-> vector copies
+  std::vector<Transform> optimizedSlamPoses;
+  poseGraphOptimization.Process(slamPoses, gpsPositions,
+                                slamCovariances, gpsCovariances,
+                                optimizedSlamPoses);
+
+  // Update SLAM trajectory and maps
+  this->Reset();
+  std::copy(optimizedSlamPoses.begin(), optimizedSlamPoses.end(), this->LogTrajectory.begin());
+  for (unsigned int i = 0; i < optimizedSlamPoses.size(); i++)
+  {
+    // Update pose
+    Transform& currentPose = optimizedSlamPoses[i];
+    Eigen::Vector3d ypr = currentPose.GetIsometry().linear().matrix().eulerAngles(2, 1, 0);
+    this->Tworld << ypr(2), ypr(1), ypr(0), currentPose.x(), currentPose.y(), currentPose.z();
+
+    // TODO : update motionParameters in case undistortion is used
+
+    // Update maps
+    // TODO : improve maps update for faster processing
+    this->CurrentEdgesPoints = this->LogEdgesPoints[i];
+    this->CurrentPlanarsPoints = this->LogPlanarsPoints[i];
+    if (!this->FastSlam)
+      this->CurrentBlobsPoints = this->LogBlobsPoints[i];
+    this->UpdateMapsUsingTworld();
+  }
+
+  // Processing duration
+  std::chrono::duration<double, std::milli> chrono_ms = std::chrono::high_resolution_clock::now() - beginTime;
+  PRINT_VERBOSE(1, "Pose graph optimization processed in " << chrono_ms.count() << " ms");
 }
 
 //==============================================================================
@@ -1164,14 +1244,14 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
     if (this->LoggingTimeout > 0)
     {
       // Forget all previous data older than LoggingTimeout
-      while (this->LogTrajectory.back().time - this->LogTrajectory.front().time > this->LoggingTimeout)
+      while (time - this->LogTrajectory.front().time > this->LoggingTimeout)
       {
         this->LogTrajectory.pop_front();
         this->LogCovariances.pop_front();
         this->LogEdgesPoints.pop_front();
         this->LogPlanarsPoints.pop_front();
         if (!this->FastSlam)
-          this->LogEdgesPoints.pop_front();
+          this->LogBlobsPoints.pop_front();
       }
     }
   }

@@ -138,7 +138,7 @@ Visualization Manager:
       Min Intensity: 0
       Name: Slam cloud
       Position Transformer: XYZ
-      Queue Size: 10
+      Queue Size: 1
       Selectable: true
       Size (Pixels): 1
       Size (m): 0.009999999776482582
@@ -236,7 +236,7 @@ Visualization Manager:
       Radius: 0.029999999329447746
       Shaft Diameter: 0.05000000074505806
       Shaft Length: 0
-      Topic: /optim_slam_poses
+      Topic: /optim_slam_traj
       Unreliable: false
       Value: true
     - Class: rviz/Group
