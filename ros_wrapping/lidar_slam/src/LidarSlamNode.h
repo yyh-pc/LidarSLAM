@@ -127,24 +127,23 @@ private:
   std::string OutputGpsPoseFrameId = "slam";  ///< Frame id of the GPS antenna pose computed by SLAM if OutputGpsPose=true.
   Eigen::Isometry3d LidarToGpsOffset = Eigen::Isometry3d::Identity(); ///< Pose of the GPS antenna in LiDAR coordinates.
 
-  // Optionnal use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization.
-  bool CalibrateSlamGps = false;              ///< Enable GPS/SLAM calibration, and therefore
-  bool CalibrationNoRoll = false;             // DEBUG
-  double CalibrationPoseTimeout = 15.;        ///< [s] GPS/SLAM poses older than that are forgotten.
-  std::deque<Transform> SlamPoses;            ///< Buffer of last computed SLAM poses.
-  std::deque<Transform> GpsPoses;             ///< Buffer of last received GPS poses.
+  // Optionnal use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization (PGO).
+  bool UseGps = false;                          ///< Enable GPS data logging for Pose Graph Optimization or GPS/SLAM calibration.
+  bool CalibrationNoRoll = false;               ///< DEBUG Impose GPS/SLAM calibration to have no roll angle.
+  std::string PgoG2oFileName = "";              ///< Filename of g2o file where to save pose graph to optimize.
+  std::deque<Transform> GpsPoses;               ///< Buffer of last received GPS poses.
   std::deque<std::array<double, 9>> GpsCovars;  ///< Buffer of last received GPS positions covariances.
   ros::Subscriber GpsOdomSub;
   ros::Subscriber GpsSlamCalibrationSub;
   ros::Subscriber PoseGraphOptimizationSub;
-  ros::Publisher OptimizedSlamTrajectoryPub;
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
 
   // Debug publishers
   ros::Publisher GpsPathPub, SlamPathPub;
+  ros::Publisher OptimizedSlamTrajectoryPub;
   ros::Publisher SlamCloudPub;
   ros::Publisher EdgesPub, PlanarsPub, BlobsPub;
-  bool PublishIcpTrajectories = false;
+  bool PublishIcpTrajectories = false, PublishOptimizedTrajectory = false;
   bool PublishEdges = false, PublishPlanars = false, PublishBlobs = false;
 };
 

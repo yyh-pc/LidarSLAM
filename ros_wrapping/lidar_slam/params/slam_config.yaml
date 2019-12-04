@@ -29,22 +29,37 @@ publish_features_maps:
   planars: true   # if true, planars features will be published to topic "planars_features"
   blobs: true     # if true, blobs features will be published to topic "blobs_features"
 
-# Optionnal GPS-like pose publication
+# Optionnal GPS-like pose publication or GPS position use to improve SLAM trajectory.
 gps:
 
-  # Optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor.
-  output_gps_pose: false            # Outputs GPS antenna pose instead of LiDAR's.
-  output_gps_pose_frame_id: "slam"  # Frame id of the GPS antenna pose computed by SLAM if output_gps_pose=true (overrides slam_output_frame).
-  gps_to_lidar_offset: [0., 0., 0., 0., 0., 0.]  # Pose (X, Y, Z, roll, pitch, yaw) of the LiDAR in GPS antenna coordinates  (also help to estimate a better calibration).
+  gps_to_lidar_offset: [0., 0., 0., 0., 0., 0.]  # Pose (X, Y, Z, roll, pitch, yaw) of the LiDAR in GPS antenna coordinates (also help to perform better pose graph optimization or GPS/LiDAR calibration).
 
-  # Optionnal use of GPS data to calibrate output SLAM pose to world coordinates.
-  # It requires GPS pose published on 'gps_odom' topic as a nav_msgs/Odometry message.
+  # Optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor.
+  output_gps_pose: false             # Outputs GPS antenna pose instead of LiDAR's.
+  output_gps_pose_frame_id: "slam"  # Frame id of the GPS antenna pose computed by SLAM if output_gps_pose=true.
+
+  # Optionnal GPS positions use to calibrate output SLAM pose to world coordinates and/or optimize SLAM trajectory.
+  # If true, subscribes to gps topic 'gps_odom' (nav_msgs/Odometry), and logs GPS positions during 'slam/logging_timeout' seconds.
+  # (WARNING Can be overridden in slam.launch with 'gps' arg).
+  use_gps: false
+
+  # Approximate GPS/SLAM calibration (enabled if use_gps=true)
+  # Use GPS positions to approximately calibrate output SLAM pose to world coordinates. It will try to fit GPS
+  # trajectory to SLAM trajectory with ICP to estimate the rigid transform that links 'gps_odom/header/frame_id' to
+  # 'slam_origin_frame', and publish it to static TF server.
   # GPS/SLAM calibration can be triggered by publishing 'run_gps_slam_calibration' topic.
   calibration:
-    enable: false      # If true, subscribe to gps topic 'gps_odom', try to fit GPS trajectory to SLAM trajectory, and publish static TF to link 'gps_odom/header/frame_id' to 'slam_origin_frame' (WARNING Can be overridden in slam.launch with 'gps' arg).
-    pose_timeout: 20.  # [s] GPS/SLAM poses older than that are forgotten and not used for calibration.
-    no_roll: false                   # If true, impose calibration to have no pitch rotation. DEBUG
-    publish_icp_trajectories: true   # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps' and 'icp_slam' latched topics.
+    no_roll: false                   # If true, impose calibration to have no roll rotation. DEBUG
+    publish_icp_trajectories: false  # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps' and 'icp_slam' latched topics.
+
+  # Pose Graph Optimization (PGO) (enabled if use_gps=true)
+  # Use GPS positions and covariances to optimize computed SLAM trajectory and maps by correcting drift, and precisely
+  # link SLAM pose to world coordinates.
+  # PGO can be triggered by publishing 'run_pose_graph_optim' topic.
+  # WARNING : this process is not real-time.
+  pose_graph_optimization:
+    g2o_file_name: "/home/user/pose_graph_optimization.g2o"  # Save pose graph to file (or do not save if null string or unset).
+    publish_optimized_trajectory: false                      # If true, publish optimized SLAM trajectory to 'optim_slam_traj' latched topic.
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
@@ -56,7 +71,7 @@ slam:
   #  - A value of 0. will disable logging.
   #  - A negative value will log all incoming data, without any timeout.
   #  - A positive value will keep only most recent data, forgetting all previous data older than LoggingTimeout seconds.
-  # Logged data will be used for pose graph optimization or GPS antenna/Lidar sensor calibration using GPS data.
+  # Logged data will be used for pose graph optimization or GPS antenna/LiDAR sensor calibration using GPS data.
   logging_timeout: 0.  # [s]
 
   max_distance_for_ICP_matching: 20.            # [m] Max distance allowed between two keypoints during ICP matching.
