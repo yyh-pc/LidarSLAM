@@ -69,12 +69,16 @@ void GpsToUtmNode::GpsPoseCallback(const gps_common::GPSFix& msg)
                              utmPose.easting - this->PreviousGpsPose.easting);
       double bearing = 90 - heading * 180. / M_PI;
 
-      // Save current bearing for next step smoothing
+      // Smooth bearing according to distance moved to avoid oscillations at low speed.
+      // We estimate the computed bearing to be precise enough if we moved at least 0.5 meter from previous position.
+      double distance = std::sqrt(pow(utmPose.northing - this->PreviousGpsPose.northing, 2) +
+                                  pow(utmPose.easting - this->PreviousGpsPose.easting, 2));
+      double innovation = std::min(distance / 0.5, 1.);
       double previousBearing = this->PreviousGpsPose.bearing ? this->PreviousGpsPose.bearing : bearing;
-      utmPose.bearing = bearing;
+      this->PreviousGpsPose.bearing = innovation * bearing + (1 - innovation) * previousBearing;
 
-      // Smooth bearing
-      this->PreviousGpsPose.bearing = 0.3 * bearing + 0.7 * previousBearing;
+      // Save current bearing for next step smoothing
+      utmPose.bearing = this->PreviousGpsPose.bearing;
 
       // Process the completed previous pose
       this->ProcessUtmPose(this->PreviousMsg, this->PreviousGpsPose);
