@@ -1,8 +1,18 @@
 #include "GpsToUtmNode.h"
 
-#include <geodesy/utm.h>
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/TransformStamped.h>
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Convert True bearing angle in degrees to ENU heading angle in radians.
+ * @param trueBearingDegrees True bearing angle (clockwise, 0 = north) in degrees.
+ * @return ENU heading angle (counter-clockwise, 0 = east) in radians.
+ */
+inline double trueDegToEnuRad(double trueBearingDegrees)
+{
+ return (90 - trueBearingDegrees) * M_PI / 180.;
+}
 
 //------------------------------------------------------------------------------
 GpsToUtmNode::GpsToUtmNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
@@ -31,21 +41,68 @@ void GpsToUtmNode::GpsPoseCallback(const gps_common::GPSFix& msg)
   gpsPoint.longitude = msg.longitude;
   gpsPoint.altitude = msg.altitude;
   geodesy::UTMPoint utmPoint(gpsPoint);
+  UtmPose utmPose(utmPoint, msg.track);
 
-  // Store UTM zone/band and publish it to rosparam if it changed
-  if ((utmPoint.zone != this->UtmZone) || (utmPoint.band != this->UtmBand))
+  // Normal case, if heading is defined.
+  if (msg.track)
+    this->ProcessUtmPose(msg, utmPose);
+
+  // If heading is not defined, we will compute it from movement with next GPS position.
+  else
   {
-    this->UtmZone = utmPoint.zone;
-    this->UtmBand = utmPoint.band;
+    ROS_WARN_STREAM_ONCE("Guessing GPS heading from movement.");
+
+    if (this->PreviousGpsPose.isValid())
+    {
+      // Check that previous pose is no too old to be used, otherwise reset buffer and exit.
+      if (std::abs((msg.header.stamp - this->PreviousMsg.header.stamp).toSec()) > 1.)
+      {
+        ROS_WARN_STREAM("Time jump detected : resetting GPS bearing guess from movement.");
+        // Save current point for next step.
+        this->PreviousMsg = msg;
+        this->PreviousGpsPose = utmPose;
+        return;
+      }
+
+      // Compute bearing from movement
+      double heading = atan2(utmPose.northing - this->PreviousGpsPose.northing,
+                             utmPose.easting - this->PreviousGpsPose.easting);
+      double bearing = 90 - heading * 180. / M_PI;
+
+      // Save current bearing for next step smoothing
+      double previousBearing = this->PreviousGpsPose.bearing ? this->PreviousGpsPose.bearing : bearing;
+      utmPose.bearing = bearing;
+
+      // Smooth bearing
+      this->PreviousGpsPose.bearing = 0.3 * bearing + 0.7 * previousBearing;
+
+      // Process the completed previous pose
+      this->ProcessUtmPose(this->PreviousMsg, this->PreviousGpsPose);
+    }
+
+    // Save current point for next step.
+    this->PreviousMsg = msg;
+    this->PreviousGpsPose = utmPose;
+  }
+}
+
+//------------------------------------------------------------------------------
+void GpsToUtmNode::ProcessUtmPose(const gps_common::GPSFix& msg, const UtmPose& utmPose)
+{
+  // Store UTM zone/band and publish it to rosparam if it changed
+  if ((utmPose.zone != this->UtmZone) || (utmPose.band != this->UtmBand))
+  {
+    this->UtmZone = utmPose.zone;
+    this->UtmBand = utmPose.band;
     std::string utmBandLetter(&this->UtmBand, 1);
     ros::param::set("/utm_zone", (int) this->UtmZone);
     ros::param::set("/utm_band", utmBandLetter);
-    ROS_WARN_STREAM("UTM zone/band changed to " << (int) utmPoint.zone << utmPoint.band << " and saved to rosparam.");
+    ROS_WARN_STREAM("UTM zone/band changed to " << (int) utmPose.zone << utmPose.band << " and saved to rosparam.");
   }
 
   // Save 1st GPS pose
-  if (!this->firstGpsPose.isValid())
-    this->firstGpsPose = UtmPose(utmPoint.easting, utmPoint.northing, utmPoint.altitude, msg.track);
+  if (!this->FirstGpsPose.isValid())
+    this->FirstGpsPose = utmPose;
 
   // Fill odometry header
   nav_msgs::Odometry odomMsg;
@@ -62,21 +119,21 @@ void GpsToUtmNode::GpsPoseCallback(const gps_common::GPSFix& msg)
   // TODO use 3D orientation from input msg
   if (this->OriginOnFirstPose)
   {
-    double firstTrueHeading = (90 - this->firstGpsPose.heading) * M_PI / 180.;
-    double dHeading = (90 - msg.track) * M_PI / 180. - firstTrueHeading,
-           dEasting = utmPoint.easting - this->firstGpsPose.easting,
-           dNorthing = utmPoint.northing - this->firstGpsPose.northing;
+    double firstTrueHeading = trueDegToEnuRad(this->FirstGpsPose.bearing);
+    double dHeading = trueDegToEnuRad(utmPose.bearing) - firstTrueHeading,
+           dEasting = utmPose.easting - this->FirstGpsPose.easting,
+           dNorthing = utmPose.northing - this->FirstGpsPose.northing;
     odomMsg.pose.pose.position.x =  dEasting * cos(firstTrueHeading) + dNorthing * sin(firstTrueHeading);
     odomMsg.pose.pose.position.y = -dEasting * sin(firstTrueHeading) + dNorthing * cos(firstTrueHeading);
-    odomMsg.pose.pose.position.z = utmPoint.altitude  - this->firstGpsPose.altitude;
+    odomMsg.pose.pose.position.z = utmPose.altitude  - this->FirstGpsPose.altitude;
     odomMsg.pose.pose.orientation = tf::createQuaternionMsgFromYaw(dHeading);
   }
   else
   {
-    odomMsg.pose.pose.position.x = utmPoint.easting;
-    odomMsg.pose.pose.position.y = utmPoint.northing;
-    odomMsg.pose.pose.position.z = utmPoint.altitude;
-    odomMsg.pose.pose.orientation = tf::createQuaternionMsgFromYaw((90 - msg.track) * M_PI / 180.);
+    odomMsg.pose.pose.position.x = utmPose.easting;
+    odomMsg.pose.pose.position.y = utmPose.northing;
+    odomMsg.pose.pose.position.z = utmPose.altitude;
+    odomMsg.pose.pose.orientation = tf::createQuaternionMsgFromYaw(trueDegToEnuRad(utmPose.bearing));
   }
   odomMsg.twist.twist.linear.x = msg.speed;
 
@@ -110,10 +167,10 @@ void GpsToUtmNode::GpsPoseCallback(const gps_common::GPSFix& msg)
     tfStamped.child_frame_id = this->MapFrameId;
   
     // Set pose and speed
-    tfStamped.transform.translation.x = this->firstGpsPose.easting;
-    tfStamped.transform.translation.y = this->firstGpsPose.northing;
-    tfStamped.transform.translation.z = this->firstGpsPose.altitude;
-    tfStamped.transform.rotation = tf::createQuaternionMsgFromYaw((90 - this->firstGpsPose.heading) * M_PI / 180.);
+    tfStamped.transform.translation.x = this->FirstGpsPose.easting;
+    tfStamped.transform.translation.y = this->FirstGpsPose.northing;
+    tfStamped.transform.translation.z = this->FirstGpsPose.altitude;
+    tfStamped.transform.rotation = tf::createQuaternionMsgFromYaw(trueDegToEnuRad(this->FirstGpsPose.bearing));
 
     // Send TF
     this->StaticTfBroadcaster.sendTransform(tfStamped);

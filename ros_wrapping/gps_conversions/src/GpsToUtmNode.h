@@ -2,24 +2,32 @@
 #define GPS_TO_UTM_NODE_H
 
 #include <ros/ros.h>
+#include <geodesy/utm.h>
 #include <gps_common/GPSFix.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 
 struct UtmPose
 {
-  double easting = 0.;      ///< [m] X direction, pointing east.
-  double northing = 0.;     ///< [m] Y direction, pointing north.
-  double altitude = 0.;     ///< [m] Z direction, pointing up.
-  double heading = 0.;  ///< [deg] clockwise, 0 is north.
+  double easting = 0.;   ///< [m] X direction, pointing east.
+  double northing = 0.;  ///< [m] Y direction, pointing north.
+  double altitude = 0.;  ///< [m] Z direction, pointing up.
+  double bearing = 0.;   ///< [deg] clockwise, 0 is north.
+  uint8_t zone;          ///< UTM longitude zone number
+  char band;             ///< MGRS latitude band letter
 
   UtmPose() = default;
 
-  UtmPose(double easting_, double northing_, double altitude_, double heading_)
-    : easting(easting_), northing(northing_), altitude(altitude_), heading(heading_)
+  UtmPose(const geodesy::UTMPoint& utmPoint, double bearing)
+    : easting(utmPoint.easting), northing(utmPoint.northing), altitude(utmPoint.altitude)
+    , bearing(bearing), zone(utmPoint.zone), band(utmPoint.band)
   {}
 
-  bool isValid() const { return (easting || northing || altitude || heading); }
+  UtmPose(double easting_, double northing_, double altitude_, double bearing_, uint8_t zone_, char band_)
+    : easting(easting_), northing(northing_), altitude(altitude_), bearing(bearing_), zone(zone_), band(band_)
+  {}
+
+  bool isValid() const { return (easting || northing || altitude || bearing); }
 };
 
 
@@ -44,6 +52,9 @@ public:
 
 private:
 
+  //------------------------------------------------------------------------------
+  void ProcessUtmPose(const gps_common::GPSFix& msg, const UtmPose& utmPose);
+
   // ROS publishers & subscribers
   ros::Subscriber GpsPoseSub;
   ros::Publisher UtmPosePub;
@@ -61,7 +72,9 @@ private:
   double TimeOffset = 0.;          ///< Output odom time = GPS time + TimeOffset
   bool PublishTfToMap = false;     ///< true: publish a static TF from FrameId to MapFrameId to match 1st GPS pose to local map.
   bool OriginOnFirstPose = false;  ///< false: publish gps pose in UTM coordinates. true: publish pose in MapFrameId (= 1st GPS pose).
-  UtmPose firstGpsPose;            ///< 1st GPS pose received, used only if OriginOnFirstPose = true.
+  UtmPose FirstGpsPose;            ///< 1st GPS pose received, only used if OriginOnFirstPose = true.
+  UtmPose PreviousGpsPose;         ///< Previous GPS pose received.
+  gps_common::GPSFix PreviousMsg;  ///< Previous message received, only used if heading is not defined.
 };
 
 #endif // GPS_TO_UTM_NODE_H
