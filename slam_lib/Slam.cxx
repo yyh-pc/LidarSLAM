@@ -576,7 +576,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   // odometry and mapping steps
   if (this->NbrFrameProcessed > 0)
   {
-    // Perfom EgoMotion
+    // Perfom EgoMotion : compute Trelative from previous and current frame keypoints, and guess current Tworld
     IF_VERBOSE(3, InitTime("Ego-Motion"));
     this->ComputeEgoMotion();
     IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion"));
@@ -588,24 +588,27 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     //this->TransformCurrentKeypointsToEnd();
     //IF_VERBOSE(3, StopTimeAndDisplay("Undistortion"));
 
-    // Perform Mapping
+    // Perform Mapping : compute Tworld from map and current frame keypoints
     IF_VERBOSE(3, InitTime("Mapping"));
     this->Mapping();
     IF_VERBOSE(3, StopTimeAndDisplay("Mapping"));
   }
 
-  // Update keypoints maps
-  IF_VERBOSE(3, InitTime("Maps update"));
-  this->UpdateMapsUsingTworld();
-  IF_VERBOSE(3, StopTimeAndDisplay("Maps update"));
-  
+  // Update keypoints maps : add current keypoints to map using Tworld
+  if (this->UpdateMap)
+  {
+    IF_VERBOSE(3, InitTime("Maps update"));
+    this->UpdateMapsUsingTworld();
+    IF_VERBOSE(3, StopTimeAndDisplay("Maps update"));
+  }
+
   // Update the PreviousTworld data
-  this->PreviousTworld = this->Tworld;
+  this->PreviousTworld = this->Tworld;  // CHECK unused ?
 
   // Current keypoints become previous ones
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;
   this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
-  this->PreviousBlobsPoints = this->CurrentBlobsPoints;
+  this->PreviousBlobsPoints = this->CurrentBlobsPoints;  // CHECK unused ?
   this->NbrFrameProcessed++;
 
   // Log current frame processing results : pose, covariance and keypoints.
@@ -690,6 +693,19 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
 
   // Processing duration
   IF_VERBOSE(1, StopTimeAndDisplay("Pose graph optimization"));
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
+{
+  // Reset previous frame keypoints because Ego-Motion is not valid since we imposed a discontinuity
+  this->PreviousEdgesPoints->clear();
+  this->PreviousPlanarsPoints->clear();
+
+  // Set current pose
+  Eigen::Vector3d ypr = poseGuess.GetIsometry().linear().eulerAngles(2, 1, 0);
+  this->Tworld << ypr(2), ypr(1), ypr(0), poseGuess.x(), poseGuess.y(), poseGuess.z();
+  // TODO update motionParameters
 }
 
 //==============================================================================

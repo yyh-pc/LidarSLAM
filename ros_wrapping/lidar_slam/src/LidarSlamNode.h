@@ -9,6 +9,7 @@
 #include <pcl_ros/point_cloud.h>
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/Empty.h>
+#include <std_msgs/Bool.h>
 
 // SLAM
 #include <Slam.h>
@@ -61,6 +62,26 @@ public:
    * @param[in] msg (Unused)
    */
   void RunPoseGraphOptimizationCallback(const std_msgs::Empty&);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief     Enable/disable fixed SLAM map mode, and init SLAM pose from GPS.
+   * @param[in] msg (Unused)
+   *
+   * NOTE : This function can only be called after RunPoseGraphOptimizationCallback
+   * has been triggered.
+   */
+  void UpdateSlamMapCallback(const std_msgs::Bool& msg);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief     Request to set SLAM pose from next GPS pose received.
+   * @param[in] msg (Unused)
+   *
+   * NOTE : This function can only be called after RunPoseGraphOptimizationCallback
+   * has been triggered.
+   */
+  void SetSlamPoseFromGpsRequestCallback(const std_msgs::Empty&);
 
 private:
 
@@ -120,6 +141,7 @@ private:
   std::string SlamOutputFrameId;  ///< Frame id of current SLAM pose (default : use frame_id of the input pointcloud).
   ros::Publisher PoseCovarPub;
   ros::Subscriber CloudSub;
+  ros::Subscriber MapUpdateSub;
   tf2_ros::TransformBroadcaster TfBroadcaster;
 
   // Optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor.
@@ -137,6 +159,8 @@ private:
   ros::Subscriber GpsSlamCalibrationSub;
   ros::Subscriber PoseGraphOptimizationSub;
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
+  bool SetSlamPoseFromGpsRequest = false;
+  ros::Subscriber SlamPoseFromGpsRequestSub;
 
   // Debug publishers
   ros::Publisher GpsPathPub, SlamPathPub;

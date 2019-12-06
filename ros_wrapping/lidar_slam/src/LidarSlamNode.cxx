@@ -9,6 +9,10 @@
 
 #include <chrono>
 
+//==============================================================================
+//   Basic SLAM use
+//==============================================================================
+
 //------------------------------------------------------------------------------
 LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 {
@@ -76,6 +80,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     // Init optionnal use of GPS data to perform pose graph optimization to correct SLAM poses and maps.
     this->PoseGraphOptimizationSub = nh.subscribe("run_pose_graph_optim", 1, &LidarSlamNode::RunPoseGraphOptimizationCallback, this);
     priv_nh.getParam("gps/pose_graph_optimization/g2o_file_name", this->PgoG2oFileName);
+    this->SlamPoseFromGpsRequestSub = nh.subscribe("set_slam_pose_from_gps", 1, &LidarSlamNode::SetSlamPoseFromGpsRequestCallback, this);
   }
 
   // ***************************************************************************
@@ -104,6 +109,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // Init basic ROS subscribers and publishers
   this->PoseCovarPub = nh.advertise<nav_msgs::Odometry>("slam_odom", 1);
   this->CloudSub = nh.subscribe("velodyne_points", 3, &LidarSlamNode::ScanCallback, this);
+  this->MapUpdateSub = nh.subscribe("update_slam_map", 1,  &LidarSlamNode::UpdateSlamMapCallback, this);
 
   ROS_INFO_STREAM("\033[1;32mLiDAR SLAM is ready !\033[0m");
 }
@@ -176,8 +182,21 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
         this->GpsCovars.pop_front();
       }
     }
+
+    // If there is a request to set SLAM pose from GPS, do it.
+    // This should be done only after pose graph optimization.
+    if (this->SetSlamPoseFromGpsRequest)
+    {
+      this->LidarSlam.SetWorldTransformFromGuess(this->GpsPoses.back());
+      this->SetSlamPoseFromGpsRequest = false;
+      ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << this->GpsPoses.back().GetMatrix());
+    }
   }
 }
+
+//==============================================================================
+//   Special SLAM commands
+//==============================================================================
 
 //------------------------------------------------------------------------------
 void LidarSlamNode::RunGpsSlamCalibrationCallback(const std_msgs::Empty&)
@@ -209,7 +228,8 @@ void LidarSlamNode::RunPoseGraphOptimizationCallback(const std_msgs::Empty&)
 
   // Run pose graph optimization
   this->LidarSlam.RunPoseGraphOptimization(worldToGpsPositions, worldToGpsCovars,
-                                           this->LidarToGpsOffset.inverse().translation());
+                                           this->LidarToGpsOffset.inverse().translation(),
+                                           this->PgoG2oFileName);
 
   // Update the display of the computed world transform so far
   Transform slamToLidar = this->LidarSlam.GetWorldTransform();
@@ -224,18 +244,47 @@ void LidarSlamNode::RunPoseGraphOptimizationCallback(const std_msgs::Empty&)
   tfStamped.transform = TransformToTfMsg(Transform());  // null transform
   this->StaticTfBroadcaster.sendTransform(tfStamped);
 
-  // Update features maps display
-  this->PublishFeaturesMaps(slamToLidar.time * 1e6);
-
   // Publish optimized SLAM trajectory
   std::vector<Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
   nav_msgs::Path optimSlamTraj;
   optimSlamTraj.header.frame_id = this->GpsPoses[0].frameid;
   optimSlamTraj.header.stamp = ros::Time(slamToLidar.time);
   for (const Transform& pose: optimizedSlamPoses)
-    optimSlamTraj.poses.push_back(TransformToPoseStampedMsg(pose));
+    optimSlamTraj.poses.emplace_back(TransformToPoseStampedMsg(pose));
   this->OptimizedSlamTrajectoryPub.publish(optimSlamTraj);
+
+  // Update features maps display
+  this->PublishFeaturesMaps(slamToLidar.time * 1e6);
 }
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::UpdateSlamMapCallback(const std_msgs::Bool& msg)
+{
+  // Enable/disable SLAM maps update
+  this->LidarSlam.SetUpdateMap(msg.data);
+  if (msg.data)
+    ROS_WARN_STREAM("Enabling SLAM maps update.");
+  else
+    ROS_WARN_STREAM("Disabling SLAM maps update.");
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::SetSlamPoseFromGpsRequestCallback(const std_msgs::Empty&)
+{
+  if (!this->UseGps)
+  {
+    ROS_ERROR_STREAM("Cannot set SLAM pose from GPS as GPS logging has not been enabled. "
+                     "Please set 'gps/use_gps' private parameter to 'true'.");
+    return;
+  }
+
+  this->SetSlamPoseFromGpsRequest = true;
+  ROS_WARN_STREAM("Request to set SLAM pose set from next GPS pose received.");
+}
+
+//==============================================================================
+//   Utilities
+//==============================================================================
 
 //------------------------------------------------------------------------------
 LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& cloudV)

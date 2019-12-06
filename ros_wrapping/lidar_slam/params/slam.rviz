@@ -226,7 +226,7 @@ Visualization Manager:
       Length: 0.20000000298023224
       Line Style: Lines
       Line Width: 0.10000000149011612
-      Name: SLAM-GPS path
+      Name: GPS-optimized SLAM path
       Offset:
         X: 0
         Y: 0

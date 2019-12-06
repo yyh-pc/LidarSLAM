@@ -158,6 +158,9 @@ public:
                                 const Eigen::Vector3d& gpsToSensorOffset = Eigen::Vector3d::Zero(),
                                 const std::string& g2oFileName = "");
 
+  // Set world transform with an initial guess (usually from GPS after calibration).
+  void SetWorldTransformFromGuess(const Transform& poseGuess);
+
   // ---------------------------------------------------------------------------
   //   General parameters
   // ---------------------------------------------------------------------------
@@ -173,6 +176,9 @@ public:
 
   SetMacro(LoggingTimeout, double)
   GetMacro(LoggingTimeout, double)
+
+  SetMacro(UpdateMap, bool)
+  GetMacro(UpdateMap, bool)
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -310,6 +316,12 @@ private:
   //           consumption if SLAM is run for a long time.
   double LoggingTimeout = 0.;
 
+  // Should the keypoints features maps be updated at each step.
+  // It is usually set to true, but forbiding maps update can be usefull in case
+  // of post-SLAM optimization with GPS and then run localization only in fixed
+  // optimized map.
+  bool UpdateMap = true;
+
   // ---------------------------------------------------------------------------
   //   Trajectory and transforms
   // ---------------------------------------------------------------------------
@@ -322,7 +334,7 @@ private:
   // Transformation to map the current pointcloud
   // in the world (i.e first frame) one
   Eigen::Matrix<double, 6, 1> Tworld = Eigen::Matrix<double, 6, 1>::Zero();
-  Eigen::Matrix<double, 6, 1> PreviousTworld = Eigen::Matrix<double, 6, 1>::Zero();
+  Eigen::Matrix<double, 6, 1> PreviousTworld = Eigen::Matrix<double, 6, 1>::Zero(); // CHECK unused ?
   Eigen::VectorXd MotionParametersMapping;
 
   // Variance-Covariance matrix that estimates the
