@@ -2,6 +2,8 @@ add_library(slamlib
   LidarPoint.h
   Transform.cxx
   Transform.h
+  RollingGrid.cxx
+  RollingGrid.h
   Slam.cxx
   Slam.h
   SpinningSensorKeypointExtractor.cxx
@@ -28,6 +30,7 @@ target_link_libraries(slamlib
 set(HEADER_FILES
   LidarPoint.h
   Transform.h
+  RollingGrid.h
   Slam.h
   SpinningSensorKeypointExtractor.h
   MotionModel.h

@@ -71,8 +71,8 @@
 #ifndef SLAM_H
 #define SLAM_H
 
-// a new PCL Point is added so we need to recompile PCL
-// to be able to use filters with this new type
+// A new PCL Point is added so we need to recompile PCL to be able to use
+// filters (pcl::KdTreeFLANN) with this new type
 #ifndef PCL_NO_PRECOMPILE
 #define PCL_NO_PRECOMPILE
 #endif
@@ -88,11 +88,10 @@
 #include "SpinningSensorKeypointExtractor.h"
 #include "KDTreePCLAdaptor.h"
 #include "MotionModel.h"
+#include "RollingGrid.h"
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
-
-class RollingGrid;
 
 enum MatchingMode
 {
@@ -112,7 +111,7 @@ class Slam
 public:
 
   // Usefull types
-  using Point = SpinningSensorKeypointExtractor::Point;
+  using Point = PointXYZTIId;
   using PointCloud = pcl::PointCloud<Point>;
 
   // Initialization
