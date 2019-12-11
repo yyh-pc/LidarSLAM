@@ -81,6 +81,8 @@
 #include <Eigen/Dense>
 // CERES
 #include <ceres/ceres.h>
+// PCL
+#include <pcl/common/transforms.h>
 
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
@@ -362,23 +364,44 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
 
   // Update SLAM trajectory and maps
   this->ClearMaps();
+  PointCloud::Ptr aggregatedEdgesMap(new PointCloud());
+  PointCloud::Ptr aggregatedPlanarsMap(new PointCloud());
+  PointCloud::Ptr aggregatedBlobsMap(new PointCloud());
   std::copy(optimizedSlamPoses.begin(), optimizedSlamPoses.end(), this->LogTrajectory.begin());
   for (unsigned int i = 0; i < optimizedSlamPoses.size(); i++)
   {
-    // Update pose
-    Transform& currentPose = optimizedSlamPoses[i];
-    Eigen::Vector3d ypr = currentPose.GetIsometry().linear().matrix().eulerAngles(2, 1, 0);
-    this->Tworld << ypr(2), ypr(1), ypr(0), currentPose.x(), currentPose.y(), currentPose.z();
-
-    // TODO : update motionParameters in case undistortion is used
-
-    // Update maps
-    // TODO : improve maps update for faster processing
-    this->CurrentEdgesPoints = this->LogEdgesPoints[i];
-    this->CurrentPlanarsPoints = this->LogPlanarsPoints[i];
+    // Transform frame keypoints to world coordinates
+    Eigen::Matrix4d currentTransform = optimizedSlamPoses[i].GetMatrix();
+    pcl::transformPointCloud(*this->LogEdgesPoints[i], *this->CurrentEdgesPoints, currentTransform);
+    pcl::transformPointCloud(*this->LogPlanarsPoints[i], *this->CurrentPlanarsPoints, currentTransform);
     if (!this->FastSlam)
-      this->CurrentBlobsPoints = this->LogBlobsPoints[i];
-    this->UpdateMapsUsingTworld();
+      pcl::transformPointCloud(*this->LogBlobsPoints[i], *this->CurrentBlobsPoints, currentTransform);
+
+    // TODO: Deal with undistortion case (properly transform pointclouds before aggreagtion)
+
+    // Aggregate new keypoints to maps
+    *aggregatedEdgesMap += *this->CurrentEdgesPoints;
+    *aggregatedPlanarsMap += *this->CurrentPlanarsPoints;
+    if (!this->FastSlam)
+      *aggregatedBlobsMap += *this->CurrentBlobsPoints;
+  }
+
+  // Set final pose
+  Transform& finalPose = optimizedSlamPoses.back();
+  Eigen::Vector3d ypr = finalPose.GetIsometry().linear().matrix().eulerAngles(2, 1, 0);
+  this->Tworld << ypr(2), ypr(1), ypr(0), finalPose.x(), finalPose.y(), finalPose.z();
+
+  // TODO : Deal with undistortion case (update motionParameters)
+
+  // Update SLAM maps
+  this->EdgesPointsLocalMap->Roll(this->Tworld);
+  this->EdgesPointsLocalMap->Add(aggregatedEdgesMap);
+  this->PlanarPointsLocalMap->Roll(this->Tworld);
+  this->PlanarPointsLocalMap->Add(aggregatedPlanarsMap);
+  if (!this->FastSlam)
+  {
+    this->BlobsPointsLocalMap->Roll(this->Tworld);
+    this->BlobsPointsLocalMap->Add(aggregatedBlobsMap);
   }
 
   // Processing duration
