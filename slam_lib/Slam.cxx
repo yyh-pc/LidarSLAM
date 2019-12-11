@@ -330,6 +330,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                     const std::string& g2oFileName)
 {
   IF_VERBOSE(1, InitTime("Pose graph optimization"));
+  IF_VERBOSE(3, InitTime("PGO : optimization"));
 
   // Transform to modifiable vectors
   std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
@@ -366,11 +367,16 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     return;
   }
 
+  IF_VERBOSE(3, StopTimeAndDisplay("PGO : optimization"));
+
   // Update GPS/LiDAR calibration
   gpsToSensorOffset = optimizedSlamPoses.front().GetIsometry();
 
   // Update SLAM trajectory and maps
+  IF_VERBOSE(3, InitTime("PGO : Maps reset"));
   this->ClearMaps();
+  IF_VERBOSE(3, StopTimeAndDisplay("PGO : Maps reset"));
+  IF_VERBOSE(3, InitTime("PGO : frames keypoints aggregation"));
   PointCloud::Ptr aggregatedEdgesMap(new PointCloud());
   PointCloud::Ptr aggregatedPlanarsMap(new PointCloud());
   PointCloud::Ptr aggregatedBlobsMap(new PointCloud());
@@ -395,6 +401,9 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
       *aggregatedBlobsMap += *this->CurrentBlobsPoints;
   }
 
+  IF_VERBOSE(3, StopTimeAndDisplay("PGO : frames keypoints aggregation"));
+  IF_VERBOSE(3, InitTime("PGO : final SLAM map update"));
+
   // Set final pose
   Transform& finalPose = this->LogTrajectory.back();
   Eigen::Vector3d ypr = finalPose.GetIsometry().linear().matrix().eulerAngles(2, 1, 0);
@@ -414,6 +423,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   }
 
   // Processing duration
+  IF_VERBOSE(3, StopTimeAndDisplay("PGO : final SLAM map update"));
   IF_VERBOSE(1, StopTimeAndDisplay("Pose graph optimization"));
 }
 
@@ -476,6 +486,7 @@ void Slam::ComputeEgoMotion()
   this->TimeValues.reserve(toReserve);
   this->residualCoefficient.reserve(toReserve);
 
+  IF_VERBOSE(3, InitTime("Ego-Motion : whole ICP-LM loop"));
 
   // ICP - Levenberg-Marquardt loop:
   // At each step of this loop an ICP matching is performed.
@@ -484,6 +495,8 @@ void Slam::ComputeEgoMotion()
   // function using a Levenberg-Marquardt algorithm
   for (unsigned int icpCount = 0; icpCount < this->EgoMotionICPMaxIter; ++icpCount)
   {
+    IF_VERBOSE(3, InitTime("Ego-Motion : ICP"));
+
     // Rotation and translation at this step
     Eigen::Matrix3d R = GetRotationMatrix(this->Trelative);
     Eigen::Vector3d T(this->Trelative(3), this->Trelative(4), this->Trelative(5));
@@ -539,6 +552,9 @@ void Slam::ComputeEgoMotion()
       break;
     }
 
+    IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : ICP"));
+    IF_VERBOSE(3, InitTime("Ego-Motion : LM optim"));
+
     double lossScale = this->EgoMotionInitLossScale + static_cast<double>(icpCount) * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / (1.0 * this->EgoMotionICPMaxIter);
 
     // We want to estimate our 6-DOF parameters using a non
@@ -576,6 +592,8 @@ void Slam::ComputeEgoMotion()
     ceres::Solve(options, &problem, &summary);
     PRINT_VERBOSE(4, summary.BriefReport());
 
+    IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : LM optim"));
+
     // If no L-M iteration has been made since the
     // last ICP matching it means we reached a local
     // minimum for the ICP-LM algorithm
@@ -584,6 +602,8 @@ void Slam::ComputeEgoMotion()
       break;
     }
   }
+
+  IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : whole ICP-LM loop"));
 
   this->EgoMotionEdgesPointsUsed = usedEdges;
   this->EgoMotionPlanesPointsUsed  = usedPlanes;
@@ -624,6 +644,7 @@ void Slam::Mapping()
   }
 
   // get keypoints from the map
+  IF_VERBOSE(3, InitTime("Mapping : keypoints extraction"));
   PointCloud::Ptr subEdgesPointsLocalMap = this->EdgesPointsLocalMap->Get(this->Tworld);
   PointCloud::Ptr subPlanarPointsLocalMap = this->PlanarPointsLocalMap->Get(this->Tworld);
 
@@ -644,6 +665,8 @@ void Slam::Mapping()
     std::cout << "Blobs extracted from map: " << subBlobPointsLocalMap->points.size() << std::endl;
   }
 
+  IF_VERBOSE(3, StopTimeAndDisplay("Mapping : keypoints extraction"));
+
   // Information about matches
   unsigned int usedEdges = 0;
   unsigned int usedPlanes = 0;
@@ -660,6 +683,8 @@ void Slam::Mapping()
   this->TimeValues.reserve(toReserve);
   this->residualCoefficient.reserve(toReserve);
 
+  IF_VERBOSE(3, InitTime("Mapping : whole ICP-LM loop"));
+
   // ICP - Levenberg-Marquardt loop:
   // At each step of this loop an ICP matching is performed
   // Once the keypoints matched, we estimate the the 6-DOF
@@ -667,6 +692,8 @@ void Slam::Mapping()
   // function using a Levenberg-Marquardt algorithm
   for (unsigned int icpCount = 0; icpCount < this->MappingICPMaxIter; ++icpCount)
   {
+    IF_VERBOSE(3, InitTime("Mapping : ICP"));
+
     // clear all keypoints matching data
     this->ResetDistanceParameters();
 
@@ -728,6 +755,9 @@ void Slam::Mapping()
       break;
     }
 
+    IF_VERBOSE(3, StopTimeAndDisplay("Mapping : ICP"));
+    IF_VERBOSE(3, InitTime("Mapping : LM optim"));
+
     double lossScale = this->MappingInitLossScale + static_cast<double>(icpCount) * (this->MappingFinalLossScale - this->MappingInitLossScale) / (1.0 * this->MappingICPMaxIter);
 
     // We want to estimate our 6-DOF parameters using a non
@@ -772,6 +802,8 @@ void Slam::Mapping()
     ceres::Solve(options, &problem, &summary);
     PRINT_VERBOSE(4, summary.BriefReport());
 
+    IF_VERBOSE(3, StopTimeAndDisplay("Mapping : LM optim"));
+
     // If no L-M iteration has been made since the
     // last ICP matching it means we reached a local
     // minimum for the ICP-LM algorithm
@@ -800,6 +832,8 @@ void Slam::Mapping()
       break;
     }
   }
+
+  IF_VERBOSE(3, StopTimeAndDisplay("Mapping : whole ICP-LM loop"));
 
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eig(this->TworldCovariance);
   Eigen::MatrixXd D = eig.eigenvalues();
