@@ -19,10 +19,10 @@ RollingGrid::RollingGrid(double posX, double posY, double posZ)
 {
   // Init empty grid of right size
   this->SetGridSize(this->GridSize);
-  // should initialize using Tworld + size / 2
-  this->VoxelGridPosition[0] = static_cast<int>(posX);
-  this->VoxelGridPosition[1] = static_cast<int>(posY);
-  this->VoxelGridPosition[2] = static_cast<int>(posZ);
+  // Initialize VoxelGrid center position
+  this->VoxelGridPosition[0] = std::floor(posX / this->VoxelResolution);
+  this->VoxelGridPosition[1] = std::floor(posY / this->VoxelResolution);
+  this->VoxelGridPosition[2] = std::floor(posZ / this->VoxelResolution);
 }
 
 //------------------------------------------------------------------------------
@@ -37,15 +37,16 @@ void RollingGrid::Clear()
 //------------------------------------------------------------------------------
 void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
 {
-  // Very basic implementation where the grid is not circular
+  // Very basic implementation where the grid is not circular.
+  // This keeps the VoxelGrid centered on T position.
 
-  // compute the position of the new frame center in the grid
-  int frameCenterX = std::floor(T[3] / this->GridSize) + this->VoxelGridPosition[0];
-  int frameCenterY = std::floor(T[4] / this->GridSize) + this->VoxelGridPosition[1];
-  int frameCenterZ = std::floor(T[5] / this->GridSize) + this->VoxelGridPosition[2];
+  // Compute the position of the new frame center in the grid.
+  int frameCenterX = std::floor(T[3] / this->VoxelResolution);
+  int frameCenterY = std::floor(T[4] / this->VoxelResolution);
+  int frameCenterZ = std::floor(T[5] / this->VoxelResolution);
 
-  // shift the voxel grid to the left
-  while (frameCenterX - std::ceil(this->PointCloudSize / 2) <= 0)
+  // Shift the voxel grid to the -X direction.
+  while (frameCenterX < this->VoxelGridPosition[0])
   {
     for (int y = 0; y < this->GridSize; y++)
     {
@@ -58,12 +59,11 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
         this->Grid[0][y][z].reset(new PointCloud());
       }
     }
-    frameCenterX++;
-    this->VoxelGridPosition[0]++;
+    this->VoxelGridPosition[0]--;
   }
 
-  // shift the voxel grid to the right
-  while (frameCenterX + std::ceil(this->PointCloudSize / 2) >= this->GridSize - 1)
+  // Shift the voxel grid to the +X direction.
+  while (frameCenterX > this->VoxelGridPosition[0])
   {
     for (int y = 0; y < this->GridSize; y++)
     {
@@ -76,12 +76,11 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
         this->Grid[this->GridSize - 1][y][z].reset(new PointCloud());
       }
     }
-    frameCenterX--;
-    this->VoxelGridPosition[0]--;
+    this->VoxelGridPosition[0]++;
   }
 
-  // shift the voxel grid to the bottom
-  while (frameCenterY - std::ceil(this->PointCloudSize / 2) <= 0)
+  // Shift the voxel grid to the -Y direction.
+  while (frameCenterY < this->VoxelGridPosition[1])
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -94,12 +93,11 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
         this->Grid[x][0][z].reset(new PointCloud());
       }
     }
-    frameCenterY++;
-    this->VoxelGridPosition[1]++;
+    this->VoxelGridPosition[1]--;
   }
 
-  // shift the voxel grid to the top
-  while (frameCenterY + std::ceil(this->PointCloudSize / 2) >= this->GridSize - 1)
+  // Shift the voxel grid to the +Y direction.
+  while (frameCenterY > this->VoxelGridPosition[1])
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -112,12 +110,11 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
         this->Grid[x][this->GridSize - 1][z].reset(new PointCloud());
       }
     }
-    frameCenterY--;
-    this->VoxelGridPosition[1]--;
+    this->VoxelGridPosition[1]++;
   }
 
-  // shift the voxel grid to the "camera"
-  while (frameCenterZ - std::ceil(this->PointCloudSize / 2) <= 0)
+  // Shift the voxel grid to the -Z direction.
+  while (frameCenterZ < this->VoxelGridPosition[2])
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -130,12 +127,11 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
         this->Grid[x][y][0].reset(new PointCloud());
       }
     }
-    frameCenterZ++;
-    this->VoxelGridPosition[2]++;
+    this->VoxelGridPosition[2]--;
   }
 
-  // shift the voxel grid to the "horizon"
-  while (frameCenterZ + std::ceil(this->PointCloudSize / 2) >= this->GridSize - 1)
+  // Shift the voxel grid to the +Z direction.
+  while (frameCenterZ > this->VoxelGridPosition[2])
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -148,18 +144,17 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
         this->Grid[x][y][this->GridSize - 1].reset(new PointCloud());
       }
     }
-    frameCenterZ--;
-    this->VoxelGridPosition[2]--;
+    this->VoxelGridPosition[2]++;
   }
 }
 
 //------------------------------------------------------------------------------
 RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Matrix<double, 6, 1>& T)
 {
-  // compute the position of the new frame center in the grid
-  int frameCenterX = std::floor(T[3] / this->GridSize) + this->VoxelGridPosition[0];
-  int frameCenterY = std::floor(T[4] / this->GridSize) + this->VoxelGridPosition[1];
-  int frameCenterZ = std::floor(T[5] / this->GridSize) + this->VoxelGridPosition[2];
+  // Compute the position of the new frame center in the grid
+  int frameCenterX = std::floor(T[3] / this->VoxelResolution) - (this->VoxelGridPosition[0] - this->GridSize / 2);
+  int frameCenterY = std::floor(T[4] / this->VoxelResolution) - (this->VoxelGridPosition[1] - this->GridSize / 2);
+  int frameCenterZ = std::floor(T[5] / this->VoxelResolution) - (this->VoxelGridPosition[2] - this->GridSize / 2);
 
   // Get sub-VoxelGrid bounds
   int minX = std::max<int>(frameCenterX - std::ceil(this->PointCloudSize / 2), 0);
@@ -205,13 +200,18 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud)
   std::vector<std::vector<std::vector<uint8_t>>> voxelToFilter(
     this->GridSize, std::vector<std::vector<uint8_t>>(this->GridSize, std::vector<uint8_t>(this->GridSize, 0)));
 
+  // Compute the position of the origin of the VoxelGrid
+  int voxelGridOriginX = (this->VoxelGridPosition[0] - this->GridSize / 2);
+  int voxelGridOriginY = (this->VoxelGridPosition[1] - this->GridSize / 2);
+  int voxelGridOriginZ = (this->VoxelGridPosition[2] - this->GridSize / 2);
+
   // Add points in the rolling grid
   for (const Point& point : *pointcloud)
   {
-    // find the closest coordinate
-    int cubeIdxX = std::floor(point.x / this->GridSize) + this->VoxelGridPosition[0];
-    int cubeIdxY = std::floor(point.y / this->GridSize) + this->VoxelGridPosition[1];
-    int cubeIdxZ = std::floor(point.z / this->GridSize) + this->VoxelGridPosition[2];
+    // Find the voxel containing this point
+    int cubeIdxX = std::floor(point.x / this->VoxelResolution) - voxelGridOriginX;
+    int cubeIdxY = std::floor(point.y / this->VoxelResolution) - voxelGridOriginY;
+    int cubeIdxZ = std::floor(point.z / this->VoxelResolution) - voxelGridOriginZ;
 
     if (0 <= cubeIdxX && cubeIdxX < this->GridSize &&
         0 <= cubeIdxY && cubeIdxY < this->GridSize &&

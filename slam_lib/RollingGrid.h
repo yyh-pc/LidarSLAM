@@ -72,7 +72,7 @@ private:
   //! VoxelGrid of pointcloud
   std::vector<std::vector<std::vector<PointCloud::Ptr>>> Grid;
 
-  //! [voxel, voxel, voxel] Position of the VoxelGrid
+  //! [voxel, voxel, voxel] Current position of the center of the VoxelGrid
   int VoxelGridPosition[3] = { 0, 0, 0 };
 };
 
