@@ -71,14 +71,13 @@
 #ifndef SLAM_H
 #define SLAM_H
 
+#include <deque>
+
 // A new PCL Point is added so we need to recompile PCL to be able to use
 // filters (pcl::KdTreeFLANN) with this new type
 #ifndef PCL_NO_PRECOMPILE
 #define PCL_NO_PRECOMPILE
 #endif
-
-#include <deque>
-
 #include <pcl/kdtree/kdtree_flann.h>
 
 #include <Eigen/Geometry>
@@ -268,6 +267,7 @@ public:
   // ---------------------------------------------------------------------------
 
   // Set RollingGrid Parameters
+  void ClearMaps();
   void SetVoxelGridLeafSizeEdges(double size);
   void SetVoxelGridLeafSizePlanes(double size);
   void SetVoxelGridLeafSizeBlobs(double size);

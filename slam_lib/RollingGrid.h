@@ -1,22 +1,22 @@
 #ifndef ROLLING_GRID_H
 #define ROLLING_GRID_H
 
-// A new PCL Point is added so we need to recompile PCL to be able to use
-// filters (pcl::VoxelGrid) with this new type
-#ifndef PCL_NO_PRECOMPILE
-#define PCL_NO_PRECOMPILE
-#endif
-
 #include "LidarPoint.h"
-#include <pcl/filters/voxel_grid.h>
 
-// The map reconstructed from the slam algorithm is stored in a voxel grid
-// which split the space in differents region. From this voxel grid it is possible
-// to only load the parts of the map which are pertinents when we run the mapping
-// optimization algorithm. Morevover, when a a region of the space is too far from
-// the current sensor position it is possible to remove the points stored in this region
-// and to move the voxel grid in a closest region of the sensor position. This is used
-// to decrease the memory used by the algorithm
+#define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
+#define GetMacro(name,type) type Get##name () const { return name; }
+
+/*!
+ * @brief Rolling voxel grid to store and access pointclouds of specific areas.
+ *
+ * The map reconstructed from the SLAM algorithm is stored in a voxel grid
+ * which splits the space in differents regions. From this voxel grid, it is
+ * possible to only load the parts of the map which are pertinents when we run
+ * the mapping optimization algorithm. Morevover, when a region of the space is
+ * too far from the current sensor position, it is possible to remove the points
+ * stored in this region and to move the voxel grid in a closest region of the
+ * sensor position. This is used to decrease the memory used by the algorithm.
+ */
 class RollingGrid
 {
 public:
@@ -25,48 +25,54 @@ public:
   using Point = PointXYZTIId;
   using PointCloud = pcl::PointCloud<Point>;
 
-  RollingGrid() = default;
+  RollingGrid();
 
   RollingGrid(double posX, double posY, double posZ);
 
-  // roll the grid to enable adding new point cloud
-  void Roll(Eigen::Matrix<double, 6, 1>& T);
+  //! Roll the grid to enable adding new point cloud
+  void Roll(const Eigen::Matrix<double, 6, 1>& T);
 
-  // get points arround T
-  PointCloud::Ptr Get(Eigen::Matrix<double, 6, 1>& T);
+  //! Get points near T
+  PointCloud::Ptr Get(const Eigen::Matrix<double, 6, 1>& T);
 
-  // get all points
+  //! Get all points
   PointCloud::Ptr Get();
 
-  // add some points to the grid
-  void Add(PointCloud::Ptr pointcloud);
+  //! Add some points to the grid
+  void Add(const PointCloud::Ptr& pointcloud);
 
-  void SetPointCoudMaxRange(const double maxdist);
+  // Remove all points from all voxels
+  void Clear();
 
-  void SetSize(int size);
+  void SetPointCoudMaxRange(double maxdist);
 
-  void SetResolution(double resolution) { this->VoxelResolution = resolution; }
+  void SetGridSize(int size);
+  GetMacro(GridSize, int)
 
-  void SetLeafSize(double size) { this->LeafSize = size; }
+  SetMacro(VoxelResolution, double)
+  GetMacro(VoxelResolution, double)
+
+  SetMacro(LeafSize, double)
+  GetMacro(LeafSize, double)
 
 private:
 
-  //! Size of the voxel grid: n*n*n voxels
-  int VoxelSize = 50;
+  //! [voxels] Size of the voxel grid: n*n*n voxels
+  int GridSize = 50;
 
-  //! Resolution of a voxel
-  double VoxelResolution = 10;
+  //! [m/voxel] Resolution of a voxel
+  double VoxelResolution = 10.;
 
-  //! Size of a pointcloud in voxel
+  //! [voxels] Size of the current added pointcloud in voxels
   int PointCloudSize = 25;
 
-  //! Size of the leaf use to downsample the pointcloud
+  //! [m] Size of the leaf used to downsample the pointcloud with a VoxelGrid filter
   double LeafSize = 0.2;
 
   //! VoxelGrid of pointcloud
-  std::vector<std::vector<std::vector<PointCloud::Ptr>>> grid;
+  std::vector<std::vector<std::vector<PointCloud::Ptr>>> Grid;
 
-  // Position of the VoxelGrid
+  //! [voxel, voxel, voxel] Position of the VoxelGrid
   int VoxelGridPosition[3] = { 0, 0, 0 };
 };
 

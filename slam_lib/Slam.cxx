@@ -161,14 +161,11 @@ void Slam::Reset()
   this->EdgesPointsLocalMap = std::make_shared<RollingGrid>();
   this->PlanarPointsLocalMap = std::make_shared<RollingGrid>();
   this->BlobsPointsLocalMap = std::make_shared<RollingGrid>();
-
-  this->EdgesPointsLocalMap->SetResolution(10);
-  this->PlanarPointsLocalMap->SetResolution(10);
-  this->BlobsPointsLocalMap->SetResolution(10);
-
-  this->EdgesPointsLocalMap->SetSize(50);
-  this->PlanarPointsLocalMap->SetSize(50);
-  this->BlobsPointsLocalMap->SetSize(50);
+  this->SetVoxelGridResolution(10.);
+  this->SetVoxelGridSize(50);
+  this->SetVoxelGridLeafSizeEdges(0.45);
+  this->SetVoxelGridLeafSizePlanes(0.6);
+  this->SetVoxelGridLeafSizeBlobs(0.12);
 
   this->NbrFrameProcessed = 0;
 
@@ -177,10 +174,6 @@ void Slam::Reset()
   this->Trelative = Eigen::Matrix<double, 6, 1>::Zero();
   this->MotionParametersEgoMotion = Eigen::VectorXd::Zero(12, 1);
   this->MotionParametersMapping = Eigen::VectorXd::Zero(12, 1);
-
-  this->SetVoxelGridLeafSizeEdges(0.45);
-  this->SetVoxelGridLeafSizePlanes(0.6);
-  this->SetVoxelGridLeafSizeBlobs(0.12);
 }
 
 //-----------------------------------------------------------------------------
@@ -368,7 +361,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                 optimizedSlamPoses);
 
   // Update SLAM trajectory and maps
-  this->Reset();
+  this->ClearMaps();
   std::copy(optimizedSlamPoses.begin(), optimizedSlamPoses.end(), this->LogTrajectory.begin());
   for (unsigned int i = 0; i < optimizedSlamPoses.size(); i++)
   {
@@ -826,6 +819,7 @@ void Slam::UpdateMapsUsingTworld()
   auto updateMap = [this] (std::shared_ptr<RollingGrid> map, PointCloud::Ptr frame)
   {
     PointCloud::Ptr temporaryMap(new PointCloud());
+    temporaryMap->points.reserve(frame->size());
     for (size_t i = 0; i < frame->size(); ++i)
     {
       temporaryMap->push_back(frame->at(i));
@@ -1622,6 +1616,14 @@ void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr pointcloud)
 //==============================================================================
 
 //-----------------------------------------------------------------------------
+void Slam::ClearMaps()
+{
+  this->EdgesPointsLocalMap->Clear();
+  this->PlanarPointsLocalMap->Clear();
+  this->BlobsPointsLocalMap->Clear();
+}
+
+//-----------------------------------------------------------------------------
 void Slam::SetVoxelGridLeafSizeEdges(double size)
 {
   this->EdgesPointsLocalMap->SetLeafSize(size);
@@ -1642,17 +1644,17 @@ void Slam::SetVoxelGridLeafSizeBlobs(double size)
 //-----------------------------------------------------------------------------
 void Slam::SetVoxelGridSize(unsigned int size)
 {
-  this->EdgesPointsLocalMap->SetSize(size);
-  this->PlanarPointsLocalMap->SetSize(size);
-  this->BlobsPointsLocalMap->SetSize(size);
+  this->EdgesPointsLocalMap->SetGridSize(size);
+  this->PlanarPointsLocalMap->SetGridSize(size);
+  this->BlobsPointsLocalMap->SetGridSize(size);
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetVoxelGridResolution(double resolution)
 {
-  this->EdgesPointsLocalMap->SetResolution(resolution);
-  this->PlanarPointsLocalMap->SetResolution(resolution);
-  this->BlobsPointsLocalMap->SetResolution(resolution);
+  this->EdgesPointsLocalMap->SetVoxelResolution(resolution);
+  this->PlanarPointsLocalMap->SetVoxelResolution(resolution);
+  this->BlobsPointsLocalMap->SetVoxelResolution(resolution);
 }
 
 //-----------------------------------------------------------------------------
