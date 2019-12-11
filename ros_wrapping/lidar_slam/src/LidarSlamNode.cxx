@@ -388,7 +388,18 @@ void LidarSlamNode::PoseGraphOptimization()
   optimSlamTraj.header.stamp = ros::Time(slamToLidar.time);
   std::vector<Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
   for (const Transform& pose: optimizedSlamPoses)
-    optimSlamTraj.poses.emplace_back(TransformToPoseStampedMsg(pose));
+  {
+    // If we need to output GPS antenna pose instead of LiDAR's, transform LiDAR pose and covariance
+    if (this->OutputGpsPose)
+    {
+      Transform gpsPose = pose;
+      gpsPose.GetIsometry() = pose.GetIsometry() * this->LidarToGpsOffset;
+      optimSlamTraj.poses.emplace_back(TransformToPoseStampedMsg(gpsPose));
+    }
+    // Otherwise keep LiDAR pose
+    else
+      optimSlamTraj.poses.emplace_back(TransformToPoseStampedMsg(pose));
+  }
   this->OptimizedSlamTrajectoryPub.publish(optimSlamTraj);
 
   // Update features maps display
@@ -460,8 +471,7 @@ void LidarSlamNode::PublishTfOdom(const Transform& slamToLidar,
     }
 
     // Transform pose
-    Eigen::Isometry3d slamToGpsPose(slamToLidar.GetIsometry() * this->LidarToGpsOffset);
-    slamPose.transform = slamToGpsPose;
+    slamPose.GetIsometry() = slamToLidar.GetIsometry() * this->LidarToGpsOffset;
 
     // TODO Transform covariance to correct lever arm induced by LidarToGpsOffset
   }
