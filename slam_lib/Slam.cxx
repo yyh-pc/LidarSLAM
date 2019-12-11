@@ -326,7 +326,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 //-----------------------------------------------------------------------------
 void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                     const std::vector<std::array<double, 9>>& gpsCovariances,
-                                    const Eigen::Vector3d& gpsToSensorOffset,
+                                    Eigen::Isometry3d& gpsToSensorOffset,
                                     const std::string& g2oFileName)
 {
   IF_VERBOSE(1, InitTime("Pose graph optimization"));
@@ -353,25 +353,34 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   poseGraphOptimization.SetVerbose(this->Verbosity >= 2);
   poseGraphOptimization.SetSaveG2OFile(!g2oFileName.empty());
   poseGraphOptimization.SetG2OFileName(g2oFileName);
-  poseGraphOptimization.SetGpsToSensorCalibration(gpsToSensorOffset.x(), gpsToSensorOffset.y(), gpsToSensorOffset.z());
+  poseGraphOptimization.SetGpsToSensorCalibration(gpsToSensorOffset);
 
   // Run pose graph optimization
   // TODO : templatize poseGraphOptimization to accept any STL container and avoid deque <-> vector copies
   std::vector<Transform> optimizedSlamPoses;
-  poseGraphOptimization.Process(slamPoses, gpsPositions,
-                                slamCovariances, gpsCovariances,
-                                optimizedSlamPoses);
+  if (!poseGraphOptimization.Process(slamPoses, gpsPositions,
+                                     slamCovariances, gpsCovariances,
+                                     optimizedSlamPoses))
+  {
+    std::cout << "[ERROR] Pose graph optimization failed." << std::endl;
+    return;
+  }
+
+  // Update GPS/LiDAR calibration
+  gpsToSensorOffset = optimizedSlamPoses.front().GetIsometry();
 
   // Update SLAM trajectory and maps
   this->ClearMaps();
   PointCloud::Ptr aggregatedEdgesMap(new PointCloud());
   PointCloud::Ptr aggregatedPlanarsMap(new PointCloud());
   PointCloud::Ptr aggregatedBlobsMap(new PointCloud());
-  std::copy(optimizedSlamPoses.begin(), optimizedSlamPoses.end(), this->LogTrajectory.begin());
   for (unsigned int i = 0; i < optimizedSlamPoses.size(); i++)
   {
+    // Update SLAM pose
+    this->LogTrajectory[i].GetIsometry() = gpsToSensorOffset.inverse() * optimizedSlamPoses[i].GetIsometry();
+
     // Transform frame keypoints to world coordinates
-    Eigen::Matrix4d currentTransform = optimizedSlamPoses[i].GetMatrix();
+    Eigen::Matrix4d currentTransform = this->LogTrajectory[i].GetMatrix();
     pcl::transformPointCloud(*this->LogEdgesPoints[i], *this->CurrentEdgesPoints, currentTransform);
     pcl::transformPointCloud(*this->LogPlanarsPoints[i], *this->CurrentPlanarsPoints, currentTransform);
     if (!this->FastSlam)
@@ -387,7 +396,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   }
 
   // Set final pose
-  Transform& finalPose = optimizedSlamPoses.back();
+  Transform& finalPose = this->LogTrajectory.back();
   Eigen::Vector3d ypr = finalPose.GetIsometry().linear().matrix().eulerAngles(2, 1, 0);
   this->Tworld << ypr(2), ypr(1), ypr(0), finalPose.x(), finalPose.y(), finalPose.z();
 
@@ -715,7 +724,7 @@ void Slam::Mapping()
     if ((usedPlanes + usedEdges + usedBlobs) < 20)
     {
       std::cout << "Too few geometric features, loop breaked "
-                << "(" << usedPlanes << "planes, " << usedEdges << " edges, " << usedBlobs << " blobs)." << std::endl;
+                << "(" << usedPlanes << " planes, " << usedEdges << " edges, " << usedBlobs << " blobs)." << std::endl;
       break;
     }
 

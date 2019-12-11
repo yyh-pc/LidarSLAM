@@ -36,6 +36,7 @@ struct Transform
   double y() const {return this->transform(1, 3);}
   double z() const {return this->transform(2, 3);}
 
+  Eigen::Isometry3d& GetIsometry() {return this->transform;}
   Eigen::Isometry3d GetIsometry() const {return this->transform;}
 
   Eigen::Vector3d GetPosition() const {return this->transform.translation();}

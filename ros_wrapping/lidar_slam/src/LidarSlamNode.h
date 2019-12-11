@@ -123,6 +123,7 @@ private:
 
   // Optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor.
   bool OutputGpsPose = false;                 ///< Output GPS antenna pose instead of LiDAR's.
+  bool PublishLidarToGpsTf = false;           ///< Internal flag to publish static transform linking GPS antenna to LiDAR.
   std::string OutputGpsPoseFrameId = "slam";  ///< Frame id of the GPS antenna pose computed by SLAM if OutputGpsPose=true.
   Eigen::Isometry3d LidarToGpsOffset = Eigen::Isometry3d::Identity(); ///< Pose of the GPS antenna in LiDAR coordinates.
 

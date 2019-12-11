@@ -153,7 +153,7 @@ public:
   // TODO : run that in a separated thread.
   void RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                 const std::vector<std::array<double, 9>>& gpsCovariances,
-                                const Eigen::Vector3d& gpsToSensorOffset = Eigen::Vector3d::Zero(),
+                                Eigen::Isometry3d& gpsToSensorOffset,
                                 const std::string& g2oFileName = "");
 
   // Set world transform with an initial guess (usually from GPS after calibration).

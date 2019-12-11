@@ -61,10 +61,13 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("gps/output_gps_pose", this->OutputGpsPose);
   priv_nh.getParam("gps/output_gps_pose_frame_id", this->OutputGpsPoseFrameId);
   std::vector<double> GpsToLidarOffset;
-  priv_nh.getParam("gps/gps_to_lidar_offset", GpsToLidarOffset);
-  Transform GpsToLidarTransform(GpsToLidarOffset[0], GpsToLidarOffset[1], GpsToLidarOffset[2],
-                                GpsToLidarOffset[3], GpsToLidarOffset[4], GpsToLidarOffset[5]);
-  this->LidarToGpsOffset = GpsToLidarTransform.GetIsometry().inverse();
+  if (priv_nh.getParam("gps/gps_to_lidar_offset", GpsToLidarOffset))
+  {
+    Transform GpsToLidarTransform(GpsToLidarOffset[0], GpsToLidarOffset[1], GpsToLidarOffset[2],
+                                  GpsToLidarOffset[3], GpsToLidarOffset[4], GpsToLidarOffset[5]);
+    this->LidarToGpsOffset = GpsToLidarTransform.GetIsometry().inverse();
+  }
+  this->PublishLidarToGpsTf = this->OutputGpsPose;
 
   // Init GPS/SLAM calibration or Pose Graph Optimization.
   priv_nh.getParam("gps/use_gps", this->UseGps);
@@ -184,7 +187,9 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
     // This should be done only after pose graph optimization.
     if (this->SetSlamPoseFromGpsRequest)
     {
-      this->LidarSlam.SetWorldTransformFromGuess(this->GpsPoses.back());
+      Transform& gpsPose = this->GpsPoses.back();
+      Transform lidarPose = Transform(this->LidarToGpsOffset * gpsPose.GetIsometry(), gpsPose.time, gpsPose.frameid);
+      this->LidarSlam.SetWorldTransformFromGuess(lidarPose);
       this->SetSlamPoseFromGpsRequest = false;
       ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << this->GpsPoses.back().GetMatrix());
     }
@@ -355,9 +360,14 @@ void LidarSlamNode::PoseGraphOptimization()
   std::vector<std::array<double, 9>> worldToGpsCovars(this->GpsCovars.begin(), this->GpsCovars.end());
 
   // Run pose graph optimization
+  Eigen::Isometry3d gpsToLidarOffset = this->LidarToGpsOffset.inverse();
   this->LidarSlam.RunPoseGraphOptimization(worldToGpsPositions, worldToGpsCovars,
-                                           this->LidarToGpsOffset.inverse().translation(),
+                                           gpsToLidarOffset,
                                            this->PgoG2oFileName);
+
+  // Update GPS/LiDAR calibration
+  this->LidarToGpsOffset = gpsToLidarOffset.inverse();
+  this->PublishLidarToGpsTf = true;
 
   // Update the display of the computed world transform so far
   Transform slamToLidar = this->LidarSlam.GetWorldTransform();
@@ -369,14 +379,14 @@ void LidarSlamNode::PoseGraphOptimization()
   tfStamped.header.stamp = ros::Time(slamToLidar.time);
   tfStamped.header.frame_id = this->GpsPoses[0].frameid;
   tfStamped.child_frame_id = this->SlamOriginFrameId;
-  tfStamped.transform = TransformToTfMsg(Transform());  // null transform
+  tfStamped.transform = TransformToTfMsg(Transform(gpsToLidarOffset));
   this->StaticTfBroadcaster.sendTransform(tfStamped);
 
   // Publish optimized SLAM trajectory
-  std::vector<Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
   nav_msgs::Path optimSlamTraj;
-  optimSlamTraj.header.frame_id = this->GpsPoses[0].frameid;
+  optimSlamTraj.header.frame_id = this->SlamOriginFrameId;
   optimSlamTraj.header.stamp = ros::Time(slamToLidar.time);
+  std::vector<Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
   for (const Transform& pose: optimizedSlamPoses)
     optimSlamTraj.poses.emplace_back(TransformToPoseStampedMsg(pose));
   this->OptimizedSlamTrajectoryPub.publish(optimSlamTraj);
@@ -438,8 +448,8 @@ void LidarSlamNode::PublishTfOdom(const Transform& slamToLidar,
   // If we need to output GPS antenna pose instead of LiDAR's, transform LiDAR pose and covariance
   if (this->OutputGpsPose)
   {
-    // Publish once TF from LiDAR to GPS antenna
-    if (this->LidarSlam.GetNbrFrameProcessed() == 1)
+    // Publish TF from LiDAR to GPS antenna if requested
+    if (this->PublishLidarToGpsTf)
     {
       geometry_msgs::TransformStamped TfLidarToSlam;
       TfLidarToSlam.header = tfMsg.header;

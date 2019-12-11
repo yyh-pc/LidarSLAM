@@ -76,7 +76,7 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
   if (this->Verbose)
   {
     std::cout << "ICP has converged:" << icp.hasConverged()
-              << "\nICP score: " << icp.getFitnessScore()
+              << "\nICP loss: " << icp.getFitnessScore()
               << "\nRough transform:\n" << initToRough.matrix()
               << "\nICP transform:\n" << (initToRough.inverse() * initToFinal).matrix()
               << "\nFinal transform:\n" << initToFinal.matrix()
