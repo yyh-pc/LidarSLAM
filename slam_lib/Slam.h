@@ -271,7 +271,7 @@ public:
   void SetVoxelGridLeafSizeEdges(double size);
   void SetVoxelGridLeafSizePlanes(double size);
   void SetVoxelGridLeafSizeBlobs(double size);
-  void SetVoxelGridSize(unsigned int size);
+  void SetVoxelGridSize(int size);
   void SetVoxelGridResolution(double resolution);
 
   void SetKeyPointsExtractor(std::shared_ptr<SpinningSensorKeypointExtractor> extractor) { this->KeyPointsExtractor = extractor; }

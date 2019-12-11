@@ -1642,7 +1642,7 @@ void Slam::SetVoxelGridLeafSizeBlobs(double size)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SetVoxelGridSize(unsigned int size)
+void Slam::SetVoxelGridSize(int size)
 {
   this->EdgesPointsLocalMap->SetGridSize(size);
   this->PlanarPointsLocalMap->SetGridSize(size);

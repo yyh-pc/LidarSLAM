@@ -10,8 +10,8 @@
  * @brief Rolling voxel grid to store and access pointclouds of specific areas.
  *
  * The map reconstructed from the SLAM algorithm is stored in a voxel grid
- * which splits the space in differents regions. From this voxel grid, it is
- * possible to only load the parts of the map which are pertinents when we run
+ * which splits the space in different regions. From this voxel grid, it is
+ * possible to only load the parts of the map which are pertinent when we run
  * the mapping optimization algorithm. Morevover, when a region of the space is
  * too far from the current sensor position, it is possible to remove the points
  * stored in this region and to move the voxel grid in a closest region of the
@@ -66,7 +66,7 @@ private:
   //! [voxels] Size of the current added pointcloud in voxels
   int PointCloudSize = 25;
 
-  //! [m] Size of the leaf used to downsample the pointcloud with a VoxelGrid filter
+  //! [m] Size of the leaf used to downsample the pointcloud with a VoxelGrid filter within each voxel
   double LeafSize = 0.2;
 
   //! VoxelGrid of pointcloud
