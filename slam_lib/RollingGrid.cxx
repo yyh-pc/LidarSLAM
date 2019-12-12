@@ -44,15 +44,18 @@ void RollingGrid::Clear()
 void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
 {
   // Very basic implementation where the grid is not circular.
-  // This keeps the VoxelGrid centered on T position.
+  // This only moves VoxelGrid so that current frame can entirely fit in rolled map.
 
   // Compute the position of the new frame center in the grid.
   int frameCenterX = std::floor(T[3] / this->VoxelResolution);
   int frameCenterY = std::floor(T[4] / this->VoxelResolution);
   int frameCenterZ = std::floor(T[5] / this->VoxelResolution);
 
+  // Half size of the VoxelGrid, rounded up.
+  int halfGridSize = (this->GridSize + 1) / 2;
+
   // Shift the voxel grid to the -X direction.
-  while (frameCenterX < this->VoxelGridPosition[0])
+  while (frameCenterX + this->MinPoint[0] < this->VoxelGridPosition[0] - halfGridSize)
   {
     for (int y = 0; y < this->GridSize; y++)
     {
@@ -69,7 +72,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
   }
 
   // Shift the voxel grid to the +X direction.
-  while (frameCenterX > this->VoxelGridPosition[0])
+  while (frameCenterX + this->MaxPoint[0] > this->VoxelGridPosition[0] + halfGridSize)
   {
     for (int y = 0; y < this->GridSize; y++)
     {
@@ -86,7 +89,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
   }
 
   // Shift the voxel grid to the -Y direction.
-  while (frameCenterY < this->VoxelGridPosition[1])
+  while (frameCenterY + this->MinPoint[1] < this->VoxelGridPosition[1] - halfGridSize)
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -103,7 +106,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
   }
 
   // Shift the voxel grid to the +Y direction.
-  while (frameCenterY > this->VoxelGridPosition[1])
+  while (frameCenterY + this->MaxPoint[1] > this->VoxelGridPosition[1] + halfGridSize)
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -120,7 +123,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
   }
 
   // Shift the voxel grid to the -Z direction.
-  while (frameCenterZ < this->VoxelGridPosition[2])
+  while (frameCenterZ + this->MinPoint[2] < this->VoxelGridPosition[2] - halfGridSize)
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -137,7 +140,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
   }
 
   // Shift the voxel grid to the +Z direction.
-  while (frameCenterZ > this->VoxelGridPosition[2])
+  while (frameCenterZ + this->MaxPoint[2] > this->VoxelGridPosition[2] + halfGridSize)
   {
     for (int x = 0; x < this->GridSize; x++)
     {

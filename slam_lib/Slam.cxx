@@ -257,6 +257,8 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   this->CurrentEdgesPoints = this->KeyPointsExtractor->GetEdgePoints();
   this->CurrentPlanarsPoints = this->KeyPointsExtractor->GetPlanarPoints();
   this->CurrentBlobsPoints = this->KeyPointsExtractor->GetBlobPoints();
+  // Set the max and min keypoints positions to reduce map searching radius and extracted keypoints
+  this->SetFrameMinMaxKeypoints(this->KeyPointsExtractor->GetMinPoint(), this->KeyPointsExtractor->GetMaxPoint());
   PRINT_VERBOSE(2, "========== Keypoints extraction ==========" << std::endl <<
                    "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
                                            << this->CurrentPlanarsPoints->size() << " planes, "
@@ -631,9 +633,6 @@ void Slam::Mapping()
   }
   this->EdgePointRejectionMapping.clear(); this->EdgePointRejectionMapping.resize(this->CurrentEdgesPoints->size());
   this->PlanarPointRejectionMapping.clear(); this->PlanarPointRejectionMapping.resize(this->CurrentPlanarsPoints->size());
-
-  // Set the max and min keypoints positions to reduce map searching radius and extracted keypoints
-  this->SetFrameMinMaxKeypoints(this->KeyPointsExtractor->GetMinPoint(), this->KeyPointsExtractor->GetMaxPoint());
 
   // Update motion model parameters
   if (this->Undistortion)
