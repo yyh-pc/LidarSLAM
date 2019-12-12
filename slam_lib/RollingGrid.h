@@ -44,7 +44,7 @@ public:
   // Remove all points from all voxels
   void Clear();
 
-  void SetPointCoudMaxRange(double maxdist);
+  void SetMinMaxPoints(const Eigen::Vector3d& minPoint, const Eigen::Vector3d& maxPoint);
 
   void SetGridSize(int size);
   GetMacro(GridSize, int)
@@ -63,8 +63,8 @@ private:
   //! [m/voxel] Resolution of a voxel
   double VoxelResolution = 10.;
 
-  //! [voxels] Size of the current added pointcloud in voxels
-  int PointCloudSize = 25;
+  //! [voxels] Minimum and maximum keypoints coordinates
+  int MinPoint[3], MaxPoint[3];
 
   //! [m] Size of the leaf used to downsample the pointcloud with a VoxelGrid filter within each voxel
   double LeafSize = 0.2;

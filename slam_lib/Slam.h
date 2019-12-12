@@ -575,8 +575,8 @@ private:
   // Display information about the keypoints - neighborhood matching rejections
   void RejectionInformationDisplay();  // CHECK : undefined, delete ?
 
-  // Set the lidar maximun range
-  void SetLidarMaximumRange(const double maxRange);
+  // Set the current keypoints frame max and min points
+  void SetFrameMinMaxKeypoints(const Eigen::Vector3d& minPoint, const Eigen::Vector3d& maxPoint);
 };
 
 #endif // SLAM_H

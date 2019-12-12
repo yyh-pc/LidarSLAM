@@ -58,6 +58,8 @@ public:
   SetMacro(SaillancyThreshold, double)
 
   GetMacro(FarestKeypointDist, double)
+  Eigen::Vector3d GetMinPoint() { return this->MinPoint.cast<double>();}
+  Eigen::Vector3d GetMaxPoint() { return this->MaxPoint.cast<double>();}
 
   GetMacro(NLasers, int)
 
@@ -137,7 +139,9 @@ private:
   unsigned int NLasers = 0;
 
   // norm of the farest keypoints
-  double FarestKeypointDist = 0;
+  double FarestKeypointDist;
+  // Minimum and maximum keypoints coordinates
+  Eigen::Array3f MinPoint, MaxPoint;
 
   // Curvature and over differntial operations
   // scan by scan; point by point

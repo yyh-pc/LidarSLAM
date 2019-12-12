@@ -12,6 +12,9 @@ RollingGrid::RollingGrid()
 {
   // Init empty grid of right size
   this->SetGridSize(this->GridSize);
+  int halfGridSize = std::ceil(this->GridSize / 2);
+  std::fill_n(this->MinPoint, 3, -halfGridSize);
+  std::fill_n(this->MaxPoint, 3, halfGridSize);
 }
 
 //------------------------------------------------------------------------------
@@ -19,6 +22,9 @@ RollingGrid::RollingGrid(double posX, double posY, double posZ)
 {
   // Init empty grid of right size
   this->SetGridSize(this->GridSize);
+  int halfGridSize = std::ceil(this->GridSize / 2);
+  std::fill_n(this->MinPoint, 3, -halfGridSize);
+  std::fill_n(this->MaxPoint, 3, halfGridSize);
   // Initialize VoxelGrid center position
   this->VoxelGridPosition[0] = std::floor(posX / this->VoxelResolution);
   this->VoxelGridPosition[1] = std::floor(posY / this->VoxelResolution);
@@ -157,12 +163,12 @@ RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Matrix<double, 6, 1>&
   int frameCenterZ = std::floor(T[5] / this->VoxelResolution) - (this->VoxelGridPosition[2] - this->GridSize / 2);
 
   // Get sub-VoxelGrid bounds
-  int minX = std::max<int>(frameCenterX - std::ceil(this->PointCloudSize / 2), 0);
-  int maxX = std::min<int>(frameCenterX + std::ceil(this->PointCloudSize / 2), this->GridSize - 1);
-  int minY = std::max<int>(frameCenterY - std::ceil(this->PointCloudSize / 2), 0);
-  int maxY = std::min<int>(frameCenterY + std::ceil(this->PointCloudSize / 2), this->GridSize - 1);
-  int minZ = std::max<int>(frameCenterZ - std::ceil(this->PointCloudSize / 2), 0);
-  int maxZ = std::min<int>(frameCenterZ + std::ceil(this->PointCloudSize / 2), this->GridSize - 1);
+  int minX = std::max<int>(frameCenterX + this->MinPoint[0], 0);
+  int maxX = std::min<int>(frameCenterX + this->MaxPoint[0], this->GridSize - 1);
+  int minY = std::max<int>(frameCenterY + this->MinPoint[1], 0);
+  int maxY = std::min<int>(frameCenterY + this->MaxPoint[1], this->GridSize - 1);
+  int minZ = std::max<int>(frameCenterZ + this->MinPoint[2], 0);
+  int maxZ = std::min<int>(frameCenterZ + this->MaxPoint[2], this->GridSize - 1);
 
   // Get all voxel in intersection
   PointCloud::Ptr intersection(new PointCloud);
@@ -244,9 +250,14 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud)
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::SetPointCoudMaxRange(double maxdist)
+void RollingGrid::SetMinMaxPoints(const Eigen::Vector3d& minPoint, const Eigen::Vector3d& maxPoint)
 {
-  this->PointCloudSize = std::ceil(2 * maxdist / this->VoxelResolution);
+  this->MinPoint[0] = std::floor(minPoint[0] / this->VoxelResolution);
+  this->MinPoint[1] = std::floor(minPoint[1] / this->VoxelResolution);
+  this->MinPoint[2] = std::floor(minPoint[2] / this->VoxelResolution);
+  this->MaxPoint[0] = std::ceil(maxPoint[0] / this->VoxelResolution);
+  this->MaxPoint[1] = std::ceil(maxPoint[1] / this->VoxelResolution);
+  this->MaxPoint[2] = std::ceil(maxPoint[2] / this->VoxelResolution);
 }
 
 //------------------------------------------------------------------------------

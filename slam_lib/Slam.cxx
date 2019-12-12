@@ -632,8 +632,8 @@ void Slam::Mapping()
   this->EdgePointRejectionMapping.clear(); this->EdgePointRejectionMapping.resize(this->CurrentEdgesPoints->size());
   this->PlanarPointRejectionMapping.clear(); this->PlanarPointRejectionMapping.resize(this->CurrentPlanarsPoints->size());
 
-  // Set the FarestPoint to reduce the map to the minimum size
-  this->SetLidarMaximumRange(this->KeyPointsExtractor->GetFarestKeypointDist());
+  // Set the max and min keypoints positions to reduce map searching radius and extracted keypoints
+  this->SetFrameMinMaxKeypoints(this->KeyPointsExtractor->GetMinPoint(), this->KeyPointsExtractor->GetMaxPoint());
 
   // Update motion model parameters
   if (this->Undistortion)
@@ -1678,7 +1678,7 @@ void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr pointcloud)
 }
 
 //==============================================================================
-//   Parameters setting
+//   Rolling grids parameters setting
 //==============================================================================
 
 //-----------------------------------------------------------------------------
@@ -1724,9 +1724,9 @@ void Slam::SetVoxelGridResolution(double resolution)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SetLidarMaximumRange(const double maxRange)
+void Slam::SetFrameMinMaxKeypoints(const Eigen::Vector3d& minPoint, const Eigen::Vector3d& maxPoint)
 {
-  this->EdgesPointsLocalMap->SetPointCoudMaxRange(maxRange);
-  this->PlanarPointsLocalMap->SetPointCoudMaxRange(maxRange);
-  this->BlobsPointsLocalMap->SetPointCoudMaxRange(maxRange);
+  this->EdgesPointsLocalMap->SetMinMaxPoints(minPoint, maxPoint);
+  this->PlanarPointsLocalMap->SetMinMaxPoints(minPoint, maxPoint);
+  this->BlobsPointsLocalMap->SetMinMaxPoints(minPoint, maxPoint);
 }

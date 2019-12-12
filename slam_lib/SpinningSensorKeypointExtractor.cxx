@@ -773,24 +773,34 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
 
   // fill the keypoints vectors and compute the max dist keypoints
   this->FarestKeypointDist = 0.0;
-  Point p;
-  for (unsigned int k = 0; k < this->EdgesIndex.size(); ++k)
+  this->MinPoint = std::numeric_limits<double>::max();
+  this->MaxPoint = std::numeric_limits<double>::min();
+  for (const auto& edgeIndex: this->EdgesIndex)
   {
-    p = this->pclCurrentFrameByScan[this->EdgesIndex[k].first]->points[this->EdgesIndex[k].second];
+    const Point& p = this->pclCurrentFrameByScan[edgeIndex.first]->points[edgeIndex.second];
     this->EdgesPoints->push_back(p);
     this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(std::pow(p.x, 2) + std::pow(p.y, 2) + std::pow(p.z, 2)));
+    pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
+    this->MinPoint = this->MinPoint.min(pointXYZ);
+    this->MaxPoint = this->MaxPoint.max(pointXYZ);
   }
-  for (unsigned int k = 0; k < this->PlanarIndex.size(); ++k)
+  for (const auto& planarIndex: this->PlanarIndex)
   {
-    p = this->pclCurrentFrameByScan[this->PlanarIndex[k].first]->points[this->PlanarIndex[k].second];
+    const Point& p = this->pclCurrentFrameByScan[planarIndex.first]->points[planarIndex.second];
     this->PlanarsPoints->push_back(p);
     this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(std::pow(p.x, 2) + std::pow(p.y, 2) + std::pow(p.z, 2)));
+    pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
+    this->MinPoint = this->MinPoint.min(pointXYZ);
+    this->MaxPoint = this->MaxPoint.max(pointXYZ);
   }
-  for (unsigned int k = 0; k < this->BlobIndex.size();  ++k)
+  for (const auto& blobIndex: this->BlobIndex)
   {
-    p = this->pclCurrentFrameByScan[this->BlobIndex[k].first]->points[this->BlobIndex[k].second];
+    const Point& p = this->pclCurrentFrameByScan[blobIndex.first]->points[blobIndex.second];
     this->BlobsPoints->push_back(p);
     this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(std::pow(p.x, 2) + std::pow(p.y, 2) + std::pow(p.z, 2)));
+    pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
+    this->MinPoint = this->MinPoint.min(pointXYZ);
+    this->MaxPoint = this->MaxPoint.max(pointXYZ);
   }
   this->FarestKeypointDist = std::sqrt(this->FarestKeypointDist);
 }
