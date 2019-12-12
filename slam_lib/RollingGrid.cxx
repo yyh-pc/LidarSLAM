@@ -63,7 +63,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
       {
         for (int x = this->GridSize - 1; x > 0; x--)
         {
-          this->Grid[x][y][z] = this->Grid[x - 1][y][z];
+          this->Grid[x][y][z] = std::move(this->Grid[x - 1][y][z]);
         }
         this->Grid[0][y][z].reset(new PointCloud());
       }
@@ -80,7 +80,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
       {
         for (int x = 0; x < this->GridSize - 1; x++)
         {
-          this->Grid[x][y][z] = this->Grid[x + 1][y][z];
+          this->Grid[x][y][z] = std::move(this->Grid[x + 1][y][z]);
         }
         this->Grid[this->GridSize - 1][y][z].reset(new PointCloud());
       }
@@ -97,7 +97,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
       {
         for (int y = this->GridSize - 1; y > 0; y--)
         {
-          this->Grid[x][y][z] = this->Grid[x][y - 1][z];
+          this->Grid[x][y][z] = std::move(this->Grid[x][y - 1][z]);
         }
         this->Grid[x][0][z].reset(new PointCloud());
       }
@@ -114,7 +114,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
       {
         for (int y = 0; y < this->GridSize - 1; y++)
         {
-          this->Grid[x][y][z] = this->Grid[x][y + 1][z];
+          this->Grid[x][y][z] = std::move(this->Grid[x][y + 1][z]);
         }
         this->Grid[x][this->GridSize - 1][z].reset(new PointCloud());
       }
@@ -131,7 +131,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
       {
         for (int z = this->GridSize - 1; z > 0; z--)
         {
-          this->Grid[x][y][z] = this->Grid[x][y][z - 1];
+          this->Grid[x][y][z] = std::move(this->Grid[x][y][z - 1]);
         }
         this->Grid[x][y][0].reset(new PointCloud());
       }
@@ -148,7 +148,7 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
       {
         for (int z = 0; z < this->GridSize - 1; z++)
         {
-          this->Grid[x][y][z] = this->Grid[x][y][z + 1];
+          this->Grid[x][y][z] = std::move(this->Grid[x][y][z + 1]);
         }
         this->Grid[x][y][this->GridSize - 1].reset(new PointCloud());
       }
