@@ -65,7 +65,7 @@ gps:
 slam:
 
   fast_slam: true      # Use only planars keypoints used during EgoMotion for Mapping step, and not all.
-  undistortion: false  # Undistord the frame to correct rolling shutter distortion. DEBUG
+  undistortion: false  # Undistort the frame to correct rolling shutter distortion. DEBUG
 
   # Optionnal logging of computed pose, mapping covariance and keypoints of each processed frame.
   #  - A value of 0. will disable logging.
