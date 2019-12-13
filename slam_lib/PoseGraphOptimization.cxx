@@ -106,7 +106,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   // Check input vector sizes (at least 2 elements)
   if ((nbSlamPoses < 2) || (nbGpsPoses < 2))
   {
-    std::cerr << "ERROR : SLAM and GPS trajectories must have at least 2 points "
+    std::cerr << "[ERROR] SLAM and GPS trajectories must have at least 2 points "
               << "(Got " << nbSlamPoses << " SLAM poses and " << nbGpsPoses << " GPS positions)."
               << std::endl;
     return false;
@@ -121,7 +121,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   if (!checkInterval(gpsInitTime, slamInitTime, slamEndTime) &&
       !checkInterval(slamInitTime, gpsInitTime, gpsEndTime))
   {
-    std::cerr << "ERROR : Slam time and GPS time do not match. "
+    std::cerr << "[ERROR] Slam time and GPS time do not match. "
               << "GPS = ("<< gpsInitTime << ", " << gpsEndTime << "); "
               << "SLAM = ("<< slamInitTime << ", " << slamEndTime << "). "
               << "Please indicate the time offset." << std::endl;
@@ -152,7 +152,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
     if (!G2OFileName.empty())
       this->GraphOptimizer.save(G2OFileName.c_str());
     else
-      std::cout << "WARNING : Could not save the g2o graph. Please specify a filename" << std::endl;
+      std::cout << "[WARNING] Could not save the g2o graph. Please specify a filename" << std::endl;
   }
 
   // Print debug info
@@ -266,14 +266,6 @@ void PoseGraphOptimization::BuildPoseGraph(const std::vector<Transform>& slamPos
       gpsEdge->setInformation(covMatrix.inverse());
       gpsEdge->setParameterId(0, 0);  // Tell the edge to use the sensor/GPS calibration which is already defined. CHECK only translation is used?
       this->GraphOptimizer.addEdge(gpsEdge);
-
-      // // Add unary edge to closest SLAM vertex
-      // auto* gpsEdge = new g2o::EdgeSE3XYZPrior;
-      // gpsEdge->setVertex(0, this->GraphOptimizer.vertex(foundId));
-      // gpsEdge->setMeasurement(gpsPose.translation());
-      // gpsEdge->setInformation(covMatrix.inverse());
-      // gpsEdge->setParameterId(0, 0); // Tell the edge to use the sensor/GPS calibration which is already defined. CHECK Unused ?
-      // this->GraphOptimizer.addEdge(gpsEdge);
     }
   }
 }

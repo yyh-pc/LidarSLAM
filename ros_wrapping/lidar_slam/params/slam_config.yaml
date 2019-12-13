@@ -103,8 +103,8 @@ slam:
   mapping_init_loss_scale: 0.7
   mapping_final_loss_scale: 0.05
 
-  voxel_grid_leaf_size_edges: 0.45
-  voxel_grid_leaf_size_planes: 0.6
-  voxel_grid_leaf_size_blobs: 0.12
-  voxel_grid_size: 50
-  voxel_grid_resolution: 10
+  voxel_grid_leaf_size_edges: 0.45   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
+  voxel_grid_leaf_size_planes: 0.6   # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
+  voxel_grid_leaf_size_blobs: 0.12   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
+  voxel_grid_size: 50                # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
+  voxel_grid_resolution: 10.         # [m/voxel] Resolution of a voxel.
