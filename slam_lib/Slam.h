@@ -327,17 +327,18 @@ private:
 
   // Transformation to map the current pointcloud
   // in the referential of the previous one
-  Eigen::Matrix<double, 6, 1> Trelative;
-  Eigen::VectorXd MotionParametersEgoMotion;
+  Eigen::Isometry3d Trelative;
+  std::pair<Eigen::Isometry3d, Eigen::Isometry3d> MotionParametersEgoMotion;
 
   // Transformation to map the current pointcloud
   // in the world (i.e first frame) one
-  Eigen::Matrix<double, 6, 1> Tworld = Eigen::Matrix<double, 6, 1>::Zero();
-  Eigen::Matrix<double, 6, 1> PreviousTworld = Eigen::Matrix<double, 6, 1>::Zero(); // CHECK unused ?
-  Eigen::VectorXd MotionParametersMapping;
+  Eigen::Isometry3d Tworld = Eigen::Isometry3d::Identity();
+  Eigen::Isometry3d PreviousTworld = Eigen::Isometry3d::Identity(); // CHECK unused ?
+  std::pair<Eigen::Isometry3d, Eigen::Isometry3d> MotionParametersMapping;
 
   // Variance-Covariance matrix that estimates the
   // estimation error about the 6-DoF parameters
+  // (DoF order : rX, rY, rZ, X, Y, Z)
   Eigen::Matrix<double, 6, 6> TworldCovariance = Eigen::Matrix<double, 6, 6>::Identity();
 
   // Represents estimated samples of the trajectory
@@ -534,7 +535,7 @@ private:
   // using the constant velocity hypothesis and the provided sensor
   // position estimation
   void ExpressPointInOtherReferencial(Point& p);
-  void ExpressPointCloudInOtherReferencial(PointCloud::Ptr pointcloud);
+  void ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud);
 
   // Compute the trajectory of the sensor within a frame according to the sensor
   // motion model.
@@ -553,12 +554,12 @@ private:
   // (R * X + T - P).t * A * (R * X + T - P)
   // Where P is the mean point of the neighborhood and A is the symmetric
   // variance-covariance matrix encoding the shape of the neighborhood
-  int ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtreePreviousEdges, Eigen::Matrix3d& R,
-                                    Eigen::Vector3d& dT, Point p, MatchingMode matchingMode);
-  int ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, Eigen::Matrix3d& R,
-                                     Eigen::Vector3d& dT, Point p, MatchingMode matchingMode);
-  int ComputeBlobsDistanceParameters(pcl::KdTreeFLANN<Point>::Ptr kdtreePreviousBlobs, Eigen::Matrix3d& R,
-                                     Eigen::Vector3d& dT, Point p, MatchingMode /*matchingMode*/);
+  int ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtreePreviousEdges, const Eigen::Isometry3d& transform,
+                                    Point p, MatchingMode matchingMode);
+  int ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, const Eigen::Isometry3d& transform,
+                                     Point p, MatchingMode matchingMode);
+  int ComputeBlobsDistanceParameters(pcl::KdTreeFLANN<Point>::Ptr kdtreePreviousBlobs, const Eigen::Isometry3d& transform,
+                                     Point p, MatchingMode /*matchingMode*/);
 
   // Instead of taking the k-nearest neigbors in the odometry step we will take
   // specific neighbor using the particularities of the lidar sensor
