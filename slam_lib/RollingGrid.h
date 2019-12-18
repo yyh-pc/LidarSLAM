@@ -30,10 +30,10 @@ public:
   RollingGrid(double posX, double posY, double posZ);
 
   //! Roll the grid to enable adding new point cloud
-  void Roll(const Eigen::Matrix<double, 6, 1>& T);
+  void Roll(const Eigen::Vector3d& T);
 
   //! Get points near T
-  PointCloud::Ptr Get(const Eigen::Matrix<double, 6, 1>& T);
+  PointCloud::Ptr Get(const Eigen::Vector3d& T);
 
   //! Get all points
   PointCloud::Ptr Get();
@@ -41,9 +41,10 @@ public:
   //! Add some points to the grid
   void Add(const PointCloud::Ptr& pointcloud);
 
-  // Remove all points from all voxels
+  //! Remove all points from all voxels
   void Clear();
 
+  //! Set min and max keypoints bounds of current frame
   void SetMinMaxPoints(const Eigen::Vector3d& minPoint, const Eigen::Vector3d& maxPoint);
 
   void SetGridSize(int size);

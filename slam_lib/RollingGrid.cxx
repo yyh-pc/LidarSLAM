@@ -41,15 +41,15 @@ void RollingGrid::Clear()
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
+void RollingGrid::Roll(const Eigen::Vector3d& T)
 {
   // Very basic implementation where the grid is not circular.
   // This only moves VoxelGrid so that current frame can entirely fit in rolled map.
 
   // Compute the position of the new frame center in the grid.
-  int frameCenterX = std::floor(T[3] / this->VoxelResolution);
-  int frameCenterY = std::floor(T[4] / this->VoxelResolution);
-  int frameCenterZ = std::floor(T[5] / this->VoxelResolution);
+  int frameCenterX = std::floor(T.x() / this->VoxelResolution);
+  int frameCenterY = std::floor(T.y() / this->VoxelResolution);
+  int frameCenterZ = std::floor(T.z() / this->VoxelResolution);
 
   // Half size of the VoxelGrid, rounded up.
   int halfGridSize = (this->GridSize + 1) / 2;
@@ -158,12 +158,12 @@ void RollingGrid::Roll(const Eigen::Matrix<double, 6, 1>& T)
 }
 
 //------------------------------------------------------------------------------
-RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Matrix<double, 6, 1>& T)
+RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Vector3d& T)
 {
   // Compute the position of the new frame center in the grid
-  int frameCenterX = std::floor(T[3] / this->VoxelResolution) - (this->VoxelGridPosition[0] - this->GridSize / 2);
-  int frameCenterY = std::floor(T[4] / this->VoxelResolution) - (this->VoxelGridPosition[1] - this->GridSize / 2);
-  int frameCenterZ = std::floor(T[5] / this->VoxelResolution) - (this->VoxelGridPosition[2] - this->GridSize / 2);
+  int frameCenterX = std::floor(T.x() / this->VoxelResolution) - (this->VoxelGridPosition[0] - this->GridSize / 2);
+  int frameCenterY = std::floor(T.y() / this->VoxelResolution) - (this->VoxelGridPosition[1] - this->GridSize / 2);
+  int frameCenterZ = std::floor(T.z() / this->VoxelResolution) - (this->VoxelGridPosition[2] - this->GridSize / 2);
 
   // Get sub-VoxelGrid bounds
   int minX = std::max<int>(frameCenterX + this->MinPoint[0], 0);
