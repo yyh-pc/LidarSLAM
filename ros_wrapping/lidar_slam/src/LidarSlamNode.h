@@ -112,6 +112,7 @@ private:
   std::vector<size_t> LaserIdMapping;
   double LidarFreq = 10.;
   int Verbosity = 1;
+  unsigned int PreviousFrameId = 0;
 
   // Basic publishers & subscribers
   std::string SlamOriginFrameId = "slam_init";  ///< Frame id of SLAM map origin.

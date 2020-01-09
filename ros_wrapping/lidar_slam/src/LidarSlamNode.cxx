@@ -74,7 +74,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   if (this->UseGps)
   {
     // Init logging of GPS data for GPS/SLAM calibration or Pose Graph Optimization.
-    this->GpsOdomSub = nh.subscribe("gps_odom", 3, &LidarSlamNode::GpsCallback, this);
+    this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
 
     // Init GPS/SLAM calibration to output SLAM pose to world coordinates.
     priv_nh.getParam("gps/calibration/no_roll", this->CalibrationNoRoll);
@@ -108,7 +108,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // ***************************************************************************
   // Init basic ROS subscribers and publishers
   this->PoseCovarPub = nh.advertise<nav_msgs::Odometry>("slam_odom", 1);
-  this->CloudSub = nh.subscribe("velodyne_points", 3, &LidarSlamNode::ScanCallback, this);
+  this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::ScanCallback, this);
   this->SlamCommandSub = nh.subscribe("slam_command", 1,  &LidarSlamNode::SlamCommandCallback, this);
 
   ROS_INFO_STREAM("\033[1;32mLiDAR SLAM is ready !\033[0m");
@@ -117,6 +117,12 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 //------------------------------------------------------------------------------
 void LidarSlamNode::ScanCallback(const CloudV& cloudV)
 {
+  // Check frame dropping
+  unsigned int droppedFrames = cloudV.header.seq - this->PreviousFrameId - 1;
+  if ((this->PreviousFrameId > 0) && droppedFrames)
+    ROS_WARN_STREAM("SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s." : "."));
+  this->PreviousFrameId = cloudV.header.seq;
+
   // Init this->LaserIdMapping if not already done
   if (!this->LaserIdMapping.size())
   {
