@@ -56,6 +56,12 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParam("slam_origin_frame", this->SlamOriginFrameId);
   priv_nh.getParam("slam_output_frame", this->SlamOutputFrameId);
 
+  // Get PCD saving parameters
+  int pcdFormat;
+  priv_nh.getParam("save_features_maps/path_prefix", this->KeypointsMapPathPrefix);
+  priv_nh.getParam("save_features_maps/pcd_format", pcdFormat);
+  this->KeypointsMapPcdFormat = static_cast<PCDFormat>(pcdFormat);
+
   // ***************************************************************************
   // Init optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor
   priv_nh.getParam("gps/output_gps_pose", this->OutputGpsPose);
@@ -242,6 +248,12 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     case lidar_slam::SlamCommand::DISABLE_SLAM_MAP_UPDATE:
       this->LidarSlam.SetUpdateMap(false);
       ROS_WARN_STREAM("Disabling SLAM maps update.");
+      break;
+
+    // Save SLAM keypoints maps to PCD files
+    case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
+      ROS_INFO_STREAM("Saving keypoints maps.");
+      this->LidarSlam.SaveMapsToPCD(this->KeypointsMapPathPrefix, this->KeypointsMapPcdFormat);
       break;
 
     // Unkown command

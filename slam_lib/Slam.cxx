@@ -83,6 +83,7 @@
 #include <ceres/ceres.h>
 // PCL
 #include <pcl/common/transforms.h>
+#include <pcl/io/pcd_io.h>
 
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
@@ -439,6 +440,49 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
   // Set current pose
   this->Tworld = poseGuess.GetIsometry();
   // TODO update motionParameters
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat)
+{
+  IF_VERBOSE(3, InitTime("Keypoints maps saving to PCD"));
+
+  // Get keypoints maps
+  PointCloud::Ptr edgesMap = this->GetEdgesMap(),
+                  planarsMap = this->GetPlanarsMap(),
+                  blobsMap = this->GetBlobsMap();
+
+  // Call correct pcl::io::savePCDFFile function according to pcdFormat
+  auto saveMapToPCD = [pcdFormat](const std::string& path, const PointCloud& map)
+  {
+    if (map.empty())
+      return -3;
+
+    switch (pcdFormat)
+    {
+      case PCDFormat::ascii:
+        std::cout << "Saving SLAM keypoints map to ascii PCD file at " << path << std::endl;
+        return pcl::io::savePCDFile(path, map);
+
+      case PCDFormat::binary:
+        std::cout << "Saving SLAM keypoints map to binary PCD file at " << path << std::endl;
+        return pcl::io::savePCDFileBinary(path, map);
+
+      case PCDFormat::binary_compressed:
+        std::cout << "Saving SLAM keypoints map to binary_compressed PCD file at " << path << std::endl;
+        return pcl::io::savePCDFileBinaryCompressed(path, map);
+
+      default:
+        std::cerr << "Unknown PCDFormat value (" << pcdFormat << "). Unable to save keypoints map." << std::endl;
+        return -4;
+    }
+  };
+
+  saveMapToPCD(filePrefix + "_edges.pcd", *edgesMap);
+  saveMapToPCD(filePrefix + "_planars.pcd", *planarsMap);
+  saveMapToPCD(filePrefix + "_blobs.pcd", *blobsMap);
+
+  IF_VERBOSE(3, StopTimeAndDisplay("Keypoints maps saving to PCD"));
 }
 
 //==============================================================================

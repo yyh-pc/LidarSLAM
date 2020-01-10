@@ -12,7 +12,7 @@ find_package(Ceres REQUIRED)
 
 find_package(g2o REQUIRED)
 
-find_package(PCL REQUIRED COMPONENTS common kdtree registration)
+find_package(PCL REQUIRED COMPONENTS common kdtree registration io)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 

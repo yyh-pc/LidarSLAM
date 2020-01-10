@@ -28,3 +28,6 @@ uint8 SET_SLAM_POSE_FROM_NEXT_GPS = 4
 # if we want to keep the pose graph optimized SLAM map untouched.
 uint8 DISABLE_SLAM_MAP_UPDATE = 8
 uint8 ENABLE_SLAM_MAP_UPDATE = 9
+
+# Save keypoints maps (edges, planes and blobs if used) to disk for later use.
+uint8 SAVE_KEYPOINTS_MAPS = 16

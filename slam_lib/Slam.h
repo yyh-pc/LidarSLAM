@@ -105,6 +105,13 @@ enum WithinFrameTrajMode
   UndistortionTraj = 2
 };
 
+enum PCDFormat
+{
+  ascii = 0,
+  binary = 1,
+  binary_compressed = 2
+};
+
 class Slam
 {
 public:
@@ -158,6 +165,9 @@ public:
 
   // Set world transform with an initial guess (usually from GPS after calibration).
   void SetWorldTransformFromGuess(const Transform& poseGuess);
+
+  // Save keypoints maps to disk for later use
+  void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::binary_compressed);
 
   // ---------------------------------------------------------------------------
   //   General parameters
