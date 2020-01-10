@@ -156,28 +156,43 @@ Eigen::Vector3d Rad2Deg(const Eigen::Vector3d& val)
 //-----------------------------------------------------------------------------
 Slam::Slam()
 {
-  this->Reset();
-}
-
-//-----------------------------------------------------------------------------
-void Slam::Reset()
-{
+  // Allocate maps
   this->EdgesPointsLocalMap = std::make_shared<RollingGrid>();
   this->PlanarPointsLocalMap = std::make_shared<RollingGrid>();
   this->BlobsPointsLocalMap = std::make_shared<RollingGrid>();
+
+  // Set default maps parameters
   this->SetVoxelGridResolution(10.);
   this->SetVoxelGridSize(50);
   this->SetVoxelGridLeafSizeEdges(0.45);
   this->SetVoxelGridLeafSizePlanes(0.6);
   this->SetVoxelGridLeafSizeBlobs(0.12);
 
-  this->NbrFrameProcessed = 0;
+  // Reset SLAM internal state
+  this->Reset();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::Reset(bool resetLog)
+{
+  // Reset keypoints maps
+  this->ClearMaps();
 
   // n-DoF parameters
   this->Tworld = Eigen::Isometry3d::Identity();
   this->Trelative = Eigen::Isometry3d::Identity();
   this->MotionParametersEgoMotion = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
   this->MotionParametersMapping = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
+
+  // Reset log history
+  if (resetLog)
+  {
+    this->NbrFrameProcessed = 0;
+    this->LogTrajectory.clear();
+    this->LogEdgesPoints.clear();
+    this->LogPlanarsPoints.clear();
+    this->LogBlobsPoints.clear();
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -377,9 +392,9 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   gpsToSensorOffset = optimizedSlamPoses.front().GetIsometry();
 
   // Update SLAM trajectory and maps
-  IF_VERBOSE(3, InitTime("PGO : Maps reset"));
-  this->ClearMaps();
-  IF_VERBOSE(3, StopTimeAndDisplay("PGO : Maps reset"));
+  IF_VERBOSE(3, InitTime("PGO : SLAM reset"));
+  this->Reset(false);
+  IF_VERBOSE(3, StopTimeAndDisplay("PGO : SLAM reset"));
   IF_VERBOSE(3, InitTime("PGO : frames keypoints aggregation"));
   PointCloud::Ptr aggregatedEdgesMap(new PointCloud());
   PointCloud::Ptr aggregatedPlanarsMap(new PointCloud());
@@ -1653,9 +1668,9 @@ void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud)
 //-----------------------------------------------------------------------------
 void Slam::ClearMaps()
 {
-  this->EdgesPointsLocalMap->Clear();
-  this->PlanarPointsLocalMap->Clear();
-  this->BlobsPointsLocalMap->Clear();
+  this->EdgesPointsLocalMap->Reset();
+  this->PlanarPointsLocalMap->Reset();
+  this->BlobsPointsLocalMap->Reset();
 }
 
 //-----------------------------------------------------------------------------

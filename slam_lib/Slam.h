@@ -122,7 +122,7 @@ public:
 
   // Initialization
   Slam();
-  void Reset();
+  void Reset(bool resetLog = true);
 
   // ---------------------------------------------------------------------------
   //   Main SLAM use

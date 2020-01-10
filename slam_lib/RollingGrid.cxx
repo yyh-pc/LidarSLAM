@@ -10,25 +10,31 @@
 //------------------------------------------------------------------------------
 RollingGrid::RollingGrid()
 {
-  // Init empty grid of right size
-  this->SetGridSize(this->GridSize);
-  int halfGridSize = std::ceil(this->GridSize / 2);
-  std::fill_n(this->MinPoint, 3, -halfGridSize);
-  std::fill_n(this->MaxPoint, 3, halfGridSize);
+  this->Reset();
 }
 
 //------------------------------------------------------------------------------
 RollingGrid::RollingGrid(double posX, double posY, double posZ)
 {
-  // Init empty grid of right size
-  this->SetGridSize(this->GridSize);
-  int halfGridSize = std::ceil(this->GridSize / 2);
-  std::fill_n(this->MinPoint, 3, -halfGridSize);
-  std::fill_n(this->MaxPoint, 3, halfGridSize);
+  this->Reset();
+
   // Initialize VoxelGrid center position
   this->VoxelGridPosition[0] = std::floor(posX / this->VoxelResolution);
   this->VoxelGridPosition[1] = std::floor(posY / this->VoxelResolution);
   this->VoxelGridPosition[2] = std::floor(posZ / this->VoxelResolution);
+}
+
+//------------------------------------------------------------------------------
+void RollingGrid::Reset()
+{
+  // Clear/reset empty voxel grid to right size
+  this->SetGridSize(this->GridSize);
+  // Reset VoxelGrid center position
+  std::fill_n(this->VoxelGridPosition, 3, 0);
+  // Reset min and max points of current frame
+  int halfGridSize = std::ceil(this->GridSize / 2);
+  std::fill_n(this->MinPoint, 3, -halfGridSize);
+  std::fill_n(this->MaxPoint, 3, halfGridSize);
 }
 
 //------------------------------------------------------------------------------
@@ -37,7 +43,15 @@ void RollingGrid::Clear()
   for (int x = 0; x < this->GridSize; x++)
     for (int y = 0; y < this->GridSize; y++)
       for (int z = 0; z < this->GridSize; z++)
-        this->Grid[x][y][z]->clear();
+      {
+        // If voxel is not already initialized, allocate memory.
+        // Otherwise, just clear data without freeing dedicating memory for faster processing.
+        auto& voxel = this->Grid[x][y][z];
+        if (voxel)
+          voxel->clear();
+        else
+          voxel.reset(new PointCloud);
+      }
 }
 
 //------------------------------------------------------------------------------
@@ -267,17 +281,14 @@ void RollingGrid::SetMinMaxPoints(const Eigen::Vector3d& minPoint, const Eigen::
 void RollingGrid::SetGridSize(int size)
 {
   this->GridSize = size;
+  // Resize voxel grid
   this->Grid.resize(this->GridSize);
   for (int x = 0; x < this->GridSize; x++)
   {
     this->Grid[x].resize(this->GridSize);
     for (int y = 0; y < this->GridSize; y++)
-    {
       this->Grid[x][y].resize(this->GridSize);
-      for (int z = 0; z < this->GridSize; z++)
-      {
-        this->Grid[x][y][z].reset(new PointCloud());
-      }
-    }
   }
+  // Clear current voxel grid and allocate new voxels
+  this->Clear();
 }
