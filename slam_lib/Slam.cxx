@@ -462,11 +462,6 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat)
 {
   IF_VERBOSE(3, InitTime("Keypoints maps saving to PCD"));
 
-  // Get keypoints maps
-  PointCloud::Ptr edgesMap = this->GetEdgesMap(),
-                  planarsMap = this->GetPlanarsMap(),
-                  blobsMap = this->GetBlobsMap();
-
   // Call correct pcl::io::savePCDFFile function according to pcdFormat
   auto saveMapToPCD = [pcdFormat](const std::string& path, const PointCloud& map)
   {
@@ -493,11 +488,43 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat)
     }
   };
 
-  saveMapToPCD(filePrefix + "_edges.pcd", *edgesMap);
-  saveMapToPCD(filePrefix + "_planars.pcd", *planarsMap);
-  saveMapToPCD(filePrefix + "_blobs.pcd", *blobsMap);
+  // Save keypoints maps
+  saveMapToPCD(filePrefix + "_edges.pcd",   *this->GetEdgesMap());
+  saveMapToPCD(filePrefix + "_planars.pcd", *this->GetPlanarsMap());
+  saveMapToPCD(filePrefix + "_blobs.pcd",   *this->GetBlobsMap());
+
+  // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
 
   IF_VERBOSE(3, StopTimeAndDisplay("Keypoints maps saving to PCD"));
+}
+
+//-----------------------------------------------------------------------------
+void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
+{
+  IF_VERBOSE(3, InitTime("Keypoints maps loading from PCD"));
+
+  // In most of the cases, we would like to reset SLAM internal maps before
+  // loading new maps to avoid conflicts.
+  if (resetMaps)
+    this->ClearMaps();
+
+  auto loadMapFromPCD = [](const std::string& path, std::shared_ptr<RollingGrid>& map)
+  {
+    PointCloud::Ptr keypoints(new PointCloud);
+    if (pcl::io::loadPCDFile(path, *keypoints) == 0)
+    {
+      std::cout << "SLAM keypoints map successfully loaded from " << path << std::endl;
+      map->Add(keypoints);
+    }
+  };
+
+  loadMapFromPCD(filePrefix + "_edges.pcd",   this->EdgesPointsLocalMap);
+  loadMapFromPCD(filePrefix + "_planars.pcd", this->PlanarPointsLocalMap);
+  loadMapFromPCD(filePrefix + "_blobs.pcd",   this->BlobsPointsLocalMap);
+
+  // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
+
+  IF_VERBOSE(3, StopTimeAndDisplay("Keypoints maps loading from PCD"));
 }
 
 //==============================================================================

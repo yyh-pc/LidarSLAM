@@ -1,6 +1,10 @@
 # The ID of the command to run.
 uint8 command
 
+# Optional string argument
+string string_arg
+
+# ==============================================================================
 # Commands description :
 
 # Run GPS/SLAM calibration from recorded GPS positions and SLAM poses.
@@ -29,5 +33,10 @@ uint8 SET_SLAM_POSE_FROM_NEXT_GPS = 4
 uint8 DISABLE_SLAM_MAP_UPDATE = 8
 uint8 ENABLE_SLAM_MAP_UPDATE = 9
 
-# Save keypoints maps (edges, planes and blobs if used) to disk for later use.
+# Save/Load keypoints maps (edges, planes and blobs if used) to/from disk.
+# Use 'string_arg' to indicate path prefix of maps : "/path/to/slam_map" will
+# save/load to "/path/to/slam_map_edges.pcd", "/path/to/slam_map_planars.pcd"
+# and "/path/to/slam_map_blobs.pcd".
+# WARNING : this process is not real time.
 uint8 SAVE_KEYPOINTS_MAPS = 16
+uint8 LOAD_KEYPOINTS_MAPS = 17

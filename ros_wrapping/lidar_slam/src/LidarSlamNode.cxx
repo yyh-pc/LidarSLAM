@@ -58,9 +58,13 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   // Get PCD saving parameters
   int pcdFormat;
-  priv_nh.getParam("save_features_maps/path_prefix", this->KeypointsMapPathPrefix);
-  priv_nh.getParam("save_features_maps/pcd_format", pcdFormat);
-  this->KeypointsMapPcdFormat = static_cast<PCDFormat>(pcdFormat);
+  priv_nh.getParam("pcd_saving/pcd_format", pcdFormat);
+  this->PcdFormat = static_cast<PCDFormat>(pcdFormat);
+  if (pcdFormat != 0 && pcdFormat != 1 && pcdFormat != 2)
+  {
+    ROS_ERROR_STREAM("Incorrect PCD format value (" << pcdFormat << "). Setting it to 'binary_compressed'.");
+    this->PcdFormat = PCDFormat::binary_compressed;
+  }
 
   // ***************************************************************************
   // Init optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor
@@ -252,8 +256,14 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
 
     // Save SLAM keypoints maps to PCD files
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
-      ROS_INFO_STREAM("Saving keypoints maps.");
-      this->LidarSlam.SaveMapsToPCD(this->KeypointsMapPathPrefix, this->KeypointsMapPcdFormat);
+      ROS_INFO_STREAM("Saving keypoints maps to PCD.");
+      this->LidarSlam.SaveMapsToPCD(msg.string_arg, this->PcdFormat);
+      break;
+
+    // Load SLAM keypoints maps from PCD files
+    case lidar_slam::SlamCommand::LOAD_KEYPOINTS_MAPS:
+      ROS_INFO_STREAM("Loading keypoints maps from PCD.");
+      this->LidarSlam.LoadMapsFromPCD(msg.string_arg);
       break;
 
     // Unkown command

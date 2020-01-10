@@ -122,9 +122,8 @@ private:
   ros::Subscriber SlamCommandSub;
   tf2_ros::TransformBroadcaster TfBroadcaster;
 
-  // Optionnal saving of keypoints maps to PCD files.
-  std::string KeypointsMapPathPrefix = "slam_maps";  ///< Keypoints maps will be saved to '<KeypointsMapPathPrefix>_*.pcd'.
-  PCDFormat KeypointsMapPcdFormat = PCDFormat::binary_compressed;  ///< Save maps as ascii/binary/binary_compressed PCD files.
+  // Optionnal saving of pointclouds to PCD files.
+  PCDFormat PcdFormat = PCDFormat::binary_compressed;  ///< Save pointclouds as ascii/binary/binary_compressed PCD files.
 
   // Optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor.
   bool OutputGpsPose = false;                 ///< Output GPS antenna pose instead of LiDAR's.

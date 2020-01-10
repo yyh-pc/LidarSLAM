@@ -169,6 +169,9 @@ public:
   // Save keypoints maps to disk for later use
   void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::binary_compressed);
 
+  // Load keypoints maps from disk (and reset SLAM maps)
+  void LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps = true);
+
   // ---------------------------------------------------------------------------
   //   General parameters
   // ---------------------------------------------------------------------------

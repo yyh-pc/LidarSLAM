@@ -29,10 +29,9 @@ publish_features_maps:
   planars: true   # if true, planars features will be published to topic "planars_features"
   blobs: true     # if true, blobs features will be published to topic "blobs_features"
 
-# SLAM keypoints maps saving to PCD files.
+# Pointclouds saving to PCD files.
 # To save keypoints maps, send command SlamCommand::SAVE_KEYPOINTS_MAPS to 'slam_command' topic.
-save_features_maps:
-  path_prefix: "/path/to/dir/slam_map"  # Keypoints maps will be saved to '<path_prefix>_*.pcd'.
+pcd_saving:
   pcd_format: 2  # Save with given PCD file format : 0) ascii,  1) binary,  2) binary_compressed.
 
 # Optionnal GPS-like pose publication or GPS position use to improve SLAM trajectory.
@@ -53,7 +52,7 @@ gps:
   # Use GPS positions to approximately calibrate output SLAM pose to world coordinates. It will try to fit GPS
   # trajectory to SLAM trajectory with ICP to estimate the rigid transform that links 'gps_odom/header/frame_id' to
   # 'slam_origin_frame', and publish it to static TF server.
-  # GPS/SLAM calibration can be triggered by publishing 'run_gps_slam_calibration' topic.
+  # GPS/SLAM calibration can be triggered by sending SlamCommand::GPS_SLAM_CALIBRATION to 'slam_command' topic.
   calibration:
     no_roll: false                   # If true, impose calibration to have no roll rotation. DEBUG
     publish_icp_trajectories: false  # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps' and 'icp_slam' latched topics.
@@ -61,7 +60,7 @@ gps:
   # Pose Graph Optimization (PGO) (enabled if use_gps=true)
   # Use GPS positions and covariances to optimize computed SLAM trajectory and maps by correcting drift, and precisely
   # link SLAM pose to world coordinates.
-  # PGO can be triggered by publishing 'run_pose_graph_optim' topic.
+  # PGO can be triggered by sending SlamCommand::GPS_SLAM_POSE_GRAPH_OPTIMIZATION to 'slam_command' topic.
   # WARNING : this process is not real-time.
   pose_graph_optimization:
     g2o_file_name: "/path/to/dir/pose_graph_optimization.g2o"  # Save pose graph to file (or do not save if null string or unset).
