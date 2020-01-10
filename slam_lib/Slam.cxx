@@ -147,6 +147,26 @@ Eigen::Vector3d Rad2Deg(const Eigen::Vector3d& val)
 {
   return val / M_PI * 180;
 }
+
+//-----------------------------------------------------------------------------
+//! Approximate pointcloud memory size
+inline size_t PointCloudMemorySize(const Slam::PointCloud& cloud)
+{
+  return (sizeof(cloud) + (sizeof(cloud.points[0]) * cloud.size()));
+}
+
+//-----------------------------------------------------------------------------
+//! Approximate logged keypoints size
+void LoggedKeypointsSize(const std::deque<Slam::PointCloud::Ptr>& log, size_t& totalMemory, size_t& totalPoints)
+{
+  totalMemory = 0;
+  totalPoints = 0;
+  for (const auto& cloud: log)
+  {
+    totalMemory += PointCloudMemorySize(*cloud);
+    totalPoints += cloud->size();
+  }
+}
 }
 
 //==============================================================================
@@ -336,6 +356,27 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     angles << Rad2Deg(GetRPY(this->Tworld.linear()));
     trans << this->Tworld.translation();
     std::cout << "Localization: angles = [" << angles.transpose() << "] translation = [" << trans.transpose() << "]" << std::endl;
+  }
+
+  if (this->Verbosity >= 5)
+  {
+    std::cout << "========== Memory usage ==========" << std::endl;
+    // SLAM maps
+    PointCloud::Ptr edgesMap = this->GetEdgesMap(),
+                    planarsMap = this->GetPlanarsMap(),
+                    blobsMap = this->GetBlobsMap();
+    std::cout << "Edges map   : " << edgesMap->size()   << " points, " << PointCloudMemorySize(*edgesMap)   * 1e-6 << " MB" << std::endl;
+    std::cout << "Planars map : " << planarsMap->size() << " points, " << PointCloudMemorySize(*planarsMap) * 1e-6 << " MB" << std::endl;
+    std::cout << "Blobs map   : " << blobsMap->size()   << " points, " << PointCloudMemorySize(*blobsMap)   * 1e-6 << " MB" << std::endl;
+
+    // Logged keypoints
+    size_t memory, points;
+    LoggedKeypointsSize(this->LogEdgesPoints, memory, points);
+    std::cout << "Edges log   : " << this->LogEdgesPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+    LoggedKeypointsSize(this->LogPlanarsPoints, memory, points);
+    std::cout << "Planars log : " << this->LogPlanarsPoints.size() << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+    LoggedKeypointsSize(this->LogBlobsPoints, memory, points);
+    std::cout << "Blobs log   : " << this->LogBlobsPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
   }
 
   // Frame processing duration

@@ -316,6 +316,7 @@ private:
   // 2: 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary
   // 3: 2 + sub-problems processing duration
   // 4: 3 + ceres optimization summary
+  // 5: 4 + logging/maps memory usage
   int Verbosity = 3;
 
   // Optionnal log of computed pose, mapping covariance and keypoints of each
