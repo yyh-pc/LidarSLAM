@@ -105,6 +105,13 @@ enum WithinFrameTrajMode
   UndistortionTraj = 2
 };
 
+enum PCDFormat
+{
+  ASCII = 0,
+  BINARY = 1,
+  BINARY_COMPRESSED = 2
+};
+
 class Slam
 {
 public:
@@ -115,7 +122,7 @@ public:
 
   // Initialization
   Slam();
-  void Reset();
+  void Reset(bool resetLog = true);
 
   // ---------------------------------------------------------------------------
   //   Main SLAM use
@@ -158,6 +165,12 @@ public:
 
   // Set world transform with an initial guess (usually from GPS after calibration).
   void SetWorldTransformFromGuess(const Transform& poseGuess);
+
+  // Save keypoints maps to disk for later use
+  void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::BINARY_COMPRESSED);
+
+  // Load keypoints maps from disk (and reset SLAM maps)
+  void LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps = true);
 
   // ---------------------------------------------------------------------------
   //   General parameters
@@ -303,6 +316,7 @@ private:
   // 2: 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary
   // 3: 2 + sub-problems processing duration
   // 4: 3 + ceres optimization summary
+  // 5: 4 + logging/maps memory usage
   int Verbosity = 3;
 
   // Optionnal log of computed pose, mapping covariance and keypoints of each

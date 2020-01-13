@@ -83,6 +83,7 @@
 #include <ceres/ceres.h>
 // PCL
 #include <pcl/common/transforms.h>
+#include <pcl/io/pcd_io.h>
 
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
@@ -146,6 +147,26 @@ Eigen::Vector3d Rad2Deg(const Eigen::Vector3d& val)
 {
   return val / M_PI * 180;
 }
+
+//-----------------------------------------------------------------------------
+//! Approximate pointcloud memory size
+inline size_t PointCloudMemorySize(const Slam::PointCloud& cloud)
+{
+  return (sizeof(cloud) + (sizeof(cloud.points[0]) * cloud.size()));
+}
+
+//-----------------------------------------------------------------------------
+//! Approximate logged keypoints size
+void LoggedKeypointsSize(const std::deque<Slam::PointCloud::Ptr>& log, size_t& totalMemory, size_t& totalPoints)
+{
+  totalMemory = 0;
+  totalPoints = 0;
+  for (const auto& cloud: log)
+  {
+    totalMemory += PointCloudMemorySize(*cloud);
+    totalPoints += cloud->size();
+  }
+}
 }
 
 //==============================================================================
@@ -155,28 +176,43 @@ Eigen::Vector3d Rad2Deg(const Eigen::Vector3d& val)
 //-----------------------------------------------------------------------------
 Slam::Slam()
 {
-  this->Reset();
-}
-
-//-----------------------------------------------------------------------------
-void Slam::Reset()
-{
+  // Allocate maps
   this->EdgesPointsLocalMap = std::make_shared<RollingGrid>();
   this->PlanarPointsLocalMap = std::make_shared<RollingGrid>();
   this->BlobsPointsLocalMap = std::make_shared<RollingGrid>();
+
+  // Set default maps parameters
   this->SetVoxelGridResolution(10.);
   this->SetVoxelGridSize(50);
   this->SetVoxelGridLeafSizeEdges(0.45);
   this->SetVoxelGridLeafSizePlanes(0.6);
   this->SetVoxelGridLeafSizeBlobs(0.12);
 
-  this->NbrFrameProcessed = 0;
+  // Reset SLAM internal state
+  this->Reset();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::Reset(bool resetLog)
+{
+  // Reset keypoints maps
+  this->ClearMaps();
 
   // n-DoF parameters
   this->Tworld = Eigen::Isometry3d::Identity();
   this->Trelative = Eigen::Isometry3d::Identity();
   this->MotionParametersEgoMotion = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
   this->MotionParametersMapping = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
+
+  // Reset log history
+  if (resetLog)
+  {
+    this->NbrFrameProcessed = 0;
+    this->LogTrajectory.clear();
+    this->LogEdgesPoints.clear();
+    this->LogPlanarsPoints.clear();
+    this->LogBlobsPoints.clear();
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -322,6 +358,27 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     std::cout << "Localization: angles = [" << angles.transpose() << "] translation = [" << trans.transpose() << "]" << std::endl;
   }
 
+  if (this->Verbosity >= 5)
+  {
+    std::cout << "========== Memory usage ==========" << std::endl;
+    // SLAM maps
+    PointCloud::Ptr edgesMap = this->GetEdgesMap(),
+                    planarsMap = this->GetPlanarsMap(),
+                    blobsMap = this->GetBlobsMap();
+    std::cout << "Edges map   : " << edgesMap->size()   << " points, " << PointCloudMemorySize(*edgesMap)   * 1e-6 << " MB" << std::endl;
+    std::cout << "Planars map : " << planarsMap->size() << " points, " << PointCloudMemorySize(*planarsMap) * 1e-6 << " MB" << std::endl;
+    std::cout << "Blobs map   : " << blobsMap->size()   << " points, " << PointCloudMemorySize(*blobsMap)   * 1e-6 << " MB" << std::endl;
+
+    // Logged keypoints
+    size_t memory, points;
+    LoggedKeypointsSize(this->LogEdgesPoints, memory, points);
+    std::cout << "Edges log   : " << this->LogEdgesPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+    LoggedKeypointsSize(this->LogPlanarsPoints, memory, points);
+    std::cout << "Planars log : " << this->LogPlanarsPoints.size() << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+    LoggedKeypointsSize(this->LogBlobsPoints, memory, points);
+    std::cout << "Blobs log   : " << this->LogBlobsPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+  }
+
   // Frame processing duration
   IF_VERBOSE(1, StopTimeAndDisplay("SLAM frame processing"));
 }
@@ -376,9 +433,9 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   gpsToSensorOffset = optimizedSlamPoses.front().GetIsometry();
 
   // Update SLAM trajectory and maps
-  IF_VERBOSE(3, InitTime("PGO : Maps reset"));
-  this->ClearMaps();
-  IF_VERBOSE(3, StopTimeAndDisplay("PGO : Maps reset"));
+  IF_VERBOSE(3, InitTime("PGO : SLAM reset"));
+  this->Reset(false);
+  IF_VERBOSE(3, StopTimeAndDisplay("PGO : SLAM reset"));
   IF_VERBOSE(3, InitTime("PGO : frames keypoints aggregation"));
   PointCloud::Ptr aggregatedEdgesMap(new PointCloud());
   PointCloud::Ptr aggregatedPlanarsMap(new PointCloud());
@@ -439,6 +496,76 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
   // Set current pose
   this->Tworld = poseGuess.GetIsometry();
   // TODO update motionParameters
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat)
+{
+  IF_VERBOSE(3, InitTime("Keypoints maps saving to PCD"));
+
+  // Call correct pcl::io::savePCDFFile function according to pcdFormat
+  auto saveMapToPCD = [pcdFormat](const std::string& path, const PointCloud& map)
+  {
+    if (map.empty())
+      return -3;
+
+    switch (pcdFormat)
+    {
+      case PCDFormat::ASCII:
+        std::cout << "Saving SLAM keypoints map to ascii PCD file at " << path << std::endl;
+        return pcl::io::savePCDFileASCII(path, map);
+
+      case PCDFormat::BINARY:
+        std::cout << "Saving SLAM keypoints map to binary PCD file at " << path << std::endl;
+        return pcl::io::savePCDFileBinary(path, map);
+
+      case PCDFormat::BINARY_COMPRESSED:
+        std::cout << "Saving SLAM keypoints map to binary_compressed PCD file at " << path << std::endl;
+        return pcl::io::savePCDFileBinaryCompressed(path, map);
+
+      default:
+        std::cerr << "Unknown PCDFormat value (" << pcdFormat << "). Unable to save keypoints map." << std::endl;
+        return -4;
+    }
+  };
+
+  // Save keypoints maps
+  saveMapToPCD(filePrefix + "_edges.pcd",   *this->GetEdgesMap());
+  saveMapToPCD(filePrefix + "_planars.pcd", *this->GetPlanarsMap());
+  saveMapToPCD(filePrefix + "_blobs.pcd",   *this->GetBlobsMap());
+
+  // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
+
+  IF_VERBOSE(3, StopTimeAndDisplay("Keypoints maps saving to PCD"));
+}
+
+//-----------------------------------------------------------------------------
+void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
+{
+  IF_VERBOSE(3, InitTime("Keypoints maps loading from PCD"));
+
+  // In most of the cases, we would like to reset SLAM internal maps before
+  // loading new maps to avoid conflicts.
+  if (resetMaps)
+    this->ClearMaps();
+
+  auto loadMapFromPCD = [](const std::string& path, std::shared_ptr<RollingGrid>& map)
+  {
+    PointCloud::Ptr keypoints(new PointCloud);
+    if (pcl::io::loadPCDFile(path, *keypoints) == 0)
+    {
+      std::cout << "SLAM keypoints map successfully loaded from " << path << std::endl;
+      map->Add(keypoints);
+    }
+  };
+
+  loadMapFromPCD(filePrefix + "_edges.pcd",   this->EdgesPointsLocalMap);
+  loadMapFromPCD(filePrefix + "_planars.pcd", this->PlanarPointsLocalMap);
+  loadMapFromPCD(filePrefix + "_blobs.pcd",   this->BlobsPointsLocalMap);
+
+  // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
+
+  IF_VERBOSE(3, StopTimeAndDisplay("Keypoints maps loading from PCD"));
 }
 
 //==============================================================================
@@ -1609,9 +1736,9 @@ void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud)
 //-----------------------------------------------------------------------------
 void Slam::ClearMaps()
 {
-  this->EdgesPointsLocalMap->Clear();
-  this->PlanarPointsLocalMap->Clear();
-  this->BlobsPointsLocalMap->Clear();
+  this->EdgesPointsLocalMap->Reset();
+  this->PlanarPointsLocalMap->Reset();
+  this->BlobsPointsLocalMap->Reset();
 }
 
 //-----------------------------------------------------------------------------

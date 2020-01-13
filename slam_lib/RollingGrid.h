@@ -44,9 +44,13 @@ public:
   //! Remove all points from all voxels
   void Clear();
 
+  //! Reset map (clear voxels, reset position, ...)
+  void Reset();
+
   //! Set min and max keypoints bounds of current frame
   void SetMinMaxPoints(const Eigen::Vector3d& minPoint, const Eigen::Vector3d& maxPoint);
 
+  //! Set grid size and clear all points from voxels
   void SetGridSize(int size);
   GetMacro(GridSize, int)
 
