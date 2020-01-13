@@ -136,6 +136,8 @@ public:
 
   // Get the computed world transform so far (current pose relative to initial pose)
   Transform GetWorldTransform();
+  // Get the computed world transform so far, but compensating SLAM computation duration latency.
+  Transform GetLatencyCompensatedWorldTransform();
   // Get the covariance of the last mapping step (mapping the current frame to the last map)
   // DoF order : X, Y, Z, rX, rY, rZ
   std::array<double, 36> GetTransformCovariance();
@@ -368,6 +370,9 @@ private:
   std::deque<PointCloud::Ptr> LogEdgesPoints;
   std::deque<PointCloud::Ptr> LogPlanarsPoints;
   std::deque<PointCloud::Ptr> LogBlobsPoints;
+
+  // [s] SLAM computation duration of last processed frame (~Tworld delay)
+  double Latency;
 
   // ---------------------------------------------------------------------------
   //   Keypoints extraction and maps

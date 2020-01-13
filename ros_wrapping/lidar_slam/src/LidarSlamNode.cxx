@@ -513,6 +513,12 @@ void LidarSlamNode::PublishTfOdom(const Transform& slamToLidar,
   odomMsg.pose.pose = TransformToPoseMsg(slamPose);
   std::copy(poseCovar.begin(), poseCovar.end(), odomMsg.pose.covariance.begin());
   this->PoseCovarPub.publish(odomMsg);
+
+  // Publish latency compensated pose
+  Transform slamToLidarPred = this->LidarSlam.GetLatencyCompensatedWorldTransform();
+  tfMsg.transform = TransformToTfMsg(slamToLidarPred);
+  tfMsg.child_frame_id += "_prediction";
+  this->TfBroadcaster.sendTransform(tfMsg);
 }
 
 //------------------------------------------------------------------------------
