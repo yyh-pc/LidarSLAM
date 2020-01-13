@@ -58,12 +58,14 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   // Get PCD saving parameters
   int pcdFormat;
-  priv_nh.getParam("pcd_saving/pcd_format", pcdFormat);
-  this->PcdFormat = static_cast<PCDFormat>(pcdFormat);
-  if (pcdFormat != 0 && pcdFormat != 1 && pcdFormat != 2)
+  if (priv_nh.getParam("pcd_saving/pcd_format", pcdFormat))
   {
-    ROS_ERROR_STREAM("Incorrect PCD format value (" << pcdFormat << "). Setting it to 'binary_compressed'.");
-    this->PcdFormat = PCDFormat::binary_compressed;
+    this->PcdFormat = static_cast<PCDFormat>(pcdFormat);
+    if (pcdFormat != PCDFormat::ASCII && pcdFormat != PCDFormat::BINARY && pcdFormat != PCDFormat::BINARY_COMPRESSED)
+    {
+      ROS_ERROR_STREAM("Incorrect PCD format value (" << pcdFormat << "). Setting it to 'BINARY_COMPRESSED'.");
+      this->PcdFormat = PCDFormat::BINARY_COMPRESSED;
+    }
   }
 
   // ***************************************************************************

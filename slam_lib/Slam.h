@@ -107,9 +107,9 @@ enum WithinFrameTrajMode
 
 enum PCDFormat
 {
-  ascii = 0,
-  binary = 1,
-  binary_compressed = 2
+  ASCII = 0,
+  BINARY = 1,
+  BINARY_COMPRESSED = 2
 };
 
 class Slam
@@ -167,7 +167,7 @@ public:
   void SetWorldTransformFromGuess(const Transform& poseGuess);
 
   // Save keypoints maps to disk for later use
-  void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::binary_compressed);
+  void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::BINARY_COMPRESSED);
 
   // Load keypoints maps from disk (and reset SLAM maps)
   void LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps = true);

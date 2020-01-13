@@ -123,7 +123,7 @@ private:
   tf2_ros::TransformBroadcaster TfBroadcaster;
 
   // Optionnal saving of pointclouds to PCD files.
-  PCDFormat PcdFormat = PCDFormat::binary_compressed;  ///< Save pointclouds as ascii/binary/binary_compressed PCD files.
+  PCDFormat PcdFormat = PCDFormat::BINARY_COMPRESSED;  ///< Save pointclouds as ascii/binary/binary_compressed PCD files.
 
   // Optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor.
   bool OutputGpsPose = false;                 ///< Output GPS antenna pose instead of LiDAR's.

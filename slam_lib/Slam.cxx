@@ -511,15 +511,15 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat)
 
     switch (pcdFormat)
     {
-      case PCDFormat::ascii:
+      case PCDFormat::ASCII:
         std::cout << "Saving SLAM keypoints map to ascii PCD file at " << path << std::endl;
-        return pcl::io::savePCDFile(path, map);
+        return pcl::io::savePCDFileASCII(path, map);
 
-      case PCDFormat::binary:
+      case PCDFormat::BINARY:
         std::cout << "Saving SLAM keypoints map to binary PCD file at " << path << std::endl;
         return pcl::io::savePCDFileBinary(path, map);
 
-      case PCDFormat::binary_compressed:
+      case PCDFormat::BINARY_COMPRESSED:
         std::cout << "Saving SLAM keypoints map to binary_compressed PCD file at " << path << std::endl;
         return pcl::io::savePCDFileBinaryCompressed(path, map);
 
