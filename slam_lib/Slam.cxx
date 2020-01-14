@@ -321,9 +321,9 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 {
   IF_VERBOSE(1, InitTime("SLAM frame processing"));
 
-  if (pc->size() == 0)
+  if (pc->empty())
   {
-    std::cout << "Slam entry is an empty pointcloud" << std::endl;
+    std::cerr << "[ERROR] SLAM entry is an empty pointcloud : frame ignored." << std::endl;
     return;
   }
 
@@ -442,7 +442,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
 
   if (this->LoggingTimeout == 0.)
   {
-    std::cout << "[WARNING] SLAM logging is not enabled : covariances will be "
+    std::cerr << "[WARNING] SLAM logging is not enabled : covariances will be "
                  "arbitrarly set and maps will not be optimized during pose "
                  "graph optimization." << std::endl;
 
@@ -467,7 +467,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                      slamCovariances, gpsCovariances,
                                      optimizedSlamPoses))
   {
-    std::cout << "[ERROR] Pose graph optimization failed." << std::endl;
+    std::cerr << "[ERROR] Pose graph optimization failed." << std::endl;
     return;
   }
 
@@ -568,7 +568,7 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat)
         return pcl::io::savePCDFileBinaryCompressed(path, map);
 
       default:
-        std::cerr << "Unknown PCDFormat value (" << pcdFormat << "). Unable to save keypoints map." << std::endl;
+        std::cerr << "[ERROR] Unknown PCDFormat value (" << pcdFormat << "). Unable to save keypoints map." << std::endl;
         return -4;
     }
   };
@@ -628,7 +628,7 @@ void Slam::ComputeEgoMotion()
   {
     this->EgoMotionEdgesPointsUsed = 0;
     this->EgoMotionPlanesPointsUsed = 0;
-    std::cout << "Not enough keypoints, EgoMotion skipped for this frame" << std::endl;
+    std::cerr << "[WARNING] Not enough keypoints, EgoMotion skipped for this frame." << std::endl;
     return;
   }
 
@@ -712,11 +712,10 @@ void Slam::ComputeEgoMotion()
 
     usedEdges = this->MatchRejectionHistogramLine[6];
     usedPlanes = this->MatchRejectionHistogramPlane[6];
-    // Skip this frame if there is too few geometric
-    // keypoints matched
+    // Skip this frame if there are too few geometric keypoints matched
     if ((usedPlanes + usedEdges) < 20)
     {
-      std::cout << "Too few geometric features, frame skipped" << std::endl;
+      std::cerr << "[WARNING] Too few geometric features, EgoMotion skipped for this frame." << std::endl;
       break;
     }
 
@@ -807,7 +806,7 @@ void Slam::Mapping()
     this->MappingEdgesPointsUsed = 0;
     this->MappingPlanesPointsUsed = 0;
     this->MappingBlobsPointsUsed = 0;
-    std::cout << "Not enough keypoints, Mapping skipped for this frame" << std::endl;
+    std::cerr << "[WARNING] Not enough keypoints, Mapping skipped for this frame." << std::endl;
     return;
   }
   this->EdgePointRejectionMapping.clear(); this->EdgePointRejectionMapping.resize(this->CurrentEdgesPoints->size());
@@ -923,7 +922,7 @@ void Slam::Mapping()
     // Skip this frame if there is too few geometric keypoints matched
     if ((usedPlanes + usedEdges + usedBlobs) < 20)
     {
-      std::cout << "Too few geometric features, loop breaked "
+      std::cerr << "[WARNING] Too few geometric features, breaking Mapping loop "
                 << "(" << usedPlanes << " planes, " << usedEdges << " edges, " << usedBlobs << " blobs)." << std::endl;
       break;
     }
@@ -1234,7 +1233,7 @@ int Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtreePreviousEdges, c
   }
   else
   {
-    throw "ComputeLineDistanceParameters function got invalide step parameter";
+    throw "ComputeLineDistanceParameters function got invalid step parameter";
   }
 
   // if the nearest edges are too far from the

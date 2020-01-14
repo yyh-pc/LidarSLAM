@@ -152,23 +152,23 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
     if (!G2OFileName.empty())
       this->GraphOptimizer.save(G2OFileName.c_str());
     else
-      std::cout << "[WARNING] Could not save the g2o graph. Please specify a filename" << std::endl;
+      std::cerr << "[WARNING] Could not save the g2o graph. Please specify a filename." << std::endl;
   }
 
   // Print debug info
   if (this->Verbose)
   {
-    std::cout << "\nThe Graph is composed of: \n"
-              << "\t " << nbSlamPoses     << "\t SLAM vertices \n"
-              << "\t " << nbSlamPoses - 1 << "\t SLAM edges \n"
-              << "\t " << this->GraphOptimizer.vertices().size() - nbSlamPoses    << "\t GPS vertices \n"
-              << "\t " << this->GraphOptimizer.edges().size() - (nbSlamPoses - 1) << "\t GPS/SLAM edges \n";
+    std::cout << std::endl << "The Graph is composed of:" << std::endl
+              << "   " << nbSlamPoses     << " SLAM vertices" << std::endl
+              << "   " << nbSlamPoses - 1 << " SLAM edges" << std::endl
+              << "   " << this->GraphOptimizer.vertices().size() - nbSlamPoses    << " GPS vertices" << std::endl
+              << "   " << this->GraphOptimizer.edges().size() - (nbSlamPoses - 1) << " GPS/SLAM edges" << std::endl;
   }
 
   // Optimize the graph
   if (!this->GraphOptimizer.initializeOptimization())
   {
-    std::cout << "[ERROR] Pose graph initialization failed !" << std::endl;
+    std::cerr << "[ERROR] Pose graph initialization failed !" << std::endl;
     return false;
   }
   int iterations = this->GraphOptimizer.optimize(this->NbIteration);
