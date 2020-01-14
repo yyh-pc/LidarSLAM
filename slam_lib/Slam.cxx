@@ -129,17 +129,23 @@ std::array<double, 36> FlipAndConvertCovariance(const Eigen::Matrix<double, 6, 6
 }
 
 //-----------------------------------------------------------------------------
-std::unordered_map<std::string, std::chrono::high_resolution_clock::time_point> startTimes;
+std::unordered_map<std::string, std::chrono::steady_clock::time_point> startTimes;
 
 void InitTime(const std::string& functionName)
 {
-  startTimes[functionName] = std::chrono::high_resolution_clock::now();
+  startTimes[functionName] = std::chrono::steady_clock::now();
 }
 
 void StopTimeAndDisplay(const std::string& functionName)
 {
-  std::chrono::duration<double, std::milli> chrono_ms = std::chrono::high_resolution_clock::now() - startTimes[functionName];
+  std::chrono::duration<double, std::milli> chrono_ms = std::chrono::steady_clock::now() - startTimes[functionName];
   std::cout << "  -> " << functionName << " took : " << chrono_ms.count() << " ms" << std::endl;
+}
+
+double GetTime(const std::string& functionName)
+{
+  std::chrono::duration<double, std::milli> chrono_ms = std::chrono::steady_clock::now() - startTimes[functionName];
+  return chrono_ms.count() * 1e-3;
 }
 
 //-----------------------------------------------------------------------------
@@ -219,6 +225,43 @@ void Slam::Reset(bool resetLog)
 Transform Slam::GetWorldTransform()
 {
   return this->LogTrajectory.back();
+}
+
+//-----------------------------------------------------------------------------
+Transform Slam::GetLatencyCompensatedWorldTransform()
+{
+  // Get 2 last transforms
+  unsigned int trajectorySize = this->LogTrajectory.size();
+  if (trajectorySize == 0)
+    return Transform();
+  else if (trajectorySize == 1)
+    return this->LogTrajectory.back();
+  const Transform& previous = this->LogTrajectory[trajectorySize - 2];
+  const Transform& current = this->LogTrajectory[trajectorySize - 1];
+  const Eigen::Isometry3d& H0 = previous.GetIsometry();
+  const Eigen::Isometry3d& H1 = current.GetIsometry();
+
+  // Linearly compute normalized timestamp of Hpred.
+  // We expect H0 and H1 to match with time 0 and 1.
+  // If timestamps are not defined or too close, extrapolation is impossible.
+  if (std::abs(current.time - previous.time) < 1e-6)
+  {
+    std::cerr << "[WARNING] Unable to compute latency-compensated transform : timestamps undefined or too close." << std::endl;
+    return current;
+  }
+  double predictedTime = 1. + this->Latency / (current.time - previous.time);
+  // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
+  if (std::abs(predictedTime) > 4.)
+  {
+    std::cerr << "[WARNING] Unable to compute latency-compensated transform : extrapolation time is too far." << std::endl;
+    return current;
+  }
+
+  // Extrapolate H0 and H1 to get expected Hpred at current time
+  Eigen::Isometry3d Hpred(LinearTransformInterpolation<double>(H0.linear(), H0.translation(),
+                                                               H1.linear(), H1.translation(),
+                                                               predictedTime));
+  return Transform(Hpred, current.time, current.frameid);
 }
 
 //-----------------------------------------------------------------------------
@@ -380,6 +423,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   }
 
   // Frame processing duration
+  this->Latency = GetTime("SLAM frame processing");
   IF_VERBOSE(1, StopTimeAndDisplay("SLAM frame processing"));
 }
 
@@ -1089,8 +1133,9 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
     // If a timeout is defined, forget too old data
     if (this->LoggingTimeout > 0)
     {
-      // Forget all previous data older than LoggingTimeout
-      while (time - this->LogTrajectory.front().time > this->LoggingTimeout)
+      // Forget all previous data older than LoggingTimeout, but keep at least 2 last transforms
+      while (time - this->LogTrajectory.front().time > this->LoggingTimeout
+             && this->LogTrajectory.size() > 2)
       {
         this->LogTrajectory.pop_front();
         this->LogCovariances.pop_front();
@@ -1102,11 +1147,12 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
     }
   }
 
-  // If logging is disabled
+  // If logging is disabled, only keep last 2 transforms for latency compensation
   else
   {
-    this->LogTrajectory.clear();
     this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
+    while (this->LogTrajectory.size() > 2)
+      this->LogTrajectory.pop_front();
   }
 }
 
