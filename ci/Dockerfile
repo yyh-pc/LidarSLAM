@@ -3,8 +3,11 @@ FROM ubuntu:18.04
 
 WORKDIR /usr/src/app
 
+# needed to avoid interaction during dependancies installation
+ARG DEBIAN_FRONTEND=noninteractive 
 # Install dependancies
-ARG DEBIAN_FRONTEND=noninteractive # needed to avoid interaction during dependancies installation
+# freeglut install OpenGL which is needed by g2o event when disabling OpenGL support
+# libgoogle-glog-dev is needed by ceres
 RUN apt-get update \
     && apt-get install -y \
         build-essential \
@@ -15,8 +18,6 @@ RUN apt-get update \
 	freeglut3-dev \
 	libgoogle-glog-dev \
     && rm -rf /var/lib/apt/lists/*
-# freeglut install OpenGL which is needed by g2o event when disabling OpenGL support
-# libgoogle-glog-dev is needed by ceres
 
 # Install ceres
 RUN git clone https://github.com/ceres-solver/ceres-solver.git ceres
