@@ -498,6 +498,7 @@ void LidarSlamNode::PublishTfOdom(const Transform& slamToLidar,
       TfLidarToSlam.child_frame_id = this->OutputGpsPoseFrameId;
       TfLidarToSlam.transform = TransformToTfMsg(Transform(this->LidarToGpsOffset));
       this->StaticTfBroadcaster.sendTransform(TfLidarToSlam);
+      this->PublishLidarToGpsTf = false;
     }
 
     // Transform pose
