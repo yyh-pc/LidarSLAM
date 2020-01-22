@@ -80,6 +80,10 @@ slam:
   # Logged data will be used for pose graph optimization or GPS antenna/LiDAR sensor calibration using GPS data.
   logging_timeout: 0.  # [s]
 
+  # Wether to use octree compression during keypoints logging (if logging_timeout != 0).
+  # This reduces about 5 times the memory consumption, but slows down logging (and PGO).
+  logging_compression: false
+
   max_distance_for_ICP_matching: 20.            # [m] Max distance allowed between two keypoints during ICP matching.
 
   ego_motion_LM_max_iter: 15                    # Max number of iteration in the ego motion LM optimization step.

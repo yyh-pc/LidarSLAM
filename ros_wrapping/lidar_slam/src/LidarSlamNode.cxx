@@ -558,7 +558,7 @@ void LidarSlamNode::PublishFeaturesMaps(uint64_t pclStamp)
 void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
 {
   // common
-  bool fastSlam, undistortion;
+  bool fastSlam, undistortion, loggingCompression;
   double loggingTimeout, maxDistanceForICPMatching;
   if (priv_nh.getParam("slam/fast_slam", fastSlam))
     LidarSlam.SetFastSlam(fastSlam);
@@ -566,6 +566,8 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
     LidarSlam.SetUndistortion(undistortion);
   if (priv_nh.getParam("slam/logging_timeout", loggingTimeout))
     LidarSlam.SetLoggingTimeout(loggingTimeout);
+  if (priv_nh.getParam("slam/logging_compression", loggingCompression))
+    LidarSlam.SetLoggingCompression(loggingCompression);
   if (priv_nh.getParam("slam/max_distance_for_ICP_matching", maxDistanceForICPMatching))
     LidarSlam.SetMaxDistanceForICPMatching(maxDistanceForICPMatching);
 
