@@ -481,9 +481,10 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   this->Reset(false);
   IF_VERBOSE(3, StopTimeAndDisplay("PGO : SLAM reset"));
   IF_VERBOSE(3, InitTime("PGO : frames keypoints aggregation"));
-  PointCloud::Ptr aggregatedEdgesMap(new PointCloud());
-  PointCloud::Ptr aggregatedPlanarsMap(new PointCloud());
-  PointCloud::Ptr aggregatedBlobsMap(new PointCloud());
+  PointCloud edgesKeypoints, planarsKeypoints, blobsKeypoints;
+  PointCloud::Ptr aggregatedEdgesMap(new PointCloud),
+                  aggregatedPlanarsMap(new PointCloud),
+                  aggregatedBlobsMap(new PointCloud);
   for (unsigned int i = 0; i < optimizedSlamPoses.size(); i++)
   {
     // Update SLAM pose
@@ -491,18 +492,18 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
 
     // Transform frame keypoints to world coordinates
     Eigen::Matrix4d currentTransform = this->LogTrajectory[i].GetMatrix();
-    pcl::transformPointCloud(*this->LogEdgesPoints[i], *this->CurrentEdgesPoints, currentTransform);
-    pcl::transformPointCloud(*this->LogPlanarsPoints[i], *this->CurrentPlanarsPoints, currentTransform);
+    pcl::transformPointCloud(*this->LogEdgesPoints[i], edgesKeypoints, currentTransform);
+    pcl::transformPointCloud(*this->LogPlanarsPoints[i], planarsKeypoints, currentTransform);
     if (!this->FastSlam)
-      pcl::transformPointCloud(*this->LogBlobsPoints[i], *this->CurrentBlobsPoints, currentTransform);
+      pcl::transformPointCloud(*this->LogBlobsPoints[i], blobsKeypoints, currentTransform);
 
     // TODO: Deal with undistortion case (properly transform pointclouds before aggreagtion)
 
     // Aggregate new keypoints to maps
-    *aggregatedEdgesMap += *this->CurrentEdgesPoints;
-    *aggregatedPlanarsMap += *this->CurrentPlanarsPoints;
+    *aggregatedEdgesMap += edgesKeypoints;
+    *aggregatedPlanarsMap += planarsKeypoints;
     if (!this->FastSlam)
-      *aggregatedBlobsMap += *this->CurrentBlobsPoints;
+      *aggregatedBlobsMap += blobsKeypoints;
   }
 
   IF_VERBOSE(3, StopTimeAndDisplay("PGO : frames keypoints aggregation"));
