@@ -551,36 +551,10 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat)
 {
   IF_VERBOSE(3, InitTime("Keypoints maps saving to PCD"));
 
-  // Call correct pcl::io::savePCDFFile function according to pcdFormat
-  auto saveMapToPCD = [pcdFormat](const std::string& path, const PointCloud& map)
-  {
-    if (map.empty())
-      return -3;
-
-    switch (pcdFormat)
-    {
-      case PCDFormat::ASCII:
-        std::cout << "Saving SLAM keypoints map to ascii PCD file at " << path << std::endl;
-        return pcl::io::savePCDFileASCII(path, map);
-
-      case PCDFormat::BINARY:
-        std::cout << "Saving SLAM keypoints map to binary PCD file at " << path << std::endl;
-        return pcl::io::savePCDFileBinary(path, map);
-
-      case PCDFormat::BINARY_COMPRESSED:
-        std::cout << "Saving SLAM keypoints map to binary_compressed PCD file at " << path << std::endl;
-        return pcl::io::savePCDFileBinaryCompressed(path, map);
-
-      default:
-        std::cerr << "[ERROR] Unknown PCDFormat value (" << pcdFormat << "). Unable to save keypoints map." << std::endl;
-        return -4;
-    }
-  };
-
   // Save keypoints maps
-  saveMapToPCD(filePrefix + "_edges.pcd",   *this->GetEdgesMap());
-  saveMapToPCD(filePrefix + "_planars.pcd", *this->GetPlanarsMap());
-  saveMapToPCD(filePrefix + "_blobs.pcd",   *this->GetBlobsMap());
+  savePointCloudToPCD(filePrefix + "edges.pcd",   *this->GetEdgesMap(), pcdFormat, true);
+  savePointCloudToPCD(filePrefix + "planars.pcd", *this->GetPlanarsMap(), pcdFormat, true);
+  savePointCloudToPCD(filePrefix + "blobs.pcd",   *this->GetBlobsMap(), pcdFormat, true);
 
   // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
 
@@ -607,9 +581,9 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
     }
   };
 
-  loadMapFromPCD(filePrefix + "_edges.pcd",   this->EdgesPointsLocalMap);
-  loadMapFromPCD(filePrefix + "_planars.pcd", this->PlanarPointsLocalMap);
-  loadMapFromPCD(filePrefix + "_blobs.pcd",   this->BlobsPointsLocalMap);
+  loadMapFromPCD(filePrefix + "edges.pcd",   this->EdgesPointsLocalMap);
+  loadMapFromPCD(filePrefix + "planars.pcd", this->PlanarPointsLocalMap);
+  loadMapFromPCD(filePrefix + "blobs.pcd",   this->BlobsPointsLocalMap);
 
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
 
@@ -1128,10 +1102,10 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
     // Save current frame data to buffer
     this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
     this->LogCovariances.emplace_back(FlipAndConvertCovariance(this->TworldCovariance));
-    this->LogEdgesPoints.emplace_back(this->CurrentEdgesPoints, this->LoggingCompression);
-    this->LogPlanarsPoints.emplace_back(this->CurrentPlanarsPoints, this->LoggingCompression);
+    this->LogEdgesPoints.emplace_back(this->CurrentEdgesPoints, this->LoggingStorage);
+    this->LogPlanarsPoints.emplace_back(this->CurrentPlanarsPoints, this->LoggingStorage);
     if (!this->FastSlam)
-      this->LogBlobsPoints.emplace_back(this->CurrentBlobsPoints, this->LoggingCompression);
+      this->LogBlobsPoints.emplace_back(this->CurrentBlobsPoints, this->LoggingStorage);
 
     // If a timeout is defined, forget too old data
     if (this->LoggingTimeout > 0)

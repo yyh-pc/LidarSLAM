@@ -80,9 +80,13 @@ slam:
   # Logged data will be used for pose graph optimization or GPS antenna/LiDAR sensor calibration using GPS data.
   logging_timeout: 0.  # [s]
 
-  # Wether to use octree compression during keypoints logging (if logging_timeout != 0).
-  # This reduces about 5 times the memory consumption, but slows down logging (and PGO).
-  logging_compression: false
+  # How to store pointclouds data during keypoints logging (if logging_timeout != 0):
+  #  0) PCL pointcloud                    (in RAM,     no compression,      no overhead)
+  #  1) Octree compressed binary data     (in RAM,    ~5x compression,   ~3 ms overhead)
+  #  2) Ascii format PCD file             (on disk, ~0.6x compression,   ~5 ms overhead)
+  #  3) Binary format PCD file            (on disk, ~1.3x compression, ~0.3 ms overhead)
+  #  4) Binary compressed format PCD file (on disk, ~1.5x compression, ~0.8 ms overhead)
+  logging_storage: 0
 
   max_distance_for_ICP_matching: 20.            # [m] Max distance allowed between two keypoints during ICP matching.
 

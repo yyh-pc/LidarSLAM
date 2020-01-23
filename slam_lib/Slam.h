@@ -106,13 +106,6 @@ enum WithinFrameTrajMode
   UndistortionTraj = 2
 };
 
-enum PCDFormat
-{
-  ASCII = 0,
-  BINARY = 1,
-  BINARY_COMPRESSED = 2
-};
-
 class Slam
 {
 public:
@@ -191,8 +184,8 @@ public:
   SetMacro(LoggingTimeout, double)
   GetMacro(LoggingTimeout, double)
 
-  SetMacro(LoggingCompression, bool)
-  GetMacro(LoggingCompression, bool)
+  SetMacro(LoggingStorage, PointCloudStorageType)
+  GetMacro(LoggingStorage, PointCloudStorageType)
 
   SetMacro(UpdateMap, bool)
   GetMacro(UpdateMap, bool)
@@ -337,7 +330,7 @@ private:
 
   // Wether to use octree compression during keypoints logging.
   // This reduces about 5 times the memory consumption, but slows down logging (and PGO).
-  bool LoggingCompression = false;
+  PointCloudStorageType LoggingStorage = PointCloudStorageType::PCL_CLOUD;
 
   // Should the keypoints features maps be updated at each step.
   // It is usually set to true, but forbiding maps update can be usefull in case

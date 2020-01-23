@@ -1,24 +1,69 @@
 #ifndef POINT_CLOUD_STORAGE_H
 #define POINT_CLOUD_STORAGE_H
 
+#include <boost/filesystem.hpp>
+#include <pcl/io/pcd_io.h>
 #include <pcl/compression/octree_pointcloud_compression.h>
 #include <pcl/io/impl/octree_pointcloud_compression.hpp>  // seems to be missing in otree_pointcloud_compression.h
 
-// This workaround is only available on Linux, as sigaction is only supported on UNIX systems.
-#ifdef __linux__
-  #include <signal.h>
-  namespace
-  {
-    // Attach SIGFPE to c++ exception.
-    // This allows to properly deal with division by 0 or other computation errors.
-    // NOTE : See CompressedPointCloud::GetCloud() for more details about why this is needed.
-    void sigfpe_handler(int signum) { throw std::logic_error("SIGFPE"); }
-  }
-#endif
+//! PCD file data format.
+enum PCDFormat
+{
+  ASCII = 0,
+  BINARY = 1,
+  BINARY_COMPRESSED = 2
+};
+
+//! PointCloudStorage data type.
+enum PointCloudStorageType
+{
+  PCL_CLOUD = 0,
+  OCTREE_COMPRESSED = 1,
+  PCD_ASCII = 2,
+  PCD_BINARY = 3,
+  PCD_BINARY_COMPRESSED = 4
+};
 
 //------------------------------------------------------------------------------
 /*!
- * @brief Base class to store a PCL pointcloud under different formats.
+ * @brief Save pointcloud to PCD file according to data format.
+ * @param[in] path The path to PCD file to write pointcloud to.
+ * @param[in] cloud The pointcloud to save.
+ * @param[in] pcdDataFormat The PCD file data format to use.
+ * @return 0 if ok, negative error number otherwise.
+ */
+template<typename PointT>
+int savePointCloudToPCD(std::string const& path,
+                        pcl::PointCloud<PointT> const& cloud,
+                        PCDFormat pcdDataFormat,
+                        bool verbose = false)
+{
+  if (cloud.empty())
+    return -3;
+
+  switch (pcdDataFormat)
+  {
+    case ASCII:
+      if (verbose) std::cout << "Saving pointcloud to ascii PCD file at " << path << std::endl;
+      return pcl::io::savePCDFileASCII<PointT>(path, cloud);
+
+    case BINARY:
+      if (verbose) std::cout << "Saving pointcloud to binary PCD file at " << path << std::endl;
+      return pcl::io::savePCDFileBinary<PointT>(path, cloud);
+
+    case BINARY_COMPRESSED:
+      if (verbose) std::cout << "Saving pointcloud to binary_compressed PCD file at " << path << std::endl;
+      return pcl::io::savePCDFileBinaryCompressed<PointT>(path, cloud);
+
+    default:
+      std::cerr << "[ERROR] Unknown PCDFormat value (" << pcdDataFormat << "). Unable to save pointcloud." << std::endl;
+      return -4;
+  }
+}
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Base abstract class to store a PCL pointcloud under different formats.
  */
 template<typename PointT>
 struct PointCloudData
@@ -35,15 +80,15 @@ struct PointCloudData
 
 //------------------------------------------------------------------------------
 /*!
- * @brief Store PCL pointcloud without any compression.
+ * @brief Store PCL pointcloud without any compression in RAM.
  */
 template<typename PointT>
-struct UncompressedPointCloud final : public PointCloudData<PointT>
+struct PCLPointCloud final : public PointCloudData<PointT>
 {
   using CloudT = pcl::PointCloud<PointT>;
   using CloudTPtr = typename CloudT::Ptr;
 
-  UncompressedPointCloud(CloudTPtr const& cloud) : Cloud(cloud) {}
+  PCLPointCloud(CloudTPtr const& cloud) : Cloud(cloud) {}
   virtual void SetCloud(CloudTPtr const& cloud) { this->Cloud = cloud; }
   virtual CloudTPtr GetCloud() { return this->Cloud; }
   virtual size_t GetMemorySize() { return sizeof(*this->Cloud) + (sizeof(PointT) * this->Cloud->size()); }
@@ -53,16 +98,28 @@ struct UncompressedPointCloud final : public PointCloudData<PointT>
 };
 
 //------------------------------------------------------------------------------
+// This workaround is only available on Linux, as sigaction is only supported on UNIX systems.
+#ifdef __linux__
+  #include <signal.h>
+  namespace
+  {
+    // Attach SIGFPE to c++ exception.
+    // This allows to properly deal with division by 0 or other computation errors.
+    // NOTE : See CompressedPointCloud::GetCloud() for more details about why this is needed.
+    void sigfpe_handler(int signum) { throw std::logic_error("SIGFPE"); }
+  }
+#endif
+
 /*!
- * @brief Compress (with small loss) pointcloud with octree, and store pointcloud as binary data.
+ * @brief Compress (with small loss) pointcloud with octree, and store pointcloud as binary data in RAM.
  */
 template<typename PointT>
-struct CompressedPointCloud final : public PointCloudData<PointT>
+struct OctreeCompressedPointCloud final : public PointCloudData<PointT>
 {
   using CloudT = pcl::PointCloud<PointT>;
   using CloudTPtr = typename CloudT::Ptr;
 
-  CompressedPointCloud(CloudTPtr const& cloud)
+  OctreeCompressedPointCloud(CloudTPtr const& cloud)
   {
     #ifdef __linux__
       // DEBUG : Attach SIGPFE to exception
@@ -133,6 +190,68 @@ struct CompressedPointCloud final : public PointCloudData<PointT>
 
 //------------------------------------------------------------------------------
 /*!
+ * @brief Store PCL pointcloud on disk as PCD file.
+ */
+template<typename PointT, PCDFormat pcdFormat>
+struct PCDFilePointCloud final : public PointCloudData<PointT>
+{
+  using CloudT = pcl::PointCloud<PointT>;
+  using CloudTPtr = typename CloudT::Ptr;
+
+  PCDFilePointCloud(CloudTPtr const& cloud, std::string const& pcdDirPath = "point_cloud_log/")
+  {
+    boost::filesystem::create_directory(pcdDirPath);
+    this->PCDFilePath = pcdDirPath + std::to_string(this->PCDFileIndex) + ".pcd";
+    this->PCDFileIndex++;
+    this->SetCloud(cloud);
+  }
+
+  virtual ~PCDFilePointCloud()
+  {
+    if (std::remove(this->PCDFilePath.c_str()) != 0)
+      std::cerr << "[ERROR] Unable to delete PCD file at " << this->PCDFilePath << std::endl;
+    // No need to decrement PCDFileIndex, it will be clearer for debug like that.
+  }
+
+  virtual void SetCloud(CloudTPtr const& cloud)
+  {
+    if (savePointCloudToPCD(this->PCDFilePath, *cloud, pcdFormat) != 0)
+      std::cerr << "[ERROR] Failed to write binary PCD file to " << this->PCDFilePath << std::endl;
+  }
+
+  virtual CloudTPtr GetCloud()
+  {
+    CloudTPtr cloud(new CloudT);
+    if (pcl::io::loadPCDFile(this->PCDFilePath, *cloud) != 0)
+      std::cerr << "[ERROR] PCD file loading failed. Returning empty pointcloud." << std::endl;
+    return cloud;
+  }
+
+  virtual size_t GetMemorySize()
+  {
+    std::ifstream in(this->PCDFilePath, std::ifstream::ate | std::ifstream::binary);
+    return in.tellg();
+  }
+
+  protected:
+    static unsigned int PCDFileIndex;  ///< The index of the PCD file currently being written.
+    std::string PCDFilePath;           ///< Path to PCD file.
+};
+
+template<typename PointT, PCDFormat pcdFormat>
+unsigned int PCDFilePointCloud<PointT, pcdFormat>::PCDFileIndex = 0;
+
+template<typename PointT>
+using AsciiPCDFilePointCloud = PCDFilePointCloud<PointT, PCDFormat::ASCII>;
+
+template<typename PointT>
+using BinaryPCDFilePointCloud = PCDFilePointCloud<PointT, PCDFormat::BINARY>;
+
+template<typename PointT>
+using BinaryCompressedPCDFilePointCloud = PCDFilePointCloud<PointT, PCDFormat::BINARY_COMPRESSED>;
+
+//------------------------------------------------------------------------------
+/*!
  * @brief Structure used to log pointclouds either under uncompressed/compressed format.
  */
 template<typename PointT>
@@ -141,27 +260,31 @@ struct PointCloudStorage
   using CloudT = pcl::PointCloud<PointT>;
   using CloudTPtr = typename CloudT::Ptr;
 
-  PointCloudStorage(CloudTPtr const& cloud, bool compress) { this->SetCloud(cloud, compress); }
+  PointCloudStorage(CloudTPtr const& cloud, PointCloudStorageType storage) { this->SetCloud(cloud, storage); }
 
-  inline bool IsCompressed() const { return this->Compression; }
+  inline PointCloudStorageType StorageType() const { return this->Storage; }
   inline size_t PointsSize() const { return this->Points; }
   inline size_t MemorySize() const { return this->Data->GetMemorySize(); }
 
-  void SetCloud(CloudTPtr const& cloud, bool compress)
+  void SetCloud(CloudTPtr const& cloud, PointCloudStorageType storage)
   {
-    this->Compression = compress;
+    this->Storage = storage;
     this->Points = cloud->size();
-    if (compress)
-      this->Data.reset(new CompressedPointCloud<PointT>(cloud));
-    else
-      this->Data.reset(new UncompressedPointCloud<PointT>(cloud));
+    switch (storage)
+    {
+      case PCL_CLOUD:             this->Data.reset(new PCLPointCloud<PointT>(cloud));                     break;
+      case OCTREE_COMPRESSED:     this->Data.reset(new OctreeCompressedPointCloud<PointT>(cloud));        break;
+      case PCD_ASCII:             this->Data.reset(new AsciiPCDFilePointCloud<PointT>(cloud));            break;
+      case PCD_BINARY:            this->Data.reset(new BinaryPCDFilePointCloud<PointT>(cloud));           break;
+      case PCD_BINARY_COMPRESSED: this->Data.reset(new BinaryCompressedPCDFilePointCloud<PointT>(cloud)); break;
+    }
   }
 
   CloudTPtr GetCloud() const { return this->Data->GetCloud(); }
 
   private:
-    bool Compression;  ///< Wether pointcloud data is compressed or not.
-    size_t Points;     ///< Number of points in stored pointcloud.
+    size_t Points;                                 ///< Number of points in stored pointcloud.
+    PointCloudStorageType Storage;                 ///< How is pointcloud data stored.
     std::unique_ptr<PointCloudData<PointT>> Data;  ///< Pointcloud data.
 };
 

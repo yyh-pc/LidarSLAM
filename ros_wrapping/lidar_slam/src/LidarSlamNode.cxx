@@ -559,17 +559,27 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
 {
   // common
   bool fastSlam, undistortion, loggingCompression;
+  int pointCloudStorage;
   double loggingTimeout, maxDistanceForICPMatching;
   if (priv_nh.getParam("slam/fast_slam", fastSlam))
     LidarSlam.SetFastSlam(fastSlam);
   if (priv_nh.getParam("slam/undistortion", undistortion))
     LidarSlam.SetUndistortion(undistortion);
-  if (priv_nh.getParam("slam/logging_timeout", loggingTimeout))
-    LidarSlam.SetLoggingTimeout(loggingTimeout);
-  if (priv_nh.getParam("slam/logging_compression", loggingCompression))
-    LidarSlam.SetLoggingCompression(loggingCompression);
   if (priv_nh.getParam("slam/max_distance_for_ICP_matching", maxDistanceForICPMatching))
     LidarSlam.SetMaxDistanceForICPMatching(maxDistanceForICPMatching);
+  if (priv_nh.getParam("slam/logging_timeout", loggingTimeout))
+    LidarSlam.SetLoggingTimeout(loggingTimeout);
+  if (priv_nh.getParam("slam/logging_storage", pointCloudStorage))
+  {
+    PointCloudStorageType storage = static_cast<PointCloudStorageType>(pointCloudStorage);
+    if (storage != PCL_CLOUD && storage != OCTREE_COMPRESSED &&
+        storage != PCD_ASCII && storage != PCD_BINARY && storage != PCD_BINARY_COMPRESSED)
+    {
+      ROS_ERROR_STREAM("Incorrect pointcloud logging type value (" << storage << "). Setting it to 'PCL'.");
+      storage = PCL_CLOUD;
+    }
+    LidarSlam.SetLoggingStorage(storage);
+  }
 
   // ego motion
   int egoMotionLMMaxIter, egoMotionICPMaxIter, egoMotionLineDistanceNbrNeighbors, egoMotionMinimumLineNeighborRejection, egoMotionPlaneDistanceNbrNeighbors;
