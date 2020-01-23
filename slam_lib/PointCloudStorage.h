@@ -4,15 +4,17 @@
 #include <pcl/compression/octree_pointcloud_compression.h>
 #include <pcl/io/impl/octree_pointcloud_compression.hpp>  // seems to be missing in otree_pointcloud_compression.h
 
-#include <signal.h>
-
-namespace
-{
-  // Attach SIGFPE to c++ exception.
-  // This allows to properly deal with division by 0 or other computation errors.
-  // NOTE : See CompressedPointCloud::GetCloud() for more details about why this is needed.
-  void sigfpe_handler(int signum) { throw std::logic_error("SIGFPE"); }
-}
+// This workaround is only available on Linux, as sigaction is only supported on UNIX systems.
+#ifdef __linux__
+  #include <signal.h>
+  namespace
+  {
+    // Attach SIGFPE to c++ exception.
+    // This allows to properly deal with division by 0 or other computation errors.
+    // NOTE : See CompressedPointCloud::GetCloud() for more details about why this is needed.
+    void sigfpe_handler(int signum) { throw std::logic_error("SIGFPE"); }
+  }
+#endif
 
 //------------------------------------------------------------------------------
 /*!
@@ -62,13 +64,15 @@ struct CompressedPointCloud final : public PointCloudData<PointT>
 
   CompressedPointCloud(CloudTPtr const& cloud)
   {
-    // DEBUG : Attach SIGPFE to exception
-    // See CompressedPointCloud::GetCloud() for more details about why this is needed.
-    struct sigaction action;
-    sigemptyset(&action.sa_mask);
-    action.sa_flags = SA_NODEFER;
-    action.sa_handler = &sigfpe_handler;
-    sigaction(SIGFPE, &action, NULL);
+    #ifdef __linux__
+      // DEBUG : Attach SIGPFE to exception
+      // See CompressedPointCloud::GetCloud() for more details about why this is needed.
+      struct sigaction action;
+      sigemptyset(&action.sa_mask);
+      action.sa_flags = SA_NODEFER;
+      action.sa_handler = &sigfpe_handler;
+      sigaction(SIGFPE, &action, NULL);
+    #endif
     // Compress pointcloud data
     this->SetCloud(cloud);
   }
@@ -92,18 +96,23 @@ struct CompressedPointCloud final : public PointCloudData<PointT>
     // Decode compressed pointcloud
     CloudTPtr cloud(new CloudT);
     pcl::io::OctreePointCloudCompression<PointT> compression;
-    // DEBUG : If pointcloud has a little less than 2^i points, octree
-    // compression encoding is wrongly done, and can lead to division by 0 in
-    // decompression step.
-    // See https://github.com/PointCloudLibrary/pcl/pull/3579 for more details.
-    try
-    {
+    #ifdef __linux__
+      // DEBUG : If pointcloud has a little less than 2^i points, octree
+      // compression encoding is wrongly done, and can lead to division by 0 in
+      // decompression step.
+      // See https://github.com/PointCloudLibrary/pcl/pull/3579 for more details.
+      // This workaround is necessary until ROS uses PCL > 1.10.0.99 (>= 8ed756fcfaf710cd5f3051704fdd8af7b0d4bf61)
+      try
+      {
+        compression.decodePointCloud(this->CompressedData, cloud);
+      }
+      catch (std::logic_error e)
+      {
+        std::cerr << "[ERROR] Decompression failed. Returning empty pointcloud." << std::endl;
+      }
+    #else
       compression.decodePointCloud(this->CompressedData, cloud);
-    }
-    catch (std::logic_error e)
-    {
-      std::cerr << "[ERROR] Decompression failed. Returning empty pointcloud." << std::endl;
-    }
+    #endif
     // Set back compressed data read position to beginning (missing in OctreePointCloudCompression::decodePointCloud())
     this->CompressedData.seekg(0, ios::beg);
     return cloud;
