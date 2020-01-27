@@ -35,6 +35,7 @@ class SpinningSensorKeypointExtractor
 {
 public:
   using Point = PointXYZTIId;
+  using PointCloud = pcl::PointCloud<Point>;
 
   GetMacro(NeighborWidth, int)
   SetMacro(NeighborWidth, int)
@@ -42,20 +43,23 @@ public:
   GetMacro(MinDistanceToSensor, double)
   SetMacro(MinDistanceToSensor, double)
 
-  GetMacro(EdgeSinAngleThreshold, double)
-  SetMacro(EdgeSinAngleThreshold, double)
+  GetMacro(AngleResolution, double)
+  SetMacro(AngleResolution, double)
 
   GetMacro(PlaneSinAngleThreshold, double)
   SetMacro(PlaneSinAngleThreshold, double)
 
+  GetMacro(EdgeSinAngleThreshold, double)
+  SetMacro(EdgeSinAngleThreshold, double)
+
   GetMacro(EdgeDepthGapThreshold, double)
   SetMacro(EdgeDepthGapThreshold, double)
 
-  GetMacro(AngleResolution, double)
-  SetMacro(AngleResolution, double)
+  GetMacro(EdgeSaillancyThreshold, double)
+  SetMacro(EdgeSaillancyThreshold, double)
 
-  GetMacro(SaillancyThreshold, double)
-  SetMacro(SaillancyThreshold, double)
+  GetMacro(EdgeIntensityGapThreshold, double)
+  SetMacro(EdgeIntensityGapThreshold, double)
 
   GetMacro(FarestKeypointDist, double)
   Eigen::Vector3d GetMinPoint() { return this->MinPoint.cast<double>();}
@@ -63,15 +67,15 @@ public:
 
   GetMacro(NLasers, int)
 
-  pcl::PointCloud<Point>::Ptr GetEdgePoints() { return this->EdgesPoints; }
-  pcl::PointCloud<Point>::Ptr GetPlanarPoints() { return this->PlanarsPoints; }
-  pcl::PointCloud<Point>::Ptr GetBlobPoints() { return this->BlobsPoints; }
+  PointCloud::Ptr GetEdgePoints() { return this->EdgesPoints; }
+  PointCloud::Ptr GetPlanarPoints() { return this->PlanarsPoints; }
+  PointCloud::Ptr GetBlobPoints() { return this->BlobsPoints; }
 
   // Extract keypoints from the pointcloud. The key points
   // will be separated in two classes : Edges keypoints which
   // correspond to area with high curvature scan lines and
   // planar keypoints which have small curvature
-  void ComputeKeyPoints(const pcl::PointCloud<Point>::Ptr& pc, const std::vector<size_t>& laserIdMapping);
+  void ComputeKeyPoints(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping);
 
   // Function to enable to have some inside on why a given point was detected as a keypoint
   std::unordered_map<std::string, std::vector<double>> GetDebugArray();
@@ -103,34 +107,37 @@ private:
   // Labelizes point to be a keypoints or not
   void SetKeyPointsLabels();
 
-  // with of the neighbor used to compute discrete
-  // differential operators
+  // Width of the neighborhood used to compute discrete differential operators
   int NeighborWidth = 4;
 
-  // minimal point/sensor sensor to consider a point as valid
-  double MinDistanceToSensor = 3.0;
+  // Minimal point/sensor sensor to consider a point as valid
+  double MinDistanceToSensor = 3.0;  // [m]
 
-  // Sharpness threshold to select a point
-  double EdgeSinAngleThreshold = 0.86; // 60 degrees
-  double PlaneSinAngleThreshold = 0.5; // 30 degrees
-  double EdgeDepthGapThreshold = 0.15;
-  double DistToLineThreshold = 0.20;
+  // Maximal angle resolution of the lidar azimutal resolution.
+  // (default value to VLP-16. We add an extra 20%)
+  double AngleResolution = 0.00698;  // [rad] 0.4 degree
 
-  // maximal angle resolution of the lidar
-  // azimutal resolution of the VLP-16. We add an extra 20 %
-  double AngleResolution = 0.00698; // 0.4 degree
+  // Sharpness threshold to select a planar keypoint
+  double PlaneSinAngleThreshold = 0.5;  // [rad] 30 degrees
 
-  // Threshold upon sphricity of a neighborhood
-  // to select a blob point
-  double SphericityThreshold = 0.35;
+  // Sharpness threshold to select an edge keypoint
+  double EdgeSinAngleThreshold = 0.86;  // [rad] 60 degrees
+  double DistToLineThreshold = 0.20;    // [m]
 
-  // Threshold upon saillancy of a neighborhood
-  // to select an edge keypoint
-  double SaillancyThreshold = 2.25;
+  // Threshold upon depth gap in neighborhood to select an edge keypoint
+  double EdgeDepthGapThreshold = 0.15;  // [m]
 
-  // Coef to apply to the incertitude
-  // radius of the blob neighborhood
-  double IncertitudeCoef = 3.0;
+  // Threshold upon saillancy of a neighborhood to select an edge keypoint
+  double EdgeSaillancyThreshold = 2.25;
+
+  // Threshold upon intensity gap to select an edge keypoint
+  double EdgeIntensityGapThreshold = 50.;
+
+  // Threshold upon sphericity of a neighborhood to select a blob point
+  double SphericityThreshold = 0.35;  // CHECK : unused
+
+  // Coef to apply to the incertitude radius of the blob neighborhood
+  double IncertitudeCoef = 3.0;  // CHECK : unused
 
   // Mapping of the lasers id
   std::vector<size_t> LaserIdMapping;
@@ -138,13 +145,12 @@ private:
   // Number of lasers scan lines composing the pointcloud
   unsigned int NLasers = 0;
 
-  // norm of the farest keypoints
+  // Distance to the farest keypoint
   double FarestKeypointDist;
   // Minimum and maximum keypoints coordinates
   Eigen::Array3f MinPoint, MaxPoint;
 
-  // Curvature and over differntial operations
-  // scan by scan; point by point
+  // Curvature and other differential operations (scan by scan, point by point)
   std::vector<std::vector<double>> Angles;
   std::vector<std::vector<double>> DepthGap;
   std::vector<std::vector<double>> SaillantPoint;
@@ -152,19 +158,19 @@ private:
   std::vector<std::vector<double>> IsPointValid;
   std::vector<std::vector<double>> Label;
 
-  // Mapping between keypoints and their corresponding
-  // index in the vtk input frame
+  // Mapping between keypoints and their corresponding index in pclCurrentFrameByScan
   std::vector<std::pair<int, int>> EdgesIndex;
   std::vector<std::pair<int, int>> PlanarIndex;
   std::vector<std::pair<int, int>> BlobIndex;
 
-  pcl::PointCloud<Point>::Ptr EdgesPoints;
-  pcl::PointCloud<Point>::Ptr PlanarsPoints;
-  pcl::PointCloud<Point>::Ptr BlobsPoints;
+  // Extracted keypoints of current frame
+  PointCloud::Ptr EdgesPoints;
+  PointCloud::Ptr PlanarsPoints;
+  PointCloud::Ptr BlobsPoints;
 
   // Current point cloud stored in two differents formats
-  pcl::PointCloud<Point>::Ptr pclCurrentFrame;
-  std::vector<pcl::PointCloud<Point>::Ptr> pclCurrentFrameByScan;
+  PointCloud::Ptr pclCurrentFrame;
+  std::vector<PointCloud::Ptr> pclCurrentFrameByScan;
 };
 
 #endif // SpinningSensorKeypointExtractor_H
