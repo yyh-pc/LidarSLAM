@@ -10,6 +10,7 @@ add_library(slamlib
   SpinningSensorKeypointExtractor.h
   MotionModel.cxx
   MotionModel.h
+  PointCloudStorage.h
   PoseGraphOptimization.cxx
   PoseGraphOptimization.h
   GlobalTrajectoriesRegistration.cxx
@@ -34,6 +35,7 @@ set(HEADER_FILES
   Slam.h
   SpinningSensorKeypointExtractor.h
   MotionModel.h
+  PointCloudStorage.h
   PoseGraphOptimization.h
   GlobalTrajectoriesRegistration.h
   )

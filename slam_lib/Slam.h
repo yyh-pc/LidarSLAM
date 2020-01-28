@@ -88,6 +88,7 @@
 #include "KDTreePCLAdaptor.h"
 #include "MotionModel.h"
 #include "RollingGrid.h"
+#include "PointCloudStorage.h"
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
@@ -103,13 +104,6 @@ enum WithinFrameTrajMode
   EgoMotionTraj = 0,
   MappingTraj = 1,
   UndistortionTraj = 2
-};
-
-enum PCDFormat
-{
-  ASCII = 0,
-  BINARY = 1,
-  BINARY_COMPRESSED = 2
 };
 
 class Slam
@@ -189,6 +183,9 @@ public:
 
   SetMacro(LoggingTimeout, double)
   GetMacro(LoggingTimeout, double)
+
+  SetMacro(LoggingStorage, PointCloudStorageType)
+  GetMacro(LoggingStorage, PointCloudStorageType)
 
   SetMacro(UpdateMap, bool)
   GetMacro(UpdateMap, bool)
@@ -331,6 +328,10 @@ private:
   //           consumption if SLAM is run for a long time.
   double LoggingTimeout = 0.;
 
+  // Wether to use octree compression during keypoints logging.
+  // This reduces about 5 times the memory consumption, but slows down logging (and PGO).
+  PointCloudStorageType LoggingStorage = PointCloudStorageType::PCL_CLOUD;
+
   // Should the keypoints features maps be updated at each step.
   // It is usually set to true, but forbiding maps update can be usefull in case
   // of post-SLAM optimization with GPS and then run localization only in fixed
@@ -367,9 +368,9 @@ private:
   // covariances and keypoints of each frame).
   std::deque<Transform> LogTrajectory;
   std::deque<std::array<double, 36>> LogCovariances;
-  std::deque<PointCloud::Ptr> LogEdgesPoints;
-  std::deque<PointCloud::Ptr> LogPlanarsPoints;
-  std::deque<PointCloud::Ptr> LogBlobsPoints;
+  std::deque<PointCloudStorage<Point>> LogEdgesPoints;
+  std::deque<PointCloudStorage<Point>> LogPlanarsPoints;
+  std::deque<PointCloudStorage<Point>> LogBlobsPoints;
 
   // [s] SLAM computation duration of last processed frame (~Tworld delay)
   double Latency;
