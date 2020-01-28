@@ -44,15 +44,18 @@ int savePointCloudToPCD(std::string const& path,
   switch (pcdDataFormat)
   {
     case ASCII:
-      if (verbose) std::cout << "Saving pointcloud to ascii PCD file at " << path << std::endl;
+      if (verbose)
+        std::cout << "Saving pointcloud to ascii PCD file at " << path << std::endl;
       return pcl::io::savePCDFileASCII<PointT>(path, cloud);
 
     case BINARY:
-      if (verbose) std::cout << "Saving pointcloud to binary PCD file at " << path << std::endl;
+      if (verbose)
+        std::cout << "Saving pointcloud to binary PCD file at " << path << std::endl;
       return pcl::io::savePCDFileBinary<PointT>(path, cloud);
 
     case BINARY_COMPRESSED:
-      if (verbose) std::cout << "Saving pointcloud to binary_compressed PCD file at " << path << std::endl;
+      if (verbose)
+        std::cout << "Saving pointcloud to binary_compressed PCD file at " << path << std::endl;
       return pcl::io::savePCDFileBinaryCompressed<PointT>(path, cloud);
 
     default:
@@ -105,7 +108,7 @@ struct PCLPointCloud final : public PointCloudData<PointT>
   {
     // Attach SIGFPE to c++ exception.
     // This allows to properly deal with division by 0 or other computation errors.
-    // NOTE : See CompressedPointCloud::GetCloud() for more details about why this is needed.
+    // NOTE : See OctreeCompressedPointCloud::GetCloud() for more details about why this is needed.
     void sigfpe_handler(int signum) { throw std::logic_error("SIGFPE"); }
   }
 #endif
@@ -122,8 +125,8 @@ struct OctreeCompressedPointCloud final : public PointCloudData<PointT>
   OctreeCompressedPointCloud(CloudTPtr const& cloud)
   {
     #ifdef __linux__
-      // DEBUG : Attach SIGPFE to exception
-      // See CompressedPointCloud::GetCloud() for more details about why this is needed.
+      // DEBUG : Attach SIGFPE to exception
+      // See OctreeCompressedPointCloud::GetCloud() for more details about why this is needed.
       struct sigaction action;
       sigemptyset(&action.sa_mask);
       action.sa_flags = SA_NODEFER;
@@ -206,10 +209,17 @@ struct PCDFilePointCloud final : public PointCloudData<PointT>
     this->SetCloud(cloud);
   }
 
+  // Define default constructor/assignement/move semantics as ~PCDFilePointCloud is specified
+  PCDFilePointCloud() = default;
+  PCDFilePointCloud(const PCDFilePointCloud&) = default;
+  PCDFilePointCloud(PCDFilePointCloud&&) = default;
+  PCDFilePointCloud& operator=(const PCDFilePointCloud&) = default;
+  PCDFilePointCloud& operator=(PCDFilePointCloud&&) = default;
+
   virtual ~PCDFilePointCloud()
   {
     if (std::remove(this->PCDFilePath.c_str()) != 0)
-      std::cerr << "[ERROR] Unable to delete PCD file at " << this->PCDFilePath << std::endl;
+      std::cerr << "[WARNING] Unable to delete PCD file at " << this->PCDFilePath << std::endl;
     // No need to decrement PCDFileIndex, it will be clearer for debug like that.
   }
 
@@ -277,6 +287,8 @@ struct PointCloudStorage
       case PCD_ASCII:             this->Data.reset(new AsciiPCDFilePointCloud<PointT>(cloud));            break;
       case PCD_BINARY:            this->Data.reset(new BinaryPCDFilePointCloud<PointT>(cloud));           break;
       case PCD_BINARY_COMPRESSED: this->Data.reset(new BinaryCompressedPCDFilePointCloud<PointT>(cloud)); break;
+      default:
+        std::cerr << "[ERROR] Unkown PointCloudStorageType (" << storage << ").\n"; break;
     }
   }
 
@@ -284,7 +296,7 @@ struct PointCloudStorage
 
   private:
     size_t Points;                                 ///< Number of points in stored pointcloud.
-    PointCloudStorageType Storage;                 ///< How is pointcloud data stored.
+    PointCloudStorageType Storage;                 ///< How is stored pointcloud data.
     std::unique_ptr<PointCloudData<PointT>> Data;  ///< Pointcloud data.
 };
 
