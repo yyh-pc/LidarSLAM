@@ -92,9 +92,9 @@ struct PCLPointCloud final : public PointCloudData<PointT>
   using CloudTPtr = typename CloudT::Ptr;
 
   PCLPointCloud(CloudTPtr const& cloud) : Cloud(cloud) {}
-  virtual void SetCloud(CloudTPtr const& cloud) { this->Cloud = cloud; }
-  virtual CloudTPtr GetCloud() { return this->Cloud; }
-  virtual size_t GetMemorySize() { return sizeof(*this->Cloud) + (sizeof(PointT) * this->Cloud->size()); }
+  void SetCloud(CloudTPtr const& cloud) override { this->Cloud = cloud; }
+  CloudTPtr GetCloud() override { return this->Cloud; }
+  size_t GetMemorySize() override { return sizeof(*this->Cloud) + (sizeof(PointT) * this->Cloud->size()); }
 
   private:
     CloudTPtr Cloud;  ///< Raw uncompressed pointcloud.
@@ -137,7 +137,7 @@ struct OctreeCompressedPointCloud final : public PointCloudData<PointT>
     this->SetCloud(cloud);
   }
 
-  virtual void SetCloud(CloudTPtr const& cloud)
+  void SetCloud(CloudTPtr const& cloud) override
   {
     // Octree compression
     pcl::io::OctreePointCloudCompression<PointT> compression(pcl::io::MANUAL_CONFIGURATION, false,
@@ -151,7 +151,7 @@ struct OctreeCompressedPointCloud final : public PointCloudData<PointT>
     compression.encodePointCloud(cloud, this->CompressedData);
   }
 
-  virtual CloudTPtr GetCloud()
+  CloudTPtr GetCloud() override
   {
     // Decode compressed pointcloud
     CloudTPtr cloud(new CloudT);
@@ -178,7 +178,7 @@ struct OctreeCompressedPointCloud final : public PointCloudData<PointT>
     return cloud;
   }
 
-  virtual size_t GetMemorySize()
+  size_t GetMemorySize() override
   {
     std::streampos current = this->CompressedData.tellp();
     this->CompressedData.seekp(0, ios::end);
@@ -216,20 +216,20 @@ struct PCDFilePointCloud final : public PointCloudData<PointT>
   PCDFilePointCloud& operator=(const PCDFilePointCloud&) = default;
   PCDFilePointCloud& operator=(PCDFilePointCloud&&) = default;
 
-  virtual ~PCDFilePointCloud()
+  ~PCDFilePointCloud() override
   {
     if (std::remove(this->PCDFilePath.c_str()) != 0)
       std::cerr << "[WARNING] Unable to delete PCD file at " << this->PCDFilePath << std::endl;
     // No need to decrement PCDFileIndex, it will be clearer for debug like that.
   }
 
-  virtual void SetCloud(CloudTPtr const& cloud)
+  void SetCloud(CloudTPtr const& cloud) override
   {
     if (savePointCloudToPCD(this->PCDFilePath, *cloud, pcdFormat) != 0)
       std::cerr << "[ERROR] Failed to write binary PCD file to " << this->PCDFilePath << std::endl;
   }
 
-  virtual CloudTPtr GetCloud()
+  CloudTPtr GetCloud() override
   {
     CloudTPtr cloud(new CloudT);
     if (pcl::io::loadPCDFile(this->PCDFilePath, *cloud) != 0)
@@ -237,7 +237,7 @@ struct PCDFilePointCloud final : public PointCloudData<PointT>
     return cloud;
   }
 
-  virtual size_t GetMemorySize()
+  size_t GetMemorySize() override
   {
     std::ifstream in(this->PCDFilePath, std::ifstream::ate | std::ifstream::binary);
     return in.tellg();
