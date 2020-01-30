@@ -30,7 +30,6 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
-
 class SpinningSensorKeypointExtractor
 {
 public:
@@ -107,6 +106,9 @@ private:
   // Labelizes point to be a keypoints or not
   void SetKeyPointsLabels();
 
+  // Check if scanLine is almost empty
+  inline bool IsScanLineAlmostEmpty(size_t nScanLinePts) { return nScanLinePts < 2 * this->NeighborWidth + 1; }
+
   // Width of the neighborhood used to compute discrete differential operators
   int NeighborWidth = 4;
 
@@ -115,20 +117,20 @@ private:
 
   // Maximal angle resolution of the lidar azimutal resolution.
   // (default value to VLP-16. We add an extra 20%)
-  double AngleResolution = 0.00698;  // [rad] 0.4 degree
+  double AngleResolution = DEG2RAD(0.4);  // [rad]
 
   // Sharpness threshold to select a planar keypoint
-  double PlaneSinAngleThreshold = 0.5;  // [rad] 30 degrees
+  double PlaneSinAngleThreshold = 0.5;  // sin(30°) (selected if sin angle is less than threshold)
 
   // Sharpness threshold to select an edge keypoint
-  double EdgeSinAngleThreshold = 0.86;  // [rad] 60 degrees
-  double DistToLineThreshold = 0.20;    // [m]
+  double EdgeSinAngleThreshold = 0.86;  // ~sin(60°) (selected, if sin angle is more than threshold)
+  double DistToLineThreshold = 0.20;  // [m]
 
   // Threshold upon depth gap in neighborhood to select an edge keypoint
   double EdgeDepthGapThreshold = 0.15;  // [m]
 
   // Threshold upon saillancy of a neighborhood to select an edge keypoint
-  double EdgeSaillancyThreshold = 2.25;
+  double EdgeSaillancyThreshold = 1.5;  // [m]
 
   // Threshold upon intensity gap to select an edge keypoint
   double EdgeIntensityGapThreshold = 50.;
@@ -155,8 +157,8 @@ private:
   std::vector<std::vector<double>> DepthGap;
   std::vector<std::vector<double>> SaillantPoint;
   std::vector<std::vector<double>> IntensityGap;
-  std::vector<std::vector<double>> IsPointValid;
-  std::vector<std::vector<double>> Label;
+  std::vector<std::vector<uint8_t>> IsPointValid;
+  std::vector<std::vector<uint8_t>> Label;
 
   // Mapping between keypoints and their corresponding index in pclCurrentFrameByScan
   std::vector<std::pair<int, int>> EdgesIndex;
