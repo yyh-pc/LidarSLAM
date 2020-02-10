@@ -400,11 +400,11 @@ private:
   // ---------------------------------------------------------------------------
 
   // Array used only for debug purposes
-  double EgoMotionEdgesPointsUsed;
-  double EgoMotionPlanesPointsUsed;
-  double MappingEdgesPointsUsed;
-  double MappingPlanesPointsUsed;
-  double MappingBlobsPointsUsed;
+  unsigned int EgoMotionEdgesPointsUsed;
+  unsigned int EgoMotionPlanesPointsUsed;
+  unsigned int MappingEdgesPointsUsed;
+  unsigned int MappingPlanesPointsUsed;
+  unsigned int MappingBlobsPointsUsed;
   double MappingVarianceError;
 
   // Mapping between keypoints and their corresponding index in the input frame
@@ -432,10 +432,21 @@ private:
   std::vector<double> TimeValues;
 
   // Histogram of the ICP matching rejection causes
-  std::vector<double> MatchRejectionHistogramPlane;
-  std::vector<double> MatchRejectionHistogramLine;
-  std::vector<double> MatchRejectionHistogramBlob;
-  const int NrejectionCauses = 7;  // TODO : use enum to list different rejection causes
+  std::vector<int> MatchRejectionHistogramPlane;
+  std::vector<int> MatchRejectionHistogramLine;
+  std::vector<int> MatchRejectionHistogramBlob;
+
+  //! Result of the keypoint matching, explaining rejection cause of matching failure.
+  enum MatchingResult
+  {
+    SUCCESS = 0,               // keypoint has been successfully matched
+    NOT_ENOUGH_NEIGHBORS = 1,  // not enough neighbors to match keypoint
+    NEIGHBORS_TOO_FAR = 2,     // neighbors are too far to match keypoint
+    BAD_PCA_STRUCTURE = 3,     // PCA eigenvalues analysis discards neighborhood fit to model
+    INVALID_NUMERICAL = 4,     // optimization parameter computation has numerical invalidity
+    MSE_TOO_LARGE = 5,         // mean squared error to model is too important to accept fitted model
+    nRejectionCauses = 6
+  };
 
   // Identity matrix
   const Eigen::Matrix3d I3 = Eigen::Matrix3d::Identity();
@@ -497,11 +508,14 @@ private:
   double EgoMotionMaxPlaneDistance = 0.2;
   double EgoMotionMaxLineDistance = 0.2;
 
-  // Saturation properties
-  double EgoMotionInitLossScale = 2.0 ; // Saturation around 5 meters
+  // Loss saturation properties
+  // The loss function used is  L(residual) = scale * arctan(residual / scale)
+  // where residual is the quality of each keypoints match.
+  // TODO : simplify parameters setting
+  double EgoMotionInitLossScale = 2.0 ;  // Saturation around 5 meters
   double EgoMotionFinalLossScale = 0.2 ; // Saturation around 1.5 meters
-  double MappingInitLossScale = 0.7; // Saturation around 2.5 meters
-  double MappingFinalLossScale = 0.05; // // Saturation around 0.4 meters
+  double MappingInitLossScale = 0.7;     // Saturation around 2.5 meters
+  double MappingFinalLossScale = 0.05;   // Saturation around 0.4 meters
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods
@@ -574,21 +588,21 @@ private:
   // (R * X + T - P).t * A * (R * X + T - P)
   // Where P is the mean point of the neighborhood and A is the symmetric
   // variance-covariance matrix encoding the shape of the neighborhood
-  int ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtreePreviousEdges, const Eigen::Isometry3d& transform,
-                                    Point p, MatchingMode matchingMode);
-  int ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, const Eigen::Isometry3d& transform,
-                                     Point p, MatchingMode matchingMode);
-  int ComputeBlobsDistanceParameters(pcl::KdTreeFLANN<Point>::Ptr kdtreePreviousBlobs, const Eigen::Isometry3d& transform,
-                                     Point p, MatchingMode /*matchingMode*/);
+  MatchingResult ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtreePreviousEdges, const Eigen::Isometry3d& transform,
+                                               Point p, MatchingMode matchingMode);
+  MatchingResult ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, const Eigen::Isometry3d& transform,
+                                                Point p, MatchingMode matchingMode);
+  MatchingResult ComputeBlobsDistanceParameters(pcl::KdTreeFLANN<Point>::Ptr kdtreePreviousBlobs, const Eigen::Isometry3d& transform,
+                                                Point p, MatchingMode /*matchingMode*/);
 
   // Instead of taking the k-nearest neigbors in the odometry step we will take
   // specific neighbor using the particularities of the lidar sensor
-  void GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<float>& nearestValidDist,
+  void GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist,
                                         unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p);
 
   // Instead of taking the k-nearest neighbors in the mapping
   // step we will take specific neighbor using a sample consensus  model
-  void GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::vector<float>& nearestValidDist, double maxDistInlier,
+  void GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
                                       unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p);
 
   void ResetDistanceParameters();
