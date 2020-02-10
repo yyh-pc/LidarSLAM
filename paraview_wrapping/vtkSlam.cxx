@@ -70,11 +70,7 @@
 
 // LOCAL
 #include "vtkSlam.h"
-#include "vtkCustomTransformInterpolator.h"
-#include "vtkTemporalTransforms.h"
 #include "vtkSpinningSensorKeypointExtractor.h"
-#include "vtkEigenTools.h"
-#include "vtkHelper.h"
 
 // STD
 #include <algorithm>
@@ -111,6 +107,18 @@ vtkStandardNewMacro(vtkSlam)
 
 namespace {
 
+//-----------------------------------------------------------------------------
+template <typename T>
+vtkSmartPointer<T> createArray(const std::string& Name, int NumberOfComponents = 1, int NumberOfTuples = 0)
+{
+  vtkSmartPointer<T> array = vtkSmartPointer<T>::New();
+  array->SetNumberOfComponents(NumberOfComponents);
+  array->SetNumberOfTuples(NumberOfTuples);
+  array->SetName(Name.c_str());
+  return array;
+}
+
+//-----------------------------------------------------------------------------
 double Rad2Deg(double val)
 {
   return val / vtkMath::Pi() * 180;
@@ -257,8 +265,8 @@ vtkInformationVector **inputVector, vtkInformationVector *outputVector)
   }
 
   // output 1 - Trajectory
-  Eigen::AngleAxisd m(RollPitchYawToMatrix(Tworld.rx, Tworld.ry, Tworld.rz));
-  this->Trajectory->PushBack(pc->points[0].time, m, Eigen::Vector3d(Tworld.position));
+//  Eigen::AngleAxisd m(RollPitchYawToMatrix(Tworld.rx, Tworld.ry, Tworld.rz));
+//  this->Trajectory->PushBack(pc->points[0].time, m, Eigen::Vector3d(Tworld.position));
   auto *output1 = vtkPolyData::GetData(outputVector->GetInformationObject(1));
   output1->ShallowCopy(this->Trajectory);
 
@@ -331,7 +339,7 @@ void vtkSlam::Reset()
   this->SlamAlgo.Reset();
 
   // output of the vtk filter
-  this->Trajectory = vtkSmartPointer<vtkTemporalTransforms>::New();
+  this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
 
   this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Covariance", 36));
 

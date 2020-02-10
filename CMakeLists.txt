@@ -18,7 +18,7 @@ add_definitions(${PCL_DEFINITIONS})
 
 add_subdirectory(slam_lib)
 
-option(PARAVIEW_WRAPPING "Create a Paraview plugin (not implemented yet)" OFF)
+option(PARAVIEW_WRAPPING "Build a Paraview plugin to wrap SLAM" OFF)
 if (PARAVIEW_WRAPPING)
     add_subdirectory(paraview_wrapping)
 endif(PARAVIEW_WRAPPING)
