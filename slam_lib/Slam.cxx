@@ -234,7 +234,7 @@ Transform Slam::GetLatencyCompensatedWorldTransform()
   // Get 2 last transforms
   unsigned int trajectorySize = this->LogTrajectory.size();
   if (trajectorySize == 0)
-    return Transform();
+    return Transform::Identity();
   else if (trajectorySize == 1)
     return this->LogTrajectory.back();
   const Transform& previous = this->LogTrajectory[trajectorySize - 2];
@@ -491,7 +491,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   for (unsigned int i = 0; i < optimizedSlamPoses.size(); i++)
   {
     // Update SLAM pose
-    this->LogTrajectory[i].GetIsometry() = gpsToSensorOffset.inverse() * optimizedSlamPoses[i].GetIsometry();
+    this->LogTrajectory[i].SetIsometry(gpsToSensorOffset.inverse() * optimizedSlamPoses[i].GetIsometry());
 
     // Transform frame keypoints to world coordinates
     Eigen::Matrix4d currentTransform = this->LogTrajectory[i].GetMatrix();

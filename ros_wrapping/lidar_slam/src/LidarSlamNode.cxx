@@ -423,7 +423,7 @@ void LidarSlamNode::PoseGraphOptimization()
     if (this->OutputGpsPose)
     {
       Transform gpsPose = pose;
-      gpsPose.GetIsometry() = pose.GetIsometry() * this->LidarToGpsOffset;
+      gpsPose.SetIsometry(pose.GetIsometry() * this->LidarToGpsOffset);
       optimSlamTraj.poses.emplace_back(TransformToPoseStampedMsg(gpsPose));
     }
     // Otherwise keep LiDAR pose
@@ -502,7 +502,7 @@ void LidarSlamNode::PublishTfOdom(const Transform& slamToLidar,
     }
 
     // Transform pose
-    slamPose.GetIsometry() = slamToLidar.GetIsometry() * this->LidarToGpsOffset;
+    slamPose.SetIsometry(slamToLidar.GetIsometry() * this->LidarToGpsOffset);
 
     // TODO Transform covariance to correct lever arm induced by LidarToGpsOffset
   }

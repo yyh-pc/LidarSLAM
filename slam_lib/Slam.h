@@ -109,6 +109,9 @@ enum WithinFrameTrajMode
 class Slam
 {
 public:
+  // Needed as Slam has fixed size Eigen vectors as members
+  // http://eigen.tuxfamily.org/dox-devel/group__TopicStructHavingEigenMembers.html
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   // Usefull types
   using Point = PointXYZTIId;
