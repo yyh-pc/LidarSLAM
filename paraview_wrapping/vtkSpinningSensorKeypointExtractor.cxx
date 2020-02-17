@@ -36,18 +36,21 @@ vtkSpinningSensorKeypointExtractor::vtkSpinningSensorKeypointExtractor()
 void vtkSpinningSensorKeypointExtractor::PrintSelf(std::ostream &os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os, indent);
-  os << indent << "Slam Parameters: " << std::endl;
+  os << indent << "SpinningSensorKeypointExtractor parameters: " << std::endl;
   vtkIndent paramIndent = indent.GetNextIndent();
   #define PrintParameter(param) os << paramIndent << #param << "\t" << this->Extractor->Get##param()  << std::endl;
 
   PrintParameter(NeighborWidth)
   PrintParameter(MinDistanceToSensor)
-  PrintParameter(EdgeSinAngleThreshold)
+  PrintParameter(AngleResolution)
 
   PrintParameter(PlaneSinAngleThreshold)
+
+  PrintParameter(EdgeSinAngleThreshold)
   PrintParameter(EdgeDepthGapThreshold)
-  PrintParameter(AngleResolution)
-  PrintParameter(SaillancyThreshold)
+  PrintParameter(EdgeSaillancyThreshold)
+  PrintParameter(EdgeIntensityGapThreshold)
+
   PrintParameter(FarestKeypointDist)
   PrintParameter(NLasers)
 

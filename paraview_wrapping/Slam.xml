@@ -3,13 +3,13 @@
   <ProxyGroup name="filters">
     <SourceProxy name="Slam (Online)" class="vtkSlam" label="Slam (Online)">
       <Documentation
-        short_help="Performs SLAM algorithm based on lidar sensor outputted point cloud"
-        long_help="Performs SLAM algorithm based on lidar sensor outputted point cloud.
+        short_help="Performs SLAM algorithm on the Lidar sensor's point cloud"
+        long_help="Performs SLAM algorithm on the Lidar sensor's point cloud.
                    The SLAM algorithm is composed of three sequential steps:
                    - Sampling strategy: extract keypoints that provide strong geometric information
                    - Ego Motion: Sensor motion estimation between two frames
-                   - Mapping: Map the frame in a environment map">
-        filter which performs slam on points data.
+                   - Mapping: Map the frame in an environment map">
+        Filter which performs slam on pointcloud data
       </Documentation>
 
       <InputProperty
@@ -20,7 +20,7 @@
           <DataType value="vtkPolyData"/>
         </DataTypeDomain>
         <Documentation>
-          Set the input trajectory
+          Set the input point cloud
         </Documentation>
       </InputProperty>
 
@@ -32,7 +32,7 @@
           <DataType value="vtkTable"/>
         </DataTypeDomain>
         <Documentation>
-          Set the input point cloud
+          Set the LiDAR calibration
         </Documentation>
       </InputProperty>
 
@@ -50,8 +50,7 @@
           number_of_elements="1">
         <BooleanDomain name="bool" />
         <Documentation>
-          If fast slam is enable we remove the extraction of
-          blobs point in the Keypoint extraction step
+          If fast slam is enabled, we don't use blob keypoints
         </Documentation>
       </IntVectorProperty>
 
@@ -62,15 +61,40 @@
           number_of_elements="1">
         <BooleanDomain name="bool" />
         <Documentation>
-          If set display mode is enable, some extra arrays area
-          added to the SLAM output to display the SLAM algorithm
+          If display mode is enabled, some extra arrays are
+          added to the output to display some of the SLAM algorithm
           internal variables (the keypoints labels, the value of the
-          computed geometric features, ...). It is very usefull when
+          computed geometric features, ...). It is very useful when
           debugging and improving the SLAM
         </Documentation>
       </IntVectorProperty>
 
-<!--      <IntVectorProperty
+      <IntVectorProperty
+          name="Verbosity Level"
+          command="SetVerbosity"
+          default_values="0"
+          number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="0)     Errors, warnings or one time info"/>
+          <Entry value="1" text="1) 0 + Frame number, total frame processing time"/>
+          <Entry value="2" text="2) 1 + Extracted features, used keypoints, mapping variance, ego-motion and localization summary"/>
+          <Entry value="3" text="3) 2 + Sub-problems processing duration"/>
+          <Entry value="4" text="4) 3 + Ceres optimization summary"/>
+          <Entry value="5" text="5) 4 + Logging/maps memory usage"/>
+        </EnumerationDomain>
+        <Documentation>
+          Indicate verbosity level to display more or less information in console:
+           (0) print errors, warnings or one time info;
+           (1) 0 + frame number, total frame processing time;
+           (2) 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary;
+           (3) 2 + sub-problems processing duration;
+           (4) 3 + ceres optimization summary;
+           (5) 4 + logging/maps memory usage.
+        </Documentation>
+      </IntVectorProperty>
+
+      <!-- TODO : fix undistortion -->
+      <!-- <IntVectorProperty
           name="Undistortion Model"
           command="SetUndistortion"
           default_values="0"
@@ -78,18 +102,21 @@
         <BooleanDomain name="bool" />
         <Documentation>
           If undistortion model is enabled, the SLAM will use a motion
-          model to undistorded the acquired frame during a sweep of the
+          model to undistort the acquired frame during a sweep of the
           lidar. If it is not enabled, the slam will compute a rigid
-          transform that will be applied to the all frame without taking
-          into acocunt the distortion due to the liadr motion during a sweep
+          transform that will be applied to the whole frame without taking
+          into account the distortion due to the lidar motion during a sweep
         </Documentation>
       </IntVectorProperty>-->
 
       <PropertyGroup label="General Parameters">
         <Property name="Display Mode" />
         <Property name="Fast Slam" />
-<!--        <Property name="Undistortion Model" />-->
+        <Property name="Verbosity Level" />
+        <!-- <Property name="Undistortion Model" /> -->
       </PropertyGroup>
+
+      <!-- ================ Keypoints extraction Parameters ================ -->
 
       <ProxyProperty
         name="KeyPointsExtractor"
@@ -99,6 +126,7 @@
           <Group name="KeyPointsExtractor"/>
         </ProxyListDomain>
       </ProxyProperty>
+
       <!-- ==================== Ego Motion Parameters ==================== -->
       <IntVectorProperty
           name="Lev-Mardt Maximum Iteration"
@@ -116,7 +144,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="ICP Maximum Itertation"
+          name="ICP Maximum Iteration"
           command="SetEgoMotionICPMaxIter"
           default_values="4"
           number_of_elements="1"
@@ -124,7 +152,7 @@
         <Documentation>
           The sensor motion estimation is performed using an ICP Mahalanobis
           distance function. The ICP algorithm is an iterative algorithm and the number
-          of iteration has to be settled
+          of iteration has to be set
         </Documentation>
       </IntVectorProperty>
 
@@ -136,8 +164,8 @@
           panel_visibility="advanced">
         <Documentation>
           In the Ego-Motion step, the neighborhood of an edge keypoint
-          is fitted using a ransac algorithm. This parameter settled the
-          minimum number of inlier we want to consider the point
+          is fitted using a ransac algorithm. This parameter sets the
+          minimum number of inliers we want to keep currently considered point
         </Documentation>
       </IntVectorProperty>
 
@@ -148,7 +176,7 @@
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          K-nearest neighbors point to consider to compute the Variance-Covariance
+          K-nearest neighbors points to consider to compute the Variance-Covariance
           matrix of the neighborhood to define the Mahalanobis distance function.
         </Documentation>
       </IntVectorProperty>
@@ -245,7 +273,7 @@
 
       <PropertyGroup label="Ego-Motion ICP Matching And Optimization Parameters">
         <Property name="Lev-Mardt Maximum Iteration" />
-        <Property name="ICP Maximum Itertation" />
+        <Property name="ICP Maximum Iteration" />
         <Property name="# Edges Neighbors Minimum After Ransac" />
         <Property name="# Edge Neighbors" />
         <Property name="# Plane Neighbors" />
@@ -275,7 +303,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="ICP Maximum Itertation M"
+          name="ICP Maximum Iteration M"
           command="SetMappingICPMaxIter"
           default_values="3"
           number_of_elements="1"
@@ -283,7 +311,7 @@
         <Documentation>
           The sensor motion estimation is performed using an ICP Mahalanobis
           distance function. The ICP algorithm is an iterative algorithm and the number
-          of iteration has to be settled
+          of iteration has to be set
         </Documentation>
       </IntVectorProperty>
 
@@ -295,8 +323,8 @@
           panel_visibility="advanced">
         <Documentation>
           In the Mapping step, the neighborhood of an edge keypoint
-          is fitted using a ransac algorithm. This parameter settled the
-          minimum number of inlier we want to consider the point
+          is fitted using a ransac algorithm. This parameter sets the
+          minimum number of inliers we want to keep currently considered point
         </Documentation>
       </IntVectorProperty>
 
@@ -307,7 +335,7 @@
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          K-nearest neighbors point to consider to compute the Variance-Covariance
+          K-nearest neighbors points to consider to compute the Variance-Covariance
           matrix of the neighborhood to define the Mahalanobis distance function.
         </Documentation>
       </IntVectorProperty>
@@ -416,7 +444,7 @@
 
      <PropertyGroup label="Mapping ICP Matching And Optimization Parameters">
        <Property name="Lev-Mardt Maximum Iteration M" />
-       <Property name="ICP Maximum Itertation M" />
+       <Property name="ICP Maximum Iteration M" />
        <Property name="# Edges Neighbors Minimum After Ransac M" />
        <Property name="# Edge Neighbors M" />
        <Property name="# Plane Neighbors M" />
@@ -480,21 +508,22 @@
          number_of_elements="1"
          panel_visibility="advanced">
        <Documentation>
-          Size of the map used to store the keypoints. The map needs to
-          have a size sufficient to store at least one frame.
+          Size of the map used to store the keypoints (number of voxels
+          in each direction). The map needs to have a size sufficient to
+          store at least one frame.
         </Documentation>
      </IntVectorProperty>
 
      <DoubleVectorProperty
          name="Map Voxel Grid Resolution"
          command="SetVoxelGridResolution"
-         default_values="10"
+         default_values="10."
          number_of_elements="1"
          panel_visibility="advanced">
        <Documentation>
-          Resolution of the map. It should not be too big or too much
-          points will be considered when trying to position the frame in
-          the position.This do not impact accuracy but only speed.
+          Resolution of the map (meters per voxel). It should not be too big
+          or too much points will be considered when trying to match the frame at
+          the current position. This do not impact accuracy but only speed.
         </Documentation>
      </DoubleVectorProperty>
 
@@ -525,7 +554,7 @@
                    - Sampling strategy: extract keypoints that provide strong geometric information
                    - Ego Motion: Sensor motion estimation between two frames
                    - Mapping: Map the frame in a environment map">
-        filter which performs slam on points data.
+        Filter which performs slam on point cloud data.
       </Documentation>
 
       <IntVectorProperty
@@ -535,7 +564,7 @@
           number_of_elements="1">
           <BooleanDomain name="bool" />
         <Documentation>
-          Process all frame
+          Process all frames
         </Documentation>
       </IntVectorProperty>
 
@@ -576,15 +605,18 @@
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Process one frame every StepSize frames (exemple: every (1) frames, every 2 frames, every 3 frames, and so on). A StepSize of 1 (the default value) means that all frames between the first and the last (included) will be used. This property can be useful to trade robustness (StepSize equal to 1) and accuracy for speed (StepSize bigger than 1).
+          Process one frame every StepSize frames
+          (example: every (1) frame, every 2 frames, every 3 frames, and so on).
+          A StepSize of 1 (the default value) means that all frames between the
+          first and the last (included) will be used. This property can be
+          useful to trade robustness (StepSize equal to 1) and accuracy for
+          speed (StepSize bigger than 1).
         </Documentation>
       </IntVectorProperty>
 
     </SourceProxy>
   </ProxyGroup>
   <!-- End Online Slam -->
-
-
 
   <!-- Begin KeyPointsExtractor -->
   <ProxyGroup name="KeyPointsExtractor">
@@ -600,8 +632,9 @@
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Number of neighbors used to estimate the scan lines
-          scores (curvature, angles, depth gap, ...)
+          Number of neighbors on both sides of current point used to estimate
+          the keypoints scores (curvature, angles, depth gap, ...) in each scan
+          line
         </Documentation>
       </IntVectorProperty>
 
@@ -612,10 +645,10 @@
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Minimal distance between a point and the sensor to be
+          Minimum distance (in meters) between a point and the sensor to be
           processed for the keypoint extraction. In other words,
           all points too close from the sensor are automatically
-          rejected. In meters
+          rejected.
         </Documentation>
       </DoubleVectorProperty>
 
@@ -627,8 +660,8 @@
           panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
-          the angle between the two lines that fit its previous and next neighborhood.
-          If the angle is close enought to 90° (sin(Angle) high enought) we consider
+          the angle between the two lines that fit its previous and next neighborhoods.
+          If the angle is close enough to 90° (sin(Angle) high enough), we consider
           the point as an edge keypoint.
         </Documentation>
       </DoubleVectorProperty>
@@ -641,14 +674,40 @@
           panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as a planar keypoint is to compute
-          the angle between the two lines that fit its previous and next neighborhood.
-          If the angle is close enought to 0° or 180° (sin(Angle) low enought) we consider
+          the angle between the two lines that fit its previous and next neighborhoods.
+          If the angle is close enough to 0° or 180° (sin(Angle) low enough), we consider
           the point as a planar keypoint.
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Minimum Depth Gapt To Be Considered As Edge"
+          name="Minimum Saillancy Distance To Be Considered As Edge"
+          command="SetEdgeSaillancyThreshold"
+          default_values="1.5"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          One strategy to consider a point as an edge keypoint is to compute
+          the depth gap between the point and its far background neighborhhod.
+          If the gap is big enough, we consider the point as an edge keypoint.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
+          name="Minimum Intensity Gap To Be Considered As Edge"
+          command="SetEdgeIntensityGapThreshold"
+          default_values="50."
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          One strategy to consider a point as an edge keypoint is to compute
+          the intensity gap between the point and its left and right neighbors.
+          If the gap is big enough, we consider the point as an edge keypoint.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
+          name="Minimum Depth Gap To Be Considered As Edge"
           command="SetEdgeDepthGapThreshold"
           default_values="0.15"
           number_of_elements="1"
@@ -656,22 +715,22 @@
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
           the gap between the point and its neighborhood. Its left and right
-          neighborhood are fitted with a line and we then compute the gap as
+          neighborhoods are fitted with a line and then we compute the gap as
           being the distance between the point and the fitted lines. If the gap
-          is high enought, we consider the point as an edge keypoint
+          is big enough, we consider the point as an edge keypoint
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Angle Resolution Between Two Firing"
+          name="Angle Resolution Between Two Firings"
           command="SetAngleResolution"
           default_values="0.00698"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Azimutal angle resolution of the Lidar sensor. This angle
+          Azimutal angle resolution of the Lidar sensor (radians). This angle
           resolution is used to compute an expected distance between two
-          consecutives firing. From this expected distance, we can detect
+          consecutives firings. From this expected distance, we can detect
           if a point is a potential gap and launch more investigation
         </Documentation>
       </DoubleVectorProperty>
@@ -681,8 +740,8 @@
         <Property name="Minimum Distance To Sensor" />
         <Property name="Minimum Sinus To Be Considered As Edge" />
         <Property name="Maximum Sinus To Be Considered As Planar" />
-        <Property name="Minimum Depth Gapt To Be Considered As Edge" />
-        <Property name="Angle Resolution Between Two Firing" />
+        <Property name="Minimum Depth Gap To Be Considered As Edge" />
+        <Property name="Angle Resolution Between Two Firings" />
       </PropertyGroup>
     </Proxy>
   </ProxyGroup>

@@ -94,7 +94,7 @@ private:
 
   bool FirstIteration = true;
   int CurrentFrame = 0;
-  vtkMTimeType LastModifyTime = 0;
+  unsigned long LastModifyTime = 0;
   std::vector<vtkSmartPointer<vtkPolyData>> Cache;
 };
 
