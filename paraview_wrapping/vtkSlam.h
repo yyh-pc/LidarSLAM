@@ -250,10 +250,10 @@ private:
   vtkSmartPointer<vtkPolyData> Trajectory;
   std::vector<size_t> GetLaserIdMapping(vtkTable *calib);
 
-  // Indicate if we are in display mode or not
+  // Indicate if we are in display mode or not.
   // Display mode will add arrays showing some
   // results of the slam algorithm such as
-  // the keypoints extracted, curvature etc
+  // the extracted keypoints, curvature etc.
   bool DisplayMode = true;
 };
 

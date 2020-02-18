@@ -27,7 +27,7 @@
 //
 // Set built-in type.  Creates member Set"name"() (e.g., SetVisibility());
 //
-#undef vtkCustomSetMacro(name,type)
+#undef vtkCustomSetMacro
 #define vtkCustomSetMacro(name,type) \
 virtual void Set##name (type _arg) \
 { \

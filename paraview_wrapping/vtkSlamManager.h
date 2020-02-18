@@ -85,7 +85,7 @@ protected:
   //! the last frame processed
   int LastFrame = 0;
 
-  //! Process one frame every StepSize frames (ex: every frame, every 2 frame, 3 frame, ...)
+  //! Process one frame every StepSize frames (ex: every frame, every 2 frames, 3 frames, ...)
   int StepSize = 1;
 
 private:

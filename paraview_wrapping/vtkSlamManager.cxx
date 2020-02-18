@@ -86,7 +86,7 @@ int vtkSlamManager::RequestData(vtkInformation *request, vtkInformationVector **
   // First Iteration
   if (this->FirstIteration)
   {
-    // Check if only the timstamp change, in this case we don't need to rerun the slam
+    // Check if only the timestamp changes, in this case we don't need to rerun the slam
     // we just need to copy the cache
     if (this->ParametersModificationTime.GetMTime() <= this->LastModifyTime)
     {
