@@ -103,6 +103,9 @@
 #include <vtkTransformPolyDataFilter.h>
 #include <vtkTable.h>
 
+// PCL
+#include<pcl/common/transforms.h>
+
 //-----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlam)
 
@@ -329,9 +332,42 @@ vtkInformationVector **inputVector, vtkInformationVector *outputVector)
   auto *BlobMap = vtkPolyData::GetData(outputVector->GetInformationObject(4));
   PolyDataFromPointCloud(this->SlamAlgo->GetBlobsMap(), BlobMap);
 
-  // TODO : add debug information about matching rejection
+  Slam::PointCloud::Ptr tmpPcl(new Slam::PointCloud);
+  auto keypointExtractor = this->SlamAlgo->GetKeyPointsExtractor();
 
-  // TODO : add extracted keypoints output ?
+  // output 5 - Current edge keypoints
+  pcl::transformPointCloud(*keypointExtractor->GetEdgePoints(), *tmpPcl, Tworld.GetMatrix());
+  auto* EdgePoints = vtkPolyData::GetData(outputVector->GetInformationObject(5));
+  PolyDataFromPointCloud(tmpPcl, EdgePoints);
+
+  // output 6 - Current planar keypoints
+  pcl::transformPointCloud(*keypointExtractor->GetPlanarPoints(), *tmpPcl, Tworld.GetMatrix());
+  auto* PlanarPoints = vtkPolyData::GetData(outputVector->GetInformationObject(6));
+  PolyDataFromPointCloud(tmpPcl, PlanarPoints);
+
+  // output 7 - Current blob keypoints
+  pcl::transformPointCloud(*keypointExtractor->GetBlobPoints(), *tmpPcl, Tworld.GetMatrix());
+  auto* BlobPoints = vtkPolyData::GetData(outputVector->GetInformationObject(7));
+  PolyDataFromPointCloud(tmpPcl, BlobPoints);
+
+  // add debug information about matching rejection if displayMode is enabled
+  if (this->DisplayMode)
+  {
+    std::unordered_map<std::string, vtkPolyData*> outputMap;
+    outputMap["EgoMotion: edges matches"] = EdgePoints;
+    outputMap["Mapping: edges matches"] = EdgePoints;
+    outputMap["EgoMotion: planes matches"] = PlanarPoints;
+    outputMap["Mapping: planes matches"] = PlanarPoints;
+
+    auto debugArray = this->SlamAlgo->GetDebugArray();
+    for (const auto& it : outputMap)
+    {
+      auto array = createArray<vtkDoubleArray>(it.first.c_str(), 1, debugArray[it.first].size());
+      // memcpy is a better alternative than looping on all tuples
+      std::memcpy(array->GetVoidPointer(0), debugArray[it.first].data(), sizeof(double) * debugArray[it.first].size());
+      it.second->GetPointData()->AddArray(array);
+    }
+  }
 
   return 1;
 }
@@ -388,12 +424,15 @@ vtkSlam::vtkSlam()
   //  1) LiDAR calibration (vtkTable)
   this->SetNumberOfInputPorts(2);
   // Output ports :
-  //  0) Current transformed SLAM frame
-  //  1) Trajectory
-  //  2) Edges keypoints map
-  //  3) Planes keypoints map
-  //  4) Blobs keypoints map
-  this->SetNumberOfOutputPorts(5);
+  //  0) Current transformed SLAM frame enriched with debug arrays
+  //  1) Trajectory (with position, orientation, covariance and time)
+  //  2) Edge keypoints map
+  //  3) Plane keypoints map
+  //  4) Blob keypoints map
+  //  5) Extracted edge keypoints from current frame
+  //  6) Extracted plane keypoints from current frame
+  //  7) Extracted blob keypoints from current frame
+  this->SetNumberOfOutputPorts(8);
   this->Reset();
 }
 

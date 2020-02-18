@@ -300,6 +300,19 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation()
 }
 
 //-----------------------------------------------------------------------------
+std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray()
+{
+  auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
+
+  std::unordered_map<std::string, std::vector<double>> map;
+  map["EgoMotion: edges matches"] = toDoubleVector(this->EdgePointRejectionEgoMotion);
+  map["EgoMotion: planes matches"] = toDoubleVector(this->PlanarPointRejectionEgoMotion);
+  map["Mapping: edges matches"] = toDoubleVector(this->EdgePointRejectionMapping);
+  map["Mapping: planes matches"] = toDoubleVector(this->PlanarPointRejectionMapping);
+  return map;
+}
+
+//-----------------------------------------------------------------------------
 Slam::PointCloud::Ptr Slam::GetEdgesMap()
 {
   return this->EdgesPointsLocalMap->Get();
@@ -599,8 +612,8 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
 void Slam::ComputeEgoMotion()
 {
   // Initialize the IsKeypointUsed vectors
-  this->EdgePointRejectionEgoMotion.assign(this->CurrentEdgesPoints->size(), 0);
-  this->PlanarPointRejectionEgoMotion.assign(this->CurrentPlanarsPoints->size(), 0);
+  this->EdgePointRejectionEgoMotion.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
+  this->PlanarPointRejectionEgoMotion.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
   // Check that there is enough points to compute the EgoMotion
   if ((this->CurrentEdgesPoints->size() == 0 || this->PreviousEdgesPoints->size() == 0) &&
       (this->CurrentPlanarsPoints->size() == 0 || this->PreviousPlanarsPoints->size() == 0))
@@ -787,8 +800,8 @@ void Slam::Mapping()
     std::cerr << "[WARNING] Not enough keypoints, Mapping skipped for this frame." << std::endl;
     return;
   }
-  this->EdgePointRejectionMapping.resize(this->CurrentEdgesPoints->size(), 0);
-  this->PlanarPointRejectionMapping.resize(this->CurrentPlanarsPoints->size(), 0);
+  this->EdgePointRejectionMapping.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
+  this->PlanarPointRejectionMapping.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
 
   // Update motion model parameters
   if (this->Undistortion)
@@ -1142,9 +1155,9 @@ void Slam::ResetDistanceParameters()
   this->Pvalues.clear();
   this->TimeValues.clear();
   this->residualCoefficient.clear();
-  this->MatchRejectionHistogramLine.assign(MatchingResult::nRejectionCauses, 0);
-  this->MatchRejectionHistogramPlane.assign(MatchingResult::nRejectionCauses, 0);
-  this->MatchRejectionHistogramBlob.assign(MatchingResult::nRejectionCauses, 0);
+  this->MatchRejectionHistogramLine.fill(0);
+  this->MatchRejectionHistogramPlane.fill(0);
+  this->MatchRejectionHistogramBlob.fill(0);
 }
 
 //-----------------------------------------------------------------------------

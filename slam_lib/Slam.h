@@ -152,7 +152,10 @@ public:
   // Get current number of frames already processed
   GetMacro(NbrFrameProcessed, unsigned int)
 
+  // Get general information about ICP and optimization
   std::unordered_map<std::string, double> GetDebugInformation();
+  // Get information for each keypoint of the current frame (used/rejected keypoints, ...)
+  std::unordered_map<std::string, std::vector<double>> GetDebugArray();
 
   // Run pose graph optimization using GPS trajectory to improve SLAM maps and trajectory.
   // Each GPS position must have an associated precision covariance.
@@ -402,7 +405,7 @@ private:
   //   Optimization data
   // ---------------------------------------------------------------------------
 
-  // Array used only for debug purposes
+  // ICP matching summary (used for debug only)
   unsigned int EgoMotionEdgesPointsUsed;
   unsigned int EgoMotionPlanesPointsUsed;
   unsigned int MappingEdgesPointsUsed;
@@ -410,11 +413,31 @@ private:
   unsigned int MappingBlobsPointsUsed;
   double MappingVarianceError;
 
-  // Mapping between keypoints and their corresponding index in the input frame
-  std::vector<int> EdgePointRejectionEgoMotion;
-  std::vector<int> PlanarPointRejectionEgoMotion;
-  std::vector<int> EdgePointRejectionMapping;
-  std::vector<int> PlanarPointRejectionMapping;
+  //! Result of the keypoint matching, explaining rejection cause of matching failure.
+  enum MatchingResult : uint8_t
+  {
+    SUCCESS = 0,               // keypoint has been successfully matched
+    NOT_ENOUGH_NEIGHBORS = 1,  // not enough neighbors to match keypoint
+    NEIGHBORS_TOO_FAR = 2,     // neighbors are too far to match keypoint
+    BAD_PCA_STRUCTURE = 3,     // PCA eigenvalues analysis discards neighborhood fit to model
+    INVALID_NUMERICAL = 4,     // optimization parameter computation has numerical invalidity
+    MSE_TOO_LARGE = 5,         // mean squared error to model is too important to accept fitted model
+    UNKOWN = 6,                // unkown status (matching not performed yet)
+    nRejectionCauses = 7
+  };
+
+  // ICP matching results of keypoints extracted from the current input frame
+  // (used for debug only)
+  std::vector<MatchingResult> EdgePointRejectionEgoMotion;
+  std::vector<MatchingResult> PlanarPointRejectionEgoMotion;
+  std::vector<MatchingResult> EdgePointRejectionMapping;
+  std::vector<MatchingResult> PlanarPointRejectionMapping;
+
+  // Histogram of the ICP matching rejection causes
+  // (used mainly for debug)
+  std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramLine;
+  std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramPlane;
+  std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramBlob;
 
   // To recover the ego-motion we have to minimize the function
   // f(R, T) = sum(d(point, line)^2) + sum(d(point, plane)^2). In both
@@ -433,23 +456,6 @@ private:
   std::vector<Eigen::Vector3d > Xvalues;
   std::vector<double> residualCoefficient;
   std::vector<double> TimeValues;
-
-  // Histogram of the ICP matching rejection causes
-  std::vector<int> MatchRejectionHistogramPlane;
-  std::vector<int> MatchRejectionHistogramLine;
-  std::vector<int> MatchRejectionHistogramBlob;
-
-  //! Result of the keypoint matching, explaining rejection cause of matching failure.
-  enum MatchingResult
-  {
-    SUCCESS = 0,               // keypoint has been successfully matched
-    NOT_ENOUGH_NEIGHBORS = 1,  // not enough neighbors to match keypoint
-    NEIGHBORS_TOO_FAR = 2,     // neighbors are too far to match keypoint
-    BAD_PCA_STRUCTURE = 3,     // PCA eigenvalues analysis discards neighborhood fit to model
-    INVALID_NUMERICAL = 4,     // optimization parameter computation has numerical invalidity
-    MSE_TOO_LARGE = 5,         // mean squared error to model is too important to accept fitted model
-    nRejectionCauses = 6
-  };
 
   // Identity matrix
   const Eigen::Matrix3d I3 = Eigen::Matrix3d::Identity();
@@ -609,9 +615,6 @@ private:
                                       unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p);
 
   void ResetDistanceParameters();
-
-  // Display information about the keypoints - neighborhood matching rejections
-  void RejectionInformationDisplay();  // CHECK : undefined, delete ?
 
   // Set the current keypoints frame max and min points
   void SetFrameMinMaxKeypoints(const Eigen::Vector3d& minPoint, const Eigen::Vector3d& maxPoint);
