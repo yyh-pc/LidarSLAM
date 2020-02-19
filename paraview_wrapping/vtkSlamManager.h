@@ -61,9 +61,9 @@ public:
   vtkCustomSetMacro(StepSize, int)
   //! @}
 
-  //! @{ @copydoc AllFrame
-  vtkGetMacro(AllFrame, bool)
-  vtkCustomSetMacro(AllFrame, bool)
+  //! @{ @copydoc AllFrames
+  vtkGetMacro(AllFrames, bool)
+  vtkCustomSetMacro(AllFrames, bool)
   //! @}
 
 protected:
@@ -76,7 +76,7 @@ protected:
                   vtkInformationVector* outputVector) override;
 
   //! Overwrite FirstFrame and LastFrame to process all the frame
-  bool AllFrame = true;
+  bool AllFrames = true;
 
   //! First frame to be process
   int FirstFrame = 0;
@@ -85,7 +85,7 @@ protected:
   //! the last frame processed
   int LastFrame = 0;
 
-  //! Process one frame every StepSize frames (ex: every frame, every 2 frame, 3 frame, ...)
+  //! Process one frame every StepSize frames (ex: every frame, every 2 frames, 3 frames, ...)
   int StepSize = 1;
 
 private:
@@ -94,7 +94,7 @@ private:
 
   bool FirstIteration = true;
   int CurrentFrame = 0;
-  vtkMTimeType LastModifyTime = 0;
+  unsigned long LastModifyTime = 0;
   std::vector<vtkSmartPointer<vtkPolyData>> Cache;
 };
 

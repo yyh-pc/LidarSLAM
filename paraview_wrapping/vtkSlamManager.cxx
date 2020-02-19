@@ -30,7 +30,7 @@ void vtkSlamManager::PrintSelf(std::ostream &os, vtkIndent indent)
 {
   os << indent << "Slam Manager: " << std::endl;
   #define PrintParameter(param) os << indent << #param << " " << this->param << std::endl;
-  PrintParameter(AllFrame)
+  PrintParameter(AllFrames)
   PrintParameter(FirstFrame)
   PrintParameter(LastFrame)
   PrintParameter(StepSize)
@@ -61,7 +61,7 @@ int vtkSlamManager::RequestData(vtkInformation *request, vtkInformationVector **
 {
   // Check parameters validity
   vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
-  int nb_time_steps = inInfo->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
+  int nbTimeSteps = inInfo->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
   if (this->StepSize <= 0)
   {
     vtkErrorMacro("StepSize must be greater than zero!")
@@ -72,9 +72,9 @@ int vtkSlamManager::RequestData(vtkInformation *request, vtkInformationVector **
     vtkErrorMacro("FirstFrame and LastFrame must be positive integers!")
     return 0;
   }
-  if (this->FirstFrame > nb_time_steps - 1 || this->LastFrame > nb_time_steps -1)
+  if (this->FirstFrame > nbTimeSteps - 1 || this->LastFrame > nbTimeSteps - 1)
   {
-    vtkErrorMacro("The dataset only has " << nb_time_steps << " frames!")
+    vtkErrorMacro("The dataset only has " << nbTimeSteps << " frames!")
     return 0;
   }
   if (this->LastFrame < this->FirstFrame )
@@ -86,25 +86,25 @@ int vtkSlamManager::RequestData(vtkInformation *request, vtkInformationVector **
   // First Iteration
   if (this->FirstIteration)
   {
-    // Check if only the timstamp change, in this case we don't need to rerun the slam
+    // Check if only the timestamp changes, in this case we don't need to rerun the slam
     // we just need to copy the cache
     if (this->ParametersModificationTime.GetMTime() <= this->LastModifyTime)
     {
       for (int i = 0; i < this->GetNumberOfOutputPorts(); ++i)
       {
-        auto *output = vtkPolyData::GetData(outputVector->GetInformationObject(i));
+        auto* output = vtkPolyData::GetData(outputVector, i);
         output->ShallowCopy(this->Cache[i]);
       }
       return 1;
     }
     this->FirstIteration = false;
     this->Reset();
-    this->CurrentFrame = this->AllFrame ? 0 : this->FirstFrame;
+    this->CurrentFrame = this->AllFrames ? 0 : this->FirstFrame;
   }
 
   // relaunch the pipeline if necessary
-  int firstFrame = this->AllFrame ? 0 : this->FirstFrame;
-  int lastFrame = this->AllFrame ? nb_time_steps - 1 : this->LastFrame;
+  int firstFrame = this->AllFrames ? 0 : this->FirstFrame;
+  int lastFrame = this->AllFrames ? nbTimeSteps - 1 : this->LastFrame;
   int candidateNextFrame = this->CurrentFrame + this->StepSize;
   bool lastIteration = candidateNextFrame > lastFrame;
   if (!lastIteration)
@@ -133,7 +133,7 @@ int vtkSlamManager::RequestData(vtkInformation *request, vtkInformationVector **
     for (int i = 0; i < this->GetNumberOfOutputPorts(); ++i)
     {
       auto output = vtkSmartPointer<vtkPolyData>::New();
-      output->DeepCopy(vtkPolyData::GetData(outputVector->GetInformationObject(i)));
+      output->DeepCopy(vtkPolyData::GetData(outputVector, i));
       this->Cache.push_back(output);
     }
   }

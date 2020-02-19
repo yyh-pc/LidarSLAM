@@ -70,64 +70,104 @@
 
 // LOCAL
 #include "vtkSlam.h"
-#include "vtkCustomTransformInterpolator.h"
-#include "vtkTemporalTransforms.h"
 #include "vtkSpinningSensorKeypointExtractor.h"
-#include "vtkEigenTools.h"
-#include "vtkHelper.h"
-
-// STD
-#include <algorithm>
-#include <numeric>
-#include <cstring>
 
 // VTK
 #include <vtkCellArray.h>
-#include <vtkCellData.h>
 #include <vtkDataArray.h>
 #include <vtkDoubleArray.h>
-#include <vtkFloatArray.h>
 #include <vtkInformation.h>
 #include <vtkInformationVector.h>
+#include <vtkLine.h>
 #include <vtkMath.h>
 #include <vtkNew.h>
 #include <vtkObjectFactory.h>
 #include <vtkPointData.h>
 #include <vtkPoints.h>
 #include <vtkPolyData.h>
-#include <vtkPolyLine.h>
 #include <vtkSmartPointer.h>
-#include <vtkStreamingDemandDrivenPipeline.h>
-#include <vtkUnsignedCharArray.h>
-#include <vtkUnsignedShortArray.h>
-#include <vtkTransform.h>
-#include <vtkPoints.h>
+#include <vtkTable.h>
 #include <vtkTransform.h>
 #include <vtkTransformPolyDataFilter.h>
-#include <vtkTable.h>
+
+// PCL
+#include<pcl/common/transforms.h>
+
+// vtkSlam filter input ports (vtkPolyData and vtkTable)
+#define LIDAR_FRAME_INPUT_PORT 0       ///< Current LiDAR frame
+#define CALIBRATION_INPUT_PORT 1       ///< LiDAR calibration (vtkTable)
+#define INPUT_PORT_COUNT 2
+
+// vtkSlam filter output ports (vtkPolyData)
+#define SLAM_FRAME_OUTPUT_PORT 0       ///< Current transformed SLAM frame enriched with debug arrays
+#define SLAM_TRAJECTORY_OUTPUT_PORT 1  ///< Trajectory (with position, orientation, covariance and time)
+#define EDGE_MAP_OUTPUT_PORT 2         ///< Edge keypoints map
+#define PLANE_MAP_OUTPUT_PORT 3        ///< Plane keypoints map
+#define BLOB_MAP_OUTPUT_PORT 4         ///< Blob keypoints map
+#define EDGE_KEYPOINTS_OUTPUT_PORT 5   ///< Extracted edge keypoints from current frame
+#define PLANE_KEYPOINTS_OUTPUT_PORT 6  ///< Extracted plane keypoints from current frame
+#define BLOB_KEYPOINTS_OUTPUT_PORT 7   ///< Extracted blob keypoints from current frame
+#define OUTPUT_PORT_COUNT 8
 
 //-----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlam)
 
 namespace {
 
-double Rad2Deg(double val)
+//-----------------------------------------------------------------------------
+template <typename T>
+vtkSmartPointer<T> createArray(const std::string& Name, int NumberOfComponents = 1, int NumberOfTuples = 0)
 {
-  return val / vtkMath::Pi() * 180;
+  vtkSmartPointer<T> array = vtkSmartPointer<T>::New();
+  array->SetNumberOfComponents(NumberOfComponents);
+  array->SetNumberOfTuples(NumberOfTuples);
+  array->SetName(Name.c_str());
+  return array;
+}
+
+//-----------------------------------------------------------------------------
+inline double Rad2Deg(double val)
+{
+  return val / vtkMath::Pi() * 180.;
+}
+
+//-----------------------------------------------------------------------------
+void AddPoseToPolyData(const Eigen::Isometry3d& pose, vtkPolyData* poly)
+{
+  // Add position
+  Eigen::Vector3d translation = pose.translation();
+  poly->GetPoints()->InsertNextPoint(translation.x(), translation.y(), translation.z());
+
+  // Add orientation
+  Eigen::Quaterniond orientation(pose.linear());
+  double* xyzw = orientation.coeffs().data();
+  double wxyz[] = {xyzw[3], xyzw[0], xyzw[1], xyzw[2]};
+  poly->GetPointData()->GetArray("Orientation")->InsertNextTuple(wxyz);
+
+  // Add line linking 2 successive points
+  vtkIdType nPoints = poly->GetNumberOfPoints();
+  if (nPoints >= 2)
+  {
+    vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
+    line->GetPointIds()->SetId(0, nPoints - 2);
+    line->GetPointIds()->SetId(1, nPoints - 1);
+    poly->GetLines()->InsertNextCell(line);
+  }
 }
 
 //-----------------------------------------------------------------------------
 void PolyDataFromPointCloud(pcl::PointCloud<Slam::Point>::Ptr pc, vtkPolyData* poly)
 {
+  // Set points
   auto pts = vtkSmartPointer<vtkPoints>::New();
-  poly->SetPoints(pts);
-  for (size_t i = 0; i < pc->size(); i++)
+  for (const Slam::Point& p: *pc)
   {
-    Slam::Point p = pc->points[i];
-    if (!poly->GetPoints())
-      cout << "no point cloud" << endl;
-    poly->GetPoints()->InsertNextPoint(p.x, p.y, p.z);
+    pts->InsertNextPoint(p.x, p.y, p.z);
+    // TODO : add other fields (intensity, time, laserId)?
   }
+  poly->SetPoints(pts);
+
+  // Set cells
   vtkNew<vtkIdTypeArray> cells;
   cells->SetNumberOfValues(pc->size() * 2);
   vtkIdType* ids = cells->GetPointer(0);
@@ -141,12 +181,10 @@ void PolyDataFromPointCloud(pcl::PointCloud<Slam::Point>::Ptr pc, vtkPolyData* p
   cellArray->SetCells(pc->size(), cells.GetPointer());
   poly->SetVerts(cellArray);
 }
-}
 
 //-----------------------------------------------------------------------------
 void PointCloudFromPolyData(vtkPolyData* poly, pcl::PointCloud<Slam::Point>::Ptr pc)
 {
-  auto arrayPosition = poly->GetPoints() ;
   auto arrayTime = poly->GetPointData()->GetArray("adjustedtime");
   auto arrayLaserId = poly->GetPointData()->GetArray("laser_id");
   auto arrayIntensity = poly->GetPointData()->GetArray("intensity");
@@ -158,11 +196,12 @@ void PointCloudFromPolyData(vtkPolyData* poly, pcl::PointCloud<Slam::Point>::Ptr
     p.x = pos[0];
     p.y = pos[1];
     p.z = pos[2];
-    p.time = arrayTime->GetTuple1(i) * 1e-6; // time in second
+    p.time = arrayTime->GetTuple1(i) * 1e-6; // time in seconds
     p.laserId = arrayLaserId->GetTuple1(i);
     p.intensity = arrayIntensity->GetTuple1(i);
     pc->push_back(p);
   }
+  pc->header.stamp = arrayTime->GetTuple1(0);
 }
 
 //-----------------------------------------------------------------------------
@@ -179,12 +218,13 @@ std::vector<size_t> sortIdx(const std::vector<T> &v)
 
   return idx;
 }
+} // end of anonymous namespace
 
 //-----------------------------------------------------------------------------
 void vtkSlam::SetKeyPointsExtractor (vtkSpinningSensorKeypointExtractor* _arg)
 {
   vtkSetObjectBodyMacro(KeyPointsExtractor,vtkSpinningSensorKeypointExtractor,_arg);
-  this->SlamAlgo.SetKeyPointsExtractor(this->KeyPointsExtractor->GetExtractor());
+  this->SlamAlgo->SetKeyPointsExtractor(this->KeyPointsExtractor->GetExtractor());
 }
 
 //-----------------------------------------------------------------------------
@@ -194,9 +234,8 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable *calib)
   std::vector<size_t> laserIdMapping;
   if (array)
   {
-    std::vector<double> verticalCorrection;
-    verticalCorrection.resize(array->GetNumberOfTuples());
-    for (int i =0; i < array->GetNumberOfTuples(); ++i)
+    std::vector<double> verticalCorrection(array->GetNumberOfTuples());
+    for (int i = 0; i < array->GetNumberOfTuples(); ++i)
     {
       verticalCorrection[i] = array->GetTuple1(i);
     }
@@ -214,80 +253,113 @@ int vtkSlam::RequestData(vtkInformation *vtkNotUsed(request),
 vtkInformationVector **inputVector, vtkInformationVector *outputVector)
 {
   // Get the input
-  vtkPolyData *input = vtkPolyData::GetData(inputVector[0]->GetInformationObject(0));
-  auto* calib = vtkTable::GetData(inputVector[1]->GetInformationObject(0));
+  vtkPolyData* input = vtkPolyData::GetData(inputVector[LIDAR_FRAME_INPUT_PORT], 0);
+  vtkTable* calib = vtkTable::GetData(inputVector[CALIBRATION_INPUT_PORT], 0);
   std::vector<size_t> laserMapping = GetLaserIdMapping(calib);
 
-  pcl::PointCloud<Slam::Point>::Ptr pc (new pcl::PointCloud<Slam::Point>);
+  // Conversion vtkPolyData -> PCL pointcloud
+  pcl::PointCloud<Slam::Point>::Ptr pc(new pcl::PointCloud<Slam::Point>);
   PointCloudFromPolyData(input, pc);
 
-  this->SlamAlgo.AddFrame(pc, laserMapping);
-  // output 0 - Current Frame
-  vtkInformation *outInfo0 = outputVector->GetInformationObject(0);
-  vtkPolyData *output0 = vtkPolyData::SafeDownCast(
-      outInfo0->Get(vtkDataObject::DATA_OBJECT()));
+  // Run SLAM
+  this->SlamAlgo->AddFrame(pc, laserMapping);
 
-  // get transform
-  Transform Tworld = this->SlamAlgo.GetWorldTransform();
+  // Get SLAM transform
+  Transform Tworld = this->SlamAlgo->GetWorldTransform();
   vtkSmartPointer<vtkTransform> transform = vtkSmartPointer<vtkTransform>::New();
   transform->PostMultiply();
-  transform->RotateX(Rad2Deg(Tworld.rx));
-  transform->RotateY(Rad2Deg(Tworld.ry));
-  transform->RotateZ(Rad2Deg(Tworld.rz));
-  transform->Translate(Tworld.position);
-  // create transform filter and transformt the current frame
+  Eigen::Vector3d ypr = Tworld.GetRotation().toRotationMatrix().eulerAngles(2, 1, 0);
+  transform->RotateX(Rad2Deg(ypr[2]));
+  transform->RotateY(Rad2Deg(ypr[1]));
+  transform->RotateZ(Rad2Deg(ypr[0]));
+  transform->Translate(Tworld.GetPosition().data());
+
+  // Transform the current frame to world coordinates
   vtkSmartPointer<vtkTransformPolyDataFilter> transformFilter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
   transformFilter->SetInputData(input);
   transformFilter->SetTransform(transform);
   transformFilter->Update();
-  output0->ShallowCopy(transformFilter->GetOutput());
 
-  // add all debug information if displayMode == True
-  if (this->DisplayMode == true)
+  // Update Trajectory
+  AddPoseToPolyData(Tworld.GetIsometry(), this->Trajectory);
+  this->Trajectory->GetPointData()->GetArray("Time")->InsertNextTuple(&Tworld.time);
+  this->Trajectory->GetPointData()->GetArray("Covariance")->InsertNextTuple(this->SlamAlgo->GetTransformCovariance().data());
+
+  // Fill SLAM filter outputs
+  Slam::PointCloud::Ptr tmpPcl(new Slam::PointCloud);
+  auto keypointExtractor = this->SlamAlgo->GetKeyPointsExtractor();
+
+  // ===== SLAM frame and pose =====
+  // Output : Current LiDAR frame in world coordinates
+  auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
+  slamFrame->ShallowCopy(transformFilter->GetOutput());
+  // Output : SLAM Trajectory
+  auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
+  slamTrajectory->ShallowCopy(this->Trajectory);
+
+  // ===== Aggregated Keypoints maps =====
+  // Output : Edges points map
+  auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
+  PolyDataFromPointCloud(this->SlamAlgo->GetEdgesMap(), edgeMap);
+  // Output : Planar points map
+  auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
+  PolyDataFromPointCloud(this->SlamAlgo->GetPlanarsMap(), planarMap);
+  // Output : Blob points map
+  auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
+  PolyDataFromPointCloud(this->SlamAlgo->GetBlobsMap(), blobMap);
+
+  // ===== Extracted keypoints from current frame =====
+  // Output : Current edge keypoints
+  auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
+  pcl::transformPointCloud(*keypointExtractor->GetEdgePoints(), *tmpPcl, Tworld.GetMatrix());
+  PolyDataFromPointCloud(tmpPcl, edgePoints);
+  // Output : Current planar keypoints
+  auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
+  pcl::transformPointCloud(*keypointExtractor->GetPlanarPoints(), *tmpPcl, Tworld.GetMatrix());
+  PolyDataFromPointCloud(tmpPcl, planarPoints);
+  // Output : Current blob keypoints
+  auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
+  pcl::transformPointCloud(*keypointExtractor->GetBlobPoints(), *tmpPcl, Tworld.GetMatrix());
+  PolyDataFromPointCloud(tmpPcl, blobPoints);
+
+  // add debug information if displayMode is enabled
+  if (this->DisplayMode)
   {
-    std::unordered_map<std::string, std::vector<double> > debugArray =
-        this->KeyPointsExtractor->GetExtractor()->GetDebugArray();
-    for (const auto& it : debugArray)
+    // Keypoints extraction debug array (curvatures, depth gap, intensity gap...)
+    // Info added as PointData array of output0
+    auto keypointsExtractionDebugArray = keypointExtractor->GetDebugArray();
+    for (const auto& it : keypointsExtractionDebugArray)
     {
       auto array = createArray<vtkDoubleArray>(it.first.c_str(), 1, it.second.size());
       // memcpy is a better alternative than looping on all tuples
       std::memcpy(array->GetVoidPointer(0), it.second.data(), sizeof(double) * it.second.size());
-      output0->GetPointData()->AddArray(array);
+      slamFrame->GetPointData()->AddArray(array);
     }
-  }
 
-  // output 1 - Trajectory
-  Eigen::AngleAxisd m(RollPitchYawToMatrix(Tworld.rx, Tworld.ry, Tworld.rz));
-  this->Trajectory->PushBack(pc->points[0].time, m, Eigen::Vector3d(Tworld.position));
-  auto *output1 = vtkPolyData::GetData(outputVector->GetInformationObject(1));
-  output1->ShallowCopy(this->Trajectory);
-
-  // add all debug information if displayMode == True
-  if (this->DisplayMode == true)
-  {
-    std::unordered_map<std::string, double> debugInfo =
-        this->SlamAlgo.GetDebugInformation();
+    // General SLAM info (number of keypoints used in ICP and optimization, max variance, ...)
+    // Info added as PointData array of output1
+    auto debugInfo = this->SlamAlgo->GetDebugInformation();
     for (const auto& it : debugInfo)
     {
-      auto array = this->Trajectory->GetPointData()->GetArray(it.first.c_str());
-      array->InsertNextTuple1(it.second);
+      slamTrajectory->GetPointData()->GetArray(it.first.c_str())->InsertNextTuple1(it.second);
+    }
+
+    // ICP keypoints matching results for ego-motion or mapping steps
+    // Info added as PointData array of output5-7
+    std::unordered_map<std::string, vtkPolyData*> outputMap;
+    outputMap["EgoMotion: edges matches"] = edgePoints;
+    outputMap["Mapping: edges matches"] = edgePoints;
+    outputMap["EgoMotion: planes matches"] = planarPoints;
+    outputMap["Mapping: planes matches"] = planarPoints;
+    auto debugArray = this->SlamAlgo->GetDebugArray();
+    for (const auto& it : outputMap)
+    {
+      auto array = createArray<vtkDoubleArray>(it.first.c_str(), 1, debugArray[it.first].size());
+      // memcpy is a better alternative than looping on all tuples
+      std::memcpy(array->GetVoidPointer(0), debugArray[it.first].data(), sizeof(double) * debugArray[it.first].size());
+      it.second->GetPointData()->AddArray(array);
     }
   }
-
-  auto array = this->Trajectory->GetPointData()->GetArray("Covariance");
-  array->InsertNextTuple(this->SlamAlgo.GetTransformCovariance().data());
-
-  // output 2 - Edges Points Map
-  auto *EdgeMap = vtkPolyData::GetData(outputVector->GetInformationObject(2));
-  PolyDataFromPointCloud(this->SlamAlgo.GetEdgesMap(), EdgeMap);
-
-  // output 3 - Planar Points Map
-  auto *PlanarMap = vtkPolyData::GetData(outputVector->GetInformationObject(3));
-  PolyDataFromPointCloud(this->SlamAlgo.GetPlanarsMap(), PlanarMap);
-
-  // output 4 - Blob Points Map
-  auto *BlobMap = vtkPolyData::GetData(outputVector->GetInformationObject(4));
-  PolyDataFromPointCloud(this->SlamAlgo.GetBlobsMap(), BlobMap);
 
   return 1;
 }
@@ -296,66 +368,91 @@ vtkInformationVector **inputVector, vtkInformationVector *outputVector)
 void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os, indent);
-  os << indent << "Slam Parameters: " << std::endl;
+  os << indent << "Slam parameters: " << std::endl;
   vtkIndent paramIndent = indent.GetNextIndent();
-  #define PrintParameter(param) os << paramIndent << #param << "\t" << this->SlamAlgo.Get##param() << std::endl;
+  #define PrintParameter(param) os << paramIndent << #param << "\t" << this->SlamAlgo->Get##param() << std::endl;
+
+  PrintParameter(FastSlam)
+  PrintParameter(Undistortion)
+
+  PrintParameter(MaxDistanceForICPMatching)
+
   PrintParameter(EgoMotionLMMaxIter)
   PrintParameter(EgoMotionICPMaxIter)
+  PrintParameter(EgoMotionLineDistanceNbrNeighbors)
+  PrintParameter(EgoMotionMinimumLineNeighborRejection)
+  PrintParameter(EgoMotionMaxLineDistance)
+  PrintParameter(EgoMotionLineDistancefactor)
+  PrintParameter(EgoMotionPlaneDistanceNbrNeighbors)
+  PrintParameter(EgoMotionMaxPlaneDistance)
+  PrintParameter(EgoMotionPlaneDistancefactor1)
+  PrintParameter(EgoMotionPlaneDistancefactor2)
+  PrintParameter(EgoMotionInitLossScale)
+  PrintParameter(EgoMotionFinalLossScale)
+
   PrintParameter(MappingLMMaxIter)
   PrintParameter(MappingICPMaxIter)
-  PrintParameter(EgoMotionLineDistanceNbrNeighbors)
-  PrintParameter(EgoMotionLineDistancefactor)
+  PrintParameter(MappingLineDistanceNbrNeighbors)
+  PrintParameter(MappingMinimumLineNeighborRejection)
   PrintParameter(MappingMaxLineDistance)
+  PrintParameter(MappingLineMaxDistInlier)
+  PrintParameter(MappingLineDistancefactor)
   PrintParameter(MappingPlaneDistanceNbrNeighbors)
   PrintParameter(MappingPlaneDistancefactor1)
   PrintParameter(MappingPlaneDistancefactor2)
   PrintParameter(MappingMaxPlaneDistance)
-  PrintParameter(MaxDistanceForICPMatching)
-  PrintParameter(EgoMotionMinimumLineNeighborRejection)
-  PrintParameter(MappingMinimumLineNeighborRejection)
-  PrintParameter(MappingLineMaxDistInlier)
+  PrintParameter(MappingInitLossScale)
+  PrintParameter(MappingFinalLossScale)
+
   this->GetKeyPointsExtractor()->PrintSelf(os, indent);
 }
 
 //-----------------------------------------------------------------------------
 vtkSlam::vtkSlam()
+: SlamAlgo(new Slam)
 {
-  this->SetNumberOfInputPorts(2);
-  this->SetNumberOfOutputPorts(5);
+  this->SetNumberOfInputPorts(INPUT_PORT_COUNT);
+  this->SetNumberOfOutputPorts(OUTPUT_PORT_COUNT);
   this->Reset();
 }
 
 //-----------------------------------------------------------------------------
 void vtkSlam::Reset()
 {
-  this->SlamAlgo.Reset();
+  this->SlamAlgo->Reset();
 
-  // output of the vtk filter
-  this->Trajectory = vtkSmartPointer<vtkTemporalTransforms>::New();
-
+  // init the output SLAM trajectory
+  this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
+  auto pts = vtkSmartPointer<vtkPoints>::New();
+  this->Trajectory->SetPoints(pts);
+  auto cellArray = vtkSmartPointer<vtkCellArray>::New();
+  this->Trajectory->SetLines(cellArray);
+  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Time", 1));
+  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Orientation", 4));
   this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Covariance", 36));
 
   // add the required array in the trajectory
   if (this->DisplayMode)
   {
-      this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("EgoMotion: edges used"));
-      this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("EgoMotion: planes used"));
-      this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Mapping: edges used"));
-      this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Mapping: planes used"));
-      this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Mapping: blobs used"));
-      this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Mapping: variance error"));
+    auto debugInfo = this->SlamAlgo->GetDebugInformation();
+    for (const auto& it : debugInfo)
+    {
+      this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>(it.first));
+    }
   }
 }
 
 //-----------------------------------------------------------------------------
 int vtkSlam::FillInputPortInformation(int port, vtkInformation *info)
 {
-  if ( port == 0 )
+  // Pointcloud data
+  if (port == LIDAR_FRAME_INPUT_PORT)
   {
     info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkPolyData" );
     return 1;
   }
-  if ( port == 1 )
+  // LiDAR calibration
+  if (port == CALIBRATION_INPUT_PORT)
   {
     info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkTable" );
     return 1;
@@ -366,34 +463,34 @@ int vtkSlam::FillInputPortInformation(int port, vtkInformation *info)
 //-----------------------------------------------------------------------------
 void vtkSlam::SetVoxelGridLeafSizeEdges(double size)
 {
-  this->SlamAlgo.SetVoxelGridLeafSizeEdges(size);
+  this->SlamAlgo->SetVoxelGridLeafSizeEdges(size);
   this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
 void vtkSlam::SetVoxelGridLeafSizePlanes(double size)
 {
-  this->SlamAlgo.SetVoxelGridLeafSizePlanes(size);
+  this->SlamAlgo->SetVoxelGridLeafSizePlanes(size);
   this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
 void vtkSlam::SetVoxelGridLeafSizeBlobs(double size)
 {
-  this->SlamAlgo.SetVoxelGridLeafSizeBlobs(size);
+  this->SlamAlgo->SetVoxelGridLeafSizeBlobs(size);
   this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::SetVoxelGridSize(unsigned int size)
+void vtkSlam::SetVoxelGridSize(int size)
 {
-  this->SlamAlgo.SetVoxelGridSize(size);
+  this->SlamAlgo->SetVoxelGridSize(size);
   this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
 void vtkSlam::SetVoxelGridResolution(double resolution)
 {
-  this->SlamAlgo.SetVoxelGridResolution(resolution);
+  this->SlamAlgo->SetVoxelGridResolution(resolution);
   this->ParametersModificationTime.Modified();
 }

@@ -168,9 +168,10 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 
   this->Angles.clear();
   this->Angles.resize(this->NLasers);
-  this->SaillantPoint.clear();
-  this->SaillantPoint.resize(this->NLasers);
+  this->Saliency.clear();
+  this->Saliency.resize(this->NLasers);
   this->DepthGap.clear();
+  this->Saliency.resize(this->NLasers);
   this->DepthGap.resize(this->NLasers);
   this->IntensityGap.clear();
   this->IntensityGap.resize(this->NLasers);
@@ -227,7 +228,7 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
     this->IsPointValid[scanLine].resize(nbPoint, 1);
     this->Label[scanLine].resize(nbPoint, 0);
     this->Angles[scanLine].resize(nbPoint, 0);
-    this->SaillantPoint[scanLine].resize(nbPoint, 0);
+    this->Saliency[scanLine].resize(nbPoint, 0);
     this->DepthGap[scanLine].resize(nbPoint, 0);
     this->IntensityGap[scanLine].resize(nbPoint, 0);
   }
@@ -293,7 +294,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
 
       // Fill left and right neighborhoods, from central point to sides.
       // /!\ The way the neighbors are added to the vectors matters,
-      // especially when computing the saillancy
+      // especially when computing the saliency
       for (int j = index - 1; j >= index - this->NeighborWidth; --j)
       {
         const Point& point = this->pclCurrentFrameByScan[scanLine]->points[j];
@@ -353,16 +354,16 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
       }
 
       // No neighborhood is flat.
-      // We will compute saillancy of the current keypoint from its far neighbors.
+      // We will compute saliency of the current keypoint from its far neighbors.
       else
       {
-        // Compute saillant point score
+        // Compute salient point score
         const double currDepth = centralPoint.norm();
         bool hasLeftEncounteredDepthGap = false;
         bool hasRightEncounteredDepthGap = false;
         farNeighbors.clear();
 
-        // The saillant point score is the distance between the current point
+        // The salient point score is the distance between the current point
         // and the points that have a depth gap with the current point
         // CHECK : consider only consecutive far neighbors, starting from the central point.
         for (const Eigen::Vector3d& leftNeighbor: leftNeighbors)
@@ -389,13 +390,13 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
         }
 
         // If there are enough neighbors with a big depth gap,
-        // we propose to compute the saillancy of the current point
+        // we propose to compute the saliency of the current point
         // as the distance between the line that roughly fits the far neighbors
         // with a depth gap and the current point
         if (farNeighbors.size() > this->NeighborWidth)
         {
           farNeighborsLine.FitPCA(farNeighbors);
-          this->SaillantPoint[scanLine][index] = farNeighborsLine.SquaredDistanceToPoint(centralPoint);
+          this->Saliency[scanLine][index] = farNeighborsLine.SquaredDistanceToPoint(centralPoint);
         }
       }
 
@@ -527,7 +528,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   this->EdgesIndex.clear();
   this->PlanarIndex.clear();
   this->BlobIndex.clear();
-  const double squaredEdgeSaillancythreshold = this->EdgeSaillancyThreshold * this->EdgeSaillancyThreshold;
+  const double squaredEdgeSaliencythreshold = this->EdgeSaliencyThreshold * this->EdgeSaliencyThreshold;
   const double squaredEdgeDepthGapThreshold = this->EdgeDepthGapThreshold * this->EdgeDepthGapThreshold;
 
   // loop over the scan lines
@@ -550,7 +551,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     // Sort the curvature score in a decreasing order
     std::vector<size_t> sortedDepthGapIdx = sortIdx(this->DepthGap[scanLine]);
     std::vector<size_t> sortedAnglesIdx = sortIdx(this->Angles[scanLine]);
-    std::vector<size_t> sortedSaillancyIdx = sortIdx(this->SaillantPoint[scanLine]);
+    std::vector<size_t> sortedSaliencyIdx = sortIdx(this->Saliency[scanLine]);
     std::vector<size_t> sortedIntensityGap = sortIdx(this->IntensityGap[scanLine]);
 
     // Add edge according to criterion
@@ -589,8 +590,8 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     addEdgesUsingCriterion(sortedDepthGapIdx, this->DepthGap, squaredEdgeDepthGapThreshold, this->NeighborWidth - 1);
     // Edges using angles
     addEdgesUsingCriterion(sortedAnglesIdx, this->Angles, this->EdgeSinAngleThreshold, this->NeighborWidth);
-    // Edges using saillancy
-    addEdgesUsingCriterion(sortedSaillancyIdx, this->SaillantPoint, squaredEdgeSaillancythreshold, this->NeighborWidth - 1);
+    // Edges using saliency
+    addEdgesUsingCriterion(sortedSaliencyIdx, this->Saliency, squaredEdgeSaliencythreshold, this->NeighborWidth - 1);
     // Edges using intensity
     addEdgesUsingCriterion(sortedIntensityGap, this->IntensityGap, this->EdgeIntensityGapThreshold, 1);
 
@@ -701,8 +702,8 @@ std::unordered_map<std::string, std::vector<double>> SpinningSensorKeypointExtra
   }; // end of lambda expression
 
   std::unordered_map<std::string, std::vector<double>> map;
-  map["angles_line"]    = get1DVector(this->Angles);
-  map["saillant_point"] = get1DVector(this->SaillantPoint);
+  map["sin_angle"]      = get1DVector(this->Angles);
+  map["saliency"]       = get1DVector(this->Saliency);
   map["depth_gap"]      = get1DVector(this->DepthGap);
   map["intensity_gap"]  = get1DVector(this->IntensityGap);
   map["is_point_valid"] = get1DVector(this->IsPointValid);

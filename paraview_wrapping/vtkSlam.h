@@ -75,14 +75,8 @@
 #include <vtkPolyDataAlgorithm.h>
 #include <vtkSmartPointer.h>
 
-// EIGEN
-#include <Eigen/Dense>
-
 // LOCAL
-#include "vtkPCLConversions.h"
 #include "Slam.h"
-#include "KalmanFilter.h"
-#include "vtkTemporalTransforms.h"
 
 // This custom macro is needed to make the SlamManager time agnostic
 // The SlamManager need to know when RequestData is call, if it's due
@@ -94,9 +88,9 @@
 virtual void Set##name (type _arg) \
 { \
   vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting " #name " to " << _arg); \
-  if (this->SlamAlgo.Get##name() != _arg) \
+  if (this->SlamAlgo->Get##name() != _arg) \
   { \
-    this->SlamAlgo.Set##name(_arg); \
+    this->SlamAlgo->Set##name(_arg); \
     this->Modified(); \
     this->ParametersModificationTime.Modified(); \
   } \
@@ -104,8 +98,8 @@ virtual void Set##name (type _arg) \
 
 #define vtkCustomGetMacro(name,type) \
 virtual type Get##name () { \
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning " << #name " of " << this->SlamAlgo.Get##name() ); \
-  return this->SlamAlgo.Get##name(); \
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning " << #name " of " << this->SlamAlgo->Get##name() ); \
+  return this->SlamAlgo->Get##name(); \
 }
 
 class vtkSpinningSensorKeypointExtractor;
@@ -118,31 +112,28 @@ public:
   vtkTypeMacro(vtkSlam, vtkPolyDataAlgorithm)
   void PrintSelf(ostream& os, vtkIndent indent);
 
-  // Get/Set General
+  // ---------------------------------------------------------------------------
+  //   General stuff and flags
+  // ---------------------------------------------------------------------------
+
   vtkGetMacro(DisplayMode, bool)
   vtkSetMacro(DisplayMode, bool)
-
-  vtkCustomGetMacro(MaxDistBetweenTwoFrames, double)
-  vtkCustomSetMacro(MaxDistBetweenTwoFrames, double)
-
-  vtkCustomGetMacro(MaxDistanceForICPMatching, double)
-  vtkCustomSetMacro(MaxDistanceForICPMatching, double)
 
   vtkCustomGetMacro(FastSlam, bool)
   vtkCustomSetMacro(FastSlam, bool)
 
+  vtkCustomGetMacro(Verbosity, int)
+  vtkCustomSetMacro(Verbosity, int)
+
   vtkCustomGetMacro(Undistortion, bool)
   vtkCustomSetMacro(Undistortion, bool)
 
-  vtkGetObjectMacro(KeyPointsExtractor, vtkSpinningSensorKeypointExtractor)
-  virtual void SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor *);
+  // ---------------------------------------------------------------------------
+  //   Optimization parameters
+  // ---------------------------------------------------------------------------
 
-  // Set RollingGrid Parameters
-  void SetVoxelGridLeafSizeEdges(double size);
-  void SetVoxelGridLeafSizePlanes(double size);
-  void SetVoxelGridLeafSizeBlobs(double size);
-  void SetVoxelGridSize(unsigned int size);
-  void SetVoxelGridResolution(double resolution);
+  vtkCustomGetMacro(MaxDistanceForICPMatching, double)
+  vtkCustomSetMacro(MaxDistanceForICPMatching, double)
 
   // Get/Set EgoMotion
   vtkCustomGetMacro(EgoMotionLMMaxIter, unsigned int)
@@ -221,6 +212,21 @@ public:
   vtkCustomGetMacro(MappingFinalLossScale, double)
   vtkCustomSetMacro(MappingFinalLossScale, double)
 
+  // ---------------------------------------------------------------------------
+  //   Rolling grid parameters and Keypoints extractor
+  // ---------------------------------------------------------------------------
+
+  // Key points extractor
+  vtkGetObjectMacro(KeyPointsExtractor, vtkSpinningSensorKeypointExtractor)
+  virtual void SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor*);
+
+  // Set RollingGrid Parameters
+  void SetVoxelGridLeafSizeEdges(double size);
+  void SetVoxelGridLeafSizePlanes(double size);
+  void SetVoxelGridLeafSizeBlobs(double size);
+  void SetVoxelGridSize(int size);
+  void SetVoxelGridResolution(double resolution);
+
 protected:
   vtkSlam();
   void Reset();
@@ -233,7 +239,7 @@ protected:
   // MTime is a much more general mecanism so we can't rely on it
   vtkTimeStamp ParametersModificationTime;
 
-  Slam SlamAlgo;
+  std::shared_ptr<Slam> SlamAlgo;
   vtkSpinningSensorKeypointExtractor* KeyPointsExtractor = nullptr;
 
 private:
@@ -241,19 +247,14 @@ private:
   void operator = (const vtkSlam&) = delete;
 
   // Polydata which represents the trajectory computed
-  vtkSmartPointer<vtkTemporalTransforms> Trajectory;
+  vtkSmartPointer<vtkPolyData> Trajectory;
   std::vector<size_t> GetLaserIdMapping(vtkTable *calib);
 
-  // Indicate if we are in display mode or not
+  // Indicate if we are in display mode or not.
   // Display mode will add arrays showing some
   // results of the slam algorithm such as
-  // the keypoints extracted, curvature etc
+  // the extracted keypoints, curvature etc.
   bool DisplayMode = true;
 };
-
-template <typename T>
-std::vector<size_t> sortIdx(const std::vector<T> &v);
-
-void PointCloudFromPolyData(vtkPolyData* poly, pcl::PointCloud<Slam::Point>::Ptr pc);
 
 #endif // VTK_SLAM_H

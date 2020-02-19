@@ -22,12 +22,12 @@
 
 #include <vtkObject.h>
 
-#include "SpinningSensorKeypointExtractor.h"
+#include <SpinningSensorKeypointExtractor.h>
 
 //
 // Set built-in type.  Creates member Set"name"() (e.g., SetVisibility());
 //
-#undef vtkCustomSetMacro(name,type)
+#undef vtkCustomSetMacro
 #define vtkCustomSetMacro(name,type) \
 virtual void Set##name (type _arg) \
 { \
@@ -55,17 +55,19 @@ public:
 
   vtkCustomSetMacro(MinDistanceToSensor, double)
 
-  vtkCustomSetMacro(EdgeSinAngleThreshold, double)
+  vtkCustomSetMacro(AngleResolution, double)
 
   vtkCustomSetMacro(PlaneSinAngleThreshold, double)
 
+  vtkCustomSetMacro(EdgeSinAngleThreshold, double)
+
   vtkCustomSetMacro(EdgeDepthGapThreshold, double)
 
-  vtkCustomSetMacro(AngleResolution, double)
+  vtkCustomSetMacro(EdgeSaliencyThreshold, double)
 
-  vtkCustomSetMacro(SaillancyThreshold, double)
+  vtkCustomSetMacro(EdgeIntensityGapThreshold, double)
 
-  std::shared_ptr<SpinningSensorKeypointExtractor> GetExtractor() { return Extractor; }
+  std::shared_ptr<SpinningSensorKeypointExtractor> GetExtractor() const { return Extractor; }
 
 protected:
   vtkSpinningSensorKeypointExtractor();
