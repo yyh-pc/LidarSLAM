@@ -438,14 +438,14 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
     // loop over points into the scan line
     for (int index = this->NeighborWidth; index <  Npts - this->NeighborWidth - 1; ++index)
     {
-      const Point& previousPoint = this->pclCurrentFrameByScan[scanLine]->points[index - 1],
-                   currentPoint = this->pclCurrentFrameByScan[scanLine]->points[index],
-                   nextPoint = this->pclCurrentFrameByScan[scanLine]->points[index + 1];
+      const Point& previousPoint = this->pclCurrentFrameByScan[scanLine]->points[index - 1];
+      const Point& currentPoint = this->pclCurrentFrameByScan[scanLine]->points[index];
+      const Point& nextPoint = this->pclCurrentFrameByScan[scanLine]->points[index + 1];
 
       // double precision is useless as PCL points coordinates are internally stored as float
-      const Eigen::Vector3f& X = currentPoint.getVector3fMap(),
-                             Xn = nextPoint.getVector3fMap(),
-                             Xp = previousPoint.getVector3fMap();
+      const Eigen::Vector3f& Xp = previousPoint.getVector3fMap();
+      const Eigen::Vector3f& X  = currentPoint.getVector3fMap();
+      const Eigen::Vector3f& Xn = nextPoint.getVector3fMap();
 
       const double L = X.norm(),
                    Ln = Xn.norm(),
@@ -469,10 +469,8 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
           this->IsPointValid[scanLine][index + 1] = 0;
           for (int i = index + 2; i <= index + this->NeighborWidth; ++i)
           {
-            const Point& current = this->pclCurrentFrameByScan[scanLine]->points[i - 1],
-                         next = this->pclCurrentFrameByScan[scanLine]->points[i];
-            const Eigen::Vector3f& Y = current.getVector3fMap(),
-                                   Yn = next.getVector3fMap();
+            const Eigen::Vector3f& Y  = this->pclCurrentFrameByScan[scanLine]->points[i - 1].getVector3fMap();
+            const Eigen::Vector3f& Yn = this->pclCurrentFrameByScan[scanLine]->points[i].getVector3fMap();
 
             // If there is a gap in the neihborhood, we do not invalidate the rest of it.
             if ((Yn - Y).norm() > expectedCoeff * expectedLength)
@@ -489,10 +487,8 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
           this->IsPointValid[scanLine][index] = 0;
           for (int i = index - this->NeighborWidth; i < index; ++i)
           {
-            const Point& previous = this->pclCurrentFrameByScan[scanLine]->points[i],
-                         current = this->pclCurrentFrameByScan[scanLine]->points[i + 1];
-            const Eigen::Vector3f& Y = current.getVector3fMap(),
-                                   Yp = previous.getVector3fMap();
+            const Eigen::Vector3f& Yp = this->pclCurrentFrameByScan[scanLine]->points[i].getVector3fMap();
+            const Eigen::Vector3f&  Y = this->pclCurrentFrameByScan[scanLine]->points[i + 1].getVector3fMap();
 
             // If there is a gap in the neihborhood, we do not invalidate the rest of it.
             if ((Y - Yp).norm() > expectedCoeff * expectedLength)
