@@ -61,8 +61,8 @@ public:
   SetMacro(EdgeIntensityGapThreshold, double)
 
   GetMacro(FarestKeypointDist, double)
-  Eigen::Vector3d GetMinPoint() { return this->MinPoint.cast<double>();}
-  Eigen::Vector3d GetMaxPoint() { return this->MaxPoint.cast<double>();}
+  Eigen::Array3d GetMinPoint() { return this->MinPoint.cast<double>();}
+  Eigen::Array3d GetMaxPoint() { return this->MaxPoint.cast<double>();}
 
   GetMacro(NLasers, int)
 

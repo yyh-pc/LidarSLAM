@@ -617,7 +617,7 @@ private:
   void ResetDistanceParameters();
 
   // Set the current keypoints frame max and min points
-  void SetFrameMinMaxKeypoints(const Eigen::Vector3d& minPoint, const Eigen::Vector3d& maxPoint);
+  void SetFrameMinMaxKeypoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
 };
 
 #endif // SLAM_H

@@ -1800,7 +1800,7 @@ void Slam::SetVoxelGridResolution(double resolution)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SetFrameMinMaxKeypoints(const Eigen::Vector3d& minPoint, const Eigen::Vector3d& maxPoint)
+void Slam::SetFrameMinMaxKeypoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint)
 {
   this->EdgesPointsLocalMap->SetMinMaxPoints(minPoint, maxPoint);
   this->PlanarPointsLocalMap->SetMinMaxPoints(minPoint, maxPoint);

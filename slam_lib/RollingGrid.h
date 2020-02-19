@@ -27,7 +27,7 @@ public:
 
   RollingGrid();
 
-  RollingGrid(double posX, double posY, double posZ);
+  RollingGrid(const Eigen::Vector3d& pos);
 
   //! Roll the grid to enable adding new point cloud
   void Roll(const Eigen::Vector3d& T);
@@ -48,7 +48,7 @@ public:
   void Reset();
 
   //! Set min and max keypoints bounds of current frame
-  void SetMinMaxPoints(const Eigen::Vector3d& minPoint, const Eigen::Vector3d& maxPoint);
+  void SetMinMaxPoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
 
   //! Set grid size and clear all points from voxels
   void SetGridSize(int size);
@@ -68,9 +68,6 @@ private:
   //! [m/voxel] Resolution of a voxel
   double VoxelResolution = 10.;
 
-  //! [voxels] Minimum and maximum keypoints coordinates
-  int MinPoint[3], MaxPoint[3];
-
   //! [m] Size of the leaf used to downsample the pointcloud with a VoxelGrid filter within each voxel
   double LeafSize = 0.2;
 
@@ -78,7 +75,10 @@ private:
   std::vector<std::vector<std::vector<PointCloud::Ptr>>> Grid;
 
   //! [voxel, voxel, voxel] Current position of the center of the VoxelGrid
-  int VoxelGridPosition[3] = { 0, 0, 0 };
+  Eigen::Array3i VoxelGridPosition;
+
+  //! [voxels] Minimum and maximum keypoints coordinates in voxel grid
+  Eigen::Array3i MinPoint, MaxPoint;
 };
 
 #endif  // ROLLING_GRID_H
