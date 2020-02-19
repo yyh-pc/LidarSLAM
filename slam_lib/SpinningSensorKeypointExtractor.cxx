@@ -42,6 +42,16 @@ std::vector<size_t> sortIdx(const std::vector<T> &v)
 }
 
 //-----------------------------------------------------------------------------
+template<typename PointT>
+void copyPointCloudMetadata(const pcl::PointCloud<PointT>& from, pcl::PointCloud<PointT>& to)
+{
+  to.header = from.header;
+  to.is_dense = from.is_dense;
+  to.sensor_orientation_ = from.sensor_orientation_;
+  to.sensor_origin_ = from.sensor_origin_;
+}
+
+//-----------------------------------------------------------------------------
 struct LineFitting
 {
   //! Fitting using PCA
@@ -66,8 +76,6 @@ struct LineFitting
 
   //! Max angle allowed between consecutive segments in the neighborhood to be considered as line
   double MaxAngle = DEG2RAD(40.);  // [rad]
-
-  const Eigen::Matrix3d I3 = Eigen::Matrix3d::Identity();
 };
 
 //-----------------------------------------------------------------------------
@@ -156,28 +164,28 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
   this->pclCurrentFrameByScan.resize(this->NLasers);
   for (auto& scanLineCloud: this->pclCurrentFrameByScan)
   {
-    scanLineCloud.reset(new PointCloud);
+    // Use clear() if pointcloud already exists to avoid re-allocating memory.
+    // No worry as pclCurrentFrameByScan is never shared with outer scope.
+    if (scanLineCloud)
+      scanLineCloud->clear();
+    else
+      scanLineCloud.reset(new PointCloud);
   }
 
+  // Do not use clear(), otherwise weird things could happen if outer program
+  // uses these pointers
   this->EdgesPoints.reset(new PointCloud);
   this->PlanarsPoints.reset(new PointCloud);
   this->BlobsPoints.reset(new PointCloud);
-  this->EdgesPoints->header = this->pclCurrentFrame->header;
-  this->PlanarsPoints->header = this->pclCurrentFrame->header;
-  this->BlobsPoints->header = this->pclCurrentFrame->header;
+  copyPointCloudMetadata(*this->pclCurrentFrame, *this->EdgesPoints);
+  copyPointCloudMetadata(*this->pclCurrentFrame, *this->PlanarsPoints);
+  copyPointCloudMetadata(*this->pclCurrentFrame, *this->BlobsPoints);
 
-  this->Angles.clear();
   this->Angles.resize(this->NLasers);
-  this->Saliency.clear();
-  this->Saliency.resize(this->NLasers);
-  this->DepthGap.clear();
   this->Saliency.resize(this->NLasers);
   this->DepthGap.resize(this->NLasers);
-  this->IntensityGap.clear();
   this->IntensityGap.resize(this->NLasers);
-  this->IsPointValid.clear();
   this->IsPointValid.resize(this->NLasers);
-  this->Label.clear();
   this->Label.resize(this->NLasers);
 }
 
@@ -225,12 +233,12 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
   for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
   {
     size_t nbPoint = this->pclCurrentFrameByScan[scanLine]->size();
-    this->IsPointValid[scanLine].resize(nbPoint, 1);
-    this->Label[scanLine].resize(nbPoint, 0);
-    this->Angles[scanLine].resize(nbPoint, 0);
-    this->Saliency[scanLine].resize(nbPoint, 0);
-    this->DepthGap[scanLine].resize(nbPoint, 0);
-    this->IntensityGap[scanLine].resize(nbPoint, 0);
+    this->IsPointValid[scanLine].assign(nbPoint, 1);
+    this->Label[scanLine].assign(nbPoint, Keypoint::NONE);
+    this->Angles[scanLine].assign(nbPoint, 0.);
+    this->Saliency[scanLine].assign(nbPoint, 0.);
+    this->DepthGap[scanLine].assign(nbPoint, 0.);
+    this->IntensityGap[scanLine].assign(nbPoint, 0.);
   }
 
   // Invalid points with bad criteria
@@ -568,7 +576,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
           continue;
 
         // Else indicate that the point is an edge
-        this->Label[scanLine][index] = 4;
+        this->Label[scanLine][index] = Keypoint::EDGE;
         this->EdgesIndex.emplace_back(scanLine, index);
         //IsPointValidForPlanar[index] = 0;
 
@@ -610,8 +618,8 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
       }
 
       // else indicate that the point is a planar one
-      if ((this->Label[scanLine][index] != 4) && (this->Label[scanLine][index] != 3))
-        this->Label[scanLine][index] = 2;
+      if (this->Label[scanLine][index] != Keypoint::EDGE)
+        this->Label[scanLine][index] = Keypoint::PLANE;
       this->PlanarIndex.emplace_back(scanLine, index);
       IsPointValidForPlanar[index] = 0;
       this->IsPointValid[scanLine][index] = 0;
@@ -638,6 +646,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     for (int index = 0; index < Npts; index += 3)
     {
       this->BlobIndex.emplace_back(scanLine, index);
+      //this->Label[scanLine][index] = Keypoint::BLOB;
     }
   }
 
