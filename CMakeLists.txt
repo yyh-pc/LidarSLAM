@@ -16,9 +16,14 @@ find_package(PCL REQUIRED COMPONENTS common kdtree registration io)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
+# Build core SLAM lib
 add_subdirectory(slam_lib)
 
+# Build optionnal ParaView wrapping
 option(PARAVIEW_WRAPPING "Build a Paraview plugin to wrap SLAM" OFF)
 if (PARAVIEW_WRAPPING)
     add_subdirectory(paraview_wrapping)
 endif(PARAVIEW_WRAPPING)
+
+# To build/use ROS wrapping, just put this entire directory in the catkin src
+# workspace and run catkin_make.

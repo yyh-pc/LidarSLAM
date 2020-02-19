@@ -10,6 +10,9 @@
     - [Installation](#installation-1)
     - [Usage](#usage)
   - [ParaView wrapping](#paraview-wrapping)
+    - [Dependencies](#dependencies-2)
+    - [Installation](#installation-2)
+    - [Usage](#usage-1)
 
 ## Introduction and contents
 
@@ -19,7 +22,8 @@ Repo contents :
 - `slam_lib/` : core library containing SLAM algorithm and other utilities.
 - `ros_wrapping/` : ROS packages to enable SLAM use on a ROS system.
 - `paraview_wrapping/` : ParaView plugin to enable SLAM use with ParaView.
-- `CMakeLists.txt` : *CMakeLists* used to call to build core *slam_lib*.
+- `ci/` : continuous integration files to automatically build and check *slam_lib*.
+- `CMakeLists.txt` : *CMakeLists* used to call to build core *slam_lib* and *paraview_wrapping*.
 
 ## Core SLAM lib
 
@@ -42,7 +46,7 @@ To build only *slam_lib*, just `cd` to this repo root dir and run :
 ```{.sh}
 mkdir build
 cd build
-cmake ..
+cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make
 ```
 
@@ -74,4 +78,32 @@ See [ros_wrapping/lidar_slam/README.md](ros_wrapping/lidar_slam/README.md) for m
 
 ## ParaView wrapping
 
-TODO
+### Dependencies
+
+Ensure all *slam_lib* dependencies are respected. Specific dependencies are listed in the table below along with the version used during development and testing.
+
+| Dependency | Tested Version |
+| :--------: | :------------: |
+| ParaView   | 5.4 and 5.6    |
+
+Be carefull to use and link to the same libraries as ParaView/LidarView (especially with VTK, PCL, Ceres, Flann etc.) or it could lead to version mismatch and segfault.
+
+### Installation
+
+To build *slam_lib* and this ParaView plugin *LidarSlam*, just `cd` to this repo root dir and run :
+
+```{.sh}
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPARAVIEW_WRAPPING:BOOL=ON
+make
+```
+
+### Usage
+
+- Open ParaView
+- Tools > Manage Plugins > Load New
+- Browse to the `build/paraview_wrappping/` dir and select `libLidarSlam.so`
+- To use Slam filter, load LiDAR frames and LiDAR calibration to use, select calibration, and apply Slam filter.
+
+Currently, all features are not available in ParaView plugin. Features such as GPS/LiDAR calibration, pose graph optimization or temporal logging are only supported in ROW wrapping. However, ParaView plugin is useful to play with SLAM and interactively try out parameters.
