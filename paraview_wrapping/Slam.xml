@@ -561,8 +561,8 @@
       </Documentation>
 
       <IntVectorProperty
-          name="All Frame"
-          command="SetAllFrame"
+          name="All Frames"
+          command="SetAllFrames"
           default_values="1"
           number_of_elements="1">
           <BooleanDomain name="bool" />
@@ -578,7 +578,7 @@
           number_of_elements="1">
           <Hints>
             <PropertyWidgetDecorator type="EnableWidgetDecorator">
-              <Property name="All Frame" function="boolean_invert" />
+              <Property name="All Frames" function="boolean_invert" />
             </PropertyWidgetDecorator>
           </Hints>
         <Documentation>
@@ -593,7 +593,7 @@
           number_of_elements="1">
           <Hints>
             <PropertyWidgetDecorator type="EnableWidgetDecorator">
-              <Property name="All Frame" function="boolean_invert" />
+              <Property name="All Frames" function="boolean_invert" />
             </PropertyWidgetDecorator>
           </Hints>
         <Documentation>
@@ -684,8 +684,8 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Minimum Saillancy Distance To Be Considered As Edge"
-          command="SetEdgeSaillancyThreshold"
+          name="Minimum Saliency Distance To Be Considered As Edge"
+          command="SetEdgeSaliencyThreshold"
           default_values="1.5"
           number_of_elements="1"
           panel_visibility="advanced">

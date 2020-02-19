@@ -54,8 +54,8 @@ public:
   GetMacro(EdgeDepthGapThreshold, double)
   SetMacro(EdgeDepthGapThreshold, double)
 
-  GetMacro(EdgeSaillancyThreshold, double)
-  SetMacro(EdgeSaillancyThreshold, double)
+  GetMacro(EdgeSaliencyThreshold, double)
+  SetMacro(EdgeSaliencyThreshold, double)
 
   GetMacro(EdgeIntensityGapThreshold, double)
   SetMacro(EdgeIntensityGapThreshold, double)
@@ -129,8 +129,8 @@ private:
   // Threshold upon depth gap in neighborhood to select an edge keypoint
   double EdgeDepthGapThreshold = 0.15;  // [m]
 
-  // Threshold upon saillancy of a neighborhood to select an edge keypoint
-  double EdgeSaillancyThreshold = 1.5;  // [m]
+  // Threshold upon saliency of a neighborhood to select an edge keypoint
+  double EdgeSaliencyThreshold = 1.5;  // [m]
 
   // Threshold upon intensity gap to select an edge keypoint
   double EdgeIntensityGapThreshold = 50.;
@@ -155,7 +155,7 @@ private:
   // Curvature and other differential operations (scan by scan, point by point)
   std::vector<std::vector<double>> Angles;
   std::vector<std::vector<double>> DepthGap;
-  std::vector<std::vector<double>> SaillantPoint;
+  std::vector<std::vector<double>> Saliency;
   std::vector<std::vector<double>> IntensityGap;
   std::vector<std::vector<uint8_t>> IsPointValid;
   std::vector<std::vector<uint8_t>> Label;

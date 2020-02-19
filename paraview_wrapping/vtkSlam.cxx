@@ -93,6 +93,22 @@
 // PCL
 #include<pcl/common/transforms.h>
 
+// vtkSlam filter input ports (vtkPolyData and vtkTable)
+#define LIDAR_FRAME_INPUT_PORT 0       ///< Current LiDAR frame
+#define CALIBRATION_INPUT_PORT 1       ///< LiDAR calibration (vtkTable)
+#define INPUT_PORT_COUNT 2
+
+// vtkSlam filter output ports (vtkPolyData)
+#define SLAM_FRAME_OUTPUT_PORT 0       ///< Current transformed SLAM frame enriched with debug arrays
+#define SLAM_TRAJECTORY_OUTPUT_PORT 1  ///< Trajectory (with position, orientation, covariance and time)
+#define EDGE_MAP_OUTPUT_PORT 2         ///< Edge keypoints map
+#define PLANE_MAP_OUTPUT_PORT 3        ///< Plane keypoints map
+#define BLOB_MAP_OUTPUT_PORT 4         ///< Blob keypoints map
+#define EDGE_KEYPOINTS_OUTPUT_PORT 5   ///< Extracted edge keypoints from current frame
+#define PLANE_KEYPOINTS_OUTPUT_PORT 6  ///< Extracted plane keypoints from current frame
+#define BLOB_KEYPOINTS_OUTPUT_PORT 7   ///< Extracted blob keypoints from current frame
+#define OUTPUT_PORT_COUNT 8
+
 //-----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlam)
 
@@ -186,7 +202,6 @@ void PointCloudFromPolyData(vtkPolyData* poly, pcl::PointCloud<Slam::Point>::Ptr
     pc->push_back(p);
   }
   pc->header.stamp = arrayTime->GetTuple1(0);
-  pc->header.frame_id = "lidar";
 }
 
 //-----------------------------------------------------------------------------
@@ -238,8 +253,8 @@ int vtkSlam::RequestData(vtkInformation *vtkNotUsed(request),
 vtkInformationVector **inputVector, vtkInformationVector *outputVector)
 {
   // Get the input
-  vtkPolyData* input = vtkPolyData::GetData(inputVector[0], 0);
-  vtkTable* calib = vtkTable::GetData(inputVector[1], 0);
+  vtkPolyData* input = vtkPolyData::GetData(inputVector[LIDAR_FRAME_INPUT_PORT], 0);
+  vtkTable* calib = vtkTable::GetData(inputVector[CALIBRATION_INPUT_PORT], 0);
   std::vector<size_t> laserMapping = GetLaserIdMapping(calib);
 
   // Conversion vtkPolyData -> PCL pointcloud
@@ -275,35 +290,35 @@ vtkInformationVector **inputVector, vtkInformationVector *outputVector)
   auto keypointExtractor = this->SlamAlgo->GetKeyPointsExtractor();
 
   // ===== SLAM frame and pose =====
-  // output 0 - Current Frame in World coordinates
-  auto* slamFrame = vtkPolyData::GetData(outputVector, 0);
+  // Output : Current LiDAR frame in world coordinates
+  auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
   slamFrame->ShallowCopy(transformFilter->GetOutput());
-  // output 1 - Trajectory
-  auto* slamTrajectory = vtkPolyData::GetData(outputVector, 1);
+  // Output : SLAM Trajectory
+  auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
   slamTrajectory->ShallowCopy(this->Trajectory);
 
   // ===== Aggregated Keypoints maps =====
-  // output 2 - Edges Points Map
-  auto* edgeMap = vtkPolyData::GetData(outputVector, 2);
+  // Output : Edges points map
+  auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
   PolyDataFromPointCloud(this->SlamAlgo->GetEdgesMap(), edgeMap);
-  // output 3 - Planar Points Map
-  auto* planarMap = vtkPolyData::GetData(outputVector, 3);
+  // Output : Planar points map
+  auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
   PolyDataFromPointCloud(this->SlamAlgo->GetPlanarsMap(), planarMap);
-  // output 4 - Blob Points Map
-  auto* blobMap = vtkPolyData::GetData(outputVector, 4);
+  // Output : Blob points map
+  auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
   PolyDataFromPointCloud(this->SlamAlgo->GetBlobsMap(), blobMap);
 
   // ===== Extracted keypoints from current frame =====
-  // output 5 - Current edge keypoints
-  auto* edgePoints = vtkPolyData::GetData(outputVector, 5);
+  // Output : Current edge keypoints
+  auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
   pcl::transformPointCloud(*keypointExtractor->GetEdgePoints(), *tmpPcl, Tworld.GetMatrix());
   PolyDataFromPointCloud(tmpPcl, edgePoints);
-  // output 6 - Current planar keypoints
-  auto* planarPoints = vtkPolyData::GetData(outputVector, 6);
+  // Output : Current planar keypoints
+  auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
   pcl::transformPointCloud(*keypointExtractor->GetPlanarPoints(), *tmpPcl, Tworld.GetMatrix());
   PolyDataFromPointCloud(tmpPcl, planarPoints);
-  // output 7 - Current blob keypoints
-  auto* blobPoints = vtkPolyData::GetData(outputVector, 7);
+  // Output : Current blob keypoints
+  auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
   pcl::transformPointCloud(*keypointExtractor->GetBlobPoints(), *tmpPcl, Tworld.GetMatrix());
   PolyDataFromPointCloud(tmpPcl, blobPoints);
 
@@ -396,20 +411,8 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
 vtkSlam::vtkSlam()
 : SlamAlgo(new Slam)
 {
-  // Input ports :
-  //  0) Current frame
-  //  1) LiDAR calibration (vtkTable)
-  this->SetNumberOfInputPorts(2);
-  // Output ports :
-  //  0) Current transformed SLAM frame enriched with debug arrays
-  //  1) Trajectory (with position, orientation, covariance and time)
-  //  2) Edge keypoints map
-  //  3) Plane keypoints map
-  //  4) Blob keypoints map
-  //  5) Extracted edge keypoints from current frame
-  //  6) Extracted plane keypoints from current frame
-  //  7) Extracted blob keypoints from current frame
-  this->SetNumberOfOutputPorts(8);
+  this->SetNumberOfInputPorts(INPUT_PORT_COUNT);
+  this->SetNumberOfOutputPorts(OUTPUT_PORT_COUNT);
   this->Reset();
 }
 
@@ -443,13 +446,13 @@ void vtkSlam::Reset()
 int vtkSlam::FillInputPortInformation(int port, vtkInformation *info)
 {
   // Pointcloud data
-  if (port == 0)
+  if (port == LIDAR_FRAME_INPUT_PORT)
   {
     info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkPolyData" );
     return 1;
   }
   // LiDAR calibration
-  if (port == 1)
+  if (port == CALIBRATION_INPUT_PORT)
   {
     info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkTable" );
     return 1;

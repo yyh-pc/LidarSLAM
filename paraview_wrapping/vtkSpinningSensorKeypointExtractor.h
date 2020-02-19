@@ -63,7 +63,7 @@ public:
 
   vtkCustomSetMacro(EdgeDepthGapThreshold, double)
 
-  vtkCustomSetMacro(EdgeSaillancyThreshold, double)
+  vtkCustomSetMacro(EdgeSaliencyThreshold, double)
 
   vtkCustomSetMacro(EdgeIntensityGapThreshold, double)
 

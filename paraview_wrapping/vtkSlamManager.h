@@ -61,9 +61,9 @@ public:
   vtkCustomSetMacro(StepSize, int)
   //! @}
 
-  //! @{ @copydoc AllFrame
-  vtkGetMacro(AllFrame, bool)
-  vtkCustomSetMacro(AllFrame, bool)
+  //! @{ @copydoc AllFrames
+  vtkGetMacro(AllFrames, bool)
+  vtkCustomSetMacro(AllFrames, bool)
   //! @}
 
 protected:
@@ -76,7 +76,7 @@ protected:
                   vtkInformationVector* outputVector) override;
 
   //! Overwrite FirstFrame and LastFrame to process all the frame
-  bool AllFrame = true;
+  bool AllFrames = true;
 
   //! First frame to be process
   int FirstFrame = 0;
