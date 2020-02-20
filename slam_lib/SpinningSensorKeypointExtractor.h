@@ -22,6 +22,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <bitset>
 
 #include <pcl/point_cloud.h>
 
@@ -30,15 +31,14 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
-// TODO : use enum (binary flags) for points validity
-
 //! Label of a point as a keypoint
-enum Keypoint : uint8_t
+//! We use binary flags as each point can have different keypoint labels.
+using KeypointFlags = std::bitset<3>;
+enum Keypoint
 {
-  NONE  = 0,   ///< invalid keypoint
-  EDGE  = 1,   ///< edge keypoint (sharp local structure)
-  PLANE = 2,   ///< plane keypoint (flat local structure)
-  BLOB  = 3    ///< blob keypoint (spherical local structure)
+  EDGE  = 0,   ///< edge keypoint (sharp local structure)
+  PLANE = 1,   ///< plane keypoint (flat local structure)
+  BLOB  = 2    ///< blob keypoint (spherical local structure)
 };
 
 class SpinningSensorKeypointExtractor
@@ -168,8 +168,8 @@ private:
   std::vector<std::vector<double>> DepthGap;
   std::vector<std::vector<double>> Saliency;
   std::vector<std::vector<double>> IntensityGap;
-  std::vector<std::vector<uint8_t>> IsPointValid;
-  std::vector<std::vector<Keypoint>> Label;
+  std::vector<std::vector<KeypointFlags>> IsPointValid;
+  std::vector<std::vector<KeypointFlags>> Label;
 
   // Mapping between keypoints and their corresponding index in pclCurrentFrameByScan
   std::vector<std::pair<int, int>> EdgesIndex;

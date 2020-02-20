@@ -233,8 +233,8 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
   for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
   {
     size_t nbPoint = this->pclCurrentFrameByScan[scanLine]->size();
-    this->IsPointValid[scanLine].assign(nbPoint, 1);
-    this->Label[scanLine].assign(nbPoint, Keypoint::NONE);
+    this->IsPointValid[scanLine].assign(nbPoint, KeypointFlags().set());  // set all flags to 1
+    this->Label[scanLine].assign(nbPoint, KeypointFlags().reset());  // set all flags to 0
     this->Angles[scanLine].assign(nbPoint, 0.);
     this->Saliency[scanLine].assign(nbPoint, 0.);
     this->DepthGap[scanLine].assign(nbPoint, 0.);
@@ -285,7 +285,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
     for (int index = this->NeighborWidth; (index + this->NeighborWidth) < Npts; ++index)
     {
       // Skip curvature computation for invalid points
-      if (!this->IsPointValid[scanLine][index])
+      if (this->IsPointValid[scanLine][index].none())
       {
         continue;
       }
@@ -428,20 +428,16 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
     if (this->IsScanLineAlmostEmpty(Npts))
     {
       for (int index = 0; index < Npts; ++index)
-        this->IsPointValid[scanLine][index] = 0;
+        this->IsPointValid[scanLine][index].reset();
       continue;
     }
 
     // invalidate first and last points
     // CHECK why ?
     for (int index = 0; index <= this->NeighborWidth; ++index)
-    {
-      this->IsPointValid[scanLine][index] = 0;
-    }
+      this->IsPointValid[scanLine][index].reset();
     for (int index = Npts - 1 - this->NeighborWidth - 1; index < Npts; ++index)
-    {
-      this->IsPointValid[scanLine][index] = 0;
-    }
+      this->IsPointValid[scanLine][index].reset();
 
     // loop over points into the scan line
     for (int index = this->NeighborWidth; index <  Npts - this->NeighborWidth - 1; ++index)
@@ -474,7 +470,7 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
         // If current point is the closest, invalid next part, starting from next point
         if (L < Ln)
         {
-          this->IsPointValid[scanLine][index + 1] = 0;
+          this->IsPointValid[scanLine][index + 1].reset();
           for (int i = index + 2; i <= index + this->NeighborWidth; ++i)
           {
             const Eigen::Vector3f& Y  = this->pclCurrentFrameByScan[scanLine]->points[i - 1].getVector3fMap();
@@ -486,13 +482,13 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
               break;
             }
             // Otherwise, do not use next point
-            this->IsPointValid[scanLine][i] = 0;
+            this->IsPointValid[scanLine][i].reset();
           }
         }
         // If current point is the farest, invalid previous part, starting from current point
         else
         {
-          this->IsPointValid[scanLine][index] = 0;
+          this->IsPointValid[scanLine][index].reset();
           for (int i = index - this->NeighborWidth; i < index; ++i)
           {
             const Eigen::Vector3f& Yp = this->pclCurrentFrameByScan[scanLine]->points[i].getVector3fMap();
@@ -504,7 +500,7 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
               break;
             }
             // Otherwise, do not use previous point
-            this->IsPointValid[scanLine][i] = 0;
+            this->IsPointValid[scanLine][i].reset();
           }
         }
       }
@@ -512,7 +508,7 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
       // Invalid points which are too close from the sensor
       if (L < this->MinDistanceToSensor)
       {
-        this->IsPointValid[scanLine][index] = 0;
+        this->IsPointValid[scanLine][index].reset();
       }
 
       // Invalid points which are on a planar surface nearly parallel to the
@@ -520,7 +516,7 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
       else if ((dLp > 0.25 * expectedCoeff * expectedLength) &&
                (dLn > 0.25 * expectedCoeff * expectedLength))
       {
-        this->IsPointValid[scanLine][index] = 0;
+        this->IsPointValid[scanLine][index].reset();
       }
     }
   }
@@ -546,12 +542,6 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
       continue;
     }
 
-    // We split the validity of points between the edges
-    // keypoints and planar keypoints. This allows to take
-    // some points as planar keypoints even if they are close
-    // to an edge keypoint.
-    std::vector<uint8_t> IsPointValidForPlanar = this->IsPointValid[scanLine];
-
     // Sort the curvature score in a decreasing order
     std::vector<size_t> sortedDepthGapIdx = sortIdx(this->DepthGap[scanLine]);
     std::vector<size_t> sortedAnglesIdx = sortIdx(this->Angles[scanLine]);
@@ -571,22 +561,19 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
         if (values[scanLine][index] < threshold)
           break;
 
-        // If the point is invalid continue
-        if (!this->IsPointValid[scanLine][index])
+        // If the point is invalid as edge, continue
+        if (!this->IsPointValid[scanLine][index][Keypoint::EDGE])
           continue;
 
         // Else indicate that the point is an edge
-        this->Label[scanLine][index] = Keypoint::EDGE;
+        this->Label[scanLine][index].set(Keypoint::EDGE);
         this->EdgesIndex.emplace_back(scanLine, index);
-        //IsPointValidForPlanar[index] = 0;
 
-        // Invalid its neighborhod
+        // Invalid its neighbors
         const int indexBegin = std::max(0,        static_cast<int>(index - invalidNeighborhoodSize));
         const int indexEnd   = std::min(Npts - 1, static_cast<int>(index + invalidNeighborhoodSize));
         for (int j = indexBegin; j <= indexEnd; ++j)
-        {
-          this->IsPointValid[scanLine][j] = 0;
-        }
+          this->IsPointValid[scanLine][j].reset(Keypoint::EDGE);
       }
     };
 
@@ -611,20 +598,15 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
         break;
       }
 
-      // if the point is invalid continue
-      if (IsPointValidForPlanar[index] == 0)
-      {
+      // if the point is invalid as plane, continue
+      if (!this->IsPointValid[scanLine][index][Keypoint::PLANE])
         continue;
-      }
 
       // else indicate that the point is a planar one
-      if (this->Label[scanLine][index] != Keypoint::EDGE)
-        this->Label[scanLine][index] = Keypoint::PLANE;
+      this->Label[scanLine][index].set(Keypoint::PLANE);
       this->PlanarIndex.emplace_back(scanLine, index);
-      IsPointValidForPlanar[index] = 0;
-      this->IsPointValid[scanLine][index] = 0;
 
-      // Invalid its neighbor so that we don't have too
+      // Invalid its neighbors so that we don't have too
       // many planar keypoints in the same region. This is
       // required because of the k-nearest search + plane
       // approximation realized in the odometry part. Indeed,
@@ -634,19 +616,19 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
       const int indexBegin = std::max(0,        static_cast<int>(index - 4));
       const int indexEnd   = std::min(Npts - 1, static_cast<int>(index + 4));
       for (int j = indexBegin; j <= indexEnd; ++j)
-      {
-        IsPointValidForPlanar[j] = 0;
-      }
+        this->IsPointValid[scanLine][j].reset(Keypoint::PLANE);
     }
 
     // Blobs Points
     // CHECK : why using only 1 point over 3?
     // TODO : disable blobs if not required
-    // TODO : check if point is valid before adding it
     for (int index = 0; index < Npts; index += 3)
     {
-      this->BlobIndex.emplace_back(scanLine, index);
-      //this->Label[scanLine][index] = Keypoint::BLOB;
+      if (this->IsPointValid[scanLine][index][Keypoint::BLOB])
+      {
+        this->BlobIndex.emplace_back(scanLine, index);
+        this->Label[scanLine][index].set(Keypoint::BLOB);
+      }
     }
   }
 
@@ -664,6 +646,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   {
     const Point& p = this->pclCurrentFrameByScan[edgeIndex.first]->points[edgeIndex.second];
     this->EdgesPoints->push_back(p);
+    this->IsPointValid[edgeIndex.first][edgeIndex.second].set(Keypoint::EDGE);
     this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(p.x * p.x + p.y * p.y + p.z * p.z));
     pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
     this->MinPoint = this->MinPoint.min(pointXYZ);
@@ -673,6 +656,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   {
     const Point& p = this->pclCurrentFrameByScan[planarIndex.first]->points[planarIndex.second];
     this->PlanarsPoints->push_back(p);
+    this->IsPointValid[planarIndex.first][planarIndex.second].set(Keypoint::PLANE);
     this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(p.x * p.x + p.y * p.y + p.z * p.z));
     pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
     this->MinPoint = this->MinPoint.min(pointXYZ);
@@ -682,6 +666,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   {
     const Point& p = this->pclCurrentFrameByScan[blobIndex.first]->points[blobIndex.second];
     this->BlobsPoints->push_back(p);
+    this->IsPointValid[blobIndex.first][blobIndex.second].set(Keypoint::BLOB);
     this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(p.x * p.x + p.y * p.y + p.z * p.z));
     pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
     this->MinPoint = this->MinPoint.min(pointXYZ);
@@ -706,12 +691,29 @@ std::unordered_map<std::string, std::vector<double>> SpinningSensorKeypointExtra
     return v;
   }; // end of lambda expression
 
+  auto get1DVectorFromFlag = [this](auto const& vector2d, int flag)
+  {
+    std::vector<double> v(this->pclCurrentFrame->size());
+    std::vector<int> indexByScanLine(this->NLasers, 0);
+    for (int i = 0; i < this->pclCurrentFrame->size(); i++)
+    {
+      double laserId = this->LaserIdMapping[this->pclCurrentFrame->points[i].laserId];
+      v[i] = vector2d[laserId][indexByScanLine[laserId]][flag];
+      indexByScanLine[laserId]++;
+    }
+    return v;
+  }; // end of lambda expression
+
   std::unordered_map<std::string, std::vector<double>> map;
   map["sin_angle"]      = get1DVector(this->Angles);
   map["saliency"]       = get1DVector(this->Saliency);
   map["depth_gap"]      = get1DVector(this->DepthGap);
   map["intensity_gap"]  = get1DVector(this->IntensityGap);
-  map["is_point_valid"] = get1DVector(this->IsPointValid);
-  map["keypoint_label"] = get1DVector(this->Label);
+  map["edge_keypoint"]  = get1DVectorFromFlag(this->Label, Keypoint::EDGE);
+  map["plane_keypoint"] = get1DVectorFromFlag(this->Label, Keypoint::PLANE);
+  map["blob_keypoint"]  = get1DVectorFromFlag(this->Label, Keypoint::BLOB);
+  map["edge_validity"]  = get1DVectorFromFlag(this->IsPointValid, Keypoint::EDGE);
+  map["plane_validity"] = get1DVectorFromFlag(this->IsPointValid, Keypoint::PLANE);
+  map["blob_validity"]  = get1DVectorFromFlag(this->IsPointValid, Keypoint::BLOB);
   return map;
 }
