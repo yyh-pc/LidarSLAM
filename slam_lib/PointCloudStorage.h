@@ -1,10 +1,15 @@
 #ifndef POINT_CLOUD_STORAGE_H
 #define POINT_CLOUD_STORAGE_H
 
-#include <boost/filesystem.hpp>
+// A new PCL Point is added so we need to recompile PCL to be able to use
+// filters (pcl::io::OctreePointCloudCompression) with this new type
+#ifndef PCL_NO_PRECOMPILE
+#define PCL_NO_PRECOMPILE
+#endif
 #include <pcl/io/pcd_io.h>
 #include <pcl/compression/octree_pointcloud_compression.h>
 #include <pcl/io/impl/octree_pointcloud_compression.hpp>  // seems to be missing in otree_pointcloud_compression.h
+#include <boost/filesystem.hpp>
 
 //! PCD file data format.
 enum PCDFormat

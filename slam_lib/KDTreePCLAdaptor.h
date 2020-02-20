@@ -38,20 +38,22 @@ class KDTreePCLAdaptor
   typedef typename nanoflann::metric_L2::template traits<double, KDTreePCLAdaptor>::distance_t metric_t;
   typedef nanoflann::KDTreeSingleIndexAdaptor<metric_t, KDTreePCLAdaptor, 3, int> index_t;
 public:
+  KDTreePCLAdaptor() = default;
+
   KDTreePCLAdaptor(pcl::PointCloud<Point>::Ptr cloud)
+  {
+    this->Reset(cloud);
+  }
+
+  void Reset(pcl::PointCloud<Point>::Ptr cloud)
   {
     // copy the input cloud
     this->Cloud = cloud;
 
-    // depth of the kdtree
-    int leaf_max_size = 25;
-    Index = new index_t(3, *this, nanoflann::KDTreeSingleIndexAdaptorParams(leaf_max_size));
+    // Build KD-tree
+    int leafMaxSize = 25;
+    Index = std::make_unique<index_t>(3, *this, nanoflann::KDTreeSingleIndexAdaptorParams(leafMaxSize));
     Index->buildIndex();
-  }
-
-  ~KDTreePCLAdaptor()
-  {
-      delete Index;
   }
 
   /** Query for the \a num_closest closest points to a given point (entered as query_point[0:dim-1]).
@@ -67,12 +69,12 @@ public:
     this->Index->findNeighbors(resultSet, pt, nanoflann::SearchParams());
   }
 
-  const KDTreePCLAdaptor & derived() const
+  inline const KDTreePCLAdaptor & derived() const
   {
     return *this;
   }
 
-  KDTreePCLAdaptor& derived()
+  inline KDTreePCLAdaptor& derived()
   {
     return *this;
   }
@@ -96,7 +98,7 @@ public:
     }
   }
 
-  pcl::PointCloud<Point>::Ptr getInputCloud()
+  inline pcl::PointCloud<Point>::Ptr getInputCloud() const
   {
     return this->Cloud;
   }
@@ -105,13 +107,13 @@ public:
   //   Return true if the BBOX was already computed by the class and returned in "bb" so it can be avoided to redo it again.
   //   Look at bb.size() to find out the expected dimensionality (e.g. 2 or 3 for point clouds)
   template <class BBOX>
-  bool kdtree_get_bbox(BBOX & /*bb*/) const
+  inline bool kdtree_get_bbox(BBOX & /*bb*/) const
   {
     return false;
   }
 
   //! The kd-tree index for the user to call its methods as usual with any other FLANN index.
-  index_t* Index;
+  std::unique_ptr<index_t> Index;
 
   //! the inputed data
   pcl::PointCloud<Point>::Ptr Cloud;

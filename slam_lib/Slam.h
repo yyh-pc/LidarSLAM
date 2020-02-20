@@ -71,17 +71,6 @@
 #ifndef SLAM_H
 #define SLAM_H
 
-#include <deque>
-
-// A new PCL Point is added so we need to recompile PCL to be able to use
-// filters (pcl::KdTreeFLANN) with this new type
-#ifndef PCL_NO_PRECOMPILE
-#define PCL_NO_PRECOMPILE
-#endif
-#include <pcl/kdtree/kdtree_flann.h>
-
-#include <Eigen/Geometry>
-
 #include "Transform.h"
 #include "LidarPoint.h"
 #include "SpinningSensorKeypointExtractor.h"
@@ -89,6 +78,10 @@
 #include "MotionModel.h"
 #include "RollingGrid.h"
 #include "PointCloudStorage.h"
+
+#include <Eigen/Geometry>
+
+#include <deque>
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
@@ -322,7 +315,7 @@ private:
   // 3: 2 + sub-problems processing duration
   // 4: 3 + ceres optimization summary
   // 5: 4 + logging/maps memory usage
-  int Verbosity = 3;
+  int Verbosity = 0;
 
   // Optionnal log of computed pose, mapping covariance and keypoints of each
   // processed frame.
@@ -355,14 +348,14 @@ private:
 
   // Transformation to map the current pointcloud
   // in the world (i.e first frame) one
-  Eigen::Isometry3d Tworld = Eigen::Isometry3d::Identity();
-  Eigen::Isometry3d PreviousTworld = Eigen::Isometry3d::Identity(); // CHECK unused ?
+  Eigen::Isometry3d Tworld;
+  Eigen::Isometry3d PreviousTworld; // CHECK unused ?
   std::pair<Eigen::Isometry3d, Eigen::Isometry3d> MotionParametersMapping;
 
   // Variance-Covariance matrix that estimates the
   // estimation error about the 6-DoF parameters
   // (DoF order : rX, rY, rZ, X, Y, Z)
-  Eigen::Matrix<double, 6, 6> TworldCovariance = Eigen::Matrix<double, 6, 6>::Identity();
+  Eigen::Matrix<double, 6, 6> TworldCovariance;
 
   // Represents estimated samples of the trajectory
   // of the sensor within a lidar frame. The orientation
@@ -385,8 +378,7 @@ private:
   //   Keypoints extraction and maps
   // ---------------------------------------------------------------------------
 
-  std::shared_ptr<SpinningSensorKeypointExtractor> KeyPointsExtractor =
-      std::make_shared<SpinningSensorKeypointExtractor>();
+  std::shared_ptr<SpinningSensorKeypointExtractor> KeyPointsExtractor;
 
   // keypoints extracted
   PointCloud::Ptr CurrentEdgesPoints;
@@ -456,9 +448,6 @@ private:
   std::vector<Eigen::Vector3d > Xvalues;
   std::vector<double> residualCoefficient;
   std::vector<double> TimeValues;
-
-  // Identity matrix
-  const Eigen::Matrix3d I3 = Eigen::Matrix3d::Identity();
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -601,7 +590,7 @@ private:
                                                Point p, MatchingMode matchingMode);
   MatchingResult ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, const Eigen::Isometry3d& transform,
                                                 Point p, MatchingMode matchingMode);
-  MatchingResult ComputeBlobsDistanceParameters(pcl::KdTreeFLANN<Point>::Ptr kdtreePreviousBlobs, const Eigen::Isometry3d& transform,
+  MatchingResult ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtreePreviousBlobs, const Eigen::Isometry3d& transform,
                                                 Point p, MatchingMode /*matchingMode*/);
 
   // Instead of taking the k-nearest neigbors in the odometry step we will take
