@@ -5,7 +5,6 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /Global Options1
-        - /Status1
         - /TF1/Frames1
         - /SLAM odom1/Shape1
         - /SLAM odom1/Covariance1
@@ -64,28 +63,13 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
-        gps:
-          Value: true
-        gps_init:
-          Value: true
-        slam:
-          Value: true
-        slam_init:
-          Value: true
-        utm:
-          Value: true
-        velodyne:
-          Value: true
       Marker Scale: 10
       Name: TF
       Show Arrows: false
       Show Axes: true
       Show Names: true
       Tree:
-        utm:
-          gps_init:
-            gps:
-              {}
+        {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -141,8 +125,8 @@ Visualization Manager:
       Queue Size: 1
       Selectable: true
       Size (Pixels): 1
-      Size (m): 0.009999999776482582
-      Style: Points
+      Size (m): 0.029999999329447746
+      Style: Squares
       Topic: /slam_cloud
       Unreliable: false
       Use Fixed Frame: true
@@ -411,7 +395,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 70
+      Distance: 40
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -427,10 +411,30 @@ Visualization Manager:
       Name: Current View
       Near Clip Distance: 0.009999999776482582
       Pitch: 0.7853981852531433
-      Target Frame: gps
+      Target Frame: velodyne
       Value: Orbit (rviz)
       Yaw: 0.7853981852531433
-    Saved: ~
+    Saved:
+      - Class: rviz/Orbit
+        Distance: 40
+        Enable Stereo Rendering:
+          Stereo Eye Separation: 0.05999999865889549
+          Stereo Focal Distance: 1
+          Swap Stereo Eyes: false
+          Value: false
+        Focal Point:
+          X: 0
+          Y: 0
+          Z: 0
+        Focal Shape Fixed Size: false
+        Focal Shape Size: 0.05000000074505806
+        Invert Z Axis: false
+        Name: Velodyne
+        Near Clip Distance: 0.009999999776482582
+        Pitch: 0.7853981852531433
+        Target Frame: velodyne
+        Value: Orbit (rviz)
+        Yaw: 0.7853981852531433
 Window Geometry:
   Displays:
     collapsed: true
