@@ -170,11 +170,6 @@ private:
   std::vector<std::vector<KeypointFlags>> IsPointValid;
   std::vector<std::vector<KeypointFlags>> Label;
 
-  // Mapping between keypoints and their corresponding index in pclCurrentFrameByScan
-  std::vector<std::pair<int, int>> EdgesIndex;
-  std::vector<std::pair<int, int>> PlanarIndex;
-  std::vector<std::pair<int, int>> BlobIndex;
-
   // Extracted keypoints of current frame
   PointCloud::Ptr EdgesPoints;
   PointCloud::Ptr PlanarsPoints;
