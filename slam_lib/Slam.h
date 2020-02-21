@@ -443,9 +443,9 @@ private:
   // - Xvalues will store the W points
   // - residualCoefficient will attenuate the distance function for outliers
   // - TimeValues store the time acquisition
-  std::vector<Eigen::Matrix3d > Avalues;
-  std::vector<Eigen::Vector3d > Pvalues;
-  std::vector<Eigen::Vector3d > Xvalues;
+  std::vector<Eigen::Matrix3d> Avalues;
+  std::vector<Eigen::Vector3d> Pvalues;
+  std::vector<Eigen::Vector3d> Xvalues;
   std::vector<double> residualCoefficient;
   std::vector<double> TimeValues;
 

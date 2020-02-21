@@ -91,7 +91,7 @@
 #include <vtkTransformPolyDataFilter.h>
 
 // PCL
-#include<pcl/common/transforms.h>
+#include <pcl/common/transforms.h>
 
 // vtkSlam filter input ports (vtkPolyData and vtkTable)
 #define LIDAR_FRAME_INPUT_PORT 0       ///< Current LiDAR frame
@@ -112,10 +112,10 @@
 //-----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlam)
 
-namespace {
-
+namespace
+{
 //-----------------------------------------------------------------------------
-template <typename T>
+template<typename T>
 vtkSmartPointer<T> createArray(const std::string& Name, int NumberOfComponents = 1, int NumberOfTuples = 0)
 {
   vtkSmartPointer<T> array = vtkSmartPointer<T>::New();
@@ -176,7 +176,6 @@ void PolyDataFromPointCloud(pcl::PointCloud<Slam::Point>::Ptr pc, vtkPolyData* p
     ids[i * 2] = 1;
     ids[i * 2 + 1] = i;
   }
-
   auto cellArray = vtkSmartPointer<vtkCellArray>::New();
   cellArray->SetCells(pc->size(), cells.GetPointer());
   poly->SetVerts(cellArray);
@@ -205,52 +204,59 @@ void PointCloudFromPolyData(vtkPolyData* poly, pcl::PointCloud<Slam::Point>::Ptr
 }
 
 //-----------------------------------------------------------------------------
-template <typename T>
-std::vector<size_t> sortIdx(const std::vector<T> &v)
+template<typename T>
+std::vector<size_t> sortIdx(const std::vector<T>& v)
 {
   // initialize original index locations
   std::vector<size_t> idx(v.size());
   std::iota(idx.begin(), idx.end(), 0);
 
   // sort indexes based on comparing values in v
-  std::sort(idx.begin(), idx.end(),
-       [&v](size_t i1, size_t i2) {return v[i1] > v[i2];});
+  std::sort(idx.begin(), idx.end(), [&v](size_t i1, size_t i2) { return v[i1] > v[i2]; });
 
   return idx;
 }
 } // end of anonymous namespace
 
 //-----------------------------------------------------------------------------
-void vtkSlam::SetKeyPointsExtractor (vtkSpinningSensorKeypointExtractor* _arg)
+vtkSlam::vtkSlam()
+: SlamAlgo(new Slam)
 {
-  vtkSetObjectBodyMacro(KeyPointsExtractor,vtkSpinningSensorKeypointExtractor,_arg);
-  this->SlamAlgo->SetKeyPointsExtractor(this->KeyPointsExtractor->GetExtractor());
+  this->SetNumberOfInputPorts(INPUT_PORT_COUNT);
+  this->SetNumberOfOutputPorts(OUTPUT_PORT_COUNT);
+  this->Reset();
 }
 
 //-----------------------------------------------------------------------------
-std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable *calib)
+void vtkSlam::Reset()
 {
-  auto array = vtkDataArray::SafeDownCast(calib->GetColumnByName("verticalCorrection"));
-  std::vector<size_t> laserIdMapping;
-  if (array)
+  this->SlamAlgo->Reset();
+
+  // init the output SLAM trajectory
+  this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
+  auto pts = vtkSmartPointer<vtkPoints>::New();
+  this->Trajectory->SetPoints(pts);
+  auto cellArray = vtkSmartPointer<vtkCellArray>::New();
+  this->Trajectory->SetLines(cellArray);
+  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Time", 1));
+  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Orientation", 4));
+  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Covariance", 36));
+
+  // add the required array in the trajectory
+  if (this->DisplayMode)
   {
-    std::vector<double> verticalCorrection(array->GetNumberOfTuples());
-    for (int i = 0; i < array->GetNumberOfTuples(); ++i)
+    auto debugInfo = this->SlamAlgo->GetDebugInformation();
+    for (const auto& it : debugInfo)
     {
-      verticalCorrection[i] = array->GetTuple1(i);
+      this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>(it.first));
     }
-    laserIdMapping = sortIdx(verticalCorrection);
   }
-  else
-  {
-    vtkErrorMacro(<< "The calibration data has no column named 'verticalCorrection'");
-  }
-  return laserIdMapping;
 }
 
 //-----------------------------------------------------------------------------
-int vtkSlam::RequestData(vtkInformation *vtkNotUsed(request),
-vtkInformationVector **inputVector, vtkInformationVector *outputVector)
+int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
+                         vtkInformationVector** inputVector,
+                         vtkInformationVector* outputVector)
 {
   // Get the input
   vtkPolyData* input = vtkPolyData::GetData(inputVector[LIDAR_FRAME_INPUT_PORT], 0);
@@ -408,56 +414,49 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
 }
 
 //-----------------------------------------------------------------------------
-vtkSlam::vtkSlam()
-: SlamAlgo(new Slam)
-{
-  this->SetNumberOfInputPorts(INPUT_PORT_COUNT);
-  this->SetNumberOfOutputPorts(OUTPUT_PORT_COUNT);
-  this->Reset();
-}
-
-//-----------------------------------------------------------------------------
-void vtkSlam::Reset()
-{
-  this->SlamAlgo->Reset();
-
-  // init the output SLAM trajectory
-  this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
-  auto pts = vtkSmartPointer<vtkPoints>::New();
-  this->Trajectory->SetPoints(pts);
-  auto cellArray = vtkSmartPointer<vtkCellArray>::New();
-  this->Trajectory->SetLines(cellArray);
-  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Time", 1));
-  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Orientation", 4));
-  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Covariance", 36));
-
-  // add the required array in the trajectory
-  if (this->DisplayMode)
-  {
-    auto debugInfo = this->SlamAlgo->GetDebugInformation();
-    for (const auto& it : debugInfo)
-    {
-      this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>(it.first));
-    }
-  }
-}
-
-//-----------------------------------------------------------------------------
-int vtkSlam::FillInputPortInformation(int port, vtkInformation *info)
+int vtkSlam::FillInputPortInformation(int port, vtkInformation* info)
 {
   // Pointcloud data
   if (port == LIDAR_FRAME_INPUT_PORT)
   {
-    info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkPolyData" );
+    info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkPolyData");
     return 1;
   }
   // LiDAR calibration
   if (port == CALIBRATION_INPUT_PORT)
   {
-    info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkTable" );
+    info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkTable");
     return 1;
   }
   return 0;
+}
+
+//-----------------------------------------------------------------------------
+std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
+{
+  auto array = vtkDataArray::SafeDownCast(calib->GetColumnByName("verticalCorrection"));
+  std::vector<size_t> laserIdMapping;
+  if (array)
+  {
+    std::vector<double> verticalCorrection(array->GetNumberOfTuples());
+    for (int i = 0; i < array->GetNumberOfTuples(); ++i)
+    {
+      verticalCorrection[i] = array->GetTuple1(i);
+    }
+    laserIdMapping = sortIdx(verticalCorrection);
+  }
+  else
+  {
+    vtkErrorMacro(<< "The calibration data has no column named 'verticalCorrection'");
+  }
+  return laserIdMapping;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor* _arg)
+{
+  vtkSetObjectBodyMacro(KeyPointsExtractor, vtkSpinningSensorKeypointExtractor, _arg);
+  this->SlamAlgo->SetKeyPointsExtractor(this->KeyPointsExtractor->GetExtractor());
 }
 
 //-----------------------------------------------------------------------------

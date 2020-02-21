@@ -4,7 +4,6 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
-
 struct EIGEN_ALIGN16 _PointXYZTIId
 {
   PCL_ADD_POINT4D // This adds the members x,y,z which can also be accessed using the point (which is float[4])

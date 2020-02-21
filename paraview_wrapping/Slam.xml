@@ -287,10 +287,10 @@
         <Property name="Max Plane-Neighbors Distance To Fitted Plane" />
         <Property name="Ego Motion Init Loss Scale" />
         <Property  name="Ego Motion Final Loss Scale" />
-     </PropertyGroup>
+      </PropertyGroup>
 
-     <!-- ==================== Mapping Parameters ==================== -->
-     <IntVectorProperty
+      <!-- ==================== Mapping Parameters ==================== -->
+      <IntVectorProperty
           name="Lev-Mardt Maximum Iteration M"
           command="SetMappingLMMaxIter"
           default_values="15"
@@ -318,7 +318,7 @@
         </Documentation>
       </IntVectorProperty>
 
-     <IntVectorProperty
+      <IntVectorProperty
           name="# Edges Neighbors Minimum After Ransac M"
           command="SetMappingMinimumLineNeighborRejection"
           default_values="4"
@@ -445,98 +445,98 @@
           panel_visibility="advanced">
       </DoubleVectorProperty>
 
-     <PropertyGroup label="Mapping ICP Matching And Optimization Parameters">
-       <Property name="Lev-Mardt Maximum Iteration M" />
-       <Property name="ICP Maximum Iteration M" />
-       <Property name="# Edges Neighbors Minimum After Ransac M" />
-       <Property name="# Edge Neighbors M" />
-       <Property name="# Plane Neighbors M" />
-       <Property name="Linearity Factor #1 M" />
-       <Property name="Planarity Factor #1 M" />
-       <Property name="Planarity Factor #2 M" />
-       <Property name="Maximum Inlier Distance Ransac Line Fitting" />
-       <Property name="Max Edge-Neighbors Distance To Fitted Line M" />
-       <Property name="Max Plane-Neighbors Distance To Fitted Plane M" />
-       <Property name="Mapping Init Loss Scale" />
-       <Property name="Mapping Final Loss Scale" />
-     </PropertyGroup>
+      <PropertyGroup label="Mapping ICP Matching And Optimization Parameters">
+        <Property name="Lev-Mardt Maximum Iteration M" />
+        <Property name="ICP Maximum Iteration M" />
+        <Property name="# Edges Neighbors Minimum After Ransac M" />
+        <Property name="# Edge Neighbors M" />
+        <Property name="# Plane Neighbors M" />
+        <Property name="Linearity Factor #1 M" />
+        <Property name="Planarity Factor #1 M" />
+        <Property name="Planarity Factor #2 M" />
+        <Property name="Maximum Inlier Distance Ransac Line Fitting" />
+        <Property name="Max Edge-Neighbors Distance To Fitted Line M" />
+        <Property name="Max Plane-Neighbors Distance To Fitted Plane M" />
+        <Property name="Mapping Init Loss Scale" />
+        <Property name="Mapping Final Loss Scale" />
+      </PropertyGroup>
 
-     <!-- ==================== Map Parameters ==================== -->
-     <DoubleVectorProperty
-         name="Map Edges Voxel Grid Leaf Size"
-         command="SetVoxelGridLeafSizeEdges"
-         default_values="0.45"
-         number_of_elements="1"
-         panel_visibility="advanced">
-       <Documentation>
-          Size of the leaf when downsampling the environment map using
-          a voxel grid filter. It should not be too big or some high
-          frequency geometric information will be lost. It should not
-          be too low or the geometric information will be too local
-        </Documentation>
-     </DoubleVectorProperty>
+      <!-- ==================== Map Parameters ==================== -->
+      <DoubleVectorProperty
+          name="Map Edges Voxel Grid Leaf Size"
+          command="SetVoxelGridLeafSizeEdges"
+          default_values="0.45"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+            Size of the leaf when downsampling the environment map using
+            a voxel grid filter. It should not be too big or some high
+            frequency geometric information will be lost. It should not
+            be too low or the geometric information will be too local
+          </Documentation>
+      </DoubleVectorProperty>
 
-     <DoubleVectorProperty
-         name="Map Planes Voxel Grid Leaf Size"
-         command="SetVoxelGridLeafSizePlanes"
-         default_values="0.6"
-         number_of_elements="1"
-         panel_visibility="advanced">
-       <Documentation>
-          Size of the leaf when downsampling the environment map using
-          a voxel grid filter. It should not be too big or some high
-          frequency geometric information will be lost. It should not
-          be too low or the geometric information will be too local
-        </Documentation>
-     </DoubleVectorProperty>
+      <DoubleVectorProperty
+          name="Map Planes Voxel Grid Leaf Size"
+          command="SetVoxelGridLeafSizePlanes"
+          default_values="0.6"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+            Size of the leaf when downsampling the environment map using
+            a voxel grid filter. It should not be too big or some high
+            frequency geometric information will be lost. It should not
+            be too low or the geometric information will be too local
+          </Documentation>
+      </DoubleVectorProperty>
 
-     <DoubleVectorProperty
-         name="Map Blobs Voxel Grid Leaf Size"
-         command="SetVoxelGridLeafSizeBlobs"
-         default_values="0.12"
-         number_of_elements="1"
-         panel_visibility="advanced">
-       <Documentation>
-          Size of the leaf when downsampling the environment map using
-          a voxel grid filter. It should not be too big or some high
-          frequency geometric information will be lost. It should not
-          be too low or the geometric information will be too local
-        </Documentation>
-     </DoubleVectorProperty>
+      <DoubleVectorProperty
+          name="Map Blobs Voxel Grid Leaf Size"
+          command="SetVoxelGridLeafSizeBlobs"
+          default_values="0.12"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+            Size of the leaf when downsampling the environment map using
+            a voxel grid filter. It should not be too big or some high
+            frequency geometric information will be lost. It should not
+            be too low or the geometric information will be too local
+          </Documentation>
+      </DoubleVectorProperty>
 
-     <IntVectorProperty
-         name="Map Voxel Grid Size"
-         command="SetVoxelGridSize"
-         default_values="50"
-         number_of_elements="1"
-         panel_visibility="advanced">
-       <Documentation>
-          Size of the map used to store the keypoints (number of voxels
-          in each direction). The map needs to have a size sufficient to
-          store at least one frame.
-        </Documentation>
-     </IntVectorProperty>
+      <IntVectorProperty
+          name="Map Voxel Grid Size"
+          command="SetVoxelGridSize"
+          default_values="50"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+            Size of the map used to store the keypoints (number of voxels
+            in each direction). The map needs to have a size sufficient to
+            store at least one frame.
+          </Documentation>
+      </IntVectorProperty>
 
-     <DoubleVectorProperty
-         name="Map Voxel Grid Resolution"
-         command="SetVoxelGridResolution"
-         default_values="10."
-         number_of_elements="1"
-         panel_visibility="advanced">
-       <Documentation>
-          Resolution of the map (meters per voxel). It should not be too big
-          or too much points will be considered when trying to match the frame at
-          the current position. This do not impact accuracy but only speed.
-        </Documentation>
-     </DoubleVectorProperty>
+      <DoubleVectorProperty
+          name="Map Voxel Grid Resolution"
+          command="SetVoxelGridResolution"
+          default_values="10."
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+            Resolution of the map (meters per voxel). It should not be too big
+            or too much points will be considered when trying to match the frame at
+            the current position. This do not impact accuracy but only speed.
+          </Documentation>
+      </DoubleVectorProperty>
 
-     <PropertyGroup label="Map Parameters">
+      <PropertyGroup label="Map Parameters">
         <Property name="Map Edges Voxel Grid Leaf Size" />
         <Property name="Map Planes Voxel Grid Leaf Size" />
         <Property name="Map Blobs Voxel Grid Leaf Size" />
         <Property name="Map Voxel Grid Size" />
         <Property name="Map Voxel Grid Resolution" />
-     </PropertyGroup>
+      </PropertyGroup>
 
     </SourceProxy>
   </ProxyGroup>

@@ -20,23 +20,22 @@
 #ifndef VTKSpinningSensorKeypointExtractor_H
 #define VTKSpinningSensorKeypointExtractor_H
 
-#include <vtkObject.h>
-
 #include <SpinningSensorKeypointExtractor.h>
+#include <vtkObject.h>
 
 //
 // Set built-in type.  Creates member Set"name"() (e.g., SetVisibility());
 //
 #undef vtkCustomSetMacro
-#define vtkCustomSetMacro(name,type) \
-virtual void Set##name (type _arg) \
-{ \
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting " #name " to " << _arg); \
-  if (this->Extractor->Get##name() != _arg) \
-  { \
-    this->Extractor->Set##name(_arg); \
-    this->Modified(); \
-  } \
+#define vtkCustomSetMacro(name, type)                                                            \
+virtual void Set##name(type _arg)                                                                \
+{                                                                                                \
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting " #name " to " << _arg);  \
+  if (this->Extractor->Get##name() != _arg)                                                      \
+  {                                                                                              \
+    this->Extractor->Set##name(_arg);                                                            \
+    this->Modified();                                                                            \
+  }                                                                                              \
 }
 
 /**
@@ -47,7 +46,7 @@ virtual void Set##name (type _arg) \
 class VTK_EXPORT vtkSpinningSensorKeypointExtractor : public vtkObject
 {
 public:
-  static vtkSpinningSensorKeypointExtractor *New();
+  static vtkSpinningSensorKeypointExtractor* New();
   vtkTypeMacro(vtkSpinningSensorKeypointExtractor, vtkObject)
   void PrintSelf(ostream& os, vtkIndent indent);
 
@@ -76,7 +75,7 @@ protected:
 
 private:
   vtkSpinningSensorKeypointExtractor(const vtkSpinningSensorKeypointExtractor&) = delete;
-  void operator = (const vtkSpinningSensorKeypointExtractor&) = delete;
+  void operator=(const vtkSpinningSensorKeypointExtractor&) = delete;
 };
 
 #endif // VTKSpinningSensorKeypointExtractor_H

@@ -20,24 +20,24 @@
 #ifndef KDTREE_PCL_ADAPTOR_H
 #define KDTREE_PCL_ADAPTOR_H
 
+// LOCAL
+#include "LidarPoint.h"
+// NANOFLANN
+#include <nanoflann.hpp>
 // PCL
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-
 // BOOST
 #include <boost/shared_ptr.hpp>
-
-// NANOFLANN
-#include <nanoflann.hpp>
-
-#include "LidarPoint.h"
 
 class KDTreePCLAdaptor
 {
   using Point = PointXYZTIId;
   typedef typename nanoflann::metric_L2::template traits<double, KDTreePCLAdaptor>::distance_t metric_t;
   typedef nanoflann::KDTreeSingleIndexAdaptor<metric_t, KDTreePCLAdaptor, 3, int> index_t;
+
 public:
+
   KDTreePCLAdaptor() = default;
 
   KDTreePCLAdaptor(pcl::PointCloud<Point>::Ptr cloud)
@@ -69,7 +69,7 @@ public:
     this->Index->findNeighbors(resultSet, pt, nanoflann::SearchParams());
   }
 
-  inline const KDTreePCLAdaptor & derived() const
+  inline const KDTreePCLAdaptor& derived() const
   {
     return *this;
   }
@@ -93,9 +93,7 @@ public:
     else if (dim == 1)
       return this->Cloud->points[idx].y;
     else
-    {
       return this->Cloud->points[idx].z;
-    }
   }
 
   inline pcl::PointCloud<Point>::Ptr getInputCloud() const
@@ -107,7 +105,7 @@ public:
   //   Return true if the BBOX was already computed by the class and returned in "bb" so it can be avoided to redo it again.
   //   Look at bb.size() to find out the expected dimensionality (e.g. 2 or 3 for point clouds)
   template <class BBOX>
-  inline bool kdtree_get_bbox(BBOX & /*bb*/) const
+  inline bool kdtree_get_bbox(BBOX& /*bb*/) const
   {
     return false;
   }
@@ -119,8 +117,6 @@ protected:
 
   //! the inputed data
   pcl::PointCloud<Point>::Ptr Cloud;
-protected:
-
 };
 
-# endif // KDTREE_PCL_ADAPTOR_H
+#endif // KDTREE_PCL_ADAPTOR_H

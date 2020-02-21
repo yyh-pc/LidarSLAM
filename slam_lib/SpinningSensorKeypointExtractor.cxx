@@ -19,24 +19,23 @@
 //=========================================================================
 #include "SpinningSensorKeypointExtractor.h"
 
-#include <numeric>
-
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+
+#include <numeric>
 
 namespace
 {
 //-----------------------------------------------------------------------------
-template <typename T>
-std::vector<size_t> sortIdx(const std::vector<T> &v)
+template<typename T>
+std::vector<size_t> sortIdx(const std::vector<T>& v)
 {
   // initialize original index locations
   std::vector<size_t> idx(v.size());
   std::iota(idx.begin(), idx.end(), 0);
 
   // sort indexes based on comparing values in v
-  std::sort(idx.begin(), idx.end(),
-       [&v](size_t i1, size_t i2) {return v[i1] > v[i2];});
+  std::sort(idx.begin(), idx.end(), [&v](size_t i1, size_t i2) { return v[i1] > v[i2]; });
 
   return idx;
 }
@@ -155,7 +154,6 @@ inline double LineFitting::SquaredDistanceToPoint(Eigen::Vector3d const& point) 
   return ((point - this->Position).cross(this->Direction)).squaredNorm();
 }
 }
-
 
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
@@ -440,7 +438,7 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
       this->IsPointValid[scanLine][index].reset();
 
     // loop over points into the scan line
-    for (int index = this->NeighborWidth; index <  Npts - this->NeighborWidth - 1; ++index)
+    for (int index = this->NeighborWidth; index < Npts - this->NeighborWidth - 1; ++index)
     {
       const Point& previousPoint = this->pclCurrentFrameByScan[scanLine]->points[index - 1];
       const Point& currentPoint = this->pclCurrentFrameByScan[scanLine]->points[index];
@@ -451,10 +449,10 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
       const Eigen::Vector3f& X  = currentPoint.getVector3fMap();
       const Eigen::Vector3f& Xn = nextPoint.getVector3fMap();
 
-      const double L = X.norm(),
-                   Ln = Xn.norm(),
-                   dLn = (Xn - X).norm(),
-                   dLp = (X - Xp).norm();
+      const double L = X.norm();
+      const double Ln = Xn.norm();
+      const double dLn = (Xn - X).norm();
+      const double dLp = (X - Xp).norm();
 
       // The expected length between two firings of the same laser is the
       // distance along the same circular arc. It depends only on radius value
@@ -594,9 +592,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
 
       // thresh
       if (sinAngle > this->PlaneSinAngleThreshold)
-      {
         break;
-      }
 
       // if the point is invalid as plane, continue
       if (!this->IsPointValid[scanLine][index][Keypoint::PLANE])
@@ -639,6 +635,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   std::sort(this->BlobIndex.begin(), this->BlobIndex.end());
 
   // fill the keypoints vectors and compute the max dist keypoints
+  // TODO : factorize this code
   this->FarestKeypointDist = 0.0;
   this->MinPoint = std::numeric_limits<float>::max();
   this->MaxPoint = std::numeric_limits<float>::min();

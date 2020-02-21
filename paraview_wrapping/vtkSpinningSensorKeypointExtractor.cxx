@@ -17,6 +17,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //=========================================================================
+
 #include "vtkSpinningSensorKeypointExtractor.h"
 
 #include <vtkObjectFactory.h>
@@ -27,18 +28,14 @@ vtkStandardNewMacro(vtkSpinningSensorKeypointExtractor)
 //-----------------------------------------------------------------------------
 vtkSpinningSensorKeypointExtractor::vtkSpinningSensorKeypointExtractor()
   : Extractor(std::make_shared<SpinningSensorKeypointExtractor>())
-{
+{}
 
-}
-
-
-
-void vtkSpinningSensorKeypointExtractor::PrintSelf(std::ostream &os, vtkIndent indent)
+void vtkSpinningSensorKeypointExtractor::PrintSelf(std::ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os, indent);
   os << indent << "SpinningSensorKeypointExtractor parameters: " << std::endl;
   vtkIndent paramIndent = indent.GetNextIndent();
-  #define PrintParameter(param) os << paramIndent << #param << "\t" << this->Extractor->Get##param()  << std::endl;
+  #define PrintParameter(param) os << paramIndent << #param << "\t" << this->Extractor->Get##param() << std::endl;
 
   PrintParameter(NeighborWidth)
   PrintParameter(MinDistanceToSensor)
@@ -53,6 +50,4 @@ void vtkSpinningSensorKeypointExtractor::PrintSelf(std::ostream &os, vtkIndent i
 
   PrintParameter(FarestKeypointDist)
   PrintParameter(NLasers)
-
 }
-

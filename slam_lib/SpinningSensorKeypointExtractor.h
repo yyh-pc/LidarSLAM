@@ -20,13 +20,12 @@
 #ifndef SpinningSensorKeypointExtractor_H
 #define SpinningSensorKeypointExtractor_H
 
-#include <vector>
-#include <unordered_map>
-#include <bitset>
+#include "LidarPoint.h"
 
 #include <pcl/point_cloud.h>
 
-#include "LidarPoint.h"
+#include <unordered_map>
+#include <bitset>
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }

@@ -20,15 +20,13 @@
 #ifndef CERES_COST_FUNCTIONS_H
 #define CERES_COST_FUNCTIONS_H
 
-// EIGEN
-#include <Eigen/Dense>
-
+// LOCAL
+#include "MotionModel.h"
 // CERES
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
-
-// LOCAL
-#include "MotionModel.h"
+// EIGEN
+#include <Eigen/Dense>
 
 namespace CostFunctions
 {
@@ -218,10 +216,10 @@ struct MahalanobisDistanceIsometryAndLinearDistortionResidual
 {
 public:
   MahalanobisDistanceIsometryAndLinearDistortionResidual(const Eigen::Matrix3d& argA,
-                                              const Eigen::Vector3d& argC,
-                                              const Eigen::Vector3d& argX,
-                                              double argTime,
-                                              double argLambda)
+                                                         const Eigen::Vector3d& argC,
+                                                         const Eigen::Vector3d& argX,
+                                                         double argTime,
+                                                         double argLambda)
   {
     this->A = argA;
     this->C = argC;

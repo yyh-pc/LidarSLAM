@@ -28,14 +28,13 @@
 #include <ceres/rotation.h>
 
 /**
-* \class AffineIsometry
+* \struct AffineIsometry
 * \brief represents a bijective transformation from a 3D
 *        euclidean affine space into another whose associated
 *        linear application is an orthogonal morphism
 */
-class AffineIsometry
+struct AffineIsometry
 {
-public:
   AffineIsometry() = default;
   AffineIsometry(const Eigen::Matrix3d& argR, const Eigen::Vector3d& argT, double argTime);
   Eigen::Matrix3d R = Eigen::Matrix3d::Identity();
@@ -44,7 +43,7 @@ public:
 };
 
 /**
-* \class SampledSensorPath
+* \struct SampledSensorPath
 * \brief represents the sampled sensor path estimated
 *        using SLAM or measured using GPS / IMU data.
 *        The orientation and position of the sensor for
@@ -52,9 +51,8 @@ public:
 *        sampled time will be interpolated using linear
 *        or spline interpolation (in R^3 and SO(3))
 */
-class SampledSensorPath
+struct SampledSensorPath
 {
-public:
   std::vector<AffineIsometry> Samples = std::vector<AffineIsometry>(2);
 
   // return the affine isometry corresponding

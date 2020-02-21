@@ -72,18 +72,18 @@
 #include "Slam.h"
 #include "CeresCostFunctions.h"
 #include "PoseGraphOptimization.h"
-// STD
-#include <sstream>
-#include <algorithm>
-#include <cmath>
-#include <chrono>
-// EIGEN
-#include <Eigen/Dense>
 // CERES
 #include <ceres/ceres.h>
 // PCL
 #include <pcl/common/transforms.h>
 #include <pcl/io/pcd_io.h>
+// EIGEN
+#include <Eigen/Dense>
+// STD
+#include <sstream>
+#include <algorithm>
+#include <cmath>
+#include <chrono>
 
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
@@ -308,11 +308,11 @@ std::vector<std::array<double, 36>> Slam::GetCovariances()
 std::unordered_map<std::string, double> Slam::GetDebugInformation()
 {
   std::unordered_map<std::string, double> map;
-  map["EgoMotion: edges used"] = this->EgoMotionEdgesPointsUsed;
-  map["EgoMotion: planes used"] = this->EgoMotionPlanesPointsUsed;
-  map["Mapping: edges used"] = this->MappingEdgesPointsUsed;
-  map["Mapping: planes used"] = this->MappingPlanesPointsUsed;
-  map["Mapping: blobs used"] = this->MappingBlobsPointsUsed;
+  map["EgoMotion: edges used"]   = this->EgoMotionEdgesPointsUsed;
+  map["EgoMotion: planes used"]  = this->EgoMotionPlanesPointsUsed;
+  map["Mapping: edges used"]     = this->MappingEdgesPointsUsed;
+  map["Mapping: planes used"]    = this->MappingPlanesPointsUsed;
+  map["Mapping: blobs used"]     = this->MappingBlobsPointsUsed;
   map["Mapping: variance error"] = this->MappingVarianceError;
   return map;
 }
@@ -323,10 +323,10 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray()
   auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
 
   std::unordered_map<std::string, std::vector<double>> map;
-  map["EgoMotion: edges matches"] = toDoubleVector(this->EdgePointRejectionEgoMotion);
+  map["EgoMotion: edges matches"]  = toDoubleVector(this->EdgePointRejectionEgoMotion);
   map["EgoMotion: planes matches"] = toDoubleVector(this->PlanarPointRejectionEgoMotion);
-  map["Mapping: edges matches"] = toDoubleVector(this->EdgePointRejectionMapping);
-  map["Mapping: planes matches"] = toDoubleVector(this->PlanarPointRejectionMapping);
+  map["Mapping: edges matches"]    = toDoubleVector(this->EdgePointRejectionMapping);
+  map["Mapping: planes matches"]   = toDoubleVector(this->PlanarPointRejectionMapping);
   return map;
 }
 

@@ -16,17 +16,18 @@
 //=========================================================================
 #include "vtkSlamManager.h"
 
-#include <vtkObjectFactory.h>
 #include <vtkInformation.h>
 #include <vtkInformationVector.h>
+#include <vtkObjectFactory.h>
 #include <vtkStreamingDemandDrivenPipeline.h>
+
 #include <sstream>
 
 //----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlamManager)
 
 //----------------------------------------------------------------------------
-void vtkSlamManager::PrintSelf(std::ostream &os, vtkIndent indent)
+void vtkSlamManager::PrintSelf(std::ostream& os, vtkIndent indent)
 {
   os << indent << "Slam Manager: " << std::endl;
   #define PrintParameter(param) os << indent << #param << " " << this->param << std::endl;
@@ -45,22 +46,24 @@ vtkSlamManager::vtkSlamManager()
 }
 
 //----------------------------------------------------------------------------
-int vtkSlamManager::RequestUpdateExtent(vtkInformation *vtkNotUsed(request),
-                                        vtkInformationVector **inputVector,
-                                        vtkInformationVector *vtkNotUsed(outputVector))
+int vtkSlamManager::RequestUpdateExtent(vtkInformation* vtkNotUsed(request),
+                                        vtkInformationVector** inputVector,
+                                        vtkInformationVector* vtkNotUsed(outputVector))
 {
   // Get the time and force it
-  vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
+  vtkInformation* inInfo = inputVector[0]->GetInformationObject(0);
   double time = *(inInfo->Get(vtkStreamingDemandDrivenPipeline::TIME_STEPS()) + this->CurrentFrame);
   inInfo->Set(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP(), time);
   return 1;
 }
 
 //----------------------------------------------------------------------------
-int vtkSlamManager::RequestData(vtkInformation *request, vtkInformationVector **inputVector, vtkInformationVector *outputVector)
+int vtkSlamManager::RequestData(vtkInformation* request,
+                                vtkInformationVector** inputVector,
+                                vtkInformationVector* outputVector)
 {
   // Check parameters validity
-  vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
+  vtkInformation* inInfo = inputVector[0]->GetInformationObject(0);
   int nbTimeSteps = inInfo->Length(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
   if (this->StepSize <= 0)
   {
@@ -77,7 +80,7 @@ int vtkSlamManager::RequestData(vtkInformation *request, vtkInformationVector **
     vtkErrorMacro("The dataset only has " << nbTimeSteps << " frames!")
     return 0;
   }
-  if (this->LastFrame < this->FirstFrame )
+  if (this->LastFrame < this->FirstFrame)
   {
     vtkErrorMacro(<< "The last frame must come after the first frame!")
     return 0;
@@ -119,8 +122,7 @@ int vtkSlamManager::RequestData(vtkInformation *request, vtkInformationVector **
     this->FirstIteration = true;
     this->LastModifyTime = this->ParametersModificationTime.GetMTime();
   }
-  double progress = static_cast<double>(this->CurrentFrame - firstFrame)
-      / static_cast<double>(lastFrame - firstFrame);
+  double progress = static_cast<double>(this->CurrentFrame - firstFrame) / static_cast<double>(lastFrame - firstFrame);
   this->UpdateProgress(progress);
 
   // process the frame

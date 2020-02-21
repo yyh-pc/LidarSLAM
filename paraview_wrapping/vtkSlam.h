@@ -84,22 +84,24 @@
 // By keeping track of the last time the parameters been modified there is
 // no ambiguty anymore. This mecanimsm is similar to the one usedby the paraview filter
 // PlotDataOverTime
-#define vtkCustomSetMacro(name,type) \
-virtual void Set##name (type _arg) \
-{ \
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting " #name " to " << _arg); \
-  if (this->SlamAlgo->Get##name() != _arg) \
-  { \
-    this->SlamAlgo->Set##name(_arg); \
-    this->Modified(); \
-    this->ParametersModificationTime.Modified(); \
-  } \
+#define vtkCustomSetMacro(name, type)                                                            \
+virtual void Set##name(type _arg)                                                                \
+{                                                                                                \
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting " #name " to " << _arg);  \
+  if (this->SlamAlgo->Get##name() != _arg)                                                       \
+  {                                                                                              \
+    this->SlamAlgo->Set##name(_arg);                                                             \
+    this->Modified();                                                                            \
+    this->ParametersModificationTime.Modified();                                                 \
+  }                                                                                              \
 }
 
-#define vtkCustomGetMacro(name,type) \
-virtual type Get##name () { \
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning " << #name " of " << this->SlamAlgo->Get##name() ); \
-  return this->SlamAlgo->Get##name(); \
+#define vtkCustomGetMacro(name, type)                                                            \
+virtual type Get##name()                                                                         \
+{                                                                                                \
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning " << #name " of "       \
+                << this->SlamAlgo->Get##name());                                                 \
+  return this->SlamAlgo->Get##name();                                                            \
 }
 
 class vtkSpinningSensorKeypointExtractor;
@@ -108,7 +110,7 @@ class vtkTable;
 class VTK_EXPORT vtkSlam : public vtkPolyDataAlgorithm
 {
 public:
-  static vtkSlam *New();
+  static vtkSlam* New();
   vtkTypeMacro(vtkSlam, vtkPolyDataAlgorithm)
   void PrintSelf(ostream& os, vtkIndent indent);
 
@@ -232,7 +234,7 @@ protected:
   void Reset();
 
   int FillInputPortInformation(int port, vtkInformation* info) override;
-  int RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *) override;
+  int RequestData(vtkInformation*, vtkInformationVector**, vtkInformationVector*) override;
 
   // Keeps track of the time the parameters have been modified
   // This will enable the SlamManager to be time-agnostic
@@ -244,11 +246,11 @@ protected:
 
 private:
   vtkSlam(const vtkSlam&) = delete;
-  void operator = (const vtkSlam&) = delete;
+  void operator=(const vtkSlam&) = delete;
 
   // Polydata which represents the trajectory computed
   vtkSmartPointer<vtkPolyData> Trajectory;
-  std::vector<size_t> GetLaserIdMapping(vtkTable *calib);
+  std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
 
   // Indicate if we are in display mode or not.
   // Display mode will add arrays showing some

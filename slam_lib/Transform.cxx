@@ -41,15 +41,15 @@ Transform::Transform(const Eigen::Vector3d& trans, const Eigen::Vector3d& rpy,
 //------------------------------------------------------------------------------
 Transform::Transform(const Eigen::Isometry3d& transform,
                      double t, const std::string& frame)
-  : time(t)
+  : transform(transform)
+  , time(t)
   , frameid(frame)
-  , transform(transform)
 {}
 
 //------------------------------------------------------------------------------
 Transform::Transform(const Eigen::Translation3d& trans, const Eigen::Quaterniond& rot,
                      double t, const std::string& frame)
-  : time(t)
+  : transform(trans * rot.normalized())
+  , time(t)
   , frameid(frame)
-  , transform(trans * rot.normalized())
 {}
