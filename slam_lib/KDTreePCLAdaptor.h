@@ -112,6 +112,8 @@ public:
     return false;
   }
 
+protected:
+
   //! The kd-tree index for the user to call its methods as usual with any other FLANN index.
   std::unique_ptr<index_t> Index;
 

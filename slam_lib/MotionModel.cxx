@@ -21,13 +21,11 @@
 #include "MotionModel.h"
 
 //-----------------------------------------------------------------------------
-AffineIsometry::AffineIsometry(const Eigen::Matrix3d& argR, const Eigen::Vector3d& argT, double argTime):
-  R(argR), T(argT), time(argTime)
-{
-  this->R = argR;
-  this->T = argT;
-  this->time = argTime;
-}
+AffineIsometry::AffineIsometry(const Eigen::Matrix3d& argR, const Eigen::Vector3d& argT, double argTime)
+  : R(argR)
+  , T(argT)
+  , time(argTime)
+{}
 
 //-----------------------------------------------------------------------------
 AffineIsometry SampledSensorPath::operator()(double time)

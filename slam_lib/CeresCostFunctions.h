@@ -77,15 +77,15 @@ public:
 
     // Convert internal double matrix
     // to a Jet matrix for auto diff calculous
-    Eigen::Matrix<T, 3, 3> Ac;
-    for (int i = 0; i < 9; ++i)
-        Ac(i) = T(this->A(i));
+    Eigen::Matrix<T, 3, 3> Ac = this->A.cast<T>();
+    Eigen::Matrix<T, 3, 1> Xc = this->X.cast<T>();
+    Eigen::Matrix<T, 3, 1> Cc = this->C.cast<T>();
 
     // Compute Y = R(theta) * X + T - C
     Eigen::Matrix<T, 3, 1> Y;
-    Y(0) = cry*crz*T(X(0)) + (srx*sry*crz-crx*srz)*T(X(1)) + (crx*sry*crz+srx*srz)*T(X(2)) + w[3] - T(C(0));
-    Y(1) = cry*srz*T(X(0)) + (srx*sry*srz+crx*crz)*T(X(1)) + (crx*sry*srz-srx*crz)*T(X(2)) + w[4] - T(C(1));
-    Y(2) = -sry*T(X(0)) + srx*cry*T(X(1)) + crx*cry*T(X(2)) + w[5] - T(C(2));
+    Y << cry*crz*Xc(0) + (srx*sry*crz-crx*srz)*Xc(1) + (crx*sry*crz+srx*srz)*Xc(2) + w[3] - Cc(0),
+         cry*srz*Xc(0) + (srx*sry*srz+crx*crz)*Xc(1) + (crx*sry*srz-srx*crz)*Xc(2) + w[4] - Cc(1),
+         -sry*Xc(0) + srx*cry*Xc(1) + crx*cry*Xc(2) + w[5] - Cc(2);
 
     // Compute final residual value which is:
     // Ht * A * H with H = R(theta)X + T
@@ -147,20 +147,13 @@ public:
   {
     // Convert internal double matrix
     // to a Jet matrix for auto diff calculous
-    Eigen::Matrix<T, 3, 3> Ac, R0c, R1c;
-    Eigen::Matrix<T, 3, 1> Xc, Cc, T0c;
-    for (int i = 0; i < 3; ++i)
-    {
-      for (int j = 0; j < 3; ++j)
-      {
-        Ac(i, j) = T(this->A(i, j));
-        R0c(i, j) = T(this->R0(i, j));
-      }
-      Xc(i) = T(this->X(i));
-      Cc(i) = T(this->C(i));
-      T0c(i) = T(this->T0(i));
-    }
-    Eigen::Matrix<T, 3, 1> T1c; T1c << T(w[3]), T(w[4]), T(w[5]);
+    Eigen::Matrix<T, 3, 3> Ac = this->A.cast<T>();
+    Eigen::Matrix<T, 3, 3> R0c = this->R0.cast<T>();
+    Eigen::Matrix<T, 3, 1> Xc = this->X.cast<T>();
+    Eigen::Matrix<T, 3, 1> Cc = this->C.cast<T>();
+    Eigen::Matrix<T, 3, 1> T0c = this->T0.cast<T>();
+
+    Eigen::Matrix<T, 3, 1> T1c(w[3], w[4], w[5]);
 
     // store sin / cos values for this angle
     T crx = ceres::cos(w[0]); T srx = ceres::sin(w[0]);
@@ -168,9 +161,10 @@ public:
     T crz = ceres::cos(w[2]); T srz = ceres::sin(w[2]);
 
     // Compute final rotation value
-    R1c << cry*crz, (srx*sry*crz-crx*srz), (crx*sry*crz+srx*srz),
-           cry*srz, (srx*sry*srz+crx*crz), (crx*sry*srz-srx*crz),
-              -sry,               srx*cry,               crx*cry;
+    Eigen::Matrix<T, 3, 3> R1c;
+    R1c << cry*crz,  srx*sry*crz-crx*srz,  crx*sry*crz+srx*srz,
+           cry*srz,  srx*sry*srz+crx*crz,  crx*sry*srz-srx*crz,
+              -sry,              srx*cry,              crx*cry;
 
     // Now, compute the rotation and translation to
     // apply to X depending on (R0, T0) and (R1, T1)
@@ -241,18 +235,11 @@ public:
   {
     // Convert internal double matrix
     // to a Jet matrix for auto diff calculous
-    Eigen::Matrix<T, 3, 3> Ac, R1c;
-    Eigen::Matrix<T, 3, 1> Xc, Cc;
-    for (int i = 0; i < 3; ++i)
-    {
-      for (int j = 0; j < 3; ++j)
-      {
-        Ac(i, j) = T(this->A(i, j));
-      }
-      Xc(i) = T(this->X(i));
-      Cc(i) = T(this->C(i));
-    }
-    Eigen::Matrix<T, 3, 1> T1c; T1c << T(w[3]), T(w[4]), T(w[5]);
+    Eigen::Matrix<T, 3, 3> Ac = this->A.cast<T>();
+    Eigen::Matrix<T, 3, 1> Xc = this->X.cast<T>();
+    Eigen::Matrix<T, 3, 1> Cc = this->C.cast<T>();
+
+    Eigen::Matrix<T, 3, 1> T1c(w[3], w[4], w[5]);
 
     // store sin / cos values for this angle
     T crx = ceres::cos(w[0]); T srx = ceres::sin(w[0]);
@@ -260,9 +247,10 @@ public:
     T crz = ceres::cos(w[2]); T srz = ceres::sin(w[2]);
 
     // Compute final rotation value
-    R1c << cry*crz, (srx*sry*crz-crx*srz), (crx*sry*crz+srx*srz),
-           cry*srz, (srx*sry*srz+crx*crz), (crx*sry*srz-srx*crz),
-              -sry,               srx*cry,               crx*cry;
+    Eigen::Matrix<T, 3, 3> R1c;
+    R1c << cry*crz,  srx*sry*crz-crx*srz,  crx*sry*crz+srx*srz,
+           cry*srz,  srx*sry*srz+crx*crz,  crx*sry*srz-srx*crz,
+              -sry,              srx*cry,              crx*cry;
 
     // Now, compute the rotation and translation to
     // apply to X depending on (R0, T0) and (R1, T1)
@@ -331,27 +319,19 @@ public:
   {
     // Convert internal double matrix
     // to a Jet matrix for auto diff calculous
-    Eigen::Matrix<T, 3, 3> Ac, R0c, R1c;
-    Eigen::Matrix<T, 3, 1> Xc, Cc;
-    for (int i = 0; i < 3; ++i)
-    {
-      for (int j = 0; j < 3; ++j)
-      {
-        Ac(i, j) = T(this->A(i, j));
-      }
-      Xc(i) = T(this->X(i));
-      Cc(i) = T(this->C(i));
-    }
+    Eigen::Matrix<T, 3, 3> Ac = this->A.cast<T>();
+    Eigen::Matrix<T, 3, 1> Xc = this->X.cast<T>();
+    Eigen::Matrix<T, 3, 1> Cc = this->C.cast<T>();
 
     // Get the current estimation positions
     Eigen::Matrix<T, 3, 1> T0c(w[3], w[4], w[5]);
     Eigen::Matrix<T, 3, 1> T1c(w[9], w[10], w[11]);
 
     // Get the current estimation orientations
-
     T crx = ceres::cos(w[0]); T srx = ceres::sin(w[0]);
     T cry = ceres::cos(w[1]); T sry = ceres::sin(w[1]);
     T crz = ceres::cos(w[2]); T srz = ceres::sin(w[2]);
+    Eigen::Matrix<T, 3, 3> R0c;
     R0c << cry*crz, (srx*sry*crz-crx*srz), (crx*sry*crz+srx*srz),
            cry*srz, (srx*sry*srz+crx*crz), (crx*sry*srz-srx*crz),
               -sry,               srx*cry,               crx*cry;
@@ -359,6 +339,7 @@ public:
     crx = ceres::cos(w[6]); srx = ceres::sin(w[6]);
     cry = ceres::cos(w[7]); sry = ceres::sin(w[7]);
     crz = ceres::cos(w[8]); srz = ceres::sin(w[8]);
+    Eigen::Matrix<T, 3, 3> R1c;
     R1c << cry*crz, (srx*sry*crz-crx*srz), (crx*sry*crz+srx*srz),
            cry*srz, (srx*sry*srz+crx*crz), (crx*sry*srz-srx*crz),
               -sry,               srx*cry,               crx*cry;
@@ -455,17 +436,10 @@ public:
   {
     // Convert internal double matrix
     // to a Jet matrix for auto diff calculous
-    Eigen::Matrix<T, 3, 3> P1j, P2j, Q1j, Q2j;
-    for (int i = 0; i < 3; ++i)
-    {
-      for (int j = 0; j < 3; ++j)
-      {
-        P1j(i, j) = T(this->P1(i, j));
-        P2j(i, j) = T(this->P2(i, j));
-        Q1j(i, j) = T(this->Q1(i, j));
-        Q2j(i, j) = T(this->Q2(i, j));
-      }
-    }
+    Eigen::Matrix<T, 3, 3> P1j = this->P1.cast<T>();
+    Eigen::Matrix<T, 3, 3> P2j = this->P2.cast<T>();
+    Eigen::Matrix<T, 3, 3> Q1j = this->Q1.cast<T>();
+    Eigen::Matrix<T, 3, 3> Q2j = this->Q2.cast<T>();
 
     // store sin / cos values for this angle
     T crx = ceres::cos(w[0]); T srx = ceres::sin(w[0]);
@@ -569,25 +543,16 @@ public:
   {
     // Convert internal double matrix
     // to a Jet matrix for auto diff calculous
-    Eigen::Matrix<T, 3, 3> P1j, P2j, Q1j, Q2j;
-    Eigen::Matrix<T, 3, 1> V1j, V2j, U1j, U2j;
-    for (int i = 0; i < 3; ++i)
-    {
-      for (int j = 0; j < 3; ++j)
-      {
-        P1j(i, j) = T(this->P1(i, j));
-        P2j(i, j) = T(this->P2(i, j));
-        Q1j(i, j) = T(this->Q1(i, j));
-        Q2j(i, j) = T(this->Q2(i, j));
-      }
-      V1j(i) = T(this->V1(i));
-      V2j(i) = T(this->V2(i));
-      U1j(i) = T(this->U1(i));
-      U2j(i) = T(this->U2(i));
-    }
+    Eigen::Matrix<T, 3, 3> P1j = this->P1.cast<T>();
+    Eigen::Matrix<T, 3, 3> P2j = this->P2.cast<T>();
+    Eigen::Matrix<T, 3, 3> Q1j = this->Q1.cast<T>();
+    Eigen::Matrix<T, 3, 3> Q2j = this->Q2.cast<T>();
+    Eigen::Matrix<T, 3, 1> U1j = this->U1.cast<T>();
+    Eigen::Matrix<T, 3, 1> U2j = this->U2.cast<T>();
+    Eigen::Matrix<T, 3, 1> V1j = this->V1.cast<T>();
+    Eigen::Matrix<T, 3, 1> V2j = this->V2.cast<T>();
 
-    Eigen::Matrix<T, 3, 1> dX;
-    dX << T(w[3]), T(w[4]), T(w[5]);
+    Eigen::Matrix<T, 3, 1> dX(w[3], w[4], w[5]);
 
     // store sin / cos values for this angle
     T crx = ceres::cos(w[0]); T srx = ceres::sin(w[0]);
@@ -661,15 +626,10 @@ public:
   {
     // Convert internal double matrix
     // to a Jet matrix for auto diff calculous
-    Eigen::Matrix<T, 3, 1> Xj, Yj;
-    for (int i = 0; i < 3; ++i)
-    {
-      Xj(i) = T(this->X(i));
-      Yj(i) = T(this->Y(i));
-    }
+    Eigen::Matrix<T, 3, 1> Xj = this->X.cast<T>();
+    Eigen::Matrix<T, 3, 1> Yj = this->Y.cast<T>();
 
-    Eigen::Matrix<T, 3, 1> dX;
-    dX << T(w[3]), T(w[4]), T(w[5]);
+    Eigen::Matrix<T, 3, 1> dX(w[3], w[4], w[5]);
 
     // store sin / cos values for this angle
     T crx = ceres::cos(w[0]); T srx = ceres::sin(w[0]);
