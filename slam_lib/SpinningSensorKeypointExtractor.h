@@ -22,6 +22,7 @@
 
 #include <vector>
 #include <unordered_map>
+#include <bitset>
 
 #include <pcl/point_cloud.h>
 
@@ -29,6 +30,16 @@
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
+
+//! Label of a point as a keypoint
+//! We use binary flags as each point can have different keypoint labels.
+using KeypointFlags = std::bitset<3>;
+enum Keypoint
+{
+  EDGE  = 0,   ///< edge keypoint (sharp local structure)
+  PLANE = 1,   ///< plane keypoint (flat local structure)
+  BLOB  = 2    ///< blob keypoint (spherical local structure)
+};
 
 class SpinningSensorKeypointExtractor
 {
@@ -61,8 +72,8 @@ public:
   SetMacro(EdgeIntensityGapThreshold, double)
 
   GetMacro(FarestKeypointDist, double)
-  Eigen::Vector3d GetMinPoint() { return this->MinPoint.cast<double>();}
-  Eigen::Vector3d GetMaxPoint() { return this->MaxPoint.cast<double>();}
+  Eigen::Array3d GetMinPoint() { return this->MinPoint.cast<double>();}
+  Eigen::Array3d GetMaxPoint() { return this->MaxPoint.cast<double>();}
 
   GetMacro(NLasers, int)
 
@@ -157,8 +168,8 @@ private:
   std::vector<std::vector<double>> DepthGap;
   std::vector<std::vector<double>> Saliency;
   std::vector<std::vector<double>> IntensityGap;
-  std::vector<std::vector<uint8_t>> IsPointValid;
-  std::vector<std::vector<uint8_t>> Label;
+  std::vector<std::vector<KeypointFlags>> IsPointValid;
+  std::vector<std::vector<KeypointFlags>> Label;
 
   // Mapping between keypoints and their corresponding index in pclCurrentFrameByScan
   std::vector<std::pair<int, int>> EdgesIndex;

@@ -36,7 +36,7 @@
 class AffineIsometry
 {
 public:
-  AffineIsometry() {};
+  AffineIsometry() = default;
   AffineIsometry(const Eigen::Matrix3d& argR, const Eigen::Vector3d& argT, double argTime);
   Eigen::Matrix3d R = Eigen::Matrix3d::Identity();
   Eigen::Vector3d T = Eigen::Vector3d::Zero();
