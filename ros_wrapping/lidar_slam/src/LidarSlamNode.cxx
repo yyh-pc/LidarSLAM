@@ -557,18 +557,14 @@ void LidarSlamNode::PublishFeaturesMaps(uint64_t pclStamp)
 //------------------------------------------------------------------------------
 void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
 {
+  #define SetSlamParam(type, rosParam, slamParam) { type val; if (priv_nh.getParam(rosParam, val)) this->LidarSlam.Set##slamParam(val); }
+
   // common
-  bool fastSlam, undistortion, loggingCompression;
-  int pointCloudStorage;
-  double loggingTimeout, maxDistanceForICPMatching;
-  if (priv_nh.getParam("slam/fast_slam", fastSlam))
-    LidarSlam.SetFastSlam(fastSlam);
-  if (priv_nh.getParam("slam/undistortion", undistortion))
-    LidarSlam.SetUndistortion(undistortion);
-  if (priv_nh.getParam("slam/max_distance_for_ICP_matching", maxDistanceForICPMatching))
-    LidarSlam.SetMaxDistanceForICPMatching(maxDistanceForICPMatching);
-  if (priv_nh.getParam("slam/logging_timeout", loggingTimeout))
-    LidarSlam.SetLoggingTimeout(loggingTimeout);
+  SetSlamParam(bool, "slam/fast_slam", FastSlam)
+  SetSlamParam(bool, "slam/undistortion", Undistortion)
+  SetSlamParam(int, "slam/logging_timeout", LoggingTimeout)
+  SetSlamParam(double, "slam/max_distance_for_ICP_matching", MaxDistanceForICPMatching)
+  int  pointCloudStorage;
   if (priv_nh.getParam("slam/logging_storage", pointCloudStorage))
   {
     PointCloudStorageType storage = static_cast<PointCloudStorageType>(pointCloudStorage);
@@ -582,75 +578,40 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   }
 
   // ego motion
-  int egoMotionLMMaxIter, egoMotionICPMaxIter, egoMotionLineDistanceNbrNeighbors, egoMotionMinimumLineNeighborRejection, egoMotionPlaneDistanceNbrNeighbors;
-  double egoMotionLineDistancefactor, egoMotionPlaneDistancefactor1, egoMotionPlaneDistancefactor2, egoMotionMaxLineDistance, egoMotionMaxPlaneDistance, egoMotionInitLossScale, egoMotionFinalLossScale;
-  if (priv_nh.getParam("slam/ego_motion_LM_max_iter", egoMotionLMMaxIter))
-    LidarSlam.SetEgoMotionLMMaxIter(egoMotionLMMaxIter);
-  if (priv_nh.getParam("slam/ego_motion_ICP_max_iter", egoMotionICPMaxIter))
-    LidarSlam.SetEgoMotionICPMaxIter(egoMotionICPMaxIter);
-  if (priv_nh.getParam("slam/ego_motion_line_distance_nbr_neighbors", egoMotionLineDistanceNbrNeighbors))
-    LidarSlam.SetEgoMotionLineDistanceNbrNeighbors(egoMotionLineDistanceNbrNeighbors);
-  if (priv_nh.getParam("slam/ego_motion_minimum_line_neighbor_rejection", egoMotionMinimumLineNeighborRejection))
-    LidarSlam.SetEgoMotionMinimumLineNeighborRejection(egoMotionMinimumLineNeighborRejection);
-  if (priv_nh.getParam("slam/ego_motion_line_distance_factor", egoMotionLineDistancefactor))
-    LidarSlam.SetEgoMotionLineDistancefactor(egoMotionLineDistancefactor);
-  if (priv_nh.getParam("slam/ego_motion_plane_distance_nbr_neighbors", egoMotionPlaneDistanceNbrNeighbors))
-    LidarSlam.SetEgoMotionPlaneDistanceNbrNeighbors(egoMotionPlaneDistanceNbrNeighbors);
-  if (priv_nh.getParam("slam/ego_motion_plane_distance_factor1", egoMotionPlaneDistancefactor1))
-    LidarSlam.SetEgoMotionPlaneDistancefactor1(egoMotionPlaneDistancefactor1);
-  if (priv_nh.getParam("slam/ego_motion_plane_distance_factor2", egoMotionPlaneDistancefactor2))
-    LidarSlam.SetEgoMotionPlaneDistancefactor2(egoMotionPlaneDistancefactor2);
-  if (priv_nh.getParam("slam/ego_motion_max_line_distance", egoMotionMaxLineDistance))
-    LidarSlam.SetEgoMotionMaxLineDistance(egoMotionMaxLineDistance);
-  if (priv_nh.getParam("slam/ego_motion_max_plane_distance", egoMotionMaxPlaneDistance))
-    LidarSlam.SetEgoMotionMaxPlaneDistance(egoMotionMaxPlaneDistance);
-  if (priv_nh.getParam("slam/ego_motion_init_loss_scale", egoMotionInitLossScale))
-    LidarSlam.SetEgoMotionInitLossScale(egoMotionInitLossScale);
-  if (priv_nh.getParam("slam/ego_motion_final_loss_scale", egoMotionFinalLossScale))
-    LidarSlam.SetEgoMotionFinalLossScale(egoMotionFinalLossScale);
+  SetSlamParam(int, "slam/ego_motion_LM_max_iter", EgoMotionLMMaxIter)
+  SetSlamParam(int, "slam/ego_motion_ICP_max_iter", EgoMotionICPMaxIter)
+  SetSlamParam(int, "slam/ego_motion_line_distance_nbr_neighbors", EgoMotionLineDistanceNbrNeighbors)
+  SetSlamParam(int, "slam/ego_motion_minimum_line_neighbor_rejection", EgoMotionMinimumLineNeighborRejection)
+  SetSlamParam(int, "slam/ego_motion_plane_distance_nbr_neighbors", EgoMotionPlaneDistanceNbrNeighbors)
+  SetSlamParam(double, "slam/ego_motion_line_distance_factor", EgoMotionLineDistancefactor)
+  SetSlamParam(double, "slam/ego_motion_plane_distance_factor1", EgoMotionPlaneDistancefactor1)
+  SetSlamParam(double, "slam/ego_motion_plane_distance_factor2", EgoMotionPlaneDistancefactor2)
+  SetSlamParam(double, "slam/ego_motion_max_line_distance", EgoMotionMaxLineDistance)
+  SetSlamParam(double, "slam/ego_motion_max_plane_distance", EgoMotionMaxPlaneDistance)
+  SetSlamParam(double, "slam/ego_motion_init_loss_scale", EgoMotionInitLossScale)
+  SetSlamParam(double, "slam/ego_motion_final_loss_scale", EgoMotionFinalLossScale)
 
   // mapping
-  int mappingLMMaxIter, mappingICPMaxIter, mappingLineDistanceNbrNeighbors, mappingMinimumLineNeighborRejection, mappingPlaneDistanceNbrNeighbors;
-  double mappingLineDistancefactor, mappingPlaneDistancefactor1, mappingPlaneDistancefactor2, mappingMaxLineDistance, mappingMaxPlaneDistance, mappingLineMaxDistInlier, mappingInitLossScale, mappingFinalLossScale;
-  if (priv_nh.getParam("slam/mapping_LM_max_iter", mappingLMMaxIter))
-    LidarSlam.SetMappingLMMaxIter(mappingLMMaxIter);
-  if (priv_nh.getParam("slam/mapping_ICP_max_iter", mappingICPMaxIter))
-    LidarSlam.SetMappingICPMaxIter(mappingICPMaxIter);
-  if (priv_nh.getParam("slam/mapping_line_distance_nbr_neighbors", mappingLineDistanceNbrNeighbors))
-    LidarSlam.SetMappingLineDistanceNbrNeighbors(mappingLineDistanceNbrNeighbors);
-  if (priv_nh.getParam("slam/mapping_minimum_line_neighbor_rejection", mappingMinimumLineNeighborRejection))
-    LidarSlam.SetMappingMinimumLineNeighborRejection(mappingMinimumLineNeighborRejection);
-  if (priv_nh.getParam("slam/mapping_line_distance_factor", mappingLineDistancefactor))
-    LidarSlam.SetMappingLineDistancefactor(mappingLineDistancefactor);
-  if (priv_nh.getParam("slam/mapping_plane_distance_nbr_neighbors", mappingPlaneDistanceNbrNeighbors))
-    LidarSlam.SetMappingPlaneDistanceNbrNeighbors(mappingPlaneDistanceNbrNeighbors);
-  if (priv_nh.getParam("slam/mapping_plane_distance_factor1", mappingPlaneDistancefactor1))
-    LidarSlam.SetMappingPlaneDistancefactor1(mappingPlaneDistancefactor1);
-  if (priv_nh.getParam("slam/mapping_plane_distance_factor2", mappingPlaneDistancefactor2))
-    LidarSlam.SetMappingPlaneDistancefactor2(mappingPlaneDistancefactor2);
-  if (priv_nh.getParam("slam/mapping_max_line_distance", mappingMaxLineDistance))
-    LidarSlam.SetMappingMaxLineDistance(mappingMaxLineDistance);
-  if (priv_nh.getParam("slam/mapping_max_plane_distance", mappingMaxPlaneDistance))
-    LidarSlam.SetMappingMaxPlaneDistance(mappingMaxPlaneDistance);
-  if (priv_nh.getParam("slam/mapping_line_max_dist_inlier", mappingLineMaxDistInlier))
-    LidarSlam.SetMappingLineMaxDistInlier(mappingLineMaxDistInlier);
-  if (priv_nh.getParam("slam/mapping_init_loss_scale", mappingInitLossScale))
-    LidarSlam.SetMappingInitLossScale(mappingInitLossScale);
-  if (priv_nh.getParam("slam/mapping_final_loss_scale", mappingFinalLossScale))
-    LidarSlam.SetMappingFinalLossScale(mappingFinalLossScale);
+  SetSlamParam(int, "slam/mapping_LM_max_iter", MappingLMMaxIter)
+  SetSlamParam(int, "slam/mapping_ICP_max_iter", MappingICPMaxIter)
+  SetSlamParam(int, "slam/mapping_line_distance_nbr_neighbors", MappingLineDistanceNbrNeighbors)
+  SetSlamParam(int, "slam/mapping_minimum_line_neighbor_rejection", MappingMinimumLineNeighborRejection)
+  SetSlamParam(int, "slam/mapping_plane_distance_nbr_neighbors", MappingPlaneDistanceNbrNeighbors)
+  SetSlamParam(double, "slam/mapping_line_distance_factor", MappingLineDistancefactor)
+  SetSlamParam(double, "slam/mapping_line_max_dist_inlier", MappingLineMaxDistInlier)
+  SetSlamParam(double, "slam/mapping_plane_distance_factor1", MappingPlaneDistancefactor1)
+  SetSlamParam(double, "slam/mapping_plane_distance_factor2", MappingPlaneDistancefactor2)
+  SetSlamParam(double, "slam/mapping_max_line_distance", MappingMaxLineDistance)
+  SetSlamParam(double, "slam/mapping_max_plane_distance", MappingMaxPlaneDistance)
+  SetSlamParam(double, "slam/mapping_init_loss_scale", MappingInitLossScale)
+  SetSlamParam(double, "slam/mapping_final_loss_scale", MappingFinalLossScale)
 
   // rolling grids
-  double voxelGridLeafSizeEdges, voxelGridLeafSizePlanes, voxelGridLeafSizeBlobs, voxelGridSize, voxelGridResolution;
-  if (priv_nh.getParam("slam/voxel_grid_leaf_size_edges", voxelGridLeafSizeEdges))
-    LidarSlam.SetVoxelGridLeafSizeEdges(voxelGridLeafSizeEdges);
-  if (priv_nh.getParam("slam/voxel_grid_leaf_size_planes", voxelGridLeafSizePlanes))
-    LidarSlam.SetVoxelGridLeafSizePlanes(voxelGridLeafSizePlanes);
-  if (priv_nh.getParam("slam/voxel_grid_leaf_size_blobs", voxelGridLeafSizeBlobs))
-    LidarSlam.SetVoxelGridLeafSizeBlobs(voxelGridLeafSizeBlobs);
-  if (priv_nh.getParam("slam/voxel_grid_size", voxelGridSize))
-    LidarSlam.SetVoxelGridSize(voxelGridSize);
-  if (priv_nh.getParam("slam/voxel_grid_resolution", voxelGridResolution))
-    LidarSlam.SetVoxelGridResolution(voxelGridResolution);
+  SetSlamParam(double, "slam/voxel_grid_leaf_size_edges", VoxelGridLeafSizeEdges)
+  SetSlamParam(double, "slam/voxel_grid_leaf_size_planes", VoxelGridLeafSizePlanes)
+  SetSlamParam(double, "slam/voxel_grid_leaf_size_blobs", VoxelGridLeafSizeBlobs)
+  SetSlamParam(double, "slam/voxel_grid_resolution", VoxelGridResolution)
+  SetSlamParam(int, "slam/voxel_grid_size", VoxelGridSize)
 }
 
 //------------------------------------------------------------------------------
