@@ -171,6 +171,9 @@ public:
   //   General parameters
   // ---------------------------------------------------------------------------
 
+  GetMacro(NbThreads, int)
+  void SetNbThreads(int n) { this->NbThreads = n; this->KeyPointsExtractor->SetNbThreads(n); }
+
   SetMacro(Verbosity, int)
   GetMacro(Verbosity, int)
 
@@ -293,6 +296,9 @@ private:
   // ---------------------------------------------------------------------------
   //   General stuff and flags
   // ---------------------------------------------------------------------------
+
+  // Max number of threads to use for parallel processing
+  int NbThreads = 1;
 
   // If set to true the mapping planars keypoints used
   // will be the same than the EgoMotion one. If set to false
