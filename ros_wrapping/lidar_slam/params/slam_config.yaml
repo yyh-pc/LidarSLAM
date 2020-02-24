@@ -70,6 +70,7 @@ gps:
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
 
+  n_threads: 1         # Max number of threads to use for parallel processing
   fast_slam: true      # Use only planars keypoints used during EgoMotion for Mapping step, and not all.
   undistortion: false  # Undistort the frame to correct rolling shutter distortion. DEBUG
 

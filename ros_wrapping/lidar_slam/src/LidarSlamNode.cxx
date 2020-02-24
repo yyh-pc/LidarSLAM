@@ -562,6 +562,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   // common
   SetSlamParam(bool, "slam/fast_slam", FastSlam)
   SetSlamParam(bool, "slam/undistortion", Undistortion)
+  SetSlamParam(int, "slam/n_threads", NbThreads)
   SetSlamParam(int, "slam/logging_timeout", LoggingTimeout)
   SetSlamParam(double, "slam/max_distance_for_ICP_matching", MaxDistanceForICPMatching)
   int  pointCloudStorage;

@@ -130,6 +130,9 @@ public:
   vtkCustomGetMacro(Undistortion, bool)
   vtkCustomSetMacro(Undistortion, bool)
 
+  vtkCustomGetMacro(NbThreads, int)
+  vtkCustomSetMacro(NbThreads, int)
+
   // ---------------------------------------------------------------------------
   //   Optimization parameters
   // ---------------------------------------------------------------------------
