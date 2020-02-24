@@ -22,6 +22,8 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
+#include <omp.h>
+
 #include <numeric>
 
 namespace
@@ -228,6 +230,7 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
   this->PrepareDataForNextFrame();
   this->ConvertAndSortScanLines();
   // Initialize the vectors with the correct length
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
   {
     size_t nbPoint = this->pclCurrentFrameByScan[scanLine]->size();
@@ -257,6 +260,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
   const double minDepthGapDist = 1.5;  // [m]
 
   // loop over scans lines
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
   {
     // We will compute the line that fits the neighbors located before the current point.
@@ -418,6 +422,7 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
   const double expectedCoeff = 10.;
 
   // loop over scan lines
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
   {
     const int Npts = this->pclCurrentFrameByScan[scanLine]->size();
@@ -527,6 +532,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   const double squaredEdgeDepthGapThreshold = this->EdgeDepthGapThreshold * this->EdgeDepthGapThreshold;
 
   // loop over the scan lines
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
   {
     const int Npts = this->pclCurrentFrameByScan[scanLine]->size();

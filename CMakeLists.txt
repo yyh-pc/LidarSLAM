@@ -16,6 +16,8 @@ find_package(PCL REQUIRED COMPONENTS common kdtree registration io)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
+find_package(OpenMP REQUIRED)
+
 # Build core SLAM lib
 add_subdirectory(slam_lib)
 

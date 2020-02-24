@@ -26,6 +26,7 @@ target_link_libraries(slamlib
     ceres
     Eigen3::Eigen
     g2o::types_slam3d
+    OpenMP::OpenMP_CXX
   )
 
 set(HEADER_FILES
