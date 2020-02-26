@@ -228,6 +228,7 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
   this->PrepareDataForNextFrame();
   this->ConvertAndSortScanLines();
   // Initialize the vectors with the correct length
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
   {
     size_t nbPoint = this->pclCurrentFrameByScan[scanLine]->size();
@@ -257,6 +258,8 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
   const double minDepthGapDist = 1.5;  // [m]
 
   // loop over scans lines
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) \
+          firstprivate(squaredDistToLineThreshold, squaredDepthDistCoeff, minDepthGapDist)
   for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
   {
     // We will compute the line that fits the neighbors located before the current point.
@@ -418,6 +421,7 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
   const double expectedCoeff = 10.;
 
   // loop over scan lines
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) firstprivate(expectedCoeff)
   for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
   {
     const int Npts = this->pclCurrentFrameByScan[scanLine]->size();
@@ -523,13 +527,12 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
 {
-  this->EdgesIndex.clear();
-  this->PlanarIndex.clear();
-  this->BlobIndex.clear();
   const double squaredEdgeSaliencythreshold = this->EdgeSaliencyThreshold * this->EdgeSaliencyThreshold;
   const double squaredEdgeDepthGapThreshold = this->EdgeDepthGapThreshold * this->EdgeDepthGapThreshold;
 
   // loop over the scan lines
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) \
+          firstprivate(squaredEdgeSaliencythreshold, squaredEdgeDepthGapThreshold)
   for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
   {
     const int Npts = this->pclCurrentFrameByScan[scanLine]->size();
@@ -565,7 +568,6 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
 
         // Else indicate that the point is an edge
         this->Label[scanLine][index].set(Keypoint::EDGE);
-        this->EdgesIndex.emplace_back(scanLine, index);
 
         // Invalid its neighbors
         const int indexBegin = std::max(0,        static_cast<int>(index - invalidNeighborhoodSize));
@@ -600,7 +602,6 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
 
       // else indicate that the point is a planar one
       this->Label[scanLine][index].set(Keypoint::PLANE);
-      this->PlanarIndex.emplace_back(scanLine, index);
 
       // Invalid its neighbors so that we don't have too
       // many planar keypoints in the same region. This is
@@ -621,54 +622,38 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     for (int index = 0; index < Npts; index += 3)
     {
       if (this->IsPointValid[scanLine][index][Keypoint::BLOB])
-      {
-        this->BlobIndex.emplace_back(scanLine, index);
         this->Label[scanLine][index].set(Keypoint::BLOB);
-      }
     }
   }
 
-  // add keypoints in increasing scan id order
-  // CHECK : necessary ?
-  std::sort(this->EdgesIndex.begin(), this->EdgesIndex.end());
-  std::sort(this->PlanarIndex.begin(), this->PlanarIndex.end());
-  std::sort(this->BlobIndex.begin(), this->BlobIndex.end());
-
   // fill the keypoints vectors and compute the max dist keypoints
-  // TODO : factorize this code
   this->FarestKeypointDist = 0.0;
   this->MinPoint = std::numeric_limits<float>::max();
   this->MaxPoint = std::numeric_limits<float>::min();
-  for (const auto& edgeIndex: this->EdgesIndex)
+
+  auto addKeypoints = [this](Keypoint type, PointCloud::Ptr& keypoints)
   {
-    const Point& p = this->pclCurrentFrameByScan[edgeIndex.first]->points[edgeIndex.second];
-    this->EdgesPoints->push_back(p);
-    this->IsPointValid[edgeIndex.first][edgeIndex.second].set(Keypoint::EDGE);
-    this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(p.x * p.x + p.y * p.y + p.z * p.z));
-    pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
-    this->MinPoint = this->MinPoint.min(pointXYZ);
-    this->MaxPoint = this->MaxPoint.max(pointXYZ);
-  }
-  for (const auto& planarIndex: this->PlanarIndex)
-  {
-    const Point& p = this->pclCurrentFrameByScan[planarIndex.first]->points[planarIndex.second];
-    this->PlanarsPoints->push_back(p);
-    this->IsPointValid[planarIndex.first][planarIndex.second].set(Keypoint::PLANE);
-    this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(p.x * p.x + p.y * p.y + p.z * p.z));
-    pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
-    this->MinPoint = this->MinPoint.min(pointXYZ);
-    this->MaxPoint = this->MaxPoint.max(pointXYZ);
-  }
-  for (const auto& blobIndex: this->BlobIndex)
-  {
-    const Point& p = this->pclCurrentFrameByScan[blobIndex.first]->points[blobIndex.second];
-    this->BlobsPoints->push_back(p);
-    this->IsPointValid[blobIndex.first][blobIndex.second].set(Keypoint::BLOB);
-    this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(p.x * p.x + p.y * p.y + p.z * p.z));
-    pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
-    this->MinPoint = this->MinPoint.min(pointXYZ);
-    this->MaxPoint = this->MaxPoint.max(pointXYZ);
-  }
+    for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
+    {
+      for (unsigned int index = 0; index < this->pclCurrentFrameByScan[scanLine]->size(); ++index)
+      {
+        if (this->Label[scanLine][index][type])
+        {
+          this->IsPointValid[scanLine][index].set(type);
+          const Point& p = this->pclCurrentFrameByScan[scanLine]->points[index];
+          keypoints->push_back(p);
+          this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(p.x * p.x + p.y * p.y + p.z * p.z));
+          pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
+          this->MinPoint = this->MinPoint.min(pointXYZ);
+          this->MaxPoint = this->MaxPoint.max(pointXYZ);
+        }
+      }
+    }
+  };
+  addKeypoints(Keypoint::EDGE, this->EdgesPoints);
+  addKeypoints(Keypoint::PLANE, this->PlanarsPoints);
+  addKeypoints(Keypoint::BLOB, this->BlobsPoints);
+
   this->FarestKeypointDist = std::sqrt(this->FarestKeypointDist);
 }
 

@@ -17,6 +17,10 @@ add_library(slamlib SHARED
   GlobalTrajectoriesRegistration.h
   )
 
+if(OpenMP_CXX_FOUND)
+  set(OpenMP_target OpenMP::OpenMP_CXX)
+endif()
+
 target_link_libraries(slamlib
   PUBLIC
     ${PCL_LIBRARIES}
@@ -26,6 +30,7 @@ target_link_libraries(slamlib
     ceres
     Eigen3::Eigen
     g2o::types_slam3d
+    ${OpenMP_target}
   )
 
 set(HEADER_FILES

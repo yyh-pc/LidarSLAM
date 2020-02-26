@@ -649,8 +649,21 @@ void Slam::ComputeEgoMotion()
 
   // kd-tree to process fast nearest neighbor
   // among the keypoints of the previous pointcloud
-  KDTreePCLAdaptor kdtreePreviousEdges(this->PreviousEdgesPoints);
-  KDTreePCLAdaptor kdtreePreviousPlanes(this->PreviousPlanarsPoints);
+  // CHECK : This step behaves strangely much slower when using OpenMP.
+  // This section processing duration (arbitrary unit) :
+  //  1. without OpenMP included nor used in any code (nor in Slam or SSKE) : time = 1.
+  //  2. with OpenMP, globally used with only 1 thread : time = 1.
+  //  3. with OpenMP, globally used with 2 threads : time = 2.
+  //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
+  // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
+  KDTreePCLAdaptor kdtreePreviousEdges, kdtreePreviousPlanes;
+  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
+  {
+    #pragma omp section
+    kdtreePreviousEdges.Reset(this->PreviousEdgesPoints);
+    #pragma omp section
+    kdtreePreviousPlanes.Reset(this->PreviousPlanarsPoints);
+  }
 
   PRINT_VERBOSE(2, "========== Ego-Motion ==========" << std::endl <<
                    "Edges from previous frame: " << this->PreviousEdgesPoints->size() << ", "
@@ -688,6 +701,7 @@ void Slam::ComputeEgoMotion()
     // loop over edges if there is enough previous edge keypoints
     if (this->PreviousEdgesPoints->size() > this->EgoMotionLineDistanceNbrNeighbors)
     {
+      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int edgeIndex = 0; edgeIndex < this->CurrentEdgesPoints->size(); ++edgeIndex)
       {
         // Find the closest correspondence edge line of the current edge point
@@ -697,13 +711,15 @@ void Slam::ComputeEgoMotion()
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
         MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreePreviousEdges, this->Trelative, currentPoint, MatchingMode::EgoMotion);
         this->EdgePointRejectionEgoMotion[edgeIndex] = rejectionIndex;
-        this->MatchRejectionHistogramLine[rejectionIndex] += 1;
+        #pragma omp atomic
+        this->MatchRejectionHistogramLine[rejectionIndex]++;
       }
     }
 
     // loop over planars if there is enough previous planar keypoints
     if (this->PreviousPlanarsPoints->size() > this->EgoMotionPlaneDistanceNbrNeighbors)
     {
+      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int planarIndex = 0; planarIndex < this->CurrentPlanarsPoints->size(); ++planarIndex)
       {
         // Find the closest correspondence plane of the current planar point
@@ -767,12 +783,13 @@ void Slam::ComputeEgoMotion()
         problem.AddResidualBlock(cost_function, new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP), TrelativeArray.data());
       }
     }
+    StopTimeAndDisplay("EgoMotion::BuildCeresProblem");
 
     ceres::Solver::Options options;
     options.max_num_iterations = this->EgoMotionLMMaxIter;
     options.linear_solver_type = ceres::DENSE_QR;  // TODO : try also DENSE_NORMAL_CHOLESKY or SPARSE_NORMAL_CHOLESKY
     options.minimizer_progress_to_stdout = false;
-    options.num_threads = 1;  // TODO : use several threads
+    options.num_threads = this->NbThreads;
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -828,26 +845,40 @@ void Slam::Mapping()
     this->MotionParametersMapping.first = this->MotionParametersMapping.second;
   }
 
-  // get keypoints from the map
+  // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, InitTime("Mapping : keypoints extraction"));
-  PointCloud::Ptr subEdgesPointsLocalMap = this->EdgesPointsLocalMap->Get(this->Tworld.translation());
-  PointCloud::Ptr subPlanarPointsLocalMap = this->PlanarPointsLocalMap->Get(this->Tworld.translation());
+  PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
+  KDTreePCLAdaptor kdtreeEdges, kdtreePlanes, kdtreeBlobs;
 
-  // contruct kd-tree for fast closest points search
-  KDTreePCLAdaptor kdtreeEdges(subEdgesPointsLocalMap);
-  KDTreePCLAdaptor kdtreePlanes(subPlanarPointsLocalMap);
-  KDTreePCLAdaptor kdtreeBlobs;
-
-  PRINT_VERBOSE(2, "========== Mapping ==========" << std::endl <<
-                   "Edges extracted from map: " << subEdgesPointsLocalMap->points.size() << ", "
-                   "Planes extracted from map: " << subPlanarPointsLocalMap->points.size());
-
-  if (!this->FastSlam)
+  auto extractMapKeypointsAndBuildKdTree = [this](RollingGrid& map, PointCloud::Ptr& keypoints, KDTreePCLAdaptor& kdTree)
   {
-    PointCloud::Ptr subBlobPointsLocalMap = this->BlobsPointsLocalMap->Get(this->Tworld.translation());
-    kdtreeBlobs.Reset(subBlobPointsLocalMap);
-    std::cout << "Blobs extracted from map: " << subBlobPointsLocalMap->points.size() << std::endl;
+    keypoints = map.Get(this->Tworld.translation());
+    kdTree.Reset(keypoints);
+  };
+
+  // CHECK : This step behaves strangely much slower when using OpenMP.
+  // This section processing duration (arbitrary unit) :
+  //  1. without OpenMP included nor used in any code (nor in Slam or SSKE) : time = 1.
+  //  2. with OpenMP, globally used with only 1 thread                      : time ~ 1.
+  //  3. with OpenMP, globally used with 3 threads                          : time ~ 2.
+  //  4. with OpenMP used in other parts but removing here parallel section : time ~ 2.2 ?!
+  // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
+  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
+  {
+    #pragma omp section
+    extractMapKeypointsAndBuildKdTree(*this->EdgesPointsLocalMap, subEdgesPointsLocalMap, kdtreeEdges);
+    #pragma omp section
+    extractMapKeypointsAndBuildKdTree(*this->PlanarPointsLocalMap, subPlanarPointsLocalMap, kdtreePlanes);
+    #pragma omp section
+    if (!this->FastSlam)
+      extractMapKeypointsAndBuildKdTree(*this->BlobsPointsLocalMap, subBlobPointsLocalMap, kdtreeBlobs);
   }
+
+  PRINT_VERBOSE(2, "========== Mapping ==========\n"
+                   << "Keypoints extracted from map : "
+                   << subEdgesPointsLocalMap->size() << " edges, "
+                   << subPlanarPointsLocalMap->size() << " planes, "
+                   << subBlobPointsLocalMap->size() << " blobs");
 
   IF_VERBOSE(3, StopTimeAndDisplay("Mapping : keypoints extraction"));
 
@@ -885,39 +916,44 @@ void Slam::Mapping()
     // loop over edges
     if (this->CurrentEdgesPoints->size() > 0 && subEdgesPointsLocalMap->points.size() > 10)
     {
+      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int edgeIndex = 0; edgeIndex < this->CurrentEdgesPoints->size(); ++edgeIndex)
       {
         // Find the closest correspondence edge line of the current edge point
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
         MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, this->Tworld, currentPoint, MatchingMode::Mapping);
         this->EdgePointRejectionMapping[edgeIndex] = rejectionIndex;
-        this->MatchRejectionHistogramLine[rejectionIndex] += 1;
+        #pragma omp atomic
+        this->MatchRejectionHistogramLine[rejectionIndex]++;
       }
     }
 
     // loop over surfaces
     if (this->CurrentPlanarsPoints->size() > 0 && subPlanarPointsLocalMap->size() > 10)
     {
+      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int planarIndex = 0; planarIndex < this->CurrentPlanarsPoints->size(); ++planarIndex)
       {
         // Find the closest correspondence plane of the current planar point
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
         MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, this->Tworld, currentPoint, MatchingMode::Mapping);
         this->PlanarPointRejectionMapping[planarIndex] = rejectionIndex;
-        this->MatchRejectionHistogramPlane[rejectionIndex] += 1;
+        #pragma omp atomic
+        this->MatchRejectionHistogramPlane[rejectionIndex]++;
       }
     }
 
     if (!this->FastSlam && this->NbrFrameProcessed > 10)
     {
-      // loop over blobs
+      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int blobIndex = 0; blobIndex < this->CurrentBlobsPoints->size(); ++blobIndex)
       {
-        // Find the closest correspondence plane of the current planar point
+        // Find the closest correspondence plane of the current blob point
         const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];
         MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, this->Tworld, currentPoint, MatchingMode::Mapping);
         // TODO introduce and update a BlobPointRejectionMapping ?
-        this->MatchRejectionHistogramBlob[rejectionIndex] += 1;
+        #pragma omp atomic
+        this->MatchRejectionHistogramBlob[rejectionIndex]++;
       }
     }
     usedEdges = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
@@ -985,7 +1021,7 @@ void Slam::Mapping()
     options.max_num_iterations = this->MappingLMMaxIter;
     options.linear_solver_type = ceres::DENSE_QR;  // TODO test other optimizer
     options.minimizer_progress_to_stdout = false;
-    options.num_threads = 1;  // TODO : use several threads
+    options.num_threads = this->NbThreads;
 
     ceres::Solver::Summary summary;
     ceres::Solve(options, &problem, &summary);
@@ -1080,10 +1116,17 @@ void Slam::UpdateMapsUsingTworld()
     map->Add(temporaryMap);
   };
 
-  updateMap(this->EdgesPointsLocalMap, this->CurrentEdgesPoints);
-  updateMap(this->PlanarPointsLocalMap, this->CurrentPlanarsPoints);
-  if (!this->FastSlam)
-    updateMap(this->BlobsPointsLocalMap, this->CurrentBlobsPoints);
+  // run maps update
+  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
+  {
+    #pragma omp section
+    updateMap(this->EdgesPointsLocalMap, this->CurrentEdgesPoints);
+    #pragma omp section
+    updateMap(this->PlanarPointsLocalMap, this->CurrentPlanarsPoints);
+    #pragma omp section
+    if (!this->FastSlam)
+      updateMap(this->BlobsPointsLocalMap, this->CurrentBlobsPoints);
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -1316,11 +1359,14 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
   double fitQualityCoeff = 1.0 - std::sqrt(meanSquaredDist / squaredMaxDist);
 
   // Store the distance parameters values
-  this->Avalues.emplace_back(A);
-  this->Pvalues.emplace_back(mean);
-  this->Xvalues.emplace_back(P0);
-  this->TimeValues.emplace_back(p.intensity);  // CHECK intensity ? Not time ?
-  this->residualCoefficient.emplace_back(fitQualityCoeff);
+  #pragma omp critical(addIcpMatch)
+  {
+    this->Avalues.emplace_back(A);
+    this->Pvalues.emplace_back(mean);
+    this->Xvalues.emplace_back(P0);
+    this->TimeValues.emplace_back(p.intensity);  // CHECK intensity ? Not time ?
+    this->residualCoefficient.emplace_back(fitQualityCoeff);
+  }
   return MatchingResult::SUCCESS;
 }
 
@@ -1456,11 +1502,14 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
   double fitQualityCoeff = 1.0 - std::sqrt(meanSquaredDist / squaredMaxDist);
 
   // Store the distance parameters values
-  this->Avalues.emplace_back(A);
-  this->Pvalues.emplace_back(mean);
-  this->Xvalues.emplace_back(P0);
-  this->TimeValues.emplace_back(p.intensity);  // CHECK not time?
-  this->residualCoefficient.emplace_back(fitQualityCoeff);
+  #pragma omp critical(addIcpMatch)
+  {
+    this->Avalues.emplace_back(A);
+    this->Pvalues.emplace_back(mean);
+    this->Xvalues.emplace_back(P0);
+    this->TimeValues.emplace_back(p.intensity);  // CHECK not time ?
+    this->residualCoefficient.emplace_back(fitQualityCoeff);
+  }
   return MatchingResult::SUCCESS;
 }
 
@@ -1579,10 +1628,14 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtr
   double fitQualityCoeff = 1.0;//1.0 - nearestDist.back() / maxDist;
 
   // store the distance parameters values
-  this->Avalues.emplace_back(A);
-  this->Pvalues.emplace_back(mean);
-  this->Xvalues.emplace_back(P0);
-  this->residualCoefficient.emplace_back(fitQualityCoeff);
+  #pragma omp critical(addIcpMatch)
+  {
+    this->Avalues.emplace_back(A);
+    this->Pvalues.emplace_back(mean);
+    this->Xvalues.emplace_back(P0);
+    this->TimeValues.emplace_back(p.intensity);  // CHECK intensity ? Not time ?
+    this->residualCoefficient.emplace_back(fitQualityCoeff);
+  }
   return MatchingResult::SUCCESS;
 }
 
@@ -1777,9 +1830,10 @@ void Slam::ExpressPointInOtherReferencial(Point& p)
 //-----------------------------------------------------------------------------
 void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud)
 {
-  for (Point& point : *pointcloud)
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(static)
+  for (unsigned int index = 0; index < pointcloud->size(); ++index)
   {
-    ExpressPointInOtherReferencial(point);
+    ExpressPointInOtherReferencial(pointcloud->points[index]);
   }
 }
 

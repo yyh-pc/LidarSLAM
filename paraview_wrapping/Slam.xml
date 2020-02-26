@@ -96,6 +96,17 @@
         </Documentation>
       </IntVectorProperty>
 
+      <IntVectorProperty
+          name="Number of threads"
+          command="SetNbThreads"
+          default_values="1"
+          number_of_elements="1">
+        <IntRangeDomain name="range" min="1" max="16"/>
+        <Documentation>
+          Max number of threads to use for parallel processing.
+        </Documentation>
+      </IntVectorProperty>
+
       <!-- TODO : fix undistortion -->
       <!-- <IntVectorProperty
           name="Undistortion Model"

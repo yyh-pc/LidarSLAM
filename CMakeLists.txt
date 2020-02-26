@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
 
 project(LidarSlam LANGUAGES CXX)
 
@@ -15,6 +15,8 @@ find_package(g2o REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common kdtree registration io)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
+
+find_package(OpenMP)
 
 # Build core SLAM lib
 add_subdirectory(slam_lib)

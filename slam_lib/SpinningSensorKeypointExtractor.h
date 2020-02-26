@@ -46,6 +46,9 @@ public:
   using Point = PointXYZTIId;
   using PointCloud = pcl::PointCloud<Point>;
 
+  GetMacro(NbThreads, int)
+  SetMacro(NbThreads, int)
+
   GetMacro(NeighborWidth, int)
   SetMacro(NeighborWidth, int)
 
@@ -119,6 +122,13 @@ private:
   // Check if scanLine is almost empty
   inline bool IsScanLineAlmostEmpty(size_t nScanLinePts) { return nScanLinePts < 2 * this->NeighborWidth + 1; }
 
+  // ---------------------------------------------------------------------------
+  //   Parameters
+  // ---------------------------------------------------------------------------
+
+  // Max number of threads to use to process points in parallel
+  int NbThreads = 1;
+
   // Width of the neighborhood used to compute discrete differential operators
   int NeighborWidth = 4;
 
@@ -151,6 +161,10 @@ private:
   // Coef to apply to the incertitude radius of the blob neighborhood
   double IncertitudeCoef = 3.0;  // CHECK : unused
 
+  // ---------------------------------------------------------------------------
+  //   Internal variables
+  // ---------------------------------------------------------------------------
+
   // Mapping of the lasers id
   std::vector<size_t> LaserIdMapping;
 
@@ -169,11 +183,6 @@ private:
   std::vector<std::vector<double>> IntensityGap;
   std::vector<std::vector<KeypointFlags>> IsPointValid;
   std::vector<std::vector<KeypointFlags>> Label;
-
-  // Mapping between keypoints and their corresponding index in pclCurrentFrameByScan
-  std::vector<std::pair<int, int>> EdgesIndex;
-  std::vector<std::pair<int, int>> PlanarIndex;
-  std::vector<std::pair<int, int>> BlobIndex;
 
   // Extracted keypoints of current frame
   PointCloud::Ptr EdgesPoints;
