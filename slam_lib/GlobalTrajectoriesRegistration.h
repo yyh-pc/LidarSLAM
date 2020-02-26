@@ -17,7 +17,6 @@ class GlobalTrajectoriesRegistration
 public:
 
   //----------------------------------------------------------------------------
-  GlobalTrajectoriesRegistration() = default;
 
   SetMacro(NbrIcpIterations, unsigned int)
 

@@ -417,6 +417,7 @@ private:
   std::vector<MatchingResult> PlanarPointRejectionEgoMotion;
   std::vector<MatchingResult> EdgePointRejectionMapping;
   std::vector<MatchingResult> PlanarPointRejectionMapping;
+  std::vector<MatchingResult> BlobPointRejectionMapping;
 
   // Histogram of the ICP matching rejection causes
   // (used mainly for debug)

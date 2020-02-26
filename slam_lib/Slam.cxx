@@ -629,9 +629,6 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
 //-----------------------------------------------------------------------------
 void Slam::ComputeEgoMotion()
 {
-  // Initialize the IsKeypointUsed vectors
-  this->EdgePointRejectionEgoMotion.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
-  this->PlanarPointRejectionEgoMotion.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
   // Check that there is enough points to compute the EgoMotion
   if ((this->CurrentEdgesPoints->size() == 0 || this->PreviousEdgesPoints->size() == 0) &&
       (this->CurrentPlanarsPoints->size() == 0 || this->PreviousPlanarsPoints->size() == 0))
@@ -656,6 +653,7 @@ void Slam::ComputeEgoMotion()
   //  3. with OpenMP, globally used with 2 threads : time = 2.
   //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
   // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
+  IF_VERBOSE(3, InitTime("EgoMotion : build KD tree"));
   KDTreePCLAdaptor kdtreePreviousEdges, kdtreePreviousPlanes;
   #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
   {
@@ -665,18 +663,24 @@ void Slam::ComputeEgoMotion()
     kdtreePreviousPlanes.Reset(this->PreviousPlanarsPoints);
   }
 
-  PRINT_VERBOSE(2, "========== Ego-Motion ==========" << std::endl <<
-                   "Edges from previous frame: " << this->PreviousEdgesPoints->size() << ", "
-                   "Planes from previous frame: " << this->PreviousPlanarsPoints->size());
+  PRINT_VERBOSE(2, "========== Ego-Motion ==========\n"
+                   << "Keypoints extracted from previous frame : "
+                   << this->PreviousEdgesPoints->size() << " edges, "
+                   << this->PreviousPlanarsPoints->size() << " planes");
 
+  IF_VERBOSE(3, StopTimeAndDisplay("EgoMotion : build KD tree"));
+
+  // Reset ICP results
   unsigned int usedEdges = 0, usedPlanes = 0;
-  unsigned int toReserve =   this->CurrentEdgesPoints->size()
-                           + this->CurrentPlanarsPoints->size();
-  this->Xvalues.reserve(toReserve);
-  this->Avalues.reserve(toReserve);
-  this->Pvalues.reserve(toReserve);
-  this->TimeValues.reserve(toReserve);
-  this->residualCoefficient.reserve(toReserve);
+  unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
+                             + this->CurrentPlanarsPoints->size();
+  this->Xvalues.reserve(nbKeypoints);
+  this->Avalues.reserve(nbKeypoints);
+  this->Pvalues.reserve(nbKeypoints);
+  this->TimeValues.reserve(nbKeypoints);
+  this->residualCoefficient.reserve(nbKeypoints);
+  this->EdgePointRejectionEgoMotion.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
+  this->PlanarPointRejectionEgoMotion.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
 
   IF_VERBOSE(3, InitTime("Ego-Motion : whole ICP-LM loop"));
 
@@ -687,7 +691,7 @@ void Slam::ComputeEgoMotion()
   // function using a Levenberg-Marquardt algorithm
   for (unsigned int icpCount = 0; icpCount < this->EgoMotionICPMaxIter; ++icpCount)
   {
-    IF_VERBOSE(3, InitTime("Ego-Motion : ICP"));
+    IF_VERBOSE(3, InitTime("  Ego-Motion : ICP"));
 
     // clear all keypoints matching data
     this->ResetDistanceParameters();
@@ -733,8 +737,10 @@ void Slam::ComputeEgoMotion()
       }
     }
 
+    // ICP matching summary
     usedEdges = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
     usedPlanes = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
+
     // Skip this frame if there are too few geometric keypoints matched
     if ((usedPlanes + usedEdges) < 20)
     {
@@ -742,8 +748,8 @@ void Slam::ComputeEgoMotion()
       break;
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : ICP"));
-    IF_VERBOSE(3, InitTime("Ego-Motion : LM optim"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : ICP"));
+    IF_VERBOSE(3, InitTime("  Ego-Motion : build ceres problem"));
 
     // Arctan loss scale factor to saturate costs according to their distance
     double lossScale = this->EgoMotionInitLossScale + static_cast<double>(icpCount) * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
@@ -783,7 +789,9 @@ void Slam::ComputeEgoMotion()
         problem.AddResidualBlock(cost_function, new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP), TrelativeArray.data());
       }
     }
-    StopTimeAndDisplay("EgoMotion::BuildCeresProblem");
+
+    IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : build ceres problem"));
+    IF_VERBOSE(3, InitTime("  Ego-Motion : LM optim"));
 
     ceres::Solver::Options options;
     options.max_num_iterations = this->EgoMotionLMMaxIter;
@@ -800,7 +808,7 @@ void Slam::ComputeEgoMotion()
     this->MotionParametersEgoMotion.first = ArrayToIsometry(motionParametersEgoMotionArray.topRows(6));
     this->MotionParametersEgoMotion.second = ArrayToIsometry(motionParametersEgoMotionArray.bottomRows(6));
 
-    IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : LM optim"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : LM optim"));
 
     // If no L-M iteration has been made since the
     // last ICP matching it means we reached a local
@@ -835,8 +843,6 @@ void Slam::Mapping()
     std::cerr << "[WARNING] Not enough keypoints, Mapping skipped for this frame." << std::endl;
     return;
   }
-  this->EdgePointRejectionMapping.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
-  this->PlanarPointRejectionMapping.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
 
   // Update motion model parameters
   if (this->Undistortion)
@@ -882,16 +888,19 @@ void Slam::Mapping()
 
   IF_VERBOSE(3, StopTimeAndDisplay("Mapping : keypoints extraction"));
 
-  // Information about matches
+  // Reset ICP results
   unsigned int usedEdges = 0, usedPlanes = 0, usedBlobs = 0;
-  unsigned int toReserve =   this->CurrentEdgesPoints->size()
-                           + this->CurrentPlanarsPoints->size()
-                           + this->CurrentBlobsPoints->size();
-  this->Xvalues.reserve(toReserve);
-  this->Avalues.reserve(toReserve);
-  this->Pvalues.reserve(toReserve);
-  this->TimeValues.reserve(toReserve);
-  this->residualCoefficient.reserve(toReserve);
+  unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
+                             + this->CurrentPlanarsPoints->size()
+                             + this->CurrentBlobsPoints->size();
+  this->Xvalues.reserve(nbKeypoints);
+  this->Avalues.reserve(nbKeypoints);
+  this->Pvalues.reserve(nbKeypoints);
+  this->TimeValues.reserve(nbKeypoints);
+  this->residualCoefficient.reserve(nbKeypoints);
+  this->EdgePointRejectionMapping.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
+  this->PlanarPointRejectionMapping.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
+  this->BlobPointRejectionMapping.assign(this->CurrentBlobsPoints->size(), MatchingResult::UNKOWN);
 
   IF_VERBOSE(3, InitTime("Mapping : whole ICP-LM loop"));
 
@@ -902,7 +911,7 @@ void Slam::Mapping()
   // function using a Levenberg-Marquardt algorithm
   for (unsigned int icpCount = 0; icpCount < this->MappingICPMaxIter; ++icpCount)
   {
-    IF_VERBOSE(3, InitTime("Mapping : ICP"));
+    IF_VERBOSE(3, InitTime("  Mapping : ICP"));
 
     // clear all keypoints matching data
     this->ResetDistanceParameters();
@@ -943,6 +952,7 @@ void Slam::Mapping()
       }
     }
 
+    // loop over blobs
     if (!this->FastSlam && this->NbrFrameProcessed > 10)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
@@ -951,10 +961,13 @@ void Slam::Mapping()
         // Find the closest correspondence plane of the current blob point
         const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];
         MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, this->Tworld, currentPoint, MatchingMode::MAPPING);
+        this->BlobPointRejectionMapping[blobIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramBlob[rejectionIndex]++;
       }
     }
+
+    // ICP matching summary
     usedEdges = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
     usedPlanes = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
     usedBlobs = this->MatchRejectionHistogramBlob[MatchingResult::SUCCESS];
@@ -967,8 +980,8 @@ void Slam::Mapping()
       break;
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("Mapping : ICP"));
-    IF_VERBOSE(3, InitTime("Mapping : LM optim"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : ICP"));
+    IF_VERBOSE(3, InitTime("  Mapping : build ceres problem"));
 
     // Arctan loss scale factor to saturate costs according to their distance
     double lossScale = this->MappingInitLossScale + static_cast<double>(icpCount) * (this->MappingFinalLossScale - this->MappingInitLossScale) / (1.0 * this->MappingICPMaxIter);
@@ -1016,6 +1029,9 @@ void Slam::Mapping()
       }
     }
 
+    IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : build ceres problem"));
+    IF_VERBOSE(3, InitTime("  Mapping : LM optim"));
+
     ceres::Solver::Options options;
     options.max_num_iterations = this->MappingLMMaxIter;
     options.linear_solver_type = ceres::DENSE_QR;  // TODO test other optimizer
@@ -1031,7 +1047,7 @@ void Slam::Mapping()
     this->MotionParametersMapping.first = ArrayToIsometry(motionParametersMappingArray.topRows(6));
     this->MotionParametersMapping.second = ArrayToIsometry(motionParametersMappingArray.bottomRows(6));
 
-    IF_VERBOSE(3, StopTimeAndDisplay("Mapping : LM optim"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : LM optim"));
 
     // If no L-M iteration has been made since the
     // last ICP matching it means we reached a local
