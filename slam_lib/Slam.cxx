@@ -729,7 +729,8 @@ void Slam::ComputeEgoMotion()
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
         MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePreviousPlanes, this->Trelative, currentPoint, MatchingMode::EgoMotion);
         this->PlanarPointRejectionEgoMotion[planarIndex] = rejectionIndex;
-        this->MatchRejectionHistogramPlane[rejectionIndex] += 1;
+        #pragma omp atomic
+        this->MatchRejectionHistogramPlane[rejectionIndex]++;
       }
     }
 
