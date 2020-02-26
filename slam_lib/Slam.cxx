@@ -695,7 +695,7 @@ void Slam::ComputeEgoMotion()
     // Init the undistortion interpolator
     if (this->Undistortion)
     {
-      this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::EgoMotionTraj);
+      this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::EGO_MOTION);
     }
 
     // loop over edges if there is enough previous edge keypoints
@@ -709,7 +709,7 @@ void Slam::ComputeEgoMotion()
         // i.e A = (I - n*n.t)^2 with n being the director vector
         // and P a point of the line
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreePreviousEdges, this->Trelative, currentPoint, MatchingMode::EgoMotion);
+        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreePreviousEdges, this->Trelative, currentPoint, MatchingMode::EGO_MOTION);
         this->EdgePointRejectionEgoMotion[edgeIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramLine[rejectionIndex]++;
@@ -727,7 +727,7 @@ void Slam::ComputeEgoMotion()
         // i.e A = n * n.t with n being a normal of the plane
         // and is a point of the plane
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePreviousPlanes, this->Trelative, currentPoint, MatchingMode::EgoMotion);
+        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePreviousPlanes, this->Trelative, currentPoint, MatchingMode::EGO_MOTION);
         this->PlanarPointRejectionEgoMotion[planarIndex] = rejectionIndex;
         this->MatchRejectionHistogramPlane[rejectionIndex] += 1;
       }
@@ -910,7 +910,7 @@ void Slam::Mapping()
     // Init the undistortion interpolator
     if (this->Undistortion)
     {
-      this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MappingTraj);
+      this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MAPPING);
     }
 
     // loop over edges
@@ -921,7 +921,7 @@ void Slam::Mapping()
       {
         // Find the closest correspondence edge line of the current edge point
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, this->Tworld, currentPoint, MatchingMode::Mapping);
+        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, this->Tworld, currentPoint, MatchingMode::MAPPING);
         this->EdgePointRejectionMapping[edgeIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramLine[rejectionIndex]++;
@@ -936,7 +936,7 @@ void Slam::Mapping()
       {
         // Find the closest correspondence plane of the current planar point
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, this->Tworld, currentPoint, MatchingMode::Mapping);
+        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, this->Tworld, currentPoint, MatchingMode::MAPPING);
         this->PlanarPointRejectionMapping[planarIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramPlane[rejectionIndex]++;
@@ -950,8 +950,7 @@ void Slam::Mapping()
       {
         // Find the closest correspondence plane of the current blob point
         const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];
-        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, this->Tworld, currentPoint, MatchingMode::Mapping);
-        // TODO introduce and update a BlobPointRejectionMapping ?
+        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, this->Tworld, currentPoint, MatchingMode::MAPPING);
         #pragma omp atomic
         this->MatchRejectionHistogramBlob[rejectionIndex]++;
       }
@@ -1090,7 +1089,7 @@ void Slam::Mapping()
   }
   // Compute the undistortion interpolator before replacing previousTworld
   // this interpolator will be used to output the mapped current frame
-  this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MappingTraj);
+  this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MAPPING);
 }
 
 //-----------------------------------------------------------------------------
@@ -1099,7 +1098,7 @@ void Slam::UpdateMapsUsingTworld()
   // Init the mapping interpolator
   if (this->Undistortion)
   {
-    this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MappingTraj);
+    this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MAPPING);
   }
 
   // it would be nice to add the point from the frame directly to the map
@@ -1247,7 +1246,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
   double squaredMaxDist;         //< maximum distance between keypoints and their computed line
   std::vector<int> nearestIndex;
   std::vector<double> nearestDist;
-  if (matchingMode == MatchingMode::EgoMotion)
+  if (matchingMode == MatchingMode::EGO_MOTION)
   {
     requiredNearest = this->EgoMotionLineDistanceNbrNeighbors;
     eigenValuesRatio = this->EgoMotionLineDistancefactor;
@@ -1255,7 +1254,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
     minNeighbors = this->EgoMotionMinimumLineNeighborRejection;
     GetEgoMotionLineSpecificNeighbor(nearestIndex, nearestDist, requiredNearest, kdtreePreviousEdges, p);
   }
-  else if (matchingMode == MatchingMode::Mapping)
+  else if (matchingMode == MatchingMode::MAPPING)
   {
     requiredNearest = this->MappingLineDistanceNbrNeighbors;
     eigenValuesRatio = this->MappingLineDistancefactor;
@@ -1397,14 +1396,14 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
   double significantlyFactor1;   //< PCA eigenvalues ratio to consider a neighborhood fits a plane model :
   double significantlyFactor2;   //<     V2 < factor2 * V1  and  V1 > factor1 * V0
   double squaredMaxDist;         //< maximum distance between keypoints and their computed plane
-  if (matchingMode == MatchingMode::EgoMotion)
+  if (matchingMode == MatchingMode::EGO_MOTION)
   {
     significantlyFactor1 = this->EgoMotionPlaneDistancefactor1;
     significantlyFactor2 = this->EgoMotionPlaneDistancefactor2;
     requiredNearest = this->EgoMotionPlaneDistanceNbrNeighbors;
     squaredMaxDist = this->EgoMotionMaxPlaneDistance * this->EgoMotionMaxPlaneDistance;
   }
-  else if (matchingMode == MatchingMode::Mapping)
+  else if (matchingMode == MatchingMode::MAPPING)
   {
     significantlyFactor1 = this->MappingPlaneDistancefactor1;
     significantlyFactor2 = this->MappingPlaneDistancefactor2;
@@ -1793,8 +1792,8 @@ void Slam::TransformToWorld(Point& p) const
 //-----------------------------------------------------------------------------
 void Slam::CreateWithinFrameTrajectory(SampledSensorPath& path, WithinFrameTrajMode mode)
 {
-  const auto& motionParameters = (mode == WithinFrameTrajMode::EgoMotionTraj) ? this->MotionParametersEgoMotion : 
-                                                                                this->MotionParametersMapping;
+  const auto& motionParameters = (mode == WithinFrameTrajMode::EGO_MOTION) ? this->MotionParametersEgoMotion
+                                                                           : this->MotionParametersMapping;
 
   path.Samples.resize(2);
   // Add orientation and position of the sensor at the beginning of the frame
@@ -1806,7 +1805,7 @@ void Slam::CreateWithinFrameTrajectory(SampledSensorPath& path, WithinFrameTrajM
   this->WithinFrameTrajectory.Samples[1].T = motionParameters.second.translation();
   this->WithinFrameTrajectory.Samples[1].time = 1.0;
 
-  if (mode == WithinFrameTrajMode::UndistortionTraj)  // CHECK unreachable code (mode is never set to UndistortionTraj)
+  if (mode == WithinFrameTrajMode::UNDISTORTION)  // CHECK unreachable code (mode is never set to UNDISTORTION)
   {
     // Relative motion between t0 and t1
     Eigen::Isometry3d dH = motionParameters.second.inverse() * motionParameters.first;

@@ -86,19 +86,6 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
-enum MatchingMode
-{
-  EgoMotion = 0,
-  Mapping = 1
-};
-
-enum WithinFrameTrajMode
-{
-  EgoMotionTraj = 0,
-  MappingTraj = 1,
-  UndistortionTraj = 2
-};
-
 class Slam
 {
 public:
@@ -575,6 +562,13 @@ private:
   void ExpressPointInOtherReferencial(Point& p) const;
   void ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud) const;
 
+  enum class WithinFrameTrajMode
+  {
+    EGO_MOTION = 0,
+    MAPPING = 1,
+    UNDISTORTION = 2
+  };
+
   // Compute the trajectory of the sensor within a frame according to the sensor
   // motion model.
   // For the EgoMotion part it is just an interpolation between Id and Trelative.
@@ -585,6 +579,12 @@ private:
   // ---------------------------------------------------------------------------
   //   Features associations and optimization
   // ---------------------------------------------------------------------------
+
+  enum class MatchingMode
+  {
+    EGO_MOTION = 0,
+    MAPPING = 1
+  };
 
   // Match the current keypoint with its neighborhood in the map / previous
   // frames. From this match we compute the point-to-neighborhood distance
