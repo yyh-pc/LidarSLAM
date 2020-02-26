@@ -651,8 +651,15 @@ void Slam::ComputeEgoMotion()
 
   // kd-tree to process fast nearest neighbor
   // among the keypoints of the previous pointcloud
+  // CHECK : This step behaves strangely much slower when using OpenMP.
+  // This section processing duration (arbitrary unit) :
+  //  1. without OpenMP included nor used in any code (nor in Slam or SSKE) : time = 1.
+  //  2. with OpenMP, globally used with only 1 thread : time = 1.
+  //  3. with OpenMP, globally used with 2 threads : time = 2.
+  //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
+  // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
   KDTreePCLAdaptor kdtreePreviousEdges, kdtreePreviousPlanes;
-  #pragma omp parallel sections num_threads(this->NbThreads)
+  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
   {
     #pragma omp section
     kdtreePreviousEdges.Reset(this->PreviousEdgesPoints);
@@ -706,7 +713,8 @@ void Slam::ComputeEgoMotion()
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
         MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreePreviousEdges, this->Trelative, currentPoint, MatchingMode::EgoMotion);
         this->EdgePointRejectionEgoMotion[edgeIndex] = rejectionIndex;
-        this->MatchRejectionHistogramLine[rejectionIndex] += 1;
+        #pragma omp atomic
+        this->MatchRejectionHistogramLine[rejectionIndex]++;
       }
     }
 
@@ -841,7 +849,7 @@ void Slam::Mapping()
 
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, InitTime("Mapping : keypoints extraction"));
-  PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap;
+  PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
   KDTreePCLAdaptor kdtreeEdges, kdtreePlanes, kdtreeBlobs;
 
   auto extractMapKeypointsAndBuildKdTree = [this](RollingGrid& map, PointCloud::Ptr& keypoints, KDTreePCLAdaptor& kdTree)
@@ -850,7 +858,14 @@ void Slam::Mapping()
     kdTree.Reset(keypoints);
   };
 
-  #pragma omp parallel sections num_threads(this->NbThreads)
+  // CHECK : This step behaves strangely much slower when using OpenMP.
+  // This section processing duration (arbitrary unit) :
+  //  1. without OpenMP included nor used in any code (nor in Slam or SSKE) : time = 1.
+  //  2. with OpenMP, globally used with only 1 thread                      : time ~ 1.
+  //  3. with OpenMP, globally used with 3 threads                          : time ~ 2.
+  //  4. with OpenMP used in other parts but removing here parallel section : time ~ 2.2 ?!
+  // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
+  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
   {
     #pragma omp section
     extractMapKeypointsAndBuildKdTree(*this->EdgesPointsLocalMap, subEdgesPointsLocalMap, kdtreeEdges);
@@ -865,7 +880,7 @@ void Slam::Mapping()
                    << "Keypoints extracted from map : "
                    << subEdgesPointsLocalMap->size() << " edges, "
                    << subPlanarPointsLocalMap->size() << " planes, "
-                   << (this->FastSlam ? 0 : subBlobPointsLocalMap->size()) << " blobs");
+                   << subBlobPointsLocalMap->size() << " blobs");
 
   IF_VERBOSE(3, StopTimeAndDisplay("Mapping : keypoints extraction"));
 
@@ -910,7 +925,8 @@ void Slam::Mapping()
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
         MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, this->Tworld, currentPoint, MatchingMode::Mapping);
         this->EdgePointRejectionMapping[edgeIndex] = rejectionIndex;
-        this->MatchRejectionHistogramLine[rejectionIndex] += 1;
+        #pragma omp atomic
+        this->MatchRejectionHistogramLine[rejectionIndex]++;
       }
     }
 
@@ -924,7 +940,8 @@ void Slam::Mapping()
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
         MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, this->Tworld, currentPoint, MatchingMode::Mapping);
         this->PlanarPointRejectionMapping[planarIndex] = rejectionIndex;
-        this->MatchRejectionHistogramPlane[rejectionIndex] += 1;
+        #pragma omp atomic
+        this->MatchRejectionHistogramPlane[rejectionIndex]++;
       }
     }
 
@@ -937,7 +954,8 @@ void Slam::Mapping()
         const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];
         MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, this->Tworld, currentPoint, MatchingMode::Mapping);
         // TODO introduce and update a BlobPointRejectionMapping ?
-        this->MatchRejectionHistogramBlob[rejectionIndex] += 1;
+        #pragma omp atomic
+        this->MatchRejectionHistogramBlob[rejectionIndex]++;
       }
     }
     usedEdges = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
@@ -1101,7 +1119,7 @@ void Slam::UpdateMapsUsingTworld()
   };
 
   // run maps update
-  #pragma omp parallel sections num_threads(this->NbThreads)
+  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
   {
     #pragma omp section
     updateMap(this->EdgesPointsLocalMap, this->CurrentEdgesPoints);
@@ -1814,9 +1832,10 @@ void Slam::ExpressPointInOtherReferencial(Point& p)
 //-----------------------------------------------------------------------------
 void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud)
 {
-  for (Point& point : *pointcloud)
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(static)
+  for (unsigned int index = 0; index < pointcloud->size(); ++index)
   {
-    ExpressPointInOtherReferencial(point);
+    ExpressPointInOtherReferencial(pointcloud->points[index]);
   }
 }
 
