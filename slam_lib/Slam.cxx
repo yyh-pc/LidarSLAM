@@ -241,114 +241,6 @@ void Slam::Reset(bool resetLog)
 }
 
 //-----------------------------------------------------------------------------
-Transform Slam::GetWorldTransform() const
-{
-  return this->LogTrajectory.back();
-}
-
-//-----------------------------------------------------------------------------
-Transform Slam::GetLatencyCompensatedWorldTransform() const
-{
-  // Get 2 last transforms
-  unsigned int trajectorySize = this->LogTrajectory.size();
-  if (trajectorySize == 0)
-    return Transform::Identity();
-  else if (trajectorySize == 1)
-    return this->LogTrajectory.back();
-  const Transform& previous = this->LogTrajectory[trajectorySize - 2];
-  const Transform& current = this->LogTrajectory[trajectorySize - 1];
-  const Eigen::Isometry3d& H0 = previous.GetIsometry();
-  const Eigen::Isometry3d& H1 = current.GetIsometry();
-
-  // Linearly compute normalized timestamp of Hpred.
-  // We expect H0 and H1 to match with time 0 and 1.
-  // If timestamps are not defined or too close, extrapolation is impossible.
-  if (std::abs(current.time - previous.time) < 1e-6)
-  {
-    std::cerr << "[WARNING] Unable to compute latency-compensated transform : timestamps undefined or too close." << std::endl;
-    return current;
-  }
-  double predictedTime = 1. + this->Latency / (current.time - previous.time);
-  // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
-  if (std::abs(predictedTime) > 4.)
-  {
-    std::cerr << "[WARNING] Unable to compute latency-compensated transform : extrapolation time is too far." << std::endl;
-    return current;
-  }
-
-  // Extrapolate H0 and H1 to get expected Hpred at current time
-  Eigen::Isometry3d Hpred(LinearTransformInterpolation<double>(H0.linear(), H0.translation(),
-                                                               H1.linear(), H1.translation(),
-                                                               predictedTime));
-  return Transform(Hpred, current.time, current.frameid);
-}
-
-//-----------------------------------------------------------------------------
-std::array<double, 36> Slam::GetTransformCovariance() const
-{
-  // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
-  return FlipAndConvertCovariance(this->TworldCovariance);
-}
-
-//-----------------------------------------------------------------------------
-std::vector<Transform> Slam::GetTrajectory() const
-{
-  std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
-  return slamPoses;
-}
-
-//-----------------------------------------------------------------------------
-std::vector<std::array<double, 36>> Slam::GetCovariances() const
-{
-  std::vector<std::array<double, 36>> slamCovariances(this->LogCovariances.begin(), this->LogCovariances.end());
-  return slamCovariances;
-}
-
-//-----------------------------------------------------------------------------
-std::unordered_map<std::string, double> Slam::GetDebugInformation() const
-{
-  std::unordered_map<std::string, double> map;
-  map["EgoMotion: edges used"]   = this->EgoMotionEdgesPointsUsed;
-  map["EgoMotion: planes used"]  = this->EgoMotionPlanesPointsUsed;
-  map["Mapping: edges used"]     = this->MappingEdgesPointsUsed;
-  map["Mapping: planes used"]    = this->MappingPlanesPointsUsed;
-  map["Mapping: blobs used"]     = this->MappingBlobsPointsUsed;
-  map["Mapping: variance error"] = this->MappingVarianceError;
-  return map;
-}
-
-//-----------------------------------------------------------------------------
-std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
-{
-  auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
-
-  std::unordered_map<std::string, std::vector<double>> map;
-  map["EgoMotion: edges matches"]  = toDoubleVector(this->EdgePointRejectionEgoMotion);
-  map["EgoMotion: planes matches"] = toDoubleVector(this->PlanarPointRejectionEgoMotion);
-  map["Mapping: edges matches"]    = toDoubleVector(this->EdgePointRejectionMapping);
-  map["Mapping: planes matches"]   = toDoubleVector(this->PlanarPointRejectionMapping);
-  return map;
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetEdgesMap() const
-{
-  return this->EdgesPointsLocalMap->Get();
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
-{
-  return this->PlanarPointsLocalMap->Get();
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetBlobsMap() const
-{
-  return this->BlobsPointsLocalMap->Get();
-}
-
-//-----------------------------------------------------------------------------
 void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping)
 {
   IF_VERBOSE(1, InitTime("SLAM frame processing"));
@@ -620,6 +512,118 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
 
   IF_VERBOSE(3, StopTimeAndDisplay("Keypoints maps loading from PCD"));
+}
+
+//==============================================================================
+//   SLAM results getters
+//==============================================================================
+
+//-----------------------------------------------------------------------------
+Transform Slam::GetWorldTransform() const
+{
+  return this->LogTrajectory.back();
+}
+
+//-----------------------------------------------------------------------------
+Transform Slam::GetLatencyCompensatedWorldTransform() const
+{
+  // Get 2 last transforms
+  unsigned int trajectorySize = this->LogTrajectory.size();
+  if (trajectorySize == 0)
+    return Transform::Identity();
+  else if (trajectorySize == 1)
+    return this->LogTrajectory.back();
+  const Transform& previous = this->LogTrajectory[trajectorySize - 2];
+  const Transform& current = this->LogTrajectory[trajectorySize - 1];
+  const Eigen::Isometry3d& H0 = previous.GetIsometry();
+  const Eigen::Isometry3d& H1 = current.GetIsometry();
+
+  // Linearly compute normalized timestamp of Hpred.
+  // We expect H0 and H1 to match with time 0 and 1.
+  // If timestamps are not defined or too close, extrapolation is impossible.
+  if (std::abs(current.time - previous.time) < 1e-6)
+  {
+    std::cerr << "[WARNING] Unable to compute latency-compensated transform : timestamps undefined or too close." << std::endl;
+    return current;
+  }
+  double predictedTime = 1. + this->Latency / (current.time - previous.time);
+  // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
+  if (std::abs(predictedTime) > 4.)
+  {
+    std::cerr << "[WARNING] Unable to compute latency-compensated transform : extrapolation time is too far." << std::endl;
+    return current;
+  }
+
+  // Extrapolate H0 and H1 to get expected Hpred at current time
+  Eigen::Isometry3d Hpred(LinearTransformInterpolation<double>(H0.linear(), H0.translation(),
+                                                               H1.linear(), H1.translation(),
+                                                               predictedTime));
+  return Transform(Hpred, current.time, current.frameid);
+}
+
+//-----------------------------------------------------------------------------
+std::array<double, 36> Slam::GetTransformCovariance() const
+{
+  // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
+  return FlipAndConvertCovariance(this->TworldCovariance);
+}
+
+//-----------------------------------------------------------------------------
+std::vector<Transform> Slam::GetTrajectory() const
+{
+  std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
+  return slamPoses;
+}
+
+//-----------------------------------------------------------------------------
+std::vector<std::array<double, 36>> Slam::GetCovariances() const
+{
+  std::vector<std::array<double, 36>> slamCovariances(this->LogCovariances.begin(), this->LogCovariances.end());
+  return slamCovariances;
+}
+
+//-----------------------------------------------------------------------------
+std::unordered_map<std::string, double> Slam::GetDebugInformation() const
+{
+  std::unordered_map<std::string, double> map;
+  map["EgoMotion: edges used"]   = this->EgoMotionEdgesPointsUsed;
+  map["EgoMotion: planes used"]  = this->EgoMotionPlanesPointsUsed;
+  map["Mapping: edges used"]     = this->MappingEdgesPointsUsed;
+  map["Mapping: planes used"]    = this->MappingPlanesPointsUsed;
+  map["Mapping: blobs used"]     = this->MappingBlobsPointsUsed;
+  map["Mapping: variance error"] = this->MappingVarianceError;
+  return map;
+}
+
+//-----------------------------------------------------------------------------
+std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
+{
+  auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
+
+  std::unordered_map<std::string, std::vector<double>> map;
+  map["EgoMotion: edges matches"]  = toDoubleVector(this->EdgePointRejectionEgoMotion);
+  map["EgoMotion: planes matches"] = toDoubleVector(this->PlanarPointRejectionEgoMotion);
+  map["Mapping: edges matches"]    = toDoubleVector(this->EdgePointRejectionMapping);
+  map["Mapping: planes matches"]   = toDoubleVector(this->PlanarPointRejectionMapping);
+  return map;
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetEdgesMap() const
+{
+  return this->EdgesPointsLocalMap->Get();
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
+{
+  return this->PlanarPointsLocalMap->Get();
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetBlobsMap() const
+{
+  return this->BlobsPointsLocalMap->Get();
 }
 
 //==============================================================================
