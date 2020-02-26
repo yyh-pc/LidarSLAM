@@ -38,7 +38,9 @@ Dependencies are listed in the table below along with the version used during de
 | Ceres      | 1.13.0         |
 | PCL        | 1.8            |
 | g2o        | 1.0.0 (master) |
-| OpenMP     | 4.5            |
+| OpenMP*    | 4.5            |
+
+(*) optionnal dependencies
 
 ### Installation
 

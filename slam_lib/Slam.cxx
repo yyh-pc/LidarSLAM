@@ -79,8 +79,6 @@
 #include <pcl/io/pcd_io.h>
 // EIGEN
 #include <Eigen/Dense>
-// OpenMP
-#include <omp.h>
 // STD
 #include <sstream>
 #include <algorithm>

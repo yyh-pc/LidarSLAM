@@ -22,8 +22,6 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
-#include <omp.h>
-
 #include <numeric>
 
 namespace
