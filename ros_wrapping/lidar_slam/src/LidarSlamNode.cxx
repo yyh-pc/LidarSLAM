@@ -441,7 +441,7 @@ void LidarSlamNode::PoseGraphOptimization()
 //==============================================================================
 
 //------------------------------------------------------------------------------
-LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& cloudV)
+LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& cloudV) const
 {
   // Init SLAM pointcloud
   CloudS::Ptr cloudS(new CloudS);
@@ -523,7 +523,7 @@ void LidarSlamNode::PublishTfOdom(const Transform& slamToLidar,
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::PublishFeaturesMaps(uint64_t pclStamp)
+void LidarSlamNode::PublishFeaturesMaps(uint64_t pclStamp) const
 {
   pcl::PCLHeader msgHeader;
   msgHeader.stamp = pclStamp;

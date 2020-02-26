@@ -28,7 +28,7 @@ AffineIsometry::AffineIsometry(const Eigen::Matrix3d& argR, const Eigen::Vector3
 {}
 
 //-----------------------------------------------------------------------------
-AffineIsometry SampledSensorPath::operator()(double time)
+AffineIsometry SampledSensorPath::operator()(double time) const
 {
   Eigen::Matrix4d H = LinearTransformInterpolation<double>(this->Samples[0].R, this->Samples[0].T,
                                                            this->Samples[1].R, this->Samples[1].T,

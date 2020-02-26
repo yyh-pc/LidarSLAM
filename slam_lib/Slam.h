@@ -86,19 +86,6 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
-enum MatchingMode
-{
-  EgoMotion = 0,
-  Mapping = 1
-};
-
-enum WithinFrameTrajMode
-{
-  EgoMotionTraj = 0,
-  MappingTraj = 1,
-  UndistortionTraj = 2
-};
-
 class Slam
 {
 public:
@@ -125,30 +112,30 @@ public:
   void AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping);
 
   // Get the computed world transform so far (current pose relative to initial pose)
-  Transform GetWorldTransform();
+  Transform GetWorldTransform() const;
   // Get the computed world transform so far, but compensating SLAM computation duration latency.
-  Transform GetLatencyCompensatedWorldTransform();
+  Transform GetLatencyCompensatedWorldTransform() const;
   // Get the covariance of the last mapping step (mapping the current frame to the last map)
   // DoF order : X, Y, Z, rX, rY, rZ
-  std::array<double, 36> GetTransformCovariance();
+  std::array<double, 36> GetTransformCovariance() const;
 
   // Get the whole trajectory and covariances of each step (aggregated WorldTransforms and TransformCovariances).
   // (buffer of temporal length LoggingTimeout)
-  std::vector<Transform> GetTrajectory();
-  std::vector<std::array<double, 36>> GetCovariances();
+  std::vector<Transform> GetTrajectory() const;
+  std::vector<std::array<double, 36>> GetCovariances() const;
 
   // Get keypoints maps
-  PointCloud::Ptr GetEdgesMap();
-  PointCloud::Ptr GetPlanarsMap();
-  PointCloud::Ptr GetBlobsMap();
+  PointCloud::Ptr GetEdgesMap() const;
+  PointCloud::Ptr GetPlanarsMap() const;
+  PointCloud::Ptr GetBlobsMap() const;
 
   // Get current number of frames already processed
   GetMacro(NbrFrameProcessed, unsigned int)
 
   // Get general information about ICP and optimization
-  std::unordered_map<std::string, double> GetDebugInformation();
+  std::unordered_map<std::string, double> GetDebugInformation() const;
   // Get information for each keypoint of the current frame (used/rejected keypoints, ...)
-  std::unordered_map<std::string, std::vector<double>> GetDebugArray();
+  std::unordered_map<std::string, std::vector<double>> GetDebugArray() const;
 
   // Run pose graph optimization using GPS trajectory to improve SLAM maps and trajectory.
   // Each GPS position must have an associated precision covariance.
@@ -162,7 +149,7 @@ public:
   void SetWorldTransformFromGuess(const Transform& poseGuess);
 
   // Save keypoints maps to disk for later use
-  void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::BINARY_COMPRESSED);
+  void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::BINARY_COMPRESSED) const;
 
   // Load keypoints maps from disk (and reset SLAM maps)
   void LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps = true);
@@ -289,7 +276,7 @@ public:
   void SetVoxelGridResolution(double resolution);
 
   void SetKeyPointsExtractor(std::shared_ptr<SpinningSensorKeypointExtractor> extractor) { this->KeyPointsExtractor = extractor; }
-  std::shared_ptr<SpinningSensorKeypointExtractor> GetKeyPointsExtractor() { return this->KeyPointsExtractor; }
+  std::shared_ptr<SpinningSensorKeypointExtractor> GetKeyPointsExtractor() const { return this->KeyPointsExtractor; }
 
 private:
 
@@ -430,6 +417,7 @@ private:
   std::vector<MatchingResult> PlanarPointRejectionEgoMotion;
   std::vector<MatchingResult> EdgePointRejectionMapping;
   std::vector<MatchingResult> PlanarPointRejectionMapping;
+  std::vector<MatchingResult> BlobPointRejectionMapping;
 
   // Histogram of the ICP matching rejection causes
   // (used mainly for debug)
@@ -559,7 +547,7 @@ private:
   // ---------------------------------------------------------------------------
 
   // Transform the input point already undistort into Tworld.
-  void TransformToWorld(Point& p);
+  void TransformToWorld(Point& p) const;
 
   // All points of the current frame has been
   // acquired at a different timestamp. The goal
@@ -572,8 +560,15 @@ private:
   // at time tf. The referential at time of acquisition t is estimated
   // using the constant velocity hypothesis and the provided sensor
   // position estimation
-  void ExpressPointInOtherReferencial(Point& p);
-  void ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud);
+  void ExpressPointInOtherReferencial(Point& p) const;
+  void ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud) const;
+
+  enum class WithinFrameTrajMode
+  {
+    EGO_MOTION = 0,
+    MAPPING = 1,
+    UNDISTORTION = 2
+  };
 
   // Compute the trajectory of the sensor within a frame according to the sensor
   // motion model.
@@ -585,6 +580,12 @@ private:
   // ---------------------------------------------------------------------------
   //   Features associations and optimization
   // ---------------------------------------------------------------------------
+
+  enum class MatchingMode
+  {
+    EGO_MOTION = 0,
+    MAPPING = 1
+  };
 
   // Match the current keypoint with its neighborhood in the map / previous
   // frames. From this match we compute the point-to-neighborhood distance
@@ -602,12 +603,12 @@ private:
   // Instead of taking the k-nearest neigbors in the odometry step we will take
   // specific neighbor using the particularities of the lidar sensor
   void GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist,
-                                        unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p);
+                                        unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p) const;
 
   // Instead of taking the k-nearest neighbors in the mapping
   // step we will take specific neighbor using a sample consensus  model
   void GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
-                                      unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p);
+                                      unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p) const;
 
   void ResetDistanceParameters();
 

@@ -168,7 +168,7 @@ void RollingGrid::Roll(const Eigen::Vector3d& T)
 }
 
 //------------------------------------------------------------------------------
-RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Vector3d& T)
+RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Vector3d& T) const
 {
   // Compute the position of the new frame center in the grid
   Eigen::Array3i frameCenter = (T / this->VoxelResolution).array().floor().cast<int>()
@@ -189,7 +189,7 @@ RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Vector3d& T)
 }
 
 //------------------------------------------------------------------------------
-RollingGrid::PointCloud::Ptr RollingGrid::Get()
+RollingGrid::PointCloud::Ptr RollingGrid::Get() const
 {
   // Merge all points into a single pointcloud
   PointCloud::Ptr intersection(new PointCloud);

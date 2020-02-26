@@ -658,7 +658,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
 }
 
 //-----------------------------------------------------------------------------
-std::unordered_map<std::string, std::vector<double>> SpinningSensorKeypointExtractor::GetDebugArray()
+std::unordered_map<std::string, std::vector<double>> SpinningSensorKeypointExtractor::GetDebugArray() const
 {
   auto get1DVector = [this](auto const& vector2d)
   {

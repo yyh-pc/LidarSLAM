@@ -241,114 +241,6 @@ void Slam::Reset(bool resetLog)
 }
 
 //-----------------------------------------------------------------------------
-Transform Slam::GetWorldTransform()
-{
-  return this->LogTrajectory.back();
-}
-
-//-----------------------------------------------------------------------------
-Transform Slam::GetLatencyCompensatedWorldTransform()
-{
-  // Get 2 last transforms
-  unsigned int trajectorySize = this->LogTrajectory.size();
-  if (trajectorySize == 0)
-    return Transform::Identity();
-  else if (trajectorySize == 1)
-    return this->LogTrajectory.back();
-  const Transform& previous = this->LogTrajectory[trajectorySize - 2];
-  const Transform& current = this->LogTrajectory[trajectorySize - 1];
-  const Eigen::Isometry3d& H0 = previous.GetIsometry();
-  const Eigen::Isometry3d& H1 = current.GetIsometry();
-
-  // Linearly compute normalized timestamp of Hpred.
-  // We expect H0 and H1 to match with time 0 and 1.
-  // If timestamps are not defined or too close, extrapolation is impossible.
-  if (std::abs(current.time - previous.time) < 1e-6)
-  {
-    std::cerr << "[WARNING] Unable to compute latency-compensated transform : timestamps undefined or too close." << std::endl;
-    return current;
-  }
-  double predictedTime = 1. + this->Latency / (current.time - previous.time);
-  // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
-  if (std::abs(predictedTime) > 4.)
-  {
-    std::cerr << "[WARNING] Unable to compute latency-compensated transform : extrapolation time is too far." << std::endl;
-    return current;
-  }
-
-  // Extrapolate H0 and H1 to get expected Hpred at current time
-  Eigen::Isometry3d Hpred(LinearTransformInterpolation<double>(H0.linear(), H0.translation(),
-                                                               H1.linear(), H1.translation(),
-                                                               predictedTime));
-  return Transform(Hpred, current.time, current.frameid);
-}
-
-//-----------------------------------------------------------------------------
-std::array<double, 36> Slam::GetTransformCovariance()
-{
-  // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
-  return FlipAndConvertCovariance(this->TworldCovariance);
-}
-
-//-----------------------------------------------------------------------------
-std::vector<Transform> Slam::GetTrajectory()
-{
-  std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
-  return slamPoses;
-}
-
-//-----------------------------------------------------------------------------
-std::vector<std::array<double, 36>> Slam::GetCovariances()
-{
-  std::vector<std::array<double, 36>> slamCovariances(this->LogCovariances.begin(), this->LogCovariances.end());
-  return slamCovariances;
-}
-
-//-----------------------------------------------------------------------------
-std::unordered_map<std::string, double> Slam::GetDebugInformation()
-{
-  std::unordered_map<std::string, double> map;
-  map["EgoMotion: edges used"]   = this->EgoMotionEdgesPointsUsed;
-  map["EgoMotion: planes used"]  = this->EgoMotionPlanesPointsUsed;
-  map["Mapping: edges used"]     = this->MappingEdgesPointsUsed;
-  map["Mapping: planes used"]    = this->MappingPlanesPointsUsed;
-  map["Mapping: blobs used"]     = this->MappingBlobsPointsUsed;
-  map["Mapping: variance error"] = this->MappingVarianceError;
-  return map;
-}
-
-//-----------------------------------------------------------------------------
-std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray()
-{
-  auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
-
-  std::unordered_map<std::string, std::vector<double>> map;
-  map["EgoMotion: edges matches"]  = toDoubleVector(this->EdgePointRejectionEgoMotion);
-  map["EgoMotion: planes matches"] = toDoubleVector(this->PlanarPointRejectionEgoMotion);
-  map["Mapping: edges matches"]    = toDoubleVector(this->EdgePointRejectionMapping);
-  map["Mapping: planes matches"]   = toDoubleVector(this->PlanarPointRejectionMapping);
-  return map;
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetEdgesMap()
-{
-  return this->EdgesPointsLocalMap->Get();
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetPlanarsMap()
-{
-  return this->PlanarPointsLocalMap->Get();
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetBlobsMap()
-{
-  return this->BlobsPointsLocalMap->Get();
-}
-
-//-----------------------------------------------------------------------------
 void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping)
 {
   IF_VERBOSE(1, InitTime("SLAM frame processing"));
@@ -579,7 +471,7 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat)
+void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) const
 {
   IF_VERBOSE(3, InitTime("Keypoints maps saving to PCD"));
 
@@ -623,15 +515,124 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
 }
 
 //==============================================================================
+//   SLAM results getters
+//==============================================================================
+
+//-----------------------------------------------------------------------------
+Transform Slam::GetWorldTransform() const
+{
+  return this->LogTrajectory.back();
+}
+
+//-----------------------------------------------------------------------------
+Transform Slam::GetLatencyCompensatedWorldTransform() const
+{
+  // Get 2 last transforms
+  unsigned int trajectorySize = this->LogTrajectory.size();
+  if (trajectorySize == 0)
+    return Transform::Identity();
+  else if (trajectorySize == 1)
+    return this->LogTrajectory.back();
+  const Transform& previous = this->LogTrajectory[trajectorySize - 2];
+  const Transform& current = this->LogTrajectory[trajectorySize - 1];
+  const Eigen::Isometry3d& H0 = previous.GetIsometry();
+  const Eigen::Isometry3d& H1 = current.GetIsometry();
+
+  // Linearly compute normalized timestamp of Hpred.
+  // We expect H0 and H1 to match with time 0 and 1.
+  // If timestamps are not defined or too close, extrapolation is impossible.
+  if (std::abs(current.time - previous.time) < 1e-6)
+  {
+    std::cerr << "[WARNING] Unable to compute latency-compensated transform : timestamps undefined or too close." << std::endl;
+    return current;
+  }
+  double predictedTime = 1. + this->Latency / (current.time - previous.time);
+  // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
+  if (std::abs(predictedTime) > 4.)
+  {
+    std::cerr << "[WARNING] Unable to compute latency-compensated transform : extrapolation time is too far." << std::endl;
+    return current;
+  }
+
+  // Extrapolate H0 and H1 to get expected Hpred at current time
+  Eigen::Isometry3d Hpred(LinearTransformInterpolation<double>(H0.linear(), H0.translation(),
+                                                               H1.linear(), H1.translation(),
+                                                               predictedTime));
+  return Transform(Hpred, current.time, current.frameid);
+}
+
+//-----------------------------------------------------------------------------
+std::array<double, 36> Slam::GetTransformCovariance() const
+{
+  // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
+  return FlipAndConvertCovariance(this->TworldCovariance);
+}
+
+//-----------------------------------------------------------------------------
+std::vector<Transform> Slam::GetTrajectory() const
+{
+  std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
+  return slamPoses;
+}
+
+//-----------------------------------------------------------------------------
+std::vector<std::array<double, 36>> Slam::GetCovariances() const
+{
+  std::vector<std::array<double, 36>> slamCovariances(this->LogCovariances.begin(), this->LogCovariances.end());
+  return slamCovariances;
+}
+
+//-----------------------------------------------------------------------------
+std::unordered_map<std::string, double> Slam::GetDebugInformation() const
+{
+  std::unordered_map<std::string, double> map;
+  map["EgoMotion: edges used"]   = this->EgoMotionEdgesPointsUsed;
+  map["EgoMotion: planes used"]  = this->EgoMotionPlanesPointsUsed;
+  map["Mapping: edges used"]     = this->MappingEdgesPointsUsed;
+  map["Mapping: planes used"]    = this->MappingPlanesPointsUsed;
+  map["Mapping: blobs used"]     = this->MappingBlobsPointsUsed;
+  map["Mapping: variance error"] = this->MappingVarianceError;
+  return map;
+}
+
+//-----------------------------------------------------------------------------
+std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
+{
+  auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
+
+  std::unordered_map<std::string, std::vector<double>> map;
+  map["EgoMotion: edges matches"]  = toDoubleVector(this->EdgePointRejectionEgoMotion);
+  map["EgoMotion: planes matches"] = toDoubleVector(this->PlanarPointRejectionEgoMotion);
+  map["Mapping: edges matches"]    = toDoubleVector(this->EdgePointRejectionMapping);
+  map["Mapping: planes matches"]   = toDoubleVector(this->PlanarPointRejectionMapping);
+  return map;
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetEdgesMap() const
+{
+  return this->EdgesPointsLocalMap->Get();
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
+{
+  return this->PlanarPointsLocalMap->Get();
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetBlobsMap() const
+{
+  return this->BlobsPointsLocalMap->Get();
+}
+
+//==============================================================================
 //   Main SLAM steps
 //==============================================================================
 
 //-----------------------------------------------------------------------------
 void Slam::ComputeEgoMotion()
 {
-  // Initialize the IsKeypointUsed vectors
-  this->EdgePointRejectionEgoMotion.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
-  this->PlanarPointRejectionEgoMotion.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
   // Check that there is enough points to compute the EgoMotion
   if ((this->CurrentEdgesPoints->size() == 0 || this->PreviousEdgesPoints->size() == 0) &&
       (this->CurrentPlanarsPoints->size() == 0 || this->PreviousPlanarsPoints->size() == 0))
@@ -656,6 +657,7 @@ void Slam::ComputeEgoMotion()
   //  3. with OpenMP, globally used with 2 threads : time = 2.
   //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
   // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
+  IF_VERBOSE(3, InitTime("EgoMotion : build KD tree"));
   KDTreePCLAdaptor kdtreePreviousEdges, kdtreePreviousPlanes;
   #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
   {
@@ -665,18 +667,24 @@ void Slam::ComputeEgoMotion()
     kdtreePreviousPlanes.Reset(this->PreviousPlanarsPoints);
   }
 
-  PRINT_VERBOSE(2, "========== Ego-Motion ==========" << std::endl <<
-                   "Edges from previous frame: " << this->PreviousEdgesPoints->size() << ", "
-                   "Planes from previous frame: " << this->PreviousPlanarsPoints->size());
+  PRINT_VERBOSE(2, "========== Ego-Motion ==========\n"
+                   << "Keypoints extracted from previous frame : "
+                   << this->PreviousEdgesPoints->size() << " edges, "
+                   << this->PreviousPlanarsPoints->size() << " planes");
 
+  IF_VERBOSE(3, StopTimeAndDisplay("EgoMotion : build KD tree"));
+
+  // Reset ICP results
   unsigned int usedEdges = 0, usedPlanes = 0;
-  unsigned int toReserve =   this->CurrentEdgesPoints->size()
-                           + this->CurrentPlanarsPoints->size();
-  this->Xvalues.reserve(toReserve);
-  this->Avalues.reserve(toReserve);
-  this->Pvalues.reserve(toReserve);
-  this->TimeValues.reserve(toReserve);
-  this->residualCoefficient.reserve(toReserve);
+  unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
+                             + this->CurrentPlanarsPoints->size();
+  this->Xvalues.reserve(nbKeypoints);
+  this->Avalues.reserve(nbKeypoints);
+  this->Pvalues.reserve(nbKeypoints);
+  this->TimeValues.reserve(nbKeypoints);
+  this->residualCoefficient.reserve(nbKeypoints);
+  this->EdgePointRejectionEgoMotion.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
+  this->PlanarPointRejectionEgoMotion.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
 
   IF_VERBOSE(3, InitTime("Ego-Motion : whole ICP-LM loop"));
 
@@ -687,7 +695,7 @@ void Slam::ComputeEgoMotion()
   // function using a Levenberg-Marquardt algorithm
   for (unsigned int icpCount = 0; icpCount < this->EgoMotionICPMaxIter; ++icpCount)
   {
-    IF_VERBOSE(3, InitTime("Ego-Motion : ICP"));
+    IF_VERBOSE(3, InitTime("  Ego-Motion : ICP"));
 
     // clear all keypoints matching data
     this->ResetDistanceParameters();
@@ -695,7 +703,7 @@ void Slam::ComputeEgoMotion()
     // Init the undistortion interpolator
     if (this->Undistortion)
     {
-      this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::EgoMotionTraj);
+      this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::EGO_MOTION);
     }
 
     // loop over edges if there is enough previous edge keypoints
@@ -709,7 +717,7 @@ void Slam::ComputeEgoMotion()
         // i.e A = (I - n*n.t)^2 with n being the director vector
         // and P a point of the line
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreePreviousEdges, this->Trelative, currentPoint, MatchingMode::EgoMotion);
+        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreePreviousEdges, this->Trelative, currentPoint, MatchingMode::EGO_MOTION);
         this->EdgePointRejectionEgoMotion[edgeIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramLine[rejectionIndex]++;
@@ -727,15 +735,17 @@ void Slam::ComputeEgoMotion()
         // i.e A = n * n.t with n being a normal of the plane
         // and is a point of the plane
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePreviousPlanes, this->Trelative, currentPoint, MatchingMode::EgoMotion);
+        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePreviousPlanes, this->Trelative, currentPoint, MatchingMode::EGO_MOTION);
         this->PlanarPointRejectionEgoMotion[planarIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramPlane[rejectionIndex]++;
       }
     }
 
+    // ICP matching summary
     usedEdges = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
     usedPlanes = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
+
     // Skip this frame if there are too few geometric keypoints matched
     if ((usedPlanes + usedEdges) < 20)
     {
@@ -743,8 +753,8 @@ void Slam::ComputeEgoMotion()
       break;
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : ICP"));
-    IF_VERBOSE(3, InitTime("Ego-Motion : LM optim"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : ICP"));
+    IF_VERBOSE(3, InitTime("  Ego-Motion : build ceres problem"));
 
     // Arctan loss scale factor to saturate costs according to their distance
     double lossScale = this->EgoMotionInitLossScale + static_cast<double>(icpCount) * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
@@ -784,7 +794,9 @@ void Slam::ComputeEgoMotion()
         problem.AddResidualBlock(cost_function, new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP), TrelativeArray.data());
       }
     }
-    StopTimeAndDisplay("EgoMotion::BuildCeresProblem");
+
+    IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : build ceres problem"));
+    IF_VERBOSE(3, InitTime("  Ego-Motion : LM optim"));
 
     ceres::Solver::Options options;
     options.max_num_iterations = this->EgoMotionLMMaxIter;
@@ -801,7 +813,7 @@ void Slam::ComputeEgoMotion()
     this->MotionParametersEgoMotion.first = ArrayToIsometry(motionParametersEgoMotionArray.topRows(6));
     this->MotionParametersEgoMotion.second = ArrayToIsometry(motionParametersEgoMotionArray.bottomRows(6));
 
-    IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : LM optim"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : LM optim"));
 
     // If no L-M iteration has been made since the
     // last ICP matching it means we reached a local
@@ -836,8 +848,6 @@ void Slam::Mapping()
     std::cerr << "[WARNING] Not enough keypoints, Mapping skipped for this frame." << std::endl;
     return;
   }
-  this->EdgePointRejectionMapping.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
-  this->PlanarPointRejectionMapping.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
 
   // Update motion model parameters
   if (this->Undistortion)
@@ -851,7 +861,7 @@ void Slam::Mapping()
   PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
   KDTreePCLAdaptor kdtreeEdges, kdtreePlanes, kdtreeBlobs;
 
-  auto extractMapKeypointsAndBuildKdTree = [this](RollingGrid& map, PointCloud::Ptr& keypoints, KDTreePCLAdaptor& kdTree)
+  auto extractMapKeypointsAndBuildKdTree = [this](const RollingGrid& map, PointCloud::Ptr& keypoints, KDTreePCLAdaptor& kdTree)
   {
     keypoints = map.Get(this->Tworld.translation());
     kdTree.Reset(keypoints);
@@ -883,16 +893,19 @@ void Slam::Mapping()
 
   IF_VERBOSE(3, StopTimeAndDisplay("Mapping : keypoints extraction"));
 
-  // Information about matches
+  // Reset ICP results
   unsigned int usedEdges = 0, usedPlanes = 0, usedBlobs = 0;
-  unsigned int toReserve =   this->CurrentEdgesPoints->size()
-                           + this->CurrentPlanarsPoints->size()
-                           + this->CurrentBlobsPoints->size();
-  this->Xvalues.reserve(toReserve);
-  this->Avalues.reserve(toReserve);
-  this->Pvalues.reserve(toReserve);
-  this->TimeValues.reserve(toReserve);
-  this->residualCoefficient.reserve(toReserve);
+  unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
+                             + this->CurrentPlanarsPoints->size()
+                             + this->CurrentBlobsPoints->size();
+  this->Xvalues.reserve(nbKeypoints);
+  this->Avalues.reserve(nbKeypoints);
+  this->Pvalues.reserve(nbKeypoints);
+  this->TimeValues.reserve(nbKeypoints);
+  this->residualCoefficient.reserve(nbKeypoints);
+  this->EdgePointRejectionMapping.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
+  this->PlanarPointRejectionMapping.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
+  this->BlobPointRejectionMapping.assign(this->CurrentBlobsPoints->size(), MatchingResult::UNKOWN);
 
   IF_VERBOSE(3, InitTime("Mapping : whole ICP-LM loop"));
 
@@ -903,7 +916,7 @@ void Slam::Mapping()
   // function using a Levenberg-Marquardt algorithm
   for (unsigned int icpCount = 0; icpCount < this->MappingICPMaxIter; ++icpCount)
   {
-    IF_VERBOSE(3, InitTime("Mapping : ICP"));
+    IF_VERBOSE(3, InitTime("  Mapping : ICP"));
 
     // clear all keypoints matching data
     this->ResetDistanceParameters();
@@ -911,7 +924,7 @@ void Slam::Mapping()
     // Init the undistortion interpolator
     if (this->Undistortion)
     {
-      this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MappingTraj);
+      this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MAPPING);
     }
 
     // loop over edges
@@ -922,7 +935,7 @@ void Slam::Mapping()
       {
         // Find the closest correspondence edge line of the current edge point
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, this->Tworld, currentPoint, MatchingMode::Mapping);
+        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, this->Tworld, currentPoint, MatchingMode::MAPPING);
         this->EdgePointRejectionMapping[edgeIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramLine[rejectionIndex]++;
@@ -937,13 +950,14 @@ void Slam::Mapping()
       {
         // Find the closest correspondence plane of the current planar point
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, this->Tworld, currentPoint, MatchingMode::Mapping);
+        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, this->Tworld, currentPoint, MatchingMode::MAPPING);
         this->PlanarPointRejectionMapping[planarIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramPlane[rejectionIndex]++;
       }
     }
 
+    // loop over blobs
     if (!this->FastSlam && this->NbrFrameProcessed > 10)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
@@ -951,12 +965,14 @@ void Slam::Mapping()
       {
         // Find the closest correspondence plane of the current blob point
         const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];
-        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, this->Tworld, currentPoint, MatchingMode::Mapping);
-        // TODO introduce and update a BlobPointRejectionMapping ?
+        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, this->Tworld, currentPoint, MatchingMode::MAPPING);
+        this->BlobPointRejectionMapping[blobIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramBlob[rejectionIndex]++;
       }
     }
+
+    // ICP matching summary
     usedEdges = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
     usedPlanes = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
     usedBlobs = this->MatchRejectionHistogramBlob[MatchingResult::SUCCESS];
@@ -969,8 +985,8 @@ void Slam::Mapping()
       break;
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("Mapping : ICP"));
-    IF_VERBOSE(3, InitTime("Mapping : LM optim"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : ICP"));
+    IF_VERBOSE(3, InitTime("  Mapping : build ceres problem"));
 
     // Arctan loss scale factor to saturate costs according to their distance
     double lossScale = this->MappingInitLossScale + static_cast<double>(icpCount) * (this->MappingFinalLossScale - this->MappingInitLossScale) / (1.0 * this->MappingICPMaxIter);
@@ -1018,6 +1034,9 @@ void Slam::Mapping()
       }
     }
 
+    IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : build ceres problem"));
+    IF_VERBOSE(3, InitTime("  Mapping : LM optim"));
+
     ceres::Solver::Options options;
     options.max_num_iterations = this->MappingLMMaxIter;
     options.linear_solver_type = ceres::DENSE_QR;  // TODO test other optimizer
@@ -1033,7 +1052,7 @@ void Slam::Mapping()
     this->MotionParametersMapping.first = ArrayToIsometry(motionParametersMappingArray.topRows(6));
     this->MotionParametersMapping.second = ArrayToIsometry(motionParametersMappingArray.bottomRows(6));
 
-    IF_VERBOSE(3, StopTimeAndDisplay("Mapping : LM optim"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : LM optim"));
 
     // If no L-M iteration has been made since the
     // last ICP matching it means we reached a local
@@ -1091,7 +1110,7 @@ void Slam::Mapping()
   }
   // Compute the undistortion interpolator before replacing previousTworld
   // this interpolator will be used to output the mapped current frame
-  this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MappingTraj);
+  this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MAPPING);
 }
 
 //-----------------------------------------------------------------------------
@@ -1100,7 +1119,7 @@ void Slam::UpdateMapsUsingTworld()
   // Init the mapping interpolator
   if (this->Undistortion)
   {
-    this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MappingTraj);
+    this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MAPPING);
   }
 
   // it would be nice to add the point from the frame directly to the map
@@ -1248,7 +1267,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
   double squaredMaxDist;         //< maximum distance between keypoints and their computed line
   std::vector<int> nearestIndex;
   std::vector<double> nearestDist;
-  if (matchingMode == MatchingMode::EgoMotion)
+  if (matchingMode == MatchingMode::EGO_MOTION)
   {
     requiredNearest = this->EgoMotionLineDistanceNbrNeighbors;
     eigenValuesRatio = this->EgoMotionLineDistancefactor;
@@ -1256,7 +1275,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
     minNeighbors = this->EgoMotionMinimumLineNeighborRejection;
     GetEgoMotionLineSpecificNeighbor(nearestIndex, nearestDist, requiredNearest, kdtreePreviousEdges, p);
   }
-  else if (matchingMode == MatchingMode::Mapping)
+  else if (matchingMode == MatchingMode::MAPPING)
   {
     requiredNearest = this->MappingLineDistanceNbrNeighbors;
     eigenValuesRatio = this->MappingLineDistancefactor;
@@ -1398,14 +1417,14 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
   double significantlyFactor1;   //< PCA eigenvalues ratio to consider a neighborhood fits a plane model :
   double significantlyFactor2;   //<     V2 < factor2 * V1  and  V1 > factor1 * V0
   double squaredMaxDist;         //< maximum distance between keypoints and their computed plane
-  if (matchingMode == MatchingMode::EgoMotion)
+  if (matchingMode == MatchingMode::EGO_MOTION)
   {
     significantlyFactor1 = this->EgoMotionPlaneDistancefactor1;
     significantlyFactor2 = this->EgoMotionPlaneDistancefactor2;
     requiredNearest = this->EgoMotionPlaneDistanceNbrNeighbors;
     squaredMaxDist = this->EgoMotionMaxPlaneDistance * this->EgoMotionMaxPlaneDistance;
   }
-  else if (matchingMode == MatchingMode::Mapping)
+  else if (matchingMode == MatchingMode::MAPPING)
   {
     significantlyFactor1 = this->MappingPlaneDistancefactor1;
     significantlyFactor2 = this->MappingPlaneDistancefactor2;
@@ -1642,7 +1661,7 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtr
 
 //-----------------------------------------------------------------------------
 void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist,
-                                            unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p)
+                                            unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p) const
 {
   // Clear vector
   nearestValid.clear();
@@ -1694,7 +1713,7 @@ void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std:
 
 //-----------------------------------------------------------------------------
 void Slam::GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
-                                          unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p)
+                                          unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p) const
 {
   // reset vectors
   nearestValid.clear();
@@ -1775,7 +1794,7 @@ void Slam::GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::v
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-void Slam::TransformToWorld(Point& p)
+void Slam::TransformToWorld(Point& p) const
 {
   if (this->Undistortion)
   {
@@ -1794,8 +1813,8 @@ void Slam::TransformToWorld(Point& p)
 //-----------------------------------------------------------------------------
 void Slam::CreateWithinFrameTrajectory(SampledSensorPath& path, WithinFrameTrajMode mode)
 {
-  const auto& motionParameters = (mode == WithinFrameTrajMode::EgoMotionTraj) ? this->MotionParametersEgoMotion : 
-                                                                                this->MotionParametersMapping;
+  const auto& motionParameters = (mode == WithinFrameTrajMode::EGO_MOTION) ? this->MotionParametersEgoMotion
+                                                                           : this->MotionParametersMapping;
 
   path.Samples.resize(2);
   // Add orientation and position of the sensor at the beginning of the frame
@@ -1807,7 +1826,7 @@ void Slam::CreateWithinFrameTrajectory(SampledSensorPath& path, WithinFrameTrajM
   this->WithinFrameTrajectory.Samples[1].T = motionParameters.second.translation();
   this->WithinFrameTrajectory.Samples[1].time = 1.0;
 
-  if (mode == WithinFrameTrajMode::UndistortionTraj)  // CHECK unreachable code (mode is never set to UndistortionTraj)
+  if (mode == WithinFrameTrajMode::UNDISTORTION)  // CHECK unreachable code (mode is never set to UNDISTORTION)
   {
     // Relative motion between t0 and t1
     Eigen::Isometry3d dH = motionParameters.second.inverse() * motionParameters.first;
@@ -1819,7 +1838,7 @@ void Slam::CreateWithinFrameTrajectory(SampledSensorPath& path, WithinFrameTrajM
 }
 
 //-----------------------------------------------------------------------------
-void Slam::ExpressPointInOtherReferencial(Point& p)
+void Slam::ExpressPointInOtherReferencial(Point& p) const
 {
   // interpolate the transform
   AffineIsometry iso = this->WithinFrameTrajectory(p.intensity);  // CHECK intensity ? not time ?
@@ -1829,7 +1848,7 @@ void Slam::ExpressPointInOtherReferencial(Point& p)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud)
+void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud) const
 {
   #pragma omp parallel for num_threads(this->NbThreads) schedule(static)
   for (unsigned int index = 0; index < pointcloud->size(); ++index)
