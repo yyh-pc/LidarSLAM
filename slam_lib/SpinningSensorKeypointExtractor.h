@@ -74,14 +74,14 @@ public:
   SetMacro(EdgeIntensityGapThreshold, double)
 
   GetMacro(FarestKeypointDist, double)
-  Eigen::Array3d GetMinPoint() { return this->MinPoint.cast<double>();}
-  Eigen::Array3d GetMaxPoint() { return this->MaxPoint.cast<double>();}
+  Eigen::Array3d GetMinPoint() const { return this->MinPoint.cast<double>();}
+  Eigen::Array3d GetMaxPoint() const { return this->MaxPoint.cast<double>();}
 
   GetMacro(NLasers, int)
 
-  PointCloud::Ptr GetEdgePoints() { return this->EdgesPoints; }
-  PointCloud::Ptr GetPlanarPoints() { return this->PlanarsPoints; }
-  PointCloud::Ptr GetBlobPoints() { return this->BlobsPoints; }
+  PointCloud::Ptr GetEdgePoints() const { return this->EdgesPoints; }
+  PointCloud::Ptr GetPlanarPoints() const { return this->PlanarsPoints; }
+  PointCloud::Ptr GetBlobPoints() const { return this->BlobsPoints; }
 
   // Extract keypoints from the pointcloud. The key points
   // will be separated in two classes : Edges keypoints which
@@ -90,7 +90,7 @@ public:
   void ComputeKeyPoints(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping);
 
   // Function to enable to have some inside on why a given point was detected as a keypoint
-  std::unordered_map<std::string, std::vector<double>> GetDebugArray();
+  std::unordered_map<std::string, std::vector<double>> GetDebugArray() const;
 
 private:
 
@@ -120,7 +120,7 @@ private:
   void SetKeyPointsLabels();
 
   // Check if scanLine is almost empty
-  inline bool IsScanLineAlmostEmpty(size_t nScanLinePts) { return nScanLinePts < 2 * this->NeighborWidth + 1; }
+  inline bool IsScanLineAlmostEmpty(size_t nScanLinePts) const { return nScanLinePts < 2 * this->NeighborWidth + 1; }
 
   // ---------------------------------------------------------------------------
   //   Parameters

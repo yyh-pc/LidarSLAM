@@ -42,7 +42,7 @@ public:
    */
   bool ComputeTransformOffset(const std::vector<Transform>& initPoses,
                               const std::vector<Transform>& finalPoses,
-                              Eigen::Isometry3d& initToFinal);
+                              Eigen::Isometry3d& initToFinal) const;
 
   //----------------------------------------------------------------------------
   /*!

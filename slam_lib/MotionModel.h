@@ -58,7 +58,7 @@ struct SampledSensorPath
   // return the affine isometry corresponding
   // to the requested time using a spline or
   // linear interpolation
-  AffineIsometry operator()(double t);
+  AffineIsometry operator()(double t) const;
 };
 
 /**

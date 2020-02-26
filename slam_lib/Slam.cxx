@@ -241,13 +241,13 @@ void Slam::Reset(bool resetLog)
 }
 
 //-----------------------------------------------------------------------------
-Transform Slam::GetWorldTransform()
+Transform Slam::GetWorldTransform() const
 {
   return this->LogTrajectory.back();
 }
 
 //-----------------------------------------------------------------------------
-Transform Slam::GetLatencyCompensatedWorldTransform()
+Transform Slam::GetLatencyCompensatedWorldTransform() const
 {
   // Get 2 last transforms
   unsigned int trajectorySize = this->LogTrajectory.size();
@@ -284,28 +284,28 @@ Transform Slam::GetLatencyCompensatedWorldTransform()
 }
 
 //-----------------------------------------------------------------------------
-std::array<double, 36> Slam::GetTransformCovariance()
+std::array<double, 36> Slam::GetTransformCovariance() const
 {
   // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
   return FlipAndConvertCovariance(this->TworldCovariance);
 }
 
 //-----------------------------------------------------------------------------
-std::vector<Transform> Slam::GetTrajectory()
+std::vector<Transform> Slam::GetTrajectory() const
 {
   std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
   return slamPoses;
 }
 
 //-----------------------------------------------------------------------------
-std::vector<std::array<double, 36>> Slam::GetCovariances()
+std::vector<std::array<double, 36>> Slam::GetCovariances() const
 {
   std::vector<std::array<double, 36>> slamCovariances(this->LogCovariances.begin(), this->LogCovariances.end());
   return slamCovariances;
 }
 
 //-----------------------------------------------------------------------------
-std::unordered_map<std::string, double> Slam::GetDebugInformation()
+std::unordered_map<std::string, double> Slam::GetDebugInformation() const
 {
   std::unordered_map<std::string, double> map;
   map["EgoMotion: edges used"]   = this->EgoMotionEdgesPointsUsed;
@@ -318,7 +318,7 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation()
 }
 
 //-----------------------------------------------------------------------------
-std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray()
+std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
 {
   auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
 
@@ -331,19 +331,19 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray()
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetEdgesMap()
+Slam::PointCloud::Ptr Slam::GetEdgesMap() const
 {
   return this->EdgesPointsLocalMap->Get();
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetPlanarsMap()
+Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
 {
   return this->PlanarPointsLocalMap->Get();
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetBlobsMap()
+Slam::PointCloud::Ptr Slam::GetBlobsMap() const
 {
   return this->BlobsPointsLocalMap->Get();
 }
@@ -579,7 +579,7 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat)
+void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) const
 {
   IF_VERBOSE(3, InitTime("Keypoints maps saving to PCD"));
 
@@ -850,7 +850,7 @@ void Slam::Mapping()
   PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
   KDTreePCLAdaptor kdtreeEdges, kdtreePlanes, kdtreeBlobs;
 
-  auto extractMapKeypointsAndBuildKdTree = [this](RollingGrid& map, PointCloud::Ptr& keypoints, KDTreePCLAdaptor& kdTree)
+  auto extractMapKeypointsAndBuildKdTree = [this](const RollingGrid& map, PointCloud::Ptr& keypoints, KDTreePCLAdaptor& kdTree)
   {
     keypoints = map.Get(this->Tworld.translation());
     kdTree.Reset(keypoints);
@@ -1641,7 +1641,7 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtr
 
 //-----------------------------------------------------------------------------
 void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist,
-                                            unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p)
+                                            unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p) const
 {
   // Clear vector
   nearestValid.clear();
@@ -1693,7 +1693,7 @@ void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std:
 
 //-----------------------------------------------------------------------------
 void Slam::GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
-                                          unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p)
+                                          unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p) const
 {
   // reset vectors
   nearestValid.clear();
@@ -1774,7 +1774,7 @@ void Slam::GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::v
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-void Slam::TransformToWorld(Point& p)
+void Slam::TransformToWorld(Point& p) const
 {
   if (this->Undistortion)
   {
@@ -1818,7 +1818,7 @@ void Slam::CreateWithinFrameTrajectory(SampledSensorPath& path, WithinFrameTrajM
 }
 
 //-----------------------------------------------------------------------------
-void Slam::ExpressPointInOtherReferencial(Point& p)
+void Slam::ExpressPointInOtherReferencial(Point& p) const
 {
   // interpolate the transform
   AffineIsometry iso = this->WithinFrameTrajectory(p.intensity);  // CHECK intensity ? not time ?
@@ -1828,7 +1828,7 @@ void Slam::ExpressPointInOtherReferencial(Point& p)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud)
+void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud) const
 {
   #pragma omp parallel for num_threads(this->NbThreads) schedule(static)
   for (unsigned int index = 0; index < pointcloud->size(); ++index)

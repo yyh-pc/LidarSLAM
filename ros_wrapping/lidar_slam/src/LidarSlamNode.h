@@ -63,7 +63,7 @@ private:
    * Velodyne pointcloud has fields : x, y, z, intensity (float), ring (uint16).
    * Slam pointcloud has fields     : x, y, z, intensity (uint8), laserId (uint8), time (double).
    */
-  CloudS::Ptr ConvertToSlamPointCloud(const CloudV& cloudV);
+  CloudS::Ptr ConvertToSlamPointCloud(const CloudV& cloudV) const;
 
   //----------------------------------------------------------------------------
   /*!
@@ -81,7 +81,7 @@ private:
    * @brief     Publish SLAM features maps.
    * @param[in] pclStamp Timestamp of the maps (number of µs since UNIX epoch).
    */
-  void PublishFeaturesMaps(uint64_t pclStamp = 0);
+  void PublishFeaturesMaps(uint64_t pclStamp = 0) const;
 
   //----------------------------------------------------------------------------
   /*!

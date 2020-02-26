@@ -33,10 +33,10 @@ public:
   void Roll(const Eigen::Vector3d& T);
 
   //! Get points near T
-  PointCloud::Ptr Get(const Eigen::Vector3d& T);
+  PointCloud::Ptr Get(const Eigen::Vector3d& T) const;
 
   //! Get all points
-  PointCloud::Ptr Get();
+  PointCloud::Ptr Get() const;
 
   //! Add some points to the grid
   void Add(const PointCloud::Ptr& pointcloud);
