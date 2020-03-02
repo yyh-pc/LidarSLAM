@@ -120,8 +120,19 @@ slam:
   mapping_init_loss_scale: 0.7                # initial arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
   mapping_final_loss_scale: 0.05              # final arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
 
-  voxel_grid_leaf_size_edges: 0.45   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
-  voxel_grid_leaf_size_planes: 0.6   # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
-  voxel_grid_leaf_size_blobs: 0.12   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
+  # Keypoints maps, saved as downsampled voxel grids
+  voxel_grid_leaf_size_edges: 0.30   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
+  voxel_grid_leaf_size_planes: 0.60  # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
+  voxel_grid_leaf_size_blobs: 0.30   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
   voxel_grid_size: 50                # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
   voxel_grid_resolution: 10.         # [m/voxel] Resolution of a voxel.
+
+   # Keypoints extraction
+  ke_angle_resolution: 0.00698          # [rad] Maximal angular resolution of the lidar azimutal resolution.
+  ke_min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
+  ke_neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
+  ke_plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
+  ke_edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
+  ke_edge_depth_gap_threshold: 0.15     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
+  ke_edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
+  ke_edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.

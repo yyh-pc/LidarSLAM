@@ -200,9 +200,9 @@ Slam::Slam()
   // Set default maps parameters
   this->SetVoxelGridResolution(10.);
   this->SetVoxelGridSize(50);
-  this->SetVoxelGridLeafSizeEdges(0.45);
-  this->SetVoxelGridLeafSizePlanes(0.6);
-  this->SetVoxelGridLeafSizeBlobs(0.12);
+  this->SetVoxelGridLeafSizeEdges(0.30);
+  this->SetVoxelGridLeafSizePlanes(0.60);
+  this->SetVoxelGridLeafSizeBlobs(0.30);
 
   // Reset SLAM internal state
   this->Reset();

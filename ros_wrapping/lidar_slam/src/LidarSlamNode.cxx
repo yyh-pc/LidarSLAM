@@ -613,6 +613,18 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   SetSlamParam(double, "slam/voxel_grid_leaf_size_blobs", VoxelGridLeafSizeBlobs)
   SetSlamParam(double, "slam/voxel_grid_resolution", VoxelGridResolution)
   SetSlamParam(int, "slam/voxel_grid_size", VoxelGridSize)
+
+  // keypoints extractor
+  #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (priv_nh.getParam(rosParam, val)) this->LidarSlam.GetKeyPointsExtractor()->Set##keParam(val);}
+  SetKeypointsExtractorParam(int, "slam/ke_neighbor_width", NeighborWidth)
+  SetKeypointsExtractorParam(double, "slam/ke_min_distance_to_sensor", MinDistanceToSensor)
+  SetKeypointsExtractorParam(double, "slam/ke_angle_resolution", AngleResolution)
+  SetKeypointsExtractorParam(double, "slam/ke_plane_sin_angle_threshold", PlaneSinAngleThreshold)
+  SetKeypointsExtractorParam(double, "slam/ke_edge_sin_angle_threshold", EdgeSinAngleThreshold)
+  // SetKeypointsExtractorParam(double, "slam/ke_dist_to_line_threshold", DistToLineThreshold)
+  SetKeypointsExtractorParam(double, "slam/ke_edge_depth_gap_threshold", EdgeDepthGapThreshold)
+  SetKeypointsExtractorParam(double, "slam/ke_edge_saliency_threshold", EdgeSaliencyThreshold)
+  SetKeypointsExtractorParam(double, "slam/ke_edge_intensity_gap_threshold", EdgeIntensityGapThreshold)
 }
 
 //------------------------------------------------------------------------------
