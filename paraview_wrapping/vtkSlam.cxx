@@ -171,10 +171,10 @@ void PolyDataFromPointCloud(pcl::PointCloud<Slam::Point>::Ptr pc, vtkPolyData* p
   vtkNew<vtkIdTypeArray> cells;
   cells->SetNumberOfValues(pc->size() * 2);
   vtkIdType* ids = cells->GetPointer(0);
-  for (vtkIdType i = 0; i < pc->size(); ++i)
+  for (unsigned int i = 0; i < pc->size(); ++i)
   {
     ids[i * 2] = 1;
-    ids[i * 2 + 1] = i;
+    ids[i * 2 + 1] = static_cast<vtkIdType>(i);
   }
   auto cellArray = vtkSmartPointer<vtkCellArray>::New();
   cellArray->SetCells(pc->size(), cells.GetPointer());

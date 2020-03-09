@@ -35,7 +35,8 @@ namespace
     double gpsTime = gpsPose.time;
     double timeDiff, prevTimeDiff = std::numeric_limits<double>::max();
     int bestId = -1;
-    for (int j = 0; j < slamPoses.size(); ++j)
+    int nSlamPoses = slamPoses.size();
+    for (int j = 0; j < nSlamPoses; ++j)
     {
       timeDiff = std::abs(gpsTime - slamPoses[j].time);
 
@@ -180,7 +181,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   // Set the output optimized data
   optimizedSlamPoses.clear();
   optimizedSlamPoses.reserve(nbSlamPoses);
-  for (int i = 0; i < nbSlamPoses; ++i)
+  for (unsigned int i = 0; i < nbSlamPoses; ++i)
   {
     // Get optimized SLAM vertex pose
     auto* v = this->GraphOptimizer.vertex(i);
