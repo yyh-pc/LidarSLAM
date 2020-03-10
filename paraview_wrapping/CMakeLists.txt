@@ -18,12 +18,14 @@ set(ServerManagerSources
 set(ServerManagerXML
   Slam.xml)
 
-set(plugin_name LidarSlam)
-
-ADD_PARAVIEW_PLUGIN(
-  ${plugin_name} "1.0"
+ADD_PARAVIEW_PLUGIN(LidarSlamPlugin "1.0"
   SERVER_MANAGER_XML ${ServerManagerXML}
   SERVER_MANAGER_SOURCES ${ServerManagerSources}
 )
 
-target_link_libraries(${plugin_name} PUBLIC slamlib ${VTK_LIBRARIES} )
+target_link_libraries(LidarSlamPlugin PUBLIC slamlib ${VTK_LIBRARIES})
+
+install(TARGETS LidarSlamPlugin
+        RUNTIME DESTINATION ${SLAM_INSTALL_RUNTIME_DIR}
+        LIBRARY DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
+        COMPONENT Runtime)

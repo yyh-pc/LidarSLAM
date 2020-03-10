@@ -2,11 +2,38 @@ cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
 
 project(LidarSlam LANGUAGES CXX)
 
+#-------------------------
+#  CMake parameters
+#-------------------------
+
 set(CMAKE_CXX_STANDARD 14)
+
+set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build.")
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "MinSizeRel" "RelWithDebInfo" "Release")
+
+# Install parameters
+set(SLAM_INSTALL_RUNTIME_DIR "bin" CACHE STRING "Directory where to install binaries, relatively to CMAKE_INSTALL_PREFIX")
+set(SLAM_INSTALL_LIBRARY_DIR "lib" CACHE STRING "Directory where to install libraries, relatively to CMAKE_INSTALL_PREFIX")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_DIR}")
+
+#-------------------------
+#  Find dependencies
+#-------------------------
 
 find_package(nanoflann REQUIRED)
 
+# Find Eigen3. If it defines the target, this is used. If not,
+# fall back to the using the module form.
+# See https://eigen.tuxfamily.org/dox/TopicCMakeGuide.html for details
 find_package(Eigen3 REQUIRED)
+if (TARGET Eigen3::Eigen)
+  message("Lidar SLAM : using Eigen3::Eigen target (version ${Eigen3_VERSION})")
+  set(Eigen3_target Eigen3::Eigen)
+else()
+  message("Lidar SLAM : using Eigen3 header files (version ${EIGEN3_VERSION})")
+  include_directories(${EIGEN3_INCLUDE_DIR})
+endif ()
 
 find_package(Ceres REQUIRED)
 
@@ -16,16 +43,31 @@ find_package(PCL REQUIRED COMPONENTS common kdtree registration io)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
+# Find optionnal OpenMP
 find_package(OpenMP)
+if(TARGET OpenMP::OpenMP_CXX)
+  message("Lidar SLAM : using OpenMP ${OpenMP_CXX_VERSION} target")
+  set(OpenMP_target OpenMP::OpenMP_CXX)
+elseif(OpenMP_FOUND)
+  message("Lidar SLAM : using OpenMP ${OpenMP_VERSION} flags")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+else()
+  message("Lidar SLAM : OpenMP not found")
+endif()
+
+#-------------------------
+#  Build and install
+#-------------------------
 
 # Build core SLAM lib
 add_subdirectory(slam_lib)
 
-# Build optionnal ParaView wrapping
-option(PARAVIEW_WRAPPING "Build a Paraview plugin to wrap SLAM" OFF)
-if (PARAVIEW_WRAPPING)
-    add_subdirectory(paraview_wrapping)
-endif(PARAVIEW_WRAPPING)
+# Build optionnal ParaView plugin
+option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
+if (SLAM_PARAVIEW_PLUGIN)
+  add_subdirectory(paraview_wrapping)
+endif(SLAM_PARAVIEW_PLUGIN)
 
 # To build/use ROS wrapping, just put this entire directory in the catkin src
 # workspace and run catkin_make.

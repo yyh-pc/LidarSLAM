@@ -17,10 +17,6 @@ add_library(slamlib SHARED
   GlobalTrajectoriesRegistration.h
   )
 
-if(OpenMP_CXX_FOUND)
-  set(OpenMP_target OpenMP::OpenMP_CXX)
-endif()
-
 target_link_libraries(slamlib
   PUBLIC
     ${PCL_LIBRARIES}
@@ -28,8 +24,8 @@ target_link_libraries(slamlib
     g2o::core
   PRIVATE
     ceres
-    Eigen3::Eigen
     g2o::types_slam3d
+    ${Eigen3_target}
     ${OpenMP_target}
   )
 
@@ -49,3 +45,8 @@ set_target_properties(slamlib PROPERTIES
   PUBLIC_HEADER "${HEADER_FILES}")
 
 target_include_directories(slamlib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+install(TARGETS slamlib
+        RUNTIME DESTINATION ${SLAM_INSTALL_RUNTIME_DIR}
+        LIBRARY DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
+        COMPONENT Runtime)
