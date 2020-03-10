@@ -78,9 +78,9 @@
           default_values="0"
           number_of_elements="1">
         <EnumerationDomain name="enum">
-          <Entry value="0" text="0)     Errors, warnings or one time info"/>
-          <Entry value="1" text="1) 0 + Frame number, total frame processing time"/>
-          <Entry value="2" text="2) 1 + Extracted features, used keypoints, mapping variance, ego-motion and localization summary"/>
+          <Entry value="0" text="0) Errors, warnings or one time info"/>
+          <Entry value="1" text="1) 0 + Frame total processing duration"/>
+          <Entry value="2" text="2) 1 + Main steps summary"/>
           <Entry value="3" text="3) 2 + Sub-problems processing duration"/>
           <Entry value="4" text="4) 3 + Ceres optimization summary"/>
           <Entry value="5" text="5) 4 + Logging/maps memory usage"/>
@@ -88,7 +88,7 @@
         <Documentation>
           Indicate verbosity level to display more or less information in console:
            (0) print errors, warnings or one time info;
-           (1) 0 + frame number, total frame processing time;
+           (1) 0 + frame number and total processing duration;
            (2) 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary;
            (3) 2 + sub-problems processing duration;
            (4) 3 + ceres optimization summary;
