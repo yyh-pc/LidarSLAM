@@ -1,3 +1,11 @@
+# If G2O is available, compile pose graph optimization stuff
+if (g2o_FOUND)
+  set(SLAM_g2o_headers PoseGraphOptimization.h)
+  set(SLAM_g2o_sources PoseGraphOptimization.cxx ${SLAM_g2o_headers})
+  set(g2o_targets g2o::core g2o::types_slam3d)
+  add_compile_definitions(USE_G2O=1)
+endif(g2o_FOUND)
+
 add_library(slamlib SHARED
   LidarPoint.h
   Transform.cxx
@@ -11,20 +19,18 @@ add_library(slamlib SHARED
   MotionModel.cxx
   MotionModel.h
   PointCloudStorage.h
-  PoseGraphOptimization.cxx
-  PoseGraphOptimization.h
   GlobalTrajectoriesRegistration.cxx
   GlobalTrajectoriesRegistration.h
+  ${SLAM_g2o_sources}
   )
 
 target_link_libraries(slamlib
   PUBLIC
     ${PCL_LIBRARIES}
     nanoflann::nanoflann
-    g2o::core
+    ${g2o_targets}
   PRIVATE
     ceres
-    g2o::types_slam3d
     ${Eigen3_target}
     ${OpenMP_target}
   )
@@ -37,8 +43,8 @@ set(HEADER_FILES
   SpinningSensorKeypointExtractor.h
   MotionModel.h
   PointCloudStorage.h
-  PoseGraphOptimization.h
   GlobalTrajectoriesRegistration.h
+  ${SLAM_g2o_headers}
   )
 
 set_target_properties(slamlib PROPERTIES

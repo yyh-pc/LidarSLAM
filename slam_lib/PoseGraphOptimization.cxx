@@ -61,11 +61,10 @@ PoseGraphOptimization::PoseGraphOptimization()
 {
   // create optimizer
   // TODO change optimizer
-  g2o::SparseOptimizer optimizer;
-  optimizer.setVerbose(this->Verbose);
   auto linearSolver = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>>();
   auto* solver = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
   this->GraphOptimizer.setAlgorithm(solver);
+  this->GraphOptimizer.setVerbose(this->Verbose);
 
   // add sensor/GPS offset parameter
   auto* sensorToGpsCalibration = new g2o::ParameterSE3Offset;

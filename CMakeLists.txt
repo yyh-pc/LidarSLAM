@@ -37,11 +37,18 @@ endif ()
 
 find_package(Ceres REQUIRED)
 
-find_package(g2o REQUIRED)
-
 find_package(PCL REQUIRED COMPONENTS common kdtree registration io)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
+
+# Find optionnal g2o (only used for pose graph optimization)
+option(ENABLE_g2o "Use G2O, necessary for pose graph optimization." ON)
+if (ENABLE_g2o)
+  find_package(g2o)
+  if (NOT g2o_FOUND)
+    message("Lidar SLAM : G2O requested but not found, pose graph optimization will be ignored.")
+  endif(NOT g2o_FOUND)
+endif (ENABLE_g2o)
 
 # Find optionnal OpenMP
 find_package(OpenMP)
