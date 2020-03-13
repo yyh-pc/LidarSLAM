@@ -1,7 +1,7 @@
 #ifndef GLOBAL_TRAJECTORIES_REGISTRATION_H
 #define GLOBAL_TRAJECTORIES_REGISTRATION_H
 
-#include "Transform.h"
+#include "LidarSlam/Transform.h"
 #include <pcl/registration/icp.h>
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }

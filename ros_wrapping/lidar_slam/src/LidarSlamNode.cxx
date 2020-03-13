@@ -1,6 +1,6 @@
 #include "LidarSlamNode.h"
 #include "ros_transform_utils.h"
-#include <GlobalTrajectoriesRegistration.h>
+#include <LidarSlam/GlobalTrajectoriesRegistration.h>
 
 #include <pcl_conversions/pcl_conversions.h>
 #include <geometry_msgs/TransformStamped.h>

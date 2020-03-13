@@ -21,7 +21,7 @@
 #define CERES_COST_FUNCTIONS_H
 
 // LOCAL
-#include "MotionModel.h"
+#include "LidarSlam/MotionModel.h"
 // CERES
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>

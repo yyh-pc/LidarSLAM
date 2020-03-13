@@ -69,10 +69,10 @@
 // the corresponding coordinate system.
 
 // LOCAL
-#include "Slam.h"
-#include "CeresCostFunctions.h"
+#include "LidarSlam/Slam.h"
+#include "LidarSlam/CeresCostFunctions.h"
 #ifdef USE_G2O
-#include "PoseGraphOptimization.h"
+#include "LidarSlam/PoseGraphOptimization.h"
 #endif  // USE_G2O
 // CERES
 #include <ceres/ceres.h>

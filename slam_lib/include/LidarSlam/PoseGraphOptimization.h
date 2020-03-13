@@ -18,7 +18,7 @@
 #ifndef POSE_GRAPH_OPTIMIZATION_H
 #define POSE_GRAPH_OPTIMIZATION_H
 
-#include "Transform.h"
+#include "LidarSlam/Transform.h"
 #include <g2o/core/sparse_optimizer.h>
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }

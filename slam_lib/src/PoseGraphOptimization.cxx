@@ -1,5 +1,5 @@
-#include "PoseGraphOptimization.h"
-#include "GlobalTrajectoriesRegistration.h"
+#include "LidarSlam/PoseGraphOptimization.h"
+#include "LidarSlam/GlobalTrajectoriesRegistration.h"
 
 #include <g2o/core/block_solver.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>

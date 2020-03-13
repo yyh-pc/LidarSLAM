@@ -23,7 +23,7 @@ ADD_PARAVIEW_PLUGIN(LidarSlamPlugin "1.0"
   SERVER_MANAGER_SOURCES ${ServerManagerSources}
 )
 
-target_link_libraries(LidarSlamPlugin PUBLIC slamlib ${VTK_LIBRARIES})
+target_link_libraries(LidarSlamPlugin PUBLIC LidarSlam ${VTK_LIBRARIES})
 
 install(TARGETS LidarSlamPlugin
         RUNTIME DESTINATION ${SLAM_INSTALL_RUNTIME_DIR}

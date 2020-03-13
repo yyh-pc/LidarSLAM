@@ -11,7 +11,7 @@
 #include <lidar_slam/SlamCommand.h>
 
 // SLAM
-#include <Slam.h>
+#include <LidarSlam/Slam.h>
 
 class LidarSlamNode
 {

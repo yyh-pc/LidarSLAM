@@ -20,7 +20,7 @@
 #ifndef SpinningSensorKeypointExtractor_H
 #define SpinningSensorKeypointExtractor_H
 
-#include "LidarPoint.h"
+#include "LidarSlam/LidarPoint.h"
 
 #include <pcl/point_cloud.h>
 

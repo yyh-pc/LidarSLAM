@@ -1,4 +1,4 @@
-#include "GlobalTrajectoriesRegistration.h"
+#include "LidarSlam/GlobalTrajectoriesRegistration.h"
 
 //------------------------------------------------------------------------------
 bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Transform>& initPoses,

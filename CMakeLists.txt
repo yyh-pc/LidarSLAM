@@ -14,6 +14,7 @@ set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "MinSizeRel" "RelWi
 # Install parameters
 set(SLAM_INSTALL_RUNTIME_DIR "bin" CACHE STRING "Directory where to install binaries, relatively to CMAKE_INSTALL_PREFIX")
 set(SLAM_INSTALL_LIBRARY_DIR "lib" CACHE STRING "Directory where to install libraries, relatively to CMAKE_INSTALL_PREFIX")
+set(SLAM_INSTALL_INCLUDE_DIR "include" CACHE STRING "Directory where to install header files, relatively to CMAKE_INSTALL_PREFIX")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_DIR}")
 
