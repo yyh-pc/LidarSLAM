@@ -39,7 +39,7 @@ public:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief     Optionnal GPS odom callback, accumulating poses for SLAM/GPS calibration.
+   * @brief     Optional GPS odom callback, accumulating poses for SLAM/GPS calibration.
    * @param[in] msg Converted GPS pose with its associated covariance.
    */
   void GpsCallback(const nav_msgs::Odometry& msg);
@@ -122,16 +122,16 @@ private:
   ros::Subscriber SlamCommandSub;
   tf2_ros::TransformBroadcaster TfBroadcaster;
 
-  // Optionnal saving of pointclouds to PCD files.
+  // Optional saving of pointclouds to PCD files.
   PCDFormat PcdFormat = PCDFormat::BINARY_COMPRESSED;  ///< Save pointclouds as ascii/binary/binary_compressed PCD files.
 
-  // Optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor.
+  // Optional publication of slam pose centered on GPS antenna instead of LiDAR sensor.
   bool OutputGpsPose = false;                 ///< Output GPS antenna pose instead of LiDAR's.
   bool PublishLidarToGpsTf = false;           ///< Internal flag to publish static transform linking GPS antenna to LiDAR.
   std::string OutputGpsPoseFrameId = "slam";  ///< Frame id of the GPS antenna pose computed by SLAM if OutputGpsPose=true.
   Eigen::Isometry3d LidarToGpsOffset = Eigen::Isometry3d::Identity(); ///< Pose of the GPS antenna in LiDAR coordinates.
 
-  // Optionnal use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization (PGO).
+  // Optional use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization (PGO).
   bool UseGps = false;                          ///< Enable GPS data logging for Pose Graph Optimization or GPS/SLAM calibration.
   bool CalibrationNoRoll = false;               ///< DEBUG Impose GPS/SLAM calibration to have no roll angle.
   std::string PgoG2oFileName = "";              ///< Filename of g2o file where to save pose graph to optimize.

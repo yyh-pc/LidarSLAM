@@ -1,10 +1,10 @@
 # lidar_slam
 
-- [lidar_slam](#lidar_slam)
+- [lidar_slam](#lidarslam)
   - [LiDAR SLAM node](#lidar-slam-node)
     - [Description and basic usage](#description-and-basic-usage)
     - [More advanced usage](#more-advanced-usage)
-  - [Optionnal GPS use](#optionnal-gps-use)
+  - [Optional GPS use](#optional-gps-use)
     - [SLAM output as GPS antenna pose](#slam-output-as-gps-antenna-pose)
     - [GPS/SLAM calibration](#gpsslam-calibration)
     - [SLAM pose graph optimization (PGO) with GPS prior](#slam-pose-graph-optimization-pgo-with-gps-prior)
@@ -48,7 +48,7 @@ This launch file will start a *lidar_slam_node*, a pre-configured RViz session, 
 Input pointcloud fix must be a *sensor_msgs/PointCloud2* message (of points `velodyne_pointcloud::PointXYZIR`) published on topic '*velodyne_points*'. Input GPS fix must be a *gps_common/GPSFix* message published on topic '*gps_fix*'.
 It outputs the SLAM pose as a *nav_msgs/Odometry* message on topic '*slam_odom*' and as a *sensor_msgs/NavSatFix* message on topic '*slam_fix*', and publishes the corresponding transforms on TF server.
 
-## Optionnal GPS use
+## Optional GPS use
 
 ### SLAM output as GPS antenna pose
 
@@ -107,7 +107,7 @@ To sum up, if you want to run SLAM on same zone, use :
 roslaunch lidar_slam slam.launch gps:=true  # Start SLAM node and enable GPS use.
 ...  # Run 1st real test or bag file
 rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 2"    # Trigger PGO : optimize SLAM map and compute GPS/SLAM calibration
-(rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 8")  # Disable SLAM map update (optionnal)
+(rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 8")  # Disable SLAM map update (optional)
 rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 4"    # If the starting pose of the new bag does not match with last SLAM pose, use GPS pose as initial guess
 ...  # Run 2nd real test or bag file
 ```
@@ -130,4 +130,4 @@ utm
 - **gps**: current GPS pose (pose (or position if orientation isn't provided) of the GPS antenna). The TF `gps_init -> gps` is published by `gps_conversions/gps_to_utm` node.
 - **slam_init**: initial pose of the SLAM, which is the pose of the velodyne sensor of the first received pointcloud. The static TF `gps_init -> slam_init` is published either by `lidar_slam/lidar_slam_node` node (in case of GPS/SLAM auto-calibration) or manually set with tf2 static publishers in [`launch/slam.launch`](launch/slam.launch) (in case of pre-defined calibration).
 - **velodyne**: current pose of the velodyne sensor, according to SLAM. The TF `slam_init -> velodyne` is published by `lidar_slam/lidar_slam_node` node.
-- **slam**: (optionnal) current pose of the GPS antenna, according to SLAM. This TF is published only if `gps/output_gps_pose` is enabled. This pose can be directly compared to the *gps* frame, and should exactly match if SLAM was perfect. The static TF `velodyne -> slam` is published by `lidar_slam/lidar_slam_node` node according to `gps/gps_to_lidar_offset` parameter value.
+- **slam**: (optional) current pose of the GPS antenna, according to SLAM. This TF is published only if `gps/output_gps_pose` is enabled. This pose can be directly compared to the *gps* frame, and should exactly match if SLAM was perfect. The static TF `velodyne -> slam` is published by `lidar_slam/lidar_slam_node` node according to `gps/gps_to_lidar_offset` parameter value.

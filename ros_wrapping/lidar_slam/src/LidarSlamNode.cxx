@@ -69,7 +69,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   }
 
   // ***************************************************************************
-  // Init optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor
+  // Init optional publication of slam pose centered on GPS antenna instead of LiDAR sensor
   priv_nh.getParam("gps/output_gps_pose", this->OutputGpsPose);
   priv_nh.getParam("gps/output_gps_pose_frame_id", this->OutputGpsPoseFrameId);
   std::vector<double> GpsToLidarOffset;
@@ -91,7 +91,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     // Init GPS/SLAM calibration to output SLAM pose to world coordinates.
     priv_nh.getParam("gps/calibration/no_roll", this->CalibrationNoRoll);
 
-    // Init optionnal use of GPS data to perform pose graph optimization to correct SLAM poses and maps.
+    // Init optional use of GPS data to perform pose graph optimization to correct SLAM poses and maps.
     priv_nh.getParam("gps/pose_graph_optimization/g2o_file_name", this->PgoG2oFileName);
   }
 

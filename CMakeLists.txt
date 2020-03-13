@@ -42,7 +42,7 @@ find_package(PCL REQUIRED COMPONENTS common kdtree registration io)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
-# Find optionnal g2o (only used for pose graph optimization)
+# Find optional g2o (only used for pose graph optimization)
 option(ENABLE_g2o "Use G2O, necessary for pose graph optimization." ON)
 if (ENABLE_g2o)
   find_package(g2o)
@@ -51,7 +51,7 @@ if (ENABLE_g2o)
   endif(NOT g2o_FOUND)
 endif (ENABLE_g2o)
 
-# Find optionnal OpenMP
+# Find optional OpenMP
 find_package(OpenMP)
 if(TARGET OpenMP::OpenMP_CXX)
   message("Lidar SLAM : using OpenMP ${OpenMP_CXX_VERSION} target")
@@ -71,7 +71,7 @@ endif()
 # Build core SLAM lib
 add_subdirectory(slam_lib)
 
-# Build optionnal ParaView plugin
+# Build optional ParaView plugin
 option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
 if (SLAM_PARAVIEW_PLUGIN)
   add_subdirectory(paraview_wrapping)

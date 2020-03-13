@@ -10,7 +10,7 @@
 /**
  * @brief Find the global transform between two trajectories with ICP.
  * 
- * TODO Add optionnal constraint to get global transform parallel to output XY-plane.
+ * TODO Add optional constraint to get global transform parallel to output XY-plane.
  */
 class GlobalTrajectoriesRegistration
 {
