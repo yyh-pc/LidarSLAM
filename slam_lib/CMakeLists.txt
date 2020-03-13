@@ -32,11 +32,11 @@ add_library(LidarSlam SHARED
 
 target_link_libraries(LidarSlam
   PUBLIC
-    ${PCL_LIBRARIES}
     nanoflann::nanoflann
+    ceres
+    ${PCL_LIBRARIES}
     ${g2o_targets}
   PRIVATE
-    ceres
     ${Eigen3_target}
     ${OpenMP_target}
   )
