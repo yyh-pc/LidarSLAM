@@ -6,10 +6,16 @@ project(LidarSlam LANGUAGES CXX)
 #  CMake parameters
 #-------------------------
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard")
+message(STATUS "Building LidarSlam with C++${CMAKE_CXX_STANDARD} standard")
 
-set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the type of build.")
-set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "MinSizeRel" "RelWithDebInfo" "Release")
+# Set a default build type if none was specified
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Setting build type to 'RelWithDebInfo' as none was specified.")
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Choose the type of build." FORCE)
+  # Set the possible values of build type for cmake-gui
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "MinSizeRel" "RelWithDebInfo" "Release")
+endif()
 
 # Install parameters
 set(SLAM_INSTALL_RUNTIME_DIR "bin" CACHE STRING "Directory where to install binaries, relatively to CMAKE_INSTALL_PREFIX")
