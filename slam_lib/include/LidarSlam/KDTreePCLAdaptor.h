@@ -21,7 +21,7 @@
 #define KDTREE_PCL_ADAPTOR_H
 
 // LOCAL
-#include "LidarPoint.h"
+#include "LidarSlam/LidarPoint.h"
 // NANOFLANN
 #include <nanoflann.hpp>
 // PCL

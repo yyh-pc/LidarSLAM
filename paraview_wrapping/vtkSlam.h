@@ -76,7 +76,7 @@
 #include <vtkSmartPointer.h>
 
 // LOCAL
-#include "Slam.h"
+#include <LidarSlam/Slam.h>
 
 // This custom macro is needed to make the SlamManager time agnostic
 // The SlamManager need to know when RequestData is call, if it's due

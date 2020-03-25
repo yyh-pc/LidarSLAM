@@ -20,7 +20,7 @@
 #ifndef VTKSpinningSensorKeypointExtractor_H
 #define VTKSpinningSensorKeypointExtractor_H
 
-#include <SpinningSensorKeypointExtractor.h>
+#include <LidarSlam/SpinningSensorKeypointExtractor.h>
 #include <vtkObject.h>
 
 //

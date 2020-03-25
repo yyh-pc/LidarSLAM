@@ -1,5 +1,5 @@
-#include "PoseGraphOptimization.h"
-#include "GlobalTrajectoriesRegistration.h"
+#include "LidarSlam/PoseGraphOptimization.h"
+#include "LidarSlam/GlobalTrajectoriesRegistration.h"
 
 #include <g2o/core/block_solver.h>
 #include <g2o/core/optimization_algorithm_levenberg.h>
@@ -35,7 +35,8 @@ namespace
     double gpsTime = gpsPose.time;
     double timeDiff, prevTimeDiff = std::numeric_limits<double>::max();
     int bestId = -1;
-    for (int j = 0; j < slamPoses.size(); ++j)
+    int nSlamPoses = slamPoses.size();
+    for (int j = 0; j < nSlamPoses; ++j)
     {
       timeDiff = std::abs(gpsTime - slamPoses[j].time);
 
@@ -60,11 +61,10 @@ PoseGraphOptimization::PoseGraphOptimization()
 {
   // create optimizer
   // TODO change optimizer
-  g2o::SparseOptimizer optimizer;
-  optimizer.setVerbose(this->Verbose);
   auto linearSolver = std::make_unique<g2o::LinearSolverEigen<g2o::BlockSolver_6_3::PoseMatrixType>>();
   auto* solver = new g2o::OptimizationAlgorithmLevenberg(g2o::make_unique<g2o::BlockSolver_6_3>(std::move(linearSolver)));
   this->GraphOptimizer.setAlgorithm(solver);
+  this->GraphOptimizer.setVerbose(this->Verbose);
 
   // add sensor/GPS offset parameter
   auto* sensorToGpsCalibration = new g2o::ParameterSE3Offset;
@@ -180,7 +180,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   // Set the output optimized data
   optimizedSlamPoses.clear();
   optimizedSlamPoses.reserve(nbSlamPoses);
-  for (int i = 0; i < nbSlamPoses; ++i)
+  for (unsigned int i = 0; i < nbSlamPoses; ++i)
   {
     // Get optimized SLAM vertex pose
     auto* v = this->GraphOptimizer.vertex(i);

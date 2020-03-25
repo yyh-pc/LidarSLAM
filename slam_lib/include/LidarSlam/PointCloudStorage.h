@@ -114,7 +114,7 @@ struct PCLPointCloud final : public PointCloudData<PointT>
     // Attach SIGFPE to c++ exception.
     // This allows to properly deal with division by 0 or other computation errors.
     // NOTE : See OctreeCompressedPointCloud::GetCloud() for more details about why this is needed.
-    void sigfpe_handler(int signum) { throw std::logic_error("SIGFPE"); }
+    void sigfpe_handler(int /* signum */) { throw std::logic_error("SIGFPE"); }
   }
 #endif
 

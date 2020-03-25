@@ -1,7 +1,7 @@
 #ifndef ROLLING_GRID_H
 #define ROLLING_GRID_H
 
-#include "LidarPoint.h"
+#include "LidarSlam/LidarPoint.h"
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }

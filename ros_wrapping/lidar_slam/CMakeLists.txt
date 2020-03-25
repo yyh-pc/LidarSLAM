@@ -160,7 +160,7 @@ add_executable(lidar_slam_node src/LidarSlamNode.cxx)
 ## Specify libraries to link a library or executable target against
 target_link_libraries(lidar_slam_node
   ${catkin_LIBRARIES}
-  slamlib
+  LidarSlam
 )
 
 #############

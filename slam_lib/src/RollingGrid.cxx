@@ -1,4 +1,4 @@
-#include "RollingGrid.h"
+#include "LidarSlam/RollingGrid.h"
 
 // A new PCL Point is added so we need to recompile PCL to be able to use
 // filters (pcl::VoxelGrid) with this new type

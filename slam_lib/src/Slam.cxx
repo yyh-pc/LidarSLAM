@@ -69,9 +69,11 @@
 // the corresponding coordinate system.
 
 // LOCAL
-#include "Slam.h"
-#include "CeresCostFunctions.h"
-#include "PoseGraphOptimization.h"
+#include "LidarSlam/Slam.h"
+#include "LidarSlam/CeresCostFunctions.h"
+#ifdef USE_G2O
+#include "LidarSlam/PoseGraphOptimization.h"
+#endif  // USE_G2O
 // CERES
 #include <ceres/ceres.h>
 // PCL
@@ -359,6 +361,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                     Eigen::Isometry3d& gpsToSensorOffset,
                                     const std::string& g2oFileName)
 {
+  #ifdef USE_G2O
   IF_VERBOSE(1, InitTime("Pose graph optimization"));
   IF_VERBOSE(3, InitTime("PGO : optimization"));
 
@@ -456,6 +459,11 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   // Processing duration
   IF_VERBOSE(3, StopTimeAndDisplay("PGO : final SLAM map update"));
   IF_VERBOSE(1, StopTimeAndDisplay("Pose graph optimization"));
+  #else
+  #define UNUSED(var) (void)(var)
+  UNUSED(gpsPositions); UNUSED(gpsCovariances); UNUSED(gpsToSensorOffset); UNUSED(g2oFileName);
+  std::cerr << "[ERROR] SLAM PoseGraphOptimization requires G2O, but it was not found." << std::endl;
+  #endif  // USE_G2O
 }
 
 //-----------------------------------------------------------------------------

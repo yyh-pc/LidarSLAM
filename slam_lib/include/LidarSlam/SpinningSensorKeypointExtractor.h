@@ -20,7 +20,7 @@
 #ifndef SpinningSensorKeypointExtractor_H
 #define SpinningSensorKeypointExtractor_H
 
-#include "LidarPoint.h"
+#include "LidarSlam/LidarPoint.h"
 
 #include <pcl/point_cloud.h>
 
@@ -120,7 +120,7 @@ private:
   void SetKeyPointsLabels();
 
   // Check if scanLine is almost empty
-  inline bool IsScanLineAlmostEmpty(size_t nScanLinePts) const { return nScanLinePts < 2 * this->NeighborWidth + 1; }
+  inline bool IsScanLineAlmostEmpty(int nScanLinePts) const { return nScanLinePts < 2 * this->NeighborWidth + 1; }
 
   // ---------------------------------------------------------------------------
   //   Parameters

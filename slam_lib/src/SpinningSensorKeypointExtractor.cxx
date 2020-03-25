@@ -17,7 +17,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //=========================================================================
-#include "SpinningSensorKeypointExtractor.h"
+#include "LidarSlam/SpinningSensorKeypointExtractor.h"
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
@@ -191,7 +191,7 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
 {
   // Get frame duration
-  double frameStartTime, frameEndTime;
+  double frameStartTime = 0., frameEndTime = 0.;
   for (Point const& point: *this->pclCurrentFrame)
   {
     frameStartTime = std::min(frameStartTime, point.time);
@@ -402,7 +402,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
         // we propose to compute the saliency of the current point
         // as the distance between the line that roughly fits the far neighbors
         // with a depth gap and the current point
-        if (farNeighbors.size() > this->NeighborWidth)
+        if (farNeighbors.size() > static_cast<unsigned int>(this->NeighborWidth))
         {
           farNeighborsLine.FitPCA(farNeighbors);
           this->Saliency[scanLine][index] = farNeighborsLine.SquaredDistanceToPoint(centralPoint);
@@ -664,9 +664,9 @@ std::unordered_map<std::string, std::vector<double>> SpinningSensorKeypointExtra
   {
     std::vector<double> v(this->pclCurrentFrame->size());
     std::vector<int> indexByScanLine(this->NLasers, 0);
-    for (int i = 0; i < this->pclCurrentFrame->size(); i++)
+    for (unsigned int i = 0; i < this->pclCurrentFrame->size(); i++)
     {
-      double laserId = this->LaserIdMapping[this->pclCurrentFrame->points[i].laserId];
+      unsigned int laserId = this->LaserIdMapping[this->pclCurrentFrame->points[i].laserId];
       v[i] = vector2d[laserId][indexByScanLine[laserId]];
       indexByScanLine[laserId]++;
     }
@@ -677,9 +677,9 @@ std::unordered_map<std::string, std::vector<double>> SpinningSensorKeypointExtra
   {
     std::vector<double> v(this->pclCurrentFrame->size());
     std::vector<int> indexByScanLine(this->NLasers, 0);
-    for (int i = 0; i < this->pclCurrentFrame->size(); i++)
+    for (unsigned int i = 0; i < this->pclCurrentFrame->size(); i++)
     {
-      double laserId = this->LaserIdMapping[this->pclCurrentFrame->points[i].laserId];
+      unsigned int laserId = this->LaserIdMapping[this->pclCurrentFrame->points[i].laserId];
       v[i] = vector2d[laserId][indexByScanLine[laserId]][flag];
       indexByScanLine[laserId]++;
     }

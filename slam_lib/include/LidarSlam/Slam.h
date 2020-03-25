@@ -71,13 +71,13 @@
 #ifndef SLAM_H
 #define SLAM_H
 
-#include "Transform.h"
-#include "LidarPoint.h"
-#include "SpinningSensorKeypointExtractor.h"
-#include "KDTreePCLAdaptor.h"
-#include "MotionModel.h"
-#include "RollingGrid.h"
-#include "PointCloudStorage.h"
+#include "LidarSlam/Transform.h"
+#include "LidarSlam/LidarPoint.h"
+#include "LidarSlam/SpinningSensorKeypointExtractor.h"
+#include "LidarSlam/KDTreePCLAdaptor.h"
+#include "LidarSlam/MotionModel.h"
+#include "LidarSlam/RollingGrid.h"
+#include "LidarSlam/PointCloudStorage.h"
 
 #include <Eigen/Geometry>
 
@@ -310,7 +310,7 @@ private:
   // 5: 4 + logging/maps memory usage
   int Verbosity = 0;
 
-  // Optionnal log of computed pose, mapping covariance and keypoints of each
+  // Optional log of computed pose, mapping covariance and keypoints of each
   // processed frame.
   // - A value of 0. will disable logging.
   // - A negative value will log all incoming data, without any timeout.

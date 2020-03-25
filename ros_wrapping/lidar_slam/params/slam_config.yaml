@@ -35,16 +35,16 @@ publish_features_maps:
 pcd_saving:
   pcd_format: 2  # Save with given PCD file format : 0) ascii,  1) binary,  2) binary_compressed.
 
-# Optionnal GPS-like pose publication or GPS position use to improve SLAM trajectory.
+# Optional GPS-like pose publication or GPS position use to improve SLAM trajectory.
 gps:
 
   gps_to_lidar_offset: [0., 0., 0., 0., 0., 0.]  # Pose (X, Y, Z, roll, pitch, yaw) of the LiDAR in GPS antenna coordinates (also help to perform better pose graph optimization or GPS/LiDAR calibration).
 
-  # Optionnal publication of slam pose centered on GPS antenna instead of LiDAR sensor.
+  # Optional publication of slam pose centered on GPS antenna instead of LiDAR sensor.
   output_gps_pose: false             # Outputs GPS antenna pose instead of LiDAR's.
   output_gps_pose_frame_id: "slam"  # Frame id of the GPS antenna pose computed by SLAM if output_gps_pose=true.
 
-  # Optionnal GPS positions use to calibrate output SLAM pose to world coordinates and/or optimize SLAM trajectory.
+  # Optional GPS positions use to calibrate output SLAM pose to world coordinates and/or optimize SLAM trajectory.
   # If true, subscribes to gps topic 'gps_odom' (nav_msgs/Odometry), and logs GPS positions during 'slam/logging_timeout' seconds.
   # (WARNING Can be overridden in slam.launch with 'gps' arg).
   use_gps: false
@@ -74,7 +74,7 @@ slam:
   fast_slam: true      # Use only planars keypoints used during EgoMotion for Mapping step, and not all.
   undistortion: false  # Undistort the frame to correct rolling shutter distortion. DEBUG
 
-  # Optionnal logging of computed pose, mapping covariance and keypoints of each processed frame.
+  # Optional logging of computed pose, mapping covariance and keypoints of each processed frame.
   #  - A value of 0. will disable logging.
   #  - A negative value will log all incoming data, without any timeout.
   #  - A positive value will keep only most recent data, forgetting all previous data older than LoggingTimeout seconds.

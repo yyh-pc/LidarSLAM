@@ -18,7 +18,7 @@
 //=========================================================================
 
 // LOCAL
-#include "MotionModel.h"
+#include "LidarSlam/MotionModel.h"
 
 //-----------------------------------------------------------------------------
 AffineIsometry::AffineIsometry(const Eigen::Matrix3d& argR, const Eigen::Vector3d& argT, double argTime)
