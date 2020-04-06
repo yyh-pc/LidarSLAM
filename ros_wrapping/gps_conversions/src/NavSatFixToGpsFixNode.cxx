@@ -4,9 +4,6 @@
 //------------------------------------------------------------------------------
 NavSatFixToGpsFixNode::NavSatFixToGpsFixNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 {
-  // GPS precision
-  priv_nh.param("magnetic_dip", this->GpsDip, this->GpsDip);
-
   // Init ROS publishers & subscribers
   this->GpsFixPub = nh.advertise<gps_common::GPSFix>("gps_fix", 10);
   this->NavSatFixSub = nh.subscribe("nav_sat_fix", 10, &NavSatFixToGpsFixNode::NavSatFixCallback, this);
@@ -42,7 +39,6 @@ void NavSatFixToGpsFixNode::NavSatFixCallback(const sensor_msgs::NavSatFix& msg)
   // Uncertainty of measurement, 95% confidence (that's why x2)
   gpsFix.err_horz = sqrt(msg.position_covariance[0]) + sqrt(msg.position_covariance[4]);
   gpsFix.err_vert = sqrt(msg.position_covariance[8]) * 2.;
-  gpsFix.dip = this->GpsDip;
 
   // Position covariance [m^2] defined relative to a tangential plane through 
   // the reported position. The components are East, North, and Up (ENU), in

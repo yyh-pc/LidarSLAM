@@ -28,8 +28,6 @@ private:
   // ROS publishers & subscribers
   ros::Subscriber NavSatFixSub;
   ros::Publisher GpsFixPub;
-
-  double GpsDip = 0.;  ///< [rad] Magnetic inclination.
 };
 
 #endif // NAV_SAT_FIX_TO_GPS_FIX_NODE_H
