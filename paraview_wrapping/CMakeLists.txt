@@ -18,7 +18,7 @@ set(ServerManagerSources
 set(ServerManagerXML
   Slam.xml)
 
-ADD_PARAVIEW_PLUGIN(LidarSlamPlugin "1.0"
+ADD_PARAVIEW_PLUGIN(LidarSlamPlugin "1.1"
   SERVER_MANAGER_XML ${ServerManagerXML}
   SERVER_MANAGER_SOURCES ${ServerManagerSources}
 )
