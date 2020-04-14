@@ -626,11 +626,6 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     }
   }
 
-  // fill the keypoints vectors and compute the max dist keypoints
-  this->FarestKeypointDist = 0.0;
-  this->MinPoint = std::numeric_limits<float>::max();
-  this->MaxPoint = std::numeric_limits<float>::min();
-
   auto addKeypoints = [this](Keypoint type, PointCloud::Ptr& keypoints)
   {
     for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
@@ -642,10 +637,6 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
           this->IsPointValid[scanLine][index].set(type);
           const Point& p = this->pclCurrentFrameByScan[scanLine]->points[index];
           keypoints->push_back(p);
-          this->FarestKeypointDist = std::max(this->FarestKeypointDist, static_cast<double>(p.x * p.x + p.y * p.y + p.z * p.z));
-          pcl::Array3fMapConst pointXYZ = p.getArray3fMap();
-          this->MinPoint = this->MinPoint.min(pointXYZ);
-          this->MaxPoint = this->MaxPoint.max(pointXYZ);
         }
       }
     }
@@ -653,8 +644,6 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   addKeypoints(Keypoint::EDGE, this->EdgesPoints);
   addKeypoints(Keypoint::PLANE, this->PlanarsPoints);
   addKeypoints(Keypoint::BLOB, this->BlobsPoints);
-
-  this->FarestKeypointDist = std::sqrt(this->FarestKeypointDist);
 }
 
 //-----------------------------------------------------------------------------

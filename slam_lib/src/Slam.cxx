@@ -61,12 +61,15 @@
 // map has been refined from the first estimation it is then possible to update the map by
 // adding the keypoints of the current frame into the map.
 //
-// In the following programs : "slam" and "slam.cxx" the lidar
-// coordinate system {L} is a 3D coordinate system with its origin at the
-// geometric center of the lidar. The world coordinate system {W} is a 3D
-// coordinate system which coincides with {L} at the initial position. The
-// points will be denoted by the ending letter L or W if they belong to
-// the corresponding coordinate system.
+// In the following programs, three 3D coordinates system are used :
+// - LIDAR {L} : attached to the geometric center of the LiDAR sensor. The
+//   coordinates of the received pointclouds are expressed in this system.
+//   LIDAR is rigidly linked (static transform) to BASE.
+// - BASE  {B} : attached to the origin of the moving body (e.g. vehicle). We
+//   are generally interested in tracking an other point of the moving body than
+//   the LiDAR's (for example, we prefer to track the GPS antenna pose).
+// - WORLD {W} : The world coordinate system {W} coincides with BASE at the
+//   initial position. The output trajectory describes BASE origin in WORLD.
 
 // LOCAL
 #include "LidarSlam/Slam.h"
@@ -259,16 +262,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 
   // Compute the edges and planars keypoints
   IF_VERBOSE(3, InitTime("Keypoints extraction"));
-  this->KeyPointsExtractor->ComputeKeyPoints(pc, laserIdMapping);
-  this->CurrentEdgesPoints = this->KeyPointsExtractor->GetEdgePoints();
-  this->CurrentPlanarsPoints = this->KeyPointsExtractor->GetPlanarPoints();
-  this->CurrentBlobsPoints = this->KeyPointsExtractor->GetBlobPoints();
-  // Set the max and min keypoints positions to reduce map searching radius and extracted keypoints
-  this->SetFrameMinMaxKeypoints(this->KeyPointsExtractor->GetMinPoint(), this->KeyPointsExtractor->GetMaxPoint());
-  PRINT_VERBOSE(2, "========== Keypoints extraction ==========" << std::endl <<
-                   "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
-                                           << this->CurrentPlanarsPoints->size() << " planes, "
-                                           << this->CurrentBlobsPoints->size()   << " blobs.");
+  this->ExtractKeypoints(pc, laserIdMapping);
   IF_VERBOSE(3, StopTimeAndDisplay("Keypoints extraction"));
 
   // If the new frame is the first one we just add the
@@ -313,7 +307,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, InitTime("Logging"));
-  this->LogCurrentFrameState(pc->header.stamp * 1e-6, pc->header.frame_id);
+  this->LogCurrentFrameState(pc->header.stamp * 1e-6, this->WorldFrameId);
   IF_VERBOSE(3, StopTimeAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
@@ -637,6 +631,46 @@ Slam::PointCloud::Ptr Slam::GetBlobsMap() const
 //==============================================================================
 //   Main SLAM steps
 //==============================================================================
+
+//-----------------------------------------------------------------------------
+void Slam::ExtractKeypoints(const PointCloud::Ptr& inputPc, const std::vector<size_t>& laserIdMapping)
+{
+  // Transform pointcloud from LIDAR to BASE coordinates
+  auto transformToBase = [this](const PointCloud::Ptr& inputPc)
+  {
+    PointCloud::Ptr baseCloud;
+    // If transform to apply is identity, avoid much work and just change frame id if it is defined
+    if (this->BaseToLidarOffset.isApprox(Eigen::Isometry3d::Identity()))
+    {
+      baseCloud = inputPc;
+      baseCloud->header.frame_id = this->BaseFrameId.empty() ? inputPc->header.frame_id : this->BaseFrameId;
+    }
+    // If transform is set and non trivial, run transformation and notify it by changing frame id
+    else
+    {
+      baseCloud.reset(new PointCloud);
+      pcl::transformPointCloud(*inputPc, *baseCloud, this->BaseToLidarOffset.matrix());
+      baseCloud->header.frame_id = this->BaseFrameId.empty() ? this->BaseFrameIdDefault : this->BaseFrameId;
+    }
+    return baseCloud;
+  };
+
+  // Extract keypoints from input cloud,
+  this->KeyPointsExtractor->ComputeKeyPoints(inputPc, laserIdMapping);
+
+  // Get keypoints and transform them from LIDAR to BASE coordinates if needed.
+  this->CurrentEdgesPoints   = transformToBase(this->KeyPointsExtractor->GetEdgePoints());
+  this->CurrentPlanarsPoints = transformToBase(this->KeyPointsExtractor->GetPlanarPoints());
+  this->CurrentBlobsPoints   = transformToBase(this->KeyPointsExtractor->GetBlobPoints());
+
+  // Set keypoints bounds in rolling grids to reduce map searching radius during mapping step
+  this->SetFrameMinMaxKeypoints();
+
+  PRINT_VERBOSE(2, "========== Keypoints extraction ==========" << std::endl <<
+                   "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
+                                           << this->CurrentPlanarsPoints->size() << " planes, "
+                                           << this->CurrentBlobsPoints->size()   << " blobs.");
+}
 
 //-----------------------------------------------------------------------------
 void Slam::ComputeEgoMotion()
@@ -1912,9 +1946,17 @@ void Slam::SetVoxelGridResolution(double resolution)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SetFrameMinMaxKeypoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint)
+void Slam::SetFrameMinMaxKeypoints()
 {
-  this->EdgesPointsLocalMap->SetMinMaxPoints(minPoint, maxPoint);
-  this->PlanarPointsLocalMap->SetMinMaxPoints(minPoint, maxPoint);
-  this->BlobsPointsLocalMap->SetMinMaxPoints(minPoint, maxPoint);
+  // Get pointcloud bounds and set map search bounds accordingly
+  auto SetMinMax = [](const PointCloud::Ptr& pc, std::shared_ptr<RollingGrid>& map)
+  {
+    Eigen::Vector4f minPoint, maxPoint;
+    pcl::getMinMax3D(*pc, minPoint, maxPoint);
+    map->SetMinMaxPoints(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+  };
+
+  SetMinMax(this->CurrentEdgesPoints, this->EdgesPointsLocalMap);
+  SetMinMax(this->CurrentPlanarsPoints, this->PlanarPointsLocalMap);
+  SetMinMax(this->CurrentBlobsPoints, this->BlobsPointsLocalMap);
 }
