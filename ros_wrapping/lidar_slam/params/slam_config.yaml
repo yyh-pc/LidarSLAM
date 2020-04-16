@@ -8,9 +8,9 @@
 ## Mapping from ring id to laser id (optional, default : identity mapping)
 # laser_id_mapping: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
-# SLAM will publish the TF slam_origin_frame -> slam_output_frame.
-slam_origin_frame: "slam_init"   # Frame id of SLAM map origin.
-# slam_output_frame: "velodyne"  # Frame id of the current SLAM pose (default : use frame_id of the input pointcloud).
+# SLAM will compute the pose of tracking_frame in odometry_frame coordinates system, using measurements in input pointcloud frame.
+odometry_frame: "odom"       # Frame in which SLAM odometry and maps are expressed (default: odom).
+# tracking_frame: "base_link"  # Frame to track (default: input pointcloud frame_id; If different, ensure a valid TF tree is published).
 
 # [Hz] Number of frames per second acquired by the LiDAR sensor (used to generate approximate point-wise timestamp)
 lidar_frequency: 10.
@@ -37,12 +37,6 @@ pcd_saving:
 
 # Optional GPS-like pose publication or GPS position use to improve SLAM trajectory.
 gps:
-
-  gps_to_lidar_offset: [0., 0., 0., 0., 0., 0.]  # Pose (X, Y, Z, roll, pitch, yaw) of the LiDAR in GPS antenna coordinates (also help to perform better pose graph optimization or GPS/LiDAR calibration).
-
-  # Optional publication of slam pose centered on GPS antenna instead of LiDAR sensor.
-  output_gps_pose: false             # Outputs GPS antenna pose instead of LiDAR's.
-  output_gps_pose_frame_id: "slam"  # Frame id of the GPS antenna pose computed by SLAM if output_gps_pose=true.
 
   # Optional GPS positions use to calibrate output SLAM pose to world coordinates and/or optimize SLAM trajectory.
   # If true, subscribes to gps topic 'gps_odom' (nav_msgs/Odometry), and logs GPS positions during 'slam/logging_timeout' seconds.

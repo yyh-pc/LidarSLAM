@@ -3,6 +3,7 @@
 
 #include <geometry_msgs/TransformStamped.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <tf2_ros/transform_listener.h>
 #include <LidarSlam/Transform.h>
 
 //========================== Transform -> ROS msg ==============================
@@ -86,6 +87,33 @@ Transform PoseMsgToTransform(const geometry_msgs::PoseStamped& poseStampedMsg)
                          poseStampedMsg.pose.orientation.y,
                          poseStampedMsg.pose.orientation.z);
   return Transform(trans, rot, time, poseStampedMsg.header.frame_id);
+}
+
+//========================== ROS TF2 -> Eigen Isometry3d =======================
+
+//------------------------------------------------------------------------------
+//! Safely get a transform between 2 frames from TF2 server
+bool Tf2LookupTransform(Eigen::Isometry3d& transform,
+                        const tf2_ros::Buffer& tfBuffer,
+                        const std::string& targetFrame,
+                        const std::string& sourceFrame,
+                        const ros::Time time = ros::Time(0),
+                        const ros::Duration timeout = ros::Duration(0))
+{
+  geometry_msgs::TransformStamped tfStamped;
+  try
+  {
+    tfStamped = tfBuffer.lookupTransform(targetFrame, sourceFrame, time, timeout);
+  }
+  catch (tf2::TransformException& ex)
+  {
+    ROS_ERROR("%s", ex.what());
+    return false;
+  }
+  const geometry_msgs::Transform& t = tfStamped.transform;
+  transform = Eigen::Translation3d(t.translation.x, t.translation.y, t.translation.z)
+              * Eigen::Quaterniond(t.rotation.w, t.rotation.x, t.rotation.y, t.rotation.z);
+  return true;
 }
 
 #endif  // ROS_TRANSFORM_UTILS_H

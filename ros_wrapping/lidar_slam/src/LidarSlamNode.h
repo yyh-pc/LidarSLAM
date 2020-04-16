@@ -4,6 +4,7 @@
 // ROS
 #include <ros/ros.h>
 #include <velodyne_pointcloud/point_types.h>
+#include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <pcl_ros/point_cloud.h>
@@ -67,14 +68,21 @@ private:
 
   //----------------------------------------------------------------------------
   /*!
+   * @brief     Update transform offset between BASE and LIDAR using TF2
+   * @param[in] lidarFrameId The input LiDAR pointcloud frame_id.
+   * @param[in] pclStamp     The input pointcloud timestamp.
+   */
+  void UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint64_t pclStamp);
+
+  //----------------------------------------------------------------------------
+  /*!
    * @brief     Publish TF and PoseWithCovariance.
-   * @param[in] slamToLidar Transform from slam_init to velodyne to send.
+   * @param[in] odomToBase  Transform from OdometryFrameId to TrackingFrameId to send.
    * @param[in] poseCovar   Covariance associated to full 6 DOF pose.
    *
    * NOTE : poseCovar encodes covariance for DoF in this order : (X, Y, Z, rX, rY, rZ)
    */
-  void PublishTfOdom(const Transform& slamToLidar,
-                     const std::array<double, 36>& poseCovar);
+  void PublishTfOdom(const Transform& odomToBase, const std::array<double, 36>& poseCovar);
 
   //----------------------------------------------------------------------------
   /*!
@@ -93,7 +101,7 @@ private:
   //----------------------------------------------------------------------------
   /*!
    * @brief Run GPS/SLAM calibration from recorded GPS and SLAM poses, and
-   *        publish static TF to link SlamOriginFrameId to GPS frame.
+   *        publish static TF to link OdometryFrameId to GPS frame.
    */
   void GpsSlamCalibration();
 
@@ -101,7 +109,7 @@ private:
   /*!
    * @brief Run pose graph optimization from GPS and SLAM poses, correcting SLAM
    *        trajectory and maps, and publish optimized LiDAR trajectory and
-   *        static TF to link SlamOriginFrameId to GPS frame.
+   *        static TF to link OdometryFrameId to GPS frame.
    */
   void PoseGraphOptimization();
 
@@ -115,21 +123,20 @@ private:
   unsigned int PreviousFrameId = 0;
 
   // Basic publishers & subscribers
-  std::string SlamOriginFrameId = "slam_init";  ///< Frame id of SLAM map origin.
-  std::string SlamOutputFrameId;  ///< Frame id of current SLAM pose (default : use frame_id of the input pointcloud).
   ros::Publisher PoseCovarPub;
   ros::Subscriber CloudSub;
   ros::Subscriber SlamCommandSub;
+
+  // TF stuff
+  std::string OdometryFrameId = "odom";  ///< Frame in which SLAM odometry and maps are expressed.
+  std::string TrackingFrameId;           ///< Frame to track (default: input pointcloud frame_id; otherwise, ensure a valid TF tree is published).
+  tf2_ros::Buffer TfBuffer;
+  tf2_ros::TransformListener TfListener;
   tf2_ros::TransformBroadcaster TfBroadcaster;
+  tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
 
   // Optional saving of pointclouds to PCD files.
   PCDFormat PcdFormat = PCDFormat::BINARY_COMPRESSED;  ///< Save pointclouds as ascii/binary/binary_compressed PCD files.
-
-  // Optional publication of slam pose centered on GPS antenna instead of LiDAR sensor.
-  bool OutputGpsPose = false;                 ///< Output GPS antenna pose instead of LiDAR's.
-  bool PublishLidarToGpsTf = false;           ///< Internal flag to publish static transform linking GPS antenna to LiDAR.
-  std::string OutputGpsPoseFrameId = "slam";  ///< Frame id of the GPS antenna pose computed by SLAM if OutputGpsPose=true.
-  Eigen::Isometry3d LidarToGpsOffset = Eigen::Isometry3d::Identity(); ///< Pose of the GPS antenna in LiDAR coordinates.
 
   // Optional use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization (PGO).
   bool UseGps = false;                          ///< Enable GPS data logging for Pose Graph Optimization or GPS/SLAM calibration.
@@ -137,8 +144,8 @@ private:
   std::string PgoG2oFileName = "";              ///< Filename of g2o file where to save pose graph to optimize.
   std::deque<Transform> GpsPoses;               ///< Buffer of last received GPS poses.
   std::deque<std::array<double, 9>> GpsCovars;  ///< Buffer of last received GPS positions covariances.
+  Eigen::Isometry3d BaseToGpsOffset = Eigen::Isometry3d::Identity();  ///< Pose of the GPS antenna in BASE coordinates.
   ros::Subscriber GpsOdomSub;
-  tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
   bool SetSlamPoseFromGpsRequest = false;
 
   // Debug publishers
