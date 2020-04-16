@@ -217,10 +217,13 @@ void GpsToUtmNode::ProcessUtmPose(const gps_common::GPSFix& msg, const geodesy::
   // Publish TF
   geometry_msgs::TransformStamped tfStamped;
   tfStamped.header = odomMsg.header;
-  tfStamped.child_frame_id = odomMsg.child_frame_id;
-  FillXYZfromXYZ(tfStamped.transform.translation, odomMsg.pose.pose.position);
-  tfStamped.transform.rotation = odomMsg.pose.pose.orientation;
-  this->TfBroadcaster.sendTransform(tfStamped);
+  if (this->PublishGpsOdomTf)
+  {
+    tfStamped.child_frame_id = odomMsg.child_frame_id;
+    FillXYZfromXYZ(tfStamped.transform.translation, odomMsg.pose.pose.position);
+    tfStamped.transform.rotation = odomMsg.pose.pose.orientation;
+    this->TfBroadcaster.sendTransform(tfStamped);
+  }
 
   // Publish static TF to fit 1st GPS pose to local map if needed
   if (this->PublishLocalMapTf)
@@ -232,16 +235,16 @@ void GpsToUtmNode::ProcessUtmPose(const gps_common::GPSFix& msg, const geodesy::
     tfStamped.transform.rotation = tf::createQuaternionMsgFromYaw(0);  // identity rotation
     this->StaticTfBroadcaster.sendTransform(tfStamped);
 
-    // Send transform from 1st GPS pose (local map) to current GPS pose
-    tfStamped.header.frame_id = this->UtmFrameId;
+    // Send transform from local ENU frame to 1st GPS pose (local map)
+    tfStamped.header.frame_id = this->LocalEnuFrameId;
     tfStamped.child_frame_id = this->LocalMapFrameId;
-    FillXYZfromENU(tfStamped.transform.translation, this->FirstGpsPose.position);
+    tfStamped.transform.translation = geometry_msgs::Vector3();
     tfStamped.transform.rotation = this->FirstGpsPose.orientation;
     this->StaticTfBroadcaster.sendTransform(tfStamped);
 
     this->PublishLocalMapTf = false;  // these static TF must be sent only once.
-    ROS_INFO_STREAM("Static TF sent from '" << this->UtmFrameId << "' to '" << this->LocalEnuFrameId << "'.");
-    ROS_INFO_STREAM("Static TF sent from '" << this->UtmFrameId << "' to '" << this->LocalMapFrameId << "'.");
+    ROS_INFO_STREAM("Static TF sent from '" << this->UtmFrameId      << "' to '" << this->LocalEnuFrameId << "'.");
+    ROS_INFO_STREAM("Static TF sent from '" << this->LocalEnuFrameId << "' to '" << this->LocalMapFrameId << "'.");
   }
 }
 

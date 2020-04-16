@@ -41,17 +41,20 @@ private:
   char UtmBand;     ///< MGRS latitude band letter.
   uint8_t UtmZone;  ///< UTM longitude zone number.
 
+  // Previous GPS poses storage for internal computation
+  geodesy::UTMPose FirstGpsPose;        ///< 1st GPS pose received, only used if OriginOnFirstPose = true.
+  geodesy::UTMPose PreviousGpsPose;     ///< Previous GPS pose received.
+  gps_common::GPSFix PreviousMsg;       ///< Previous message received, only used if heading is not defined.
+
   // Parameters
   std::string UtmFrameId = "utm";       ///< UTM grid zone origin.
   std::string LocalEnuFrameId = "enu";  ///< ENU frame attached to 1st GPS position received.
   std::string LocalMapFrameId = "map";  ///< Local map frame attached to 1st GPS pose received.
   std::string ChildFrameId;             ///< Frame attached to moving system whose GPS poses are received (default : input GPSFix frame_id).
   double TimeOffset = 0.;               ///< Output odom time = GPS time + TimeOffset
+  bool PublishGpsOdomTf = false;        ///< If true, publish also GPS odom as TF.
   bool PublishLocalMapTf = false;       ///< If true, publish 2 static TF from UtmFrameId to LocalEnuFrameId or LocalMapFrameId.
   bool OriginOnFirstPose = false;       ///< false: publish gps pose in UTM coordinates. true: publish pose in MapFrameId (= 1st GPS pose).
-  geodesy::UTMPose FirstGpsPose;        ///< 1st GPS pose received, only used if OriginOnFirstPose = true.
-  geodesy::UTMPose PreviousGpsPose;     ///< Previous GPS pose received.
-  gps_common::GPSFix PreviousMsg;       ///< Previous message received, only used if heading is not defined.
 };
 
 #endif // GPS_TO_UTM_NODE_H
