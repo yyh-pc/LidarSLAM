@@ -272,13 +272,15 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 
   // Get SLAM transform
   Transform Tworld = this->SlamAlgo->GetWorldTransform();
+  Eigen::Isometry3d odomToBase = Tworld.GetIsometry();
+  Eigen::Isometry3d odomToLidar = odomToBase * this->SlamAlgo->GetBaseToLidarOffset();
   vtkSmartPointer<vtkTransform> transform = vtkSmartPointer<vtkTransform>::New();
   transform->PostMultiply();
-  Eigen::Vector3d ypr = Tworld.GetRotation().toRotationMatrix().eulerAngles(2, 1, 0);
+  Eigen::Vector3d ypr = odomToLidar.linear().eulerAngles(2, 1, 0);
   transform->RotateX(Rad2Deg(ypr[2]));
   transform->RotateY(Rad2Deg(ypr[1]));
   transform->RotateZ(Rad2Deg(ypr[0]));
-  transform->Translate(Tworld.GetPosition().data());
+  transform->Translate(odomToLidar.translation().data());
 
   // Transform the current frame to world coordinates
   vtkSmartPointer<vtkTransformPolyDataFilter> transformFilter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
@@ -287,7 +289,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   transformFilter->Update();
 
   // Update Trajectory
-  AddPoseToPolyData(Tworld.GetIsometry(), this->Trajectory);
+  AddPoseToPolyData(odomToBase, this->Trajectory);
   this->Trajectory->GetPointData()->GetArray("Time")->InsertNextTuple(&Tworld.time);
   this->Trajectory->GetPointData()->GetArray("Covariance")->InsertNextTuple(this->SlamAlgo->GetTransformCovariance().data());
 
@@ -317,15 +319,15 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // ===== Extracted keypoints from current frame =====
   // Output : Current edge keypoints
   auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
-  pcl::transformPointCloud(*keypointExtractor->GetEdgePoints(), *tmpPcl, Tworld.GetMatrix());
+  pcl::transformPointCloud(*keypointExtractor->GetEdgePoints(), *tmpPcl, odomToLidar.matrix());
   PolyDataFromPointCloud(tmpPcl, edgePoints);
   // Output : Current planar keypoints
   auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
-  pcl::transformPointCloud(*keypointExtractor->GetPlanarPoints(), *tmpPcl, Tworld.GetMatrix());
+  pcl::transformPointCloud(*keypointExtractor->GetPlanarPoints(), *tmpPcl, odomToLidar.matrix());
   PolyDataFromPointCloud(tmpPcl, planarPoints);
   // Output : Current blob keypoints
   auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
-  pcl::transformPointCloud(*keypointExtractor->GetBlobPoints(), *tmpPcl, Tworld.GetMatrix());
+  pcl::transformPointCloud(*keypointExtractor->GetBlobPoints(), *tmpPcl, odomToLidar.matrix());
   PolyDataFromPointCloud(tmpPcl, blobPoints);
 
   // add debug information if displayMode is enabled
@@ -450,6 +452,26 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
     vtkErrorMacro(<< "The calibration data has no column named 'verticalCorrection'");
   }
   return laserIdMapping;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetBaseToLidarTranslation(double x, double y, double z)
+{
+  Eigen::Translation3d trans(x, y, z);
+  Eigen::Quaterniond quat(this->SlamAlgo->GetBaseToLidarOffset().linear());
+  Eigen::Isometry3d baseToLidar(trans * quat);
+  this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetBaseToLidarRotation(double rx, double ry, double rz)
+{
+  Eigen::Vector3d trans = this->SlamAlgo->GetBaseToLidarOffset().translation();
+  Eigen::Vector3d rpy(rx, ry, rz);
+  Eigen::Isometry3d baseToLidar = Transform(trans, rpy * vtkMath::Pi() / 180.).GetIsometry();
+  this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
+  this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
