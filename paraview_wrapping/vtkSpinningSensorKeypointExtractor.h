@@ -1,9 +1,8 @@
-//=========================================================================
-//
-// Copyright 2018 Kitware, Inc.
-// Authors: Guilbert Pierre (spguilbert@gmail.com)
-//         Laurenson Nick (nlaurenson5@gmail.com)
-// Date: 03-27-2018
+//==============================================================================
+// Copyright 2018-2020 Kitware, Inc., Kitware SAS
+// Authors: Guilbert Pierre (Kitware SAS)
+//          Laurenson Nick (Kitware SAS)
+// Creation date: 2018-03-27
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +15,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//=========================================================================
+//==============================================================================
+
 #ifndef VTKSpinningSensorKeypointExtractor_H
 #define VTKSpinningSensorKeypointExtractor_H
 

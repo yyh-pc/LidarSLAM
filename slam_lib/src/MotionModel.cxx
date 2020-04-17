@@ -1,8 +1,7 @@
-//=========================================================================
-//
-// Copyright 2019 Kitware, Inc.
-// Author: Guilbert Pierre (spguilbert@gmail.com)
-// Date: 04-08-2019
+//==============================================================================
+// Copyright 2019-2020 Kitware, Inc., Kitware SAS
+// Author: Guilbert Pierre (Kitware SAS)
+// Creation date: 2019-04-08
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +14,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//=========================================================================
+//==============================================================================
 
 // LOCAL
 #include "LidarSlam/MotionModel.h"
