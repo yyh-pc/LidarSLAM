@@ -13,9 +13,14 @@
       </Documentation>
 
       <InputProperty
-         name="PointCloud"
+         name="Input"
+         label="Point Cloud"
          port_index="0"
          command="SetInputConnection">
+        <ProxyGroupDomain name="groups">
+          <Group name="sources"/>
+          <Group name="filters"/>
+        </ProxyGroupDomain>
         <DataTypeDomain name="input_type">
           <DataType value="vtkPolyData"/>
         </DataTypeDomain>
@@ -28,6 +33,10 @@
          name="Calibration"
          port_index="1"
          command="SetInputConnection">
+        <ProxyGroupDomain name="groups">
+          <Group name="sources"/>
+          <Group name="filters"/>
+        </ProxyGroupDomain>
         <DataTypeDomain name="input_type">
           <DataType value="vtkTable"/>
         </DataTypeDomain>
