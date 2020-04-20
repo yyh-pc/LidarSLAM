@@ -15,15 +15,6 @@ odometry_frame: "odom"       # Frame in which SLAM odometry and maps are express
 # [Hz] Number of frames per second acquired by the LiDAR sensor (used to generate approximate point-wise timestamp)
 lidar_frequency: 10.
 
-# Verbosity level :
-#  0) print errors, warnings or one time info
-#  1) 0 + frame number, total frame processing time
-#  2) 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary
-#  3) 2 + sub-problems processing duration
-#  4) 3 + ceres optimization summary
-#  5) 4 + logging/maps memory usage
-verbosity: 3
-
 # Optional publishers
 publish_features_maps:
   edges: true     # if true, edges features will be published to topic "edges_features"
@@ -63,6 +54,15 @@ gps:
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
+
+  # Verbosity level :
+  #  0) print errors, warnings or one time info
+  #  1) 0 + frame number, total frame processing time
+  #  2) 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary
+  #  3) 2 + sub-problems processing duration
+  #  4) 3 + ceres optimization summary
+  #  5) 4 + logging/maps memory usage
+  verbosity: 3
 
   n_threads: 1         # Max number of threads to use for parallel processing
   fast_slam: true      # Use only planars keypoints used during EgoMotion for Mapping step, and not all.

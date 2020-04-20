@@ -48,10 +48,6 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // Get LiDAR frequency
   priv_nh.getParam("lidar_frequency", this->LidarFreq);
 
-  // Get verbose mode
-  priv_nh.getParam("verbosity", this->Verbosity);
-  this->LidarSlam.SetVerbosity(this->Verbosity);
-
   // Get PCD saving parameters
   int pcdFormat;
   if (priv_nh.getParam("pcd_saving/pcd_format", pcdFormat))
@@ -297,9 +293,11 @@ void LidarSlamNode::GpsSlamCalibration()
   // If a sensors offset is given, use it to compute real GPS antenna position in SLAM origin coordinates
   if (!this->BaseToGpsOffset.isApprox(Eigen::Isometry3d::Identity()))
   {
-    if (this->Verbosity >= 2)
+    if (this->LidarSlam.GetVerbosity() >= 2)
+    {
       std::cout << "Transforming LiDAR pose aquired by SLAM to GPS antenna pose using LIDAR to GPS antenna offset :"
                 << std::endl << this->BaseToGpsOffset.matrix() << std::endl;
+    }
     for (Transform& odomToGpsPose : odomToBasePoses)
     {
       Eigen::Isometry3d odomToBase = odomToGpsPose.GetIsometry();
@@ -522,6 +520,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   // common
   SetSlamParam(bool, "slam/fast_slam", FastSlam)
   SetSlamParam(bool, "slam/undistortion", Undistortion)
+  SetSlamParam(int, "slam/verbosity", Verbosity)
   SetSlamParam(int, "slam/n_threads", NbThreads)
   SetSlamParam(int, "slam/logging_timeout", LoggingTimeout)
   SetSlamParam(double, "slam/max_distance_for_ICP_matching", MaxDistanceForICPMatching)
