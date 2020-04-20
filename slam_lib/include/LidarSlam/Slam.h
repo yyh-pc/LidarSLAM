@@ -314,9 +314,6 @@ private:
   // the computation speed will decrease
   bool Undistortion = false;
 
-  // Number of frame that have been processed
-  unsigned int NbrFrameProcessed = 0;
-
   // Indicate verbosity level to display more or less information :
   // 0: print errors, warnings or one time info
   // 1: 0 + frame number, total frame processing time
@@ -345,6 +342,12 @@ private:
   // of post-SLAM optimization with GPS and then run localization only in fixed
   // optimized map.
   bool UpdateMap = true;
+
+  // Number of frames that have been processed
+  unsigned int NbrFrameProcessed = 0;
+
+  // Sequence id of the previous processed frame, used to check frames dropping
+  unsigned int PreviousFrameSeq = 0;
 
   // ---------------------------------------------------------------------------
   //   Trajectory and transforms

@@ -119,7 +119,6 @@ private:
   Slam LidarSlam;
   std::vector<size_t> LaserIdMapping;
   double LidarFreq = 10.;
-  unsigned int PreviousFrameId = 0;
 
   // Basic publishers & subscribers
   ros::Publisher PoseCovarPub;

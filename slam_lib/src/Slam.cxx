@@ -260,6 +260,12 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
   PRINT_VERBOSE(2, "#########################################################" << std::endl);
 
+  // Check frame dropping
+  unsigned int droppedFrames = pc->header.seq - this->PreviousFrameSeq - 1;
+  if ((this->PreviousFrameSeq > 0) && (droppedFrames > 0))
+    std::cerr << "[WARNING] SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s" : "") << ".\n\n";
+  this->PreviousFrameSeq = pc->header.seq;
+
   // Compute the edges and planars keypoints
   IF_VERBOSE(3, InitTime("Keypoints extraction"));
   this->ExtractKeypoints(pc, laserIdMapping);

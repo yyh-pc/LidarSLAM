@@ -109,12 +109,6 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 //------------------------------------------------------------------------------
 void LidarSlamNode::ScanCallback(const CloudV& cloudV)
 {
-  // Check frame dropping
-  unsigned int droppedFrames = cloudV.header.seq - this->PreviousFrameId - 1;
-  if ((this->PreviousFrameId > 0) && droppedFrames)
-    ROS_WARN_STREAM("SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s." : "."));
-  this->PreviousFrameId = cloudV.header.seq;
-
   // Init this->LaserIdMapping if not already done
   if (!this->LaserIdMapping.size())
   {
