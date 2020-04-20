@@ -521,10 +521,11 @@
       </PropertyGroup>
 
       <!-- ==================== Map Parameters ==================== -->
+
       <DoubleVectorProperty
           name="Map Edges Voxel Grid Leaf Size"
           command="SetVoxelGridLeafSizeEdges"
-          default_values="0.45"
+          default_values="0.3"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
@@ -552,7 +553,7 @@
       <DoubleVectorProperty
           name="Map Blobs Voxel Grid Leaf Size"
           command="SetVoxelGridLeafSizeBlobs"
-          default_values="0.12"
+          default_values="0.3"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
