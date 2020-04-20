@@ -156,51 +156,63 @@ void AddPoseToPolyData(const Eigen::Isometry3d& pose, vtkPolyData* poly)
 }
 
 //-----------------------------------------------------------------------------
-void PolyDataFromPointCloud(pcl::PointCloud<Slam::Point>::Ptr pc, vtkPolyData* poly)
+void PointCloudToPolyData(pcl::PointCloud<Slam::Point>::Ptr pc, vtkPolyData* poly)
 {
+  const unsigned int nbPoints = pc->size();
+
   // Set points
   auto pts = vtkSmartPointer<vtkPoints>::New();
-  for (const Slam::Point& p: *pc)
+  pts->SetNumberOfPoints(nbPoints);
+  auto intensityArray = createArray<vtkDoubleArray>("intensity", 1, nbPoints);
+  for (vtkIdType i = 0; i < nbPoints; ++i)
   {
-    pts->InsertNextPoint(p.x, p.y, p.z);
-    // TODO : add other fields (intensity, time, laserId)?
+    const Slam::Point& p = pc->points[i];
+    pts->SetPoint(i, p.x, p.y, p.z);
+    intensityArray->SetTuple1(i, p.intensity);
+    // TODO : add other fields (time, laserId)?
   }
   poly->SetPoints(pts);
+  poly->GetPointData()->AddArray(intensityArray);
 
   // Set cells
   vtkNew<vtkIdTypeArray> cells;
-  cells->SetNumberOfValues(pc->size() * 2);
+  cells->SetNumberOfValues(nbPoints * 2);
   vtkIdType* ids = cells->GetPointer(0);
-  for (unsigned int i = 0; i < pc->size(); ++i)
+  for (unsigned int i = 0; i < nbPoints; ++i)
   {
     ids[i * 2] = 1;
     ids[i * 2 + 1] = static_cast<vtkIdType>(i);
   }
   auto cellArray = vtkSmartPointer<vtkCellArray>::New();
-  cellArray->SetCells(pc->size(), cells.GetPointer());
+  cellArray->SetCells(nbPoints, cells.GetPointer());
   poly->SetVerts(cellArray);
 }
 
 //-----------------------------------------------------------------------------
-void PointCloudFromPolyData(vtkPolyData* poly, pcl::PointCloud<Slam::Point>::Ptr pc)
+void PolyDataToPointCloud(vtkPolyData* poly, pcl::PointCloud<Slam::Point>::Ptr pc)
 {
+  const unsigned int nbPoints = poly->GetNumberOfPoints();
+
+  // Get pointers to arrays
   auto arrayTime = poly->GetPointData()->GetArray("adjustedtime");
   auto arrayLaserId = poly->GetPointData()->GetArray("laser_id");
   auto arrayIntensity = poly->GetPointData()->GetArray("intensity");
-  for (vtkIdType i = 0; i < poly->GetNumberOfPoints(); i++)
+
+  // Loop over points data
+  pc->resize(nbPoints);
+  pc->header.stamp = arrayTime->GetTuple1(0);
+  for (vtkIdType i = 0; i < nbPoints; i++)
   {
+    Slam::Point& p = pc->points[i];
     double pos[3];
     poly->GetPoint(i, pos);
-    Slam::Point p;
     p.x = pos[0];
     p.y = pos[1];
     p.z = pos[2];
     p.time = arrayTime->GetTuple1(i) * 1e-6; // time in seconds
     p.laserId = arrayLaserId->GetTuple1(i);
     p.intensity = arrayIntensity->GetTuple1(i);
-    pc->push_back(p);
   }
-  pc->header.stamp = arrayTime->GetTuple1(0);
 }
 
 //-----------------------------------------------------------------------------
@@ -265,7 +277,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 
   // Conversion vtkPolyData -> PCL pointcloud
   pcl::PointCloud<Slam::Point>::Ptr pc(new pcl::PointCloud<Slam::Point>);
-  PointCloudFromPolyData(input, pc);
+  PolyDataToPointCloud(input, pc);
 
   // Run SLAM
   this->SlamAlgo->AddFrame(pc, laserMapping);
@@ -308,27 +320,27 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // ===== Aggregated Keypoints maps =====
   // Output : Edges points map
   auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
-  PolyDataFromPointCloud(this->SlamAlgo->GetEdgesMap(), edgeMap);
+  PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), edgeMap);
   // Output : Planar points map
   auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
-  PolyDataFromPointCloud(this->SlamAlgo->GetPlanarsMap(), planarMap);
+  PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), planarMap);
   // Output : Blob points map
   auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
-  PolyDataFromPointCloud(this->SlamAlgo->GetBlobsMap(), blobMap);
+  PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), blobMap);
 
   // ===== Extracted keypoints from current frame =====
   // Output : Current edge keypoints
   auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
   pcl::transformPointCloud(*keypointExtractor->GetEdgePoints(), *tmpPcl, odomToLidar.matrix());
-  PolyDataFromPointCloud(tmpPcl, edgePoints);
+  PointCloudToPolyData(tmpPcl, edgePoints);
   // Output : Current planar keypoints
   auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
   pcl::transformPointCloud(*keypointExtractor->GetPlanarPoints(), *tmpPcl, odomToLidar.matrix());
-  PolyDataFromPointCloud(tmpPcl, planarPoints);
+  PointCloudToPolyData(tmpPcl, planarPoints);
   // Output : Current blob keypoints
   auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
   pcl::transformPointCloud(*keypointExtractor->GetBlobPoints(), *tmpPcl, odomToLidar.matrix());
-  PolyDataFromPointCloud(tmpPcl, blobPoints);
+  PointCloudToPolyData(tmpPcl, blobPoints);
 
   // add debug information if displayMode is enabled
   if (this->DisplayMode)
