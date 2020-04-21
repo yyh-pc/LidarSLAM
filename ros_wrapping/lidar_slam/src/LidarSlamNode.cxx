@@ -151,25 +151,19 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   }
 
   // Convert pointcloud PointV type to expected PointS type
-  CloudS::Ptr cloudS = this->ConvertToSlamPointCloud(cloudV);
+  this->CurrentFrame = this->ConvertToSlamPointCloud(cloudV);
 
   // If no tracking frame is set, track input pointcloud origin
   if (this->TrackingFrameId.empty())
-    this->TrackingFrameId = cloudS->header.frame_id;
+    this->TrackingFrameId = this->CurrentFrame->header.frame_id;
   // Update TF from BASE to LiDAR
-  this->UpdateBaseToLidarOffset(cloudS->header.frame_id, cloudS->header.stamp);
+  this->UpdateBaseToLidarOffset(this->CurrentFrame->header.frame_id, this->CurrentFrame->header.stamp);
 
   // Run SLAM : register new frame and update position and mapping.
-  this->LidarSlam.AddFrame(cloudS, this->LaserIdMapping);
+  this->LidarSlam.AddFrame(this->CurrentFrame, this->LaserIdMapping);
 
-  // Get and publish the computed world transform so far with its associated covariance
-  this->PublishTfOdom();
-
-  // Publish optional info
-  // (publish pointclouds only if someone is listening to it to spare bandwidth)
-  if (this->Publish[SLAM_CLOUD] && this->Publishers[SLAM_CLOUD].getNumSubscribers())
-    this->Publishers[SLAM_CLOUD].publish(cloudS);
-  this->PublishFeaturesMaps(cloudS->header.stamp);
+  // Publish SLAM output as requested by user
+  this->PublishOutput();
 }
 
 //------------------------------------------------------------------------------
@@ -398,9 +392,6 @@ void LidarSlamNode::PoseGraphOptimization()
   // Update GPS/LiDAR calibration
   this->BaseToGpsOffset = gpsToBaseOffset.inverse();
 
-  // Update the display of the computed world transform so far
-  this->PublishTfOdom();
-
   // Publish static tf with calibration to link world (UTM) frame to SLAM origin
   Transform odomToBase = this->LidarSlam.GetWorldTransform();
   geometry_msgs::TransformStamped tfStamped;
@@ -422,8 +413,8 @@ void LidarSlamNode::PoseGraphOptimization()
     this->Publishers[PGO_PATH].publish(optimSlamTraj);
   }
 
-  // Update features maps display
-  this->PublishFeaturesMaps(odomToBase.time * 1e6);
+  // Update display
+  this->PublishOutput();
 }
 
 //==============================================================================
@@ -474,7 +465,7 @@ void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uin
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::PublishTfOdom()
+void LidarSlamNode::PublishOutput()
 {
   // Publish SLAM pose
   if (this->Publish[POSE_ODOM] || this->Publish[POSE_TF])
@@ -537,38 +528,19 @@ void LidarSlamNode::PublishTfOdom()
       this->TfBroadcaster.sendTransform(tfMsg);
     }
   }
-}
 
-//------------------------------------------------------------------------------
-void LidarSlamNode::PublishFeaturesMaps(uint64_t pclStamp)
-{
-  pcl::PCLHeader msgHeader;
-  msgHeader.stamp = pclStamp;
-  msgHeader.frame_id = this->OdometryFrameId;
+  // Publish a pointcloud only if required and if someone is listening to it to spare bandwidth.
+  #define publishPointCloud(publisher, pc)                                            \
+    if (this->Publish[publisher] && this->Publishers[publisher].getNumSubscribers())  \
+      this->Publishers[publisher].publish(pc);
 
-  // Publish edges only if required and if someone is listening to it.
-  if (this->Publish[EDGES_MAP] && this->Publishers[EDGES_MAP].getNumSubscribers())
-  {
-    CloudS::Ptr edgesCloud = this->LidarSlam.GetEdgesMap();
-    edgesCloud->header = msgHeader;
-    this->Publishers[EDGES_MAP].publish(edgesCloud);
-  }
+  // Keypoints maps
+  publishPointCloud(EDGES_MAP,  this->LidarSlam.GetEdgesMap());
+  publishPointCloud(PLANES_MAP, this->LidarSlam.GetPlanarsMap());
+  publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetBlobsMap());
 
-  // Publish planars only if required and if someone is listening to it.
-  if (this->Publish[PLANES_MAP] && this->Publishers[PLANES_MAP].getNumSubscribers())
-  {
-    CloudS::Ptr planarsCloud = this->LidarSlam.GetPlanarsMap();
-    planarsCloud->header = msgHeader;
-    this->Publishers[PLANES_MAP].publish(planarsCloud);
-  }
-
-  // Publish blobs only if required and if someone is listening to it.
-  if (this->Publish[BLOBS_MAP] && this->Publishers[BLOBS_MAP].getNumSubscribers())
-  {
-    CloudS::Ptr blobsCloud = this->LidarSlam.GetBlobsMap();
-    blobsCloud->header = msgHeader;
-    this->Publishers[BLOBS_MAP].publish(blobsCloud);
-  }
+  // debug cloud
+  publishPointCloud(SLAM_CLOUD, this->CurrentFrame);
 }
 
 //------------------------------------------------------------------------------

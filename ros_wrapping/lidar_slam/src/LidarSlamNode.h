@@ -76,16 +76,14 @@ private:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief Publish SLAM pose and covariance as Odometry msg or TF.
+   * @brief Publish SLAM outputs as requested by user.
+   * 
+   * It is possible to send :
+   *  - pose and covariance as Odometry msg or TF
+   *  - extracted keypoints from current frame
+   *  - other debug info
    */
-  void PublishTfOdom();
-
-  //----------------------------------------------------------------------------
-  /*!
-   * @brief     Publish SLAM features maps.
-   * @param[in] pclStamp Timestamp of the maps (number of µs since UNIX epoch).
-   */
-  void PublishFeaturesMaps(uint64_t pclStamp = 0);
+  void PublishOutput();
 
   //----------------------------------------------------------------------------
   /*!
@@ -113,6 +111,7 @@ private:
 
   // SLAM stuff
   Slam LidarSlam;
+  CloudS::Ptr CurrentFrame;
   std::vector<size_t> LaserIdMapping;
   double LidarFreq = 10.;
 

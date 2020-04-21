@@ -619,19 +619,28 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
 //-----------------------------------------------------------------------------
 Slam::PointCloud::Ptr Slam::GetEdgesMap() const
 {
-  return this->EdgesPointsLocalMap->Get();
+  PointCloud::Ptr map = this->EdgesPointsLocalMap->Get();
+  map->header.frame_id = this->WorldFrameId;
+  map->header.stamp = std::round(this->GetWorldTransform().time * 1e6);
+  return map;
 }
 
 //-----------------------------------------------------------------------------
 Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
 {
-  return this->PlanarPointsLocalMap->Get();
+  PointCloud::Ptr map = this->PlanarPointsLocalMap->Get();
+  map->header.frame_id = this->WorldFrameId;
+  map->header.stamp = std::round(this->GetWorldTransform().time * 1e6);
+  return map;
 }
 
 //-----------------------------------------------------------------------------
 Slam::PointCloud::Ptr Slam::GetBlobsMap() const
 {
-  return this->BlobsPointsLocalMap->Get();
+  PointCloud::Ptr map = this->BlobsPointsLocalMap->Get();
+  map->header.frame_id = this->WorldFrameId;
+  map->header.stamp = std::round(this->GetWorldTransform().time * 1e6);
+  return map;
 }
 
 //==============================================================================
