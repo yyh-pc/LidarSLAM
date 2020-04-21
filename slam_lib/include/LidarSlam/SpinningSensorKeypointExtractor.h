@@ -73,10 +73,6 @@ public:
   GetMacro(EdgeIntensityGapThreshold, double)
   SetMacro(EdgeIntensityGapThreshold, double)
 
-  GetMacro(FarestKeypointDist, double)
-  Eigen::Array3d GetMinPoint() const { return this->MinPoint.cast<double>();}
-  Eigen::Array3d GetMaxPoint() const { return this->MaxPoint.cast<double>();}
-
   GetMacro(NLasers, int)
 
   PointCloud::Ptr GetEdgePoints() const { return this->EdgesPoints; }
@@ -170,11 +166,6 @@ private:
 
   // Number of lasers scan lines composing the pointcloud
   unsigned int NLasers = 0;
-
-  // Distance to the farest keypoint
-  double FarestKeypointDist;
-  // Minimum and maximum keypoints coordinates
-  Eigen::Array3f MinPoint, MaxPoint;
 
   // Curvature and other differential operations (scan by scan, point by point)
   std::vector<std::vector<double>> Angles;

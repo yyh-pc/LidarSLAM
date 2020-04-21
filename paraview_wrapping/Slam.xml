@@ -141,6 +141,41 @@
         </ProxyListDomain>
       </ProxyProperty>
 
+      <!-- ==================== BASE to LIDAR transform ==================== -->
+
+      <DoubleVectorProperty
+          name="Translation"
+          command="SetBaseToLidarTranslation"
+          default_values="0 0 0"
+          number_of_elements="3"
+          panel_visibility="advanced">
+        <Documentation>
+          Position of the LiDAR sensor in BASE coordinate system (X, Y, Z).
+          It is often useful to track a BASE pose instead of LiDAR sensor pose.
+          If set, this parameter transform all input pointcloud into BASE coordinate
+          system in order to output BASE trajectory.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
+          name="Rotation"
+          command="SetBaseToLidarRotation"
+          default_values="0 0 0"
+          number_of_elements="3"
+          panel_visibility="advanced">
+        <Documentation>
+          Rotation of the LiDAR sensor in BASE coordinate system (rX, rY, rZ, euler angles in ZYX convention, in degrees).
+          It is often useful to track a BASE pose instead of LiDAR sensor pose.
+          If set, this parameter transform all input pointcloud into BASE coordinate
+          system in order to output BASE trajectory.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <PropertyGroup label="Base to LiDAR transform">
+        <Property name="Translation" />
+        <Property name="Rotation" />
+      </PropertyGroup>
+
       <!-- ==================== Ego Motion Parameters ==================== -->
       <IntVectorProperty
           name="Lev-Mardt Maximum Iteration"

@@ -134,6 +134,14 @@ public:
   vtkCustomSetMacro(NbThreads, int)
 
   // ---------------------------------------------------------------------------
+  //   BASE to LIDAR transform
+  // ---------------------------------------------------------------------------
+
+  void SetBaseToLidarTranslation(double x, double y, double z);
+
+  void SetBaseToLidarRotation(double rx, double ry, double rz);
+
+  // ---------------------------------------------------------------------------
   //   Optimization parameters
   // ---------------------------------------------------------------------------
 

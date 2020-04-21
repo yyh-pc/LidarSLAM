@@ -61,12 +61,15 @@
 // map has been refined from the first estimation it is then possible to update the map by
 // adding the keypoints of the current frame into the map.
 //
-// In the following programs : "slam" and "slam.cxx" the lidar
-// coordinate system {L} is a 3D coordinate system with its origin at the
-// geometric center of the lidar. The world coordinate system {W} is a 3D
-// coordinate system which coincides with {L} at the initial position. The
-// points will be denoted by the ending letter L or W if they belong to
-// the corresponding coordinate system.
+// In the following programs, three 3D coordinates system are used :
+// - LIDAR {L} : attached to the geometric center of the LiDAR sensor. The
+//   coordinates of the received pointclouds are expressed in this system.
+//   LIDAR is rigidly linked (static transform) to BASE.
+// - BASE  {B} : attached to the origin of the moving body (e.g. vehicle). We
+//   are generally interested in tracking an other point of the moving body than
+//   the LiDAR's (for example, we prefer to track the GPS antenna pose).
+// - WORLD {W} : The world coordinate system {W} coincides with BASE at the
+//   initial position. The output trajectory describes BASE origin in WORLD.
 
 #ifndef SLAM_H
 #define SLAM_H
@@ -111,7 +114,7 @@ public:
   // and to update the map using keypoints and ego-motion
   void AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping);
 
-  // Get the computed world transform so far (current pose relative to initial pose)
+  // Get the computed world transform so far (current BASE pose in WORLD coordinates)
   Transform GetWorldTransform() const;
   // Get the computed world transform so far, but compensating SLAM computation duration latency.
   Transform GetLatencyCompensatedWorldTransform() const;
@@ -178,6 +181,19 @@ public:
 
   SetMacro(UpdateMap, bool)
   GetMacro(UpdateMap, bool)
+
+  // ---------------------------------------------------------------------------
+  //   Coordinates systems parameters
+  // ---------------------------------------------------------------------------
+
+  SetMacro(BaseToLidarOffset, Eigen::Isometry3d const&)
+  GetMacro(BaseToLidarOffset, Eigen::Isometry3d)
+
+  SetMacro(BaseFrameId, std::string const&)
+  GetMacro(BaseFrameId, std::string)
+
+  SetMacro(WorldFrameId, std::string const&)
+  GetMacro(WorldFrameId, std::string)
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -333,6 +349,15 @@ private:
   // ---------------------------------------------------------------------------
   //   Trajectory and transforms
   // ---------------------------------------------------------------------------
+
+  // Static transform to link BASE and LIDAR coordinates systems
+  // It corresponds to the pose of LIDAR origin in BASE coordinates
+  Eigen::Isometry3d BaseToLidarOffset = Eigen::Isometry3d::Identity();
+
+  // Coordinates systems (CS) names to fill in pointclouds or poses headers
+  std::string WorldFrameId = "world";  // CS of trajectory and maps
+  std::string BaseFrameId;             // CS of current keypoints, defaults to input cloud frame_id if BaseToLidarOffset is unset, or BaseFrameIdDefault otherwise.
+  const std::string BaseFrameIdDefault = "base";  // Default BASE name to use if BaseToLidarOffset is defined but not BaseFrameId.
 
   // Transformation to map the current pointcloud
   // in the referential of the previous one
@@ -513,6 +538,10 @@ private:
   //   Main sub-problems and methods
   // ---------------------------------------------------------------------------
 
+  // Extract keypoints from input pointcloud,
+  // and transform them from LIDAR to BASE coordinate system.
+  void ExtractKeypoints(const PointCloud::Ptr& inputPc, const std::vector<size_t>& laserIdMapping);
+
   // Find the ego motion of the sensor between
   // the current frame and the next one using
   // the keypoints extracted.
@@ -613,7 +642,7 @@ private:
   void ResetDistanceParameters();
 
   // Set the current keypoints frame max and min points
-  void SetFrameMinMaxKeypoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
+  void SetFrameMinMaxKeypoints();
 };
 
 #endif // SLAM_H

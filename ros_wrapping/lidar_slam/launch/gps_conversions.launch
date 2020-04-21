@@ -9,7 +9,7 @@
   <node name="gps_to_utm" pkg="gps_conversions" type="gps_to_utm" output="screen">
     <param name="utm_frame_id"       value="utm"/>
     <param name="local_enu_frame_id" value="enu"/>
-    <param name="local_map_frame_id" value="gps_init"/>
+    <param name="local_map_frame_id" value="map"/>
     <param name="child_frame_id"     value="gps"/>
     <param name="publish_local_map_tf" value="true"/>
     <param name="origin_on_first_pose" value="true"/>
