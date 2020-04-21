@@ -13,9 +13,14 @@
       </Documentation>
 
       <InputProperty
-         name="PointCloud"
+         name="Input"
+         label="Point Cloud"
          port_index="0"
          command="SetInputConnection">
+        <ProxyGroupDomain name="groups">
+          <Group name="sources"/>
+          <Group name="filters"/>
+        </ProxyGroupDomain>
         <DataTypeDomain name="input_type">
           <DataType value="vtkPolyData"/>
         </DataTypeDomain>
@@ -28,6 +33,10 @@
          name="Calibration"
          port_index="1"
          command="SetInputConnection">
+        <ProxyGroupDomain name="groups">
+          <Group name="sources"/>
+          <Group name="filters"/>
+        </ProxyGroupDomain>
         <DataTypeDomain name="input_type">
           <DataType value="vtkTable"/>
         </DataTypeDomain>
@@ -46,6 +55,7 @@
       <OutputPort name="Current blob keypoints" index="7" id="port7" />
 
       <!-- ==================== General ==================== -->
+
       <IntVectorProperty
           name="Fast Slam"
           command="SetFastSlam"
@@ -124,9 +134,10 @@
       </IntVectorProperty>-->
 
       <PropertyGroup label="General Parameters">
-        <Property name="Display Mode" />
         <Property name="Fast Slam" />
+        <Property name="Display Mode" />
         <Property name="Verbosity Level" />
+        <Property name="Number of threads" />
         <!-- <Property name="Undistortion Model" /> -->
       </PropertyGroup>
 
@@ -177,6 +188,7 @@
       </PropertyGroup>
 
       <!-- ==================== Ego Motion Parameters ==================== -->
+
       <IntVectorProperty
           name="Lev-Mardt Maximum Iteration"
           command="SetEgoMotionLMMaxIter"
@@ -336,6 +348,7 @@
       </PropertyGroup>
 
       <!-- ==================== Mapping Parameters ==================== -->
+
       <IntVectorProperty
           name="Lev-Mardt Maximum Iteration M"
           command="SetMappingLMMaxIter"
@@ -508,10 +521,11 @@
       </PropertyGroup>
 
       <!-- ==================== Map Parameters ==================== -->
+
       <DoubleVectorProperty
           name="Map Edges Voxel Grid Leaf Size"
           command="SetVoxelGridLeafSizeEdges"
-          default_values="0.45"
+          default_values="0.3"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
@@ -539,7 +553,7 @@
       <DoubleVectorProperty
           name="Map Blobs Voxel Grid Leaf Size"
           command="SetVoxelGridLeafSizeBlobs"
-          default_values="0.12"
+          default_values="0.3"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
@@ -665,7 +679,7 @@
 
     </SourceProxy>
   </ProxyGroup>
-  <!-- End Online Slam -->
+  <!-- End Offline Slam -->
 
   <!-- Begin KeyPointsExtractor -->
   <ProxyGroup name="KeyPointsExtractor">
@@ -702,20 +716,6 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Minimum Sinus To Be Considered As Edge"
-          command="SetEdgeSinAngleThreshold"
-          default_values="0.86"
-          number_of_elements="1"
-          panel_visibility="advanced">
-        <Documentation>
-          One strategy to consider a point as an edge keypoint is to compute
-          the angle between the two lines that fit its previous and next neighborhoods.
-          If the angle is close enough to 90° (sin(Angle) high enough), we consider
-          the point as an edge keypoint.
-        </Documentation>
-      </DoubleVectorProperty>
-
-      <DoubleVectorProperty
           name="Maximum Sinus To Be Considered As Planar"
           command="SetPlaneSinAngleThreshold"
           default_values="0.5"
@@ -726,6 +726,20 @@
           the angle between the two lines that fit its previous and next neighborhoods.
           If the angle is close enough to 0° or 180° (sin(Angle) low enough), we consider
           the point as a planar keypoint.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
+          name="Minimum Sinus To Be Considered As Edge"
+          command="SetEdgeSinAngleThreshold"
+          default_values="0.86"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          One strategy to consider a point as an edge keypoint is to compute
+          the angle between the two lines that fit its previous and next neighborhoods.
+          If the angle is close enough to 90° (sin(Angle) high enough), we consider
+          the point as an edge keypoint.
         </Documentation>
       </DoubleVectorProperty>
 
@@ -784,14 +798,17 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <PropertyGroup label="Keypoint Extraction Parameters">
+      <PropertyGroup label="Spinning Sensor Keypoints Extractor Parameters">
         <Property name="Neighbor Width" />
         <Property name="Minimum Distance To Sensor" />
-        <Property name="Minimum Sinus To Be Considered As Edge" />
         <Property name="Maximum Sinus To Be Considered As Planar" />
+        <Property name="Minimum Sinus To Be Considered As Edge" />
+        <Property name="Minimum Saliency Distance To Be Considered As Edge" />
+        <Property name="Minimum Intensity Gap To Be Considered As Edge" />
         <Property name="Minimum Depth Gap To Be Considered As Edge" />
         <Property name="Angle Resolution Between Two Firings" />
       </PropertyGroup>
+
     </Proxy>
   </ProxyGroup>
   <!-- End KeyPointsExtractor -->
