@@ -24,13 +24,13 @@ output:
     predicted_odom: false  # Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
     predicted_tf: false    # Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
   maps:
-    edges: true            # Publish edges keypoints map as a PointXYZTIId PointCloud2 msg to topic 'edges_map'.
-    planes: true           # Publish planes keypoints map as a PointXYZTIId PointCloud2 msg to topic 'planes_map'.
-    blobs: true            # Publish blobs keypoints map as a PointXYZTIId PointCloud2 msg to topic 'blobs_map'.
+    edges: true            # Publish edges keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/edges'.
+    planes: true           # Publish planes keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/planes'.
+    blobs: true            # Publish blobs keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/blobs'.
   keypoints:
-    edges: false           # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'edges_keypoints'.
-    planes: false          # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'planes_keypoints'.
-    blobs: false           # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'blobs_keypoints'.
+    edges: false           # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
+    planes: false          # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
+    blobs: false           # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
   debug:
     cloud: false           # Publish SLAM pointcloud as PointXYZTIId PointCloud2 msg to topic 'slam_cloud'.
 
@@ -54,7 +54,7 @@ gps:
   # GPS/SLAM calibration can be triggered by sending SlamCommand::GPS_SLAM_CALIBRATION to 'slam_command' topic.
   calibration:
     no_roll: false                   # If true, impose calibration to have no roll rotation. DEBUG
-    publish_icp_trajectories: false  # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps' and 'icp_slam' latched topics.
+    publish_icp_trajectories: false  # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps_path' and 'icp_slam_path' latched topics.
 
   # Pose Graph Optimization (PGO) (enabled if use_gps=true)
   # Use GPS positions and covariances to optimize computed SLAM trajectory and maps by correcting drift, and precisely
@@ -63,7 +63,7 @@ gps:
   # WARNING : this process is not real-time.
   pose_graph_optimization:
     g2o_file_name: "/path/to/dir/pose_graph_optimization.g2o"  # Save pose graph to file (or do not save if null string or unset).
-    publish_optimized_trajectory: false                        # If true, publish optimized SLAM trajectory to 'optim_slam_traj' latched topic.
+    publish_optimized_trajectory: false                        # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic.
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:

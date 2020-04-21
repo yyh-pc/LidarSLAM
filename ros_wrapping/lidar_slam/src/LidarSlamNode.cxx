@@ -15,19 +15,19 @@ enum Output
   POSE_PREDICTION_ODOM,  // Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
   POSE_PREDICTION_TF,    // Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
 
-  EDGES_MAP,             // Publish edges keypoints map as a PointXYZTIId PointCloud2 msg to topic 'edges_map'.
-  PLANES_MAP,            // Publish planes keypoints map as a PointXYZTIId PointCloud2 msg to topic 'planes_map'.
-  BLOBS_MAP,             // Publish blobs keypoints map as a PointXYZTIId PointCloud2 msg to topic 'blobs_map'.
+  EDGES_MAP,             // Publish edges keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/edges'.
+  PLANES_MAP,            // Publish planes keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/planes'.
+  BLOBS_MAP,             // Publish blobs keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/blobs'.
 
-  EDGES_KEYPOINTS,       // Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'edges_keypoints'.
-  PLANES_KEYPOINTS,      // Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'planes_keypoints'.
-  BLOBS_KEYPOINTS,       // Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'blobs_keypoints'.
+  EDGES_KEYPOINTS,       // Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
+  PLANES_KEYPOINTS,      // Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
+  BLOBS_KEYPOINTS,       // Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
 
   SLAM_CLOUD,            // Publish SLAM pointcloud as PointXYZTIId PointCloud2 msg to topic 'slam_cloud'.
 
-  PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'optim_slam_traj' latched topic.
-  ICP_CALIB_SLAM_PATH,   // Publish ICP-aligned SLAM trajectory as Path msg to 'icp_slam' latched topic.
-  ICP_CALIB_GPS_PATH     // Publish ICP-aligned GPS trajectory as Path msg to 'icp_gps' latched topic.
+  PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'pgo_slam_path' latched topic.
+  ICP_CALIB_SLAM_PATH,   // Publish ICP-aligned SLAM trajectory as Path msg to 'icp_slam_path' latched topic.
+  ICP_CALIB_GPS_PATH     // Publish ICP-aligned GPS trajectory as Path msg to 'icp_gps_path' latched topic.
 };
 
 //==============================================================================
@@ -110,21 +110,21 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   initPublisher(POSE_ODOM, "slam_odom",  nav_msgs::Odometry, "output/pose/odom", true, 1, false);
   initPublisher(POSE_PREDICTION_ODOM, "slam_predicted_odom", nav_msgs::Odometry, "output/pose/predicted_odom", false, 1, false);
 
-  initPublisher(EDGES_MAP,  "edges_features",   CloudS, "output/maps/edges",  false, 1, false);
-  initPublisher(PLANES_MAP, "planars_features", CloudS, "output/maps/planes", false, 1, false);
-  initPublisher(BLOBS_MAP,  "blobs_features",   CloudS, "output/maps/blobs",  false, 1, false);
+  initPublisher(EDGES_MAP,  "maps/edges",  CloudS, "output/maps/edges",  false, 1, false);
+  initPublisher(PLANES_MAP, "maps/planes", CloudS, "output/maps/planes", false, 1, false);
+  initPublisher(BLOBS_MAP,  "maps/blobs",  CloudS, "output/maps/blobs",  false, 1, false);
 
-  initPublisher(EDGES_KEYPOINTS,  "edges_keypoints",   CloudS, "output/keypoints/edges",  false, 1, false);
-  initPublisher(PLANES_KEYPOINTS, "planars_keypoints", CloudS, "output/keypoints/planes", false, 1, false);
-  initPublisher(BLOBS_KEYPOINTS,  "blobs_keypoints",   CloudS, "output/keypoints/blobs",  false, 1, false);
+  initPublisher(EDGES_KEYPOINTS,  "keypoints/edges",  CloudS, "output/keypoints/edges",  false, 1, false);
+  initPublisher(PLANES_KEYPOINTS, "keypoints/planes", CloudS, "output/keypoints/planes", false, 1, false);
+  initPublisher(BLOBS_KEYPOINTS,  "keypoints/blobs",  CloudS, "output/keypoints/blobs",  false, 1, false);
 
   initPublisher(SLAM_CLOUD, "slam_cloud", CloudS, "output/debug/cloud", false, 1, false);
 
   if (this->UseGps)
   {
-    initPublisher(PGO_PATH, "optim_slam_traj", nav_msgs::Path, "gps/pose_graph_optimization/publish_optimized_trajectory", false, 1, true);
-    initPublisher(ICP_CALIB_SLAM_PATH, "icp_slam", nav_msgs::Path, "gps/calibration/publish_icp_trajectories", false, 1, true);
-    initPublisher(ICP_CALIB_GPS_PATH,  "icp_gps",  nav_msgs::Path, "gps/calibration/publish_icp_trajectories", false, 1, true);
+    initPublisher(PGO_PATH, "pgo_slam_path", nav_msgs::Path, "gps/pose_graph_optimization/publish_optimized_trajectory", false, 1, true);
+    initPublisher(ICP_CALIB_SLAM_PATH, "icp_slam_path", nav_msgs::Path, "gps/calibration/publish_icp_trajectories", false, 1, true);
+    initPublisher(ICP_CALIB_GPS_PATH,  "icp_gps_path",  nav_msgs::Path, "gps/calibration/publish_icp_trajectories", false, 1, true);
   }
 
   // ***************************************************************************
