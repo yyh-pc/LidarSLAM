@@ -81,6 +81,7 @@ private:
    * It is possible to send :
    *  - pose and covariance as Odometry msg or TF
    *  - extracted keypoints from current frame
+   *  - keypoints maps
    *  - other debug info
    */
   void PublishOutput();

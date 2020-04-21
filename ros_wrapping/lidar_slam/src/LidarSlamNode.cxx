@@ -19,6 +19,10 @@ enum Output
   PLANES_MAP,            // Publish planes keypoints map as a PointXYZTIId PointCloud2 msg to topic 'planes_map'.
   BLOBS_MAP,             // Publish blobs keypoints map as a PointXYZTIId PointCloud2 msg to topic 'blobs_map'.
 
+  EDGES_KEYPOINTS,       // Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'edges_keypoints'.
+  PLANES_KEYPOINTS,      // Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'planes_keypoints'.
+  BLOBS_KEYPOINTS,       // Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'blobs_keypoints'.
+
   SLAM_CLOUD,            // Publish SLAM pointcloud as PointXYZTIId PointCloud2 msg to topic 'slam_cloud'.
 
   PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'optim_slam_traj' latched topic.
@@ -109,6 +113,10 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   initPublisher(EDGES_MAP,  "edges_features",   CloudS, "output/maps/edges",  false, 1, false);
   initPublisher(PLANES_MAP, "planars_features", CloudS, "output/maps/planes", false, 1, false);
   initPublisher(BLOBS_MAP,  "blobs_features",   CloudS, "output/maps/blobs",  false, 1, false);
+
+  initPublisher(EDGES_KEYPOINTS,  "edges_keypoints",   CloudS, "output/keypoints/edges",  false, 1, false);
+  initPublisher(PLANES_KEYPOINTS, "planars_keypoints", CloudS, "output/keypoints/planes", false, 1, false);
+  initPublisher(BLOBS_KEYPOINTS,  "blobs_keypoints",   CloudS, "output/keypoints/blobs",  false, 1, false);
 
   initPublisher(SLAM_CLOUD, "slam_cloud", CloudS, "output/debug/cloud", false, 1, false);
 
@@ -538,6 +546,11 @@ void LidarSlamNode::PublishOutput()
   publishPointCloud(EDGES_MAP,  this->LidarSlam.GetEdgesMap());
   publishPointCloud(PLANES_MAP, this->LidarSlam.GetPlanarsMap());
   publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetBlobsMap());
+
+  // Current keypoints
+  publishPointCloud(EDGES_KEYPOINTS,  this->LidarSlam.GetKeyPointsExtractor()->GetEdgePoints());
+  publishPointCloud(PLANES_KEYPOINTS, this->LidarSlam.GetKeyPointsExtractor()->GetPlanarPoints());
+  publishPointCloud(BLOBS_KEYPOINTS,  this->LidarSlam.GetKeyPointsExtractor()->GetBlobPoints());
 
   // debug cloud
   publishPointCloud(SLAM_CLOUD, this->CurrentFrame);

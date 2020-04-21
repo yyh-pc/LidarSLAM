@@ -27,6 +27,10 @@ output:
     edges: true            # Publish edges keypoints map as a PointXYZTIId PointCloud2 msg to topic 'edges_map'.
     planes: true           # Publish planes keypoints map as a PointXYZTIId PointCloud2 msg to topic 'planes_map'.
     blobs: true            # Publish blobs keypoints map as a PointXYZTIId PointCloud2 msg to topic 'blobs_map'.
+  keypoints:
+    edges: false           # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'edges_keypoints'.
+    planes: false          # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'planes_keypoints'.
+    blobs: false           # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'blobs_keypoints'.
   debug:
     cloud: false           # Publish SLAM pointcloud as PointXYZTIId PointCloud2 msg to topic 'slam_cloud'.
 
