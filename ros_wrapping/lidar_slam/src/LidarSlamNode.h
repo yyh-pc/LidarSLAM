@@ -76,20 +76,16 @@ private:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief     Publish TF and PoseWithCovariance.
-   * @param[in] odomToBase  Transform from OdometryFrameId to TrackingFrameId to send.
-   * @param[in] poseCovar   Covariance associated to full 6 DOF pose.
-   *
-   * NOTE : poseCovar encodes covariance for DoF in this order : (X, Y, Z, rX, rY, rZ)
+   * @brief Publish SLAM pose and covariance as Odometry msg or TF.
    */
-  void PublishTfOdom(const Transform& odomToBase, const std::array<double, 36>& poseCovar);
+  void PublishTfOdom();
 
   //----------------------------------------------------------------------------
   /*!
    * @brief     Publish SLAM features maps.
    * @param[in] pclStamp Timestamp of the maps (number of µs since UNIX epoch).
    */
-  void PublishFeaturesMaps(uint64_t pclStamp = 0) const;
+  void PublishFeaturesMaps(uint64_t pclStamp = 0);
 
   //----------------------------------------------------------------------------
   /*!
@@ -120,10 +116,11 @@ private:
   std::vector<size_t> LaserIdMapping;
   double LidarFreq = 10.;
 
-  // Basic publishers & subscribers
-  ros::Publisher PoseCovarPub;
+  // ROS subscribers and publishers
   ros::Subscriber CloudSub;
   ros::Subscriber SlamCommandSub;
+  std::unordered_map<int, ros::Publisher> Publishers;
+  std::unordered_map<int, bool> Publish;
 
   // TF stuff
   std::string OdometryFrameId = "odom";  ///< Frame in which SLAM odometry and maps are expressed.
@@ -145,14 +142,6 @@ private:
   Eigen::Isometry3d BaseToGpsOffset = Eigen::Isometry3d::Identity();  ///< Pose of the GPS antenna in BASE coordinates.
   ros::Subscriber GpsOdomSub;
   bool SetSlamPoseFromGpsRequest = false;
-
-  // Debug publishers
-  ros::Publisher GpsPathPub, SlamPathPub;
-  ros::Publisher OptimizedSlamTrajectoryPub;
-  ros::Publisher SlamCloudPub;
-  ros::Publisher EdgesPub, PlanarsPub, BlobsPub;
-  bool PublishIcpTrajectories = false, PublishOptimizedTrajectory = false;
-  bool PublishEdges = false, PublishPlanars = false, PublishBlobs = false;
 };
 
 #endif // LIDAR_SLAM_NODE_H

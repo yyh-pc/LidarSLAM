@@ -8,6 +8,24 @@
 
 #define GREEN(s) "\033[1;32m" << s << "\033[0m"
 
+enum Output
+{
+  POSE_ODOM,             // Publish SLAM pose as an Odometry msg on 'slam_odom' topic (default : true).
+  POSE_TF,               // Publish SLAM pose as a TF from 'odometry_frame' to 'tracking_frame' (default : true).
+  POSE_PREDICTION_ODOM,  // Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
+  POSE_PREDICTION_TF,    // Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
+
+  EDGES_MAP,             // Publish edges keypoints map as a PointXYZTIId PointCloud2 msg to topic 'edges_map'.
+  PLANES_MAP,            // Publish planes keypoints map as a PointXYZTIId PointCloud2 msg to topic 'planes_map'.
+  BLOBS_MAP,             // Publish blobs keypoints map as a PointXYZTIId PointCloud2 msg to topic 'blobs_map'.
+
+  SLAM_CLOUD,            // Publish SLAM pointcloud as PointXYZTIId PointCloud2 msg to topic 'slam_cloud'.
+
+  PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'optim_slam_traj' latched topic.
+  ICP_CALIB_SLAM_PATH,   // Publish ICP-aligned SLAM trajectory as Path msg to 'icp_slam' latched topic.
+  ICP_CALIB_GPS_PATH     // Publish ICP-aligned GPS trajectory as Path msg to 'icp_gps' latched topic.
+};
+
 //==============================================================================
 //   Basic SLAM use
 //==============================================================================
@@ -76,30 +94,33 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   }
 
   // ***************************************************************************
-  // Init debug publishers
-  priv_nh.getParam("publish_features_maps/edges", this->PublishEdges);
-  priv_nh.getParam("publish_features_maps/planars", this->PublishPlanars);
-  priv_nh.getParam("publish_features_maps/blobs", this->PublishBlobs);
-  priv_nh.getParam("gps/calibration/publish_icp_trajectories", this->PublishIcpTrajectories);
-  priv_nh.getParam("gps/pose_graph_optimization/publish_optimized_trajectory", this->PublishOptimizedTrajectory);
-  this->SlamCloudPub = nh.advertise<CloudS>("slam_cloud", 1);
-  if (this->PublishEdges)
-    this->EdgesPub = nh.advertise<CloudS>("edges_features", 1);
-  if (this->PublishPlanars)
-    this->PlanarsPub = nh.advertise<CloudS>("planars_features", 1);
-  if (this->PublishBlobs)
-    this->BlobsPub = nh.advertise<CloudS>("blobs_features", 1);
-  if (this->UseGps && this->PublishIcpTrajectories)
+  // Init publishers
+
+  #define initPublisher(publisher, topic, type, rosParam, publishDefault, queue, latch)   \
+    priv_nh.param(rosParam, this->Publish[publisher], publishDefault);                    \
+    if (this->Publish[publisher])                                                         \
+      this->Publishers[publisher] = nh.advertise<type>(topic, queue, latch);
+
+  priv_nh.param("output/pose/tf",           this->Publish[POSE_TF],            true);
+  priv_nh.param("output/pose/predicted_tf", this->Publish[POSE_PREDICTION_TF], false);
+  initPublisher(POSE_ODOM, "slam_odom",  nav_msgs::Odometry, "output/pose/odom", true, 1, false);
+  initPublisher(POSE_PREDICTION_ODOM, "slam_predicted_odom", nav_msgs::Odometry, "output/pose/predicted_odom", false, 1, false);
+
+  initPublisher(EDGES_MAP,  "edges_features",   CloudS, "output/maps/edges",  false, 1, false);
+  initPublisher(PLANES_MAP, "planars_features", CloudS, "output/maps/planes", false, 1, false);
+  initPublisher(BLOBS_MAP,  "blobs_features",   CloudS, "output/maps/blobs",  false, 1, false);
+
+  initPublisher(SLAM_CLOUD, "slam_cloud", CloudS, "output/debug/cloud", false, 1, false);
+
+  if (this->UseGps)
   {
-    this->GpsPathPub = nh.advertise<nav_msgs::Path>("icp_gps", 1, true);
-    this->SlamPathPub = nh.advertise<nav_msgs::Path>("icp_slam", 1, true);
+    initPublisher(PGO_PATH, "optim_slam_traj", nav_msgs::Path, "gps/pose_graph_optimization/publish_optimized_trajectory", false, 1, true);
+    initPublisher(ICP_CALIB_SLAM_PATH, "icp_slam", nav_msgs::Path, "gps/calibration/publish_icp_trajectories", false, 1, true);
+    initPublisher(ICP_CALIB_GPS_PATH,  "icp_gps",  nav_msgs::Path, "gps/calibration/publish_icp_trajectories", false, 1, true);
   }
-  if (this->UseGps && this->PublishOptimizedTrajectory)
-    this->OptimizedSlamTrajectoryPub = nh.advertise<nav_msgs::Path>("optim_slam_traj", 1, true);
 
   // ***************************************************************************
-  // Init basic ROS subscribers and publishers
-  this->PoseCovarPub = nh.advertise<nav_msgs::Odometry>("slam_odom", 1);
+  // Init basic ROS subscribers
   this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::ScanCallback, this);
   this->SlamCommandSub = nh.subscribe("slam_command", 1,  &LidarSlamNode::SlamCommandCallback, this);
 
@@ -142,12 +163,12 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   this->LidarSlam.AddFrame(cloudS, this->LaserIdMapping);
 
   // Get and publish the computed world transform so far with its associated covariance
-  this->PublishTfOdom(this->LidarSlam.GetWorldTransform(), this->LidarSlam.GetTransformCovariance());
+  this->PublishTfOdom();
 
   // Publish optional info
   // (publish pointclouds only if someone is listening to it to spare bandwidth)
-  if (this->SlamCloudPub.getNumSubscribers())
-    this->SlamCloudPub.publish(cloudS);
+  if (this->Publish[SLAM_CLOUD] && this->Publishers[SLAM_CLOUD].getNumSubscribers())
+    this->Publishers[SLAM_CLOUD].publish(cloudS);
   this->PublishFeaturesMaps(cloudS->header.stamp);
 }
 
@@ -314,9 +335,9 @@ void LidarSlamNode::GpsSlamCalibration()
   const std::string& gpsFrameId = this->GpsPoses[0].frameid;
 
   // Publish ICP-matched trajectories
-  if (this->PublishIcpTrajectories)
+  // GPS antenna trajectory acquired from GPS in WORLD coordinates
+  if (this->Publish[ICP_CALIB_GPS_PATH])
   {
-    // GPS antenna trajectory acquired from GPS in WORLD coordinates
     nav_msgs::Path gpsPath;
     gpsPath.header.frame_id = gpsFrameId;
     gpsPath.header.stamp = ros::Time::now();
@@ -324,16 +345,20 @@ void LidarSlamNode::GpsSlamCalibration()
     {
       gpsPath.poses.emplace_back(TransformToPoseStampedMsg(pose));
     }
-    this->GpsPathPub.publish(gpsPath);
-    // GPS antenna trajectory acquired from SLAM in WORLD coordinates
+    this->Publishers[ICP_CALIB_GPS_PATH].publish(gpsPath);
+  }
+  // GPS antenna trajectory acquired from SLAM in WORLD coordinates
+  if (this->Publish[ICP_CALIB_SLAM_PATH])
+  {
     nav_msgs::Path slamPath;
-    slamPath.header = gpsPath.header;
+    slamPath.header.frame_id = gpsFrameId;
+    slamPath.header.stamp = ros::Time::now();
     for (const Transform& pose: odomToGpsPoses)
     {
       Transform worldToGpsPose(worldToOdom * pose.GetIsometry(), pose.time, pose.frameid);
       slamPath.poses.emplace_back(TransformToPoseStampedMsg(worldToGpsPose));
     }
-    this->SlamPathPub.publish(slamPath);
+    this->Publishers[ICP_CALIB_SLAM_PATH].publish(slamPath);
   }
 
   // Publish static tf with calibration to link world (UTM) frame to SLAM odometry origin
@@ -374,11 +399,10 @@ void LidarSlamNode::PoseGraphOptimization()
   this->BaseToGpsOffset = gpsToBaseOffset.inverse();
 
   // Update the display of the computed world transform so far
-  Transform odomToBase = this->LidarSlam.GetWorldTransform();
-  std::array<double, 36> poseCovar = this->LidarSlam.GetTransformCovariance();
-  this->PublishTfOdom(odomToBase, poseCovar);
+  this->PublishTfOdom();
 
   // Publish static tf with calibration to link world (UTM) frame to SLAM origin
+  Transform odomToBase = this->LidarSlam.GetWorldTransform();
   geometry_msgs::TransformStamped tfStamped;
   tfStamped.header.stamp = ros::Time(odomToBase.time);
   tfStamped.header.frame_id = this->GpsPoses[0].frameid;
@@ -387,13 +411,16 @@ void LidarSlamNode::PoseGraphOptimization()
   this->StaticTfBroadcaster.sendTransform(tfStamped);
 
   // Publish optimized SLAM trajectory
-  nav_msgs::Path optimSlamTraj;
-  optimSlamTraj.header.frame_id = this->OdometryFrameId;
-  optimSlamTraj.header.stamp = ros::Time(odomToBase.time);
-  std::vector<Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
-  for (const Transform& pose: optimizedSlamPoses)
-    optimSlamTraj.poses.emplace_back(TransformToPoseStampedMsg(pose));
-  this->OptimizedSlamTrajectoryPub.publish(optimSlamTraj);
+  if (this->Publish[PGO_PATH])
+  {
+    nav_msgs::Path optimSlamTraj;
+    optimSlamTraj.header.frame_id = this->OdometryFrameId;
+    optimSlamTraj.header.stamp = ros::Time(odomToBase.time);
+    std::vector<Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
+    for (const Transform& pose: optimizedSlamPoses)
+      optimSlamTraj.poses.emplace_back(TransformToPoseStampedMsg(pose));
+    this->Publishers[PGO_PATH].publish(optimSlamTraj);
+  }
 
   // Update features maps display
   this->PublishFeaturesMaps(odomToBase.time * 1e6);
@@ -447,62 +474,100 @@ void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uin
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::PublishTfOdom(const Transform& odomToBase, const std::array<double, 36>& poseCovar)
+void LidarSlamNode::PublishTfOdom()
 {
-  // Publish pose with covariance
-  nav_msgs::Odometry odomMsg;
-  odomMsg.header.stamp = ros::Time(odomToBase.time);
-  odomMsg.header.frame_id = this->OdometryFrameId;
-  odomMsg.child_frame_id = this->TrackingFrameId;
-  odomMsg.pose.pose = TransformToPoseMsg(odomToBase);
-  std::copy(poseCovar.begin(), poseCovar.end(), odomMsg.pose.covariance.begin());
-  this->PoseCovarPub.publish(odomMsg);
+  // Publish SLAM pose
+  if (this->Publish[POSE_ODOM] || this->Publish[POSE_TF])
+  {
+    // Get SLAM pose
+    Transform odomToBase = this->LidarSlam.GetWorldTransform();
 
-  // Publish TF from OdometryFrameId to PointCloud frame_id (raw SLAM output)
-  // TODO : set publication as optional
-  geometry_msgs::TransformStamped tfMsg;
-  tfMsg.header = odomMsg.header;
-  tfMsg.child_frame_id = odomMsg.child_frame_id;
-  tfMsg.transform = TransformToTfMsg(odomToBase);
-  this->TfBroadcaster.sendTransform(tfMsg);
+    // Publish as odometry msg
+    if (this->Publish[POSE_ODOM])
+    {
+      nav_msgs::Odometry odomMsg;
+      odomMsg.header.stamp = ros::Time(odomToBase.time);
+      odomMsg.header.frame_id = this->OdometryFrameId;
+      odomMsg.child_frame_id = this->TrackingFrameId;
+      odomMsg.pose.pose = TransformToPoseMsg(odomToBase);
+      auto covar = this->LidarSlam.GetTransformCovariance();
+      std::copy(covar.begin(), covar.end(), odomMsg.pose.covariance.begin());
+      this->Publishers[POSE_ODOM].publish(odomMsg);
+    }
 
-  // Publish latency compensated pose
-  // TODO : set publication as optional
-  Transform odomToBasePred = this->LidarSlam.GetLatencyCompensatedWorldTransform();
-  tfMsg.transform = TransformToTfMsg(odomToBasePred);
-  tfMsg.child_frame_id += "_prediction";
-  this->TfBroadcaster.sendTransform(tfMsg);
+    // Publish as TF from OdometryFrameId to TrackingFrameId
+    if (this->Publish[POSE_TF])
+    {
+      geometry_msgs::TransformStamped tfMsg;
+      tfMsg.header.stamp = ros::Time(odomToBase.time);
+      tfMsg.header.frame_id = this->OdometryFrameId;
+      tfMsg.child_frame_id = this->TrackingFrameId;
+      tfMsg.transform = TransformToTfMsg(odomToBase);
+      this->TfBroadcaster.sendTransform(tfMsg);
+    }
+  }
+
+  // Publish latency compensated SLAM pose
+  if (this->Publish[POSE_PREDICTION_ODOM] || this->Publish[POSE_PREDICTION_TF])
+  {
+    // Get latency corrected SLAM pose
+    Transform odomToBasePred = this->LidarSlam.GetLatencyCompensatedWorldTransform();
+
+    // Publish as odometry msg
+    if (this->Publish[POSE_PREDICTION_ODOM])
+    {
+      nav_msgs::Odometry odomMsg;
+      odomMsg.header.stamp = ros::Time(odomToBasePred.time);
+      odomMsg.header.frame_id = this->OdometryFrameId;
+      odomMsg.child_frame_id = this->TrackingFrameId + "_prediction";
+      odomMsg.pose.pose = TransformToPoseMsg(odomToBasePred);
+      auto covar = this->LidarSlam.GetTransformCovariance();
+      std::copy(covar.begin(), covar.end(), odomMsg.pose.covariance.begin());
+      this->Publishers[POSE_PREDICTION_ODOM].publish(odomMsg);
+    }
+
+    // Publish as TF from OdometryFrameId to <TrackingFrameId>_prediction
+    if (this->Publish[POSE_PREDICTION_TF])
+    {
+      geometry_msgs::TransformStamped tfMsg;
+      tfMsg.header.stamp = ros::Time(odomToBasePred.time);
+      tfMsg.header.frame_id = this->OdometryFrameId;
+      tfMsg.child_frame_id = this->TrackingFrameId + "_prediction";
+      tfMsg.transform = TransformToTfMsg(odomToBasePred);
+      this->TfBroadcaster.sendTransform(tfMsg);
+    }
+  }
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::PublishFeaturesMaps(uint64_t pclStamp) const
+void LidarSlamNode::PublishFeaturesMaps(uint64_t pclStamp)
 {
   pcl::PCLHeader msgHeader;
   msgHeader.stamp = pclStamp;
   msgHeader.frame_id = this->OdometryFrameId;
 
-  // Publish edges only if recquired and if someone is listening to it.
-  if (this->PublishEdges && this->EdgesPub.getNumSubscribers())
+  // Publish edges only if required and if someone is listening to it.
+  if (this->Publish[EDGES_MAP] && this->Publishers[EDGES_MAP].getNumSubscribers())
   {
     CloudS::Ptr edgesCloud = this->LidarSlam.GetEdgesMap();
     edgesCloud->header = msgHeader;
-    this->EdgesPub.publish(edgesCloud);
+    this->Publishers[EDGES_MAP].publish(edgesCloud);
   }
 
-  // Publish planars only if recquired and if someone is listening to it.
-  if (this->PublishPlanars && this->PlanarsPub.getNumSubscribers())
+  // Publish planars only if required and if someone is listening to it.
+  if (this->Publish[PLANES_MAP] && this->Publishers[PLANES_MAP].getNumSubscribers())
   {
     CloudS::Ptr planarsCloud = this->LidarSlam.GetPlanarsMap();
     planarsCloud->header = msgHeader;
-    this->PlanarsPub.publish(planarsCloud);
+    this->Publishers[PLANES_MAP].publish(planarsCloud);
   }
 
-  // Publish blobs only if recquired and if someone is listening to it.
-  if (this->PublishBlobs && this->BlobsPub.getNumSubscribers())
+  // Publish blobs only if required and if someone is listening to it.
+  if (this->Publish[BLOBS_MAP] && this->Publishers[BLOBS_MAP].getNumSubscribers())
   {
     CloudS::Ptr blobsCloud = this->LidarSlam.GetBlobsMap();
     blobsCloud->header = msgHeader;
-    this->BlobsPub.publish(blobsCloud);
+    this->Publishers[BLOBS_MAP].publish(blobsCloud);
   }
 }
 

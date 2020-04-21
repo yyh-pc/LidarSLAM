@@ -15,11 +15,20 @@ odometry_frame: "odom"       # Frame in which SLAM odometry and maps are express
 # [Hz] Number of frames per second acquired by the LiDAR sensor (used to generate approximate point-wise timestamp)
 lidar_frequency: 10.
 
-# Optional publishers
-publish_features_maps:
-  edges: true     # if true, edges features will be published to topic "edges_features"
-  planars: true   # if true, planars features will be published to topic "planars_features"
-  blobs: true     # if true, blobs features will be published to topic "blobs_features"
+# SLAM node outputs
+# If set to true, LidarSlamNode will publish the given output to a topic or to the TF server (default to false if not specified).
+output:
+  pose:
+    odom: true             # Publish SLAM pose as an Odometry msg on 'slam_odom' topic (default : true).
+    tf: true               # Publish SLAM pose as a TF from 'odometry_frame' to 'tracking_frame' (default : true).
+    predicted_odom: false  # Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
+    predicted_tf: false    # Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
+  maps:
+    edges: true            # Publish edges keypoints map as a PointXYZTIId PointCloud2 msg to topic 'edges_map'.
+    planes: true           # Publish planes keypoints map as a PointXYZTIId PointCloud2 msg to topic 'planes_map'.
+    blobs: true            # Publish blobs keypoints map as a PointXYZTIId PointCloud2 msg to topic 'blobs_map'.
+  debug:
+    cloud: false           # Publish SLAM pointcloud as PointXYZTIId PointCloud2 msg to topic 'slam_cloud'.
 
 # Pointclouds saving to PCD files.
 # To save keypoints maps, send command SlamCommand::SAVE_KEYPOINTS_MAPS to 'slam_command' topic.
