@@ -1,6 +1,7 @@
-//=========================================================================
-//
-// Copyright 2018 Kitware, Inc.
+//==============================================================================
+// Copyright 2019-2020 Kitware, Inc., Kitware SAS
+// Authors: Laurenson Nick (Kitware SAS)
+// Creation date: 2019-02-08
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,7 +14,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-//=========================================================================
+//==============================================================================
+
 #ifndef VTKSLAMMANAGER_H
 #define VTKSLAMMANAGER_H
 
