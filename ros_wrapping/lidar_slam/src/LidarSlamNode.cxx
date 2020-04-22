@@ -56,9 +56,8 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   else if (priv_nh.getParam("n_lasers", nLasers))
   {
     this->LaserIdMapping.resize(nLasers);
-    for (int i = 0; i < nLasers; i++)
-      this->LaserIdMapping[i] = i;
-    ROS_INFO_STREAM("[SLAM] Using 0->" << nLasers << " linear laser_id_mapping from ROS param.");
+    std::iota(this->LaserIdMapping.begin(), this->LaserIdMapping.end(), 0);
+    ROS_INFO_STREAM("[SLAM] Using 0->" << nLasers - 1 << " linear laser_id_mapping from ROS param.");
   }
   // Otherwise, n_lasers will be guessed from 1st frame
   else
@@ -83,7 +82,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   priv_nh.param("output/pose/tf",           this->Publish[POSE_TF],            true);
   priv_nh.param("output/pose/predicted_tf", this->Publish[POSE_PREDICTION_TF], false);
-  initPublisher(POSE_ODOM, "slam_odom",  nav_msgs::Odometry, "output/pose/odom", true, 1, false);
+  initPublisher(POSE_ODOM,            "slam_odom",           nav_msgs::Odometry, "output/pose/odom",           true,  1, false);
   initPublisher(POSE_PREDICTION_ODOM, "slam_predicted_odom", nav_msgs::Odometry, "output/pose/predicted_odom", false, 1, false);
 
   initPublisher(EDGES_MAP,  "maps/edges",  CloudS, "output/maps/edges",  false, 1, false);
@@ -118,24 +117,21 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 //------------------------------------------------------------------------------
 void LidarSlamNode::ScanCallback(const CloudV& cloudV)
 {
-  // Init this->LaserIdMapping if not already done
-  if (!this->LaserIdMapping.size())
+  // Init LaserIdMapping if not already done
+  if (this->LaserIdMapping.empty())
   {
     // Iterate through pointcloud to find max ring
-    int nLasers = 0;
-    for(const PointV& point : cloudV)
+    unsigned int maxRing = 0;
+    for (const PointV& point : cloudV)
     {
-      if (point.ring > nLasers)
-        nLasers = point.ring;
+      if (point.ring > maxRing)
+        maxRing = point.ring;
     }
-    ++nLasers;
 
-    // Init this->LaserIdMapping with linear mapping
-    this->LaserIdMapping.resize(nLasers);
-    for (int i = 0; i < nLasers; i++)
-      this->LaserIdMapping[i] = i;
-
-    ROS_INFO_STREAM("[SLAM] Using 0->" << nLasers << " linear laser_id_mapping.");
+    // Init LaserIdMapping with linear mapping
+    this->LaserIdMapping.resize(maxRing + 1);
+    std::iota(this->LaserIdMapping.begin(), this->LaserIdMapping.end(), 0);
+    ROS_INFO_STREAM("[SLAM] Using 0->" << maxRing << " linear laser_id_mapping.");
   }
 
   // Convert pointcloud PointV type to expected PointS type
@@ -320,7 +316,8 @@ void LidarSlamNode::GpsSlamCalibration()
     ROS_ERROR_STREAM("GPS/SLAM calibration failed.");
     return;
   }
-  const std::string& gpsFrameId = this->GpsPoses[0].frameid;
+  const std::string& gpsFrameId = worldToGpsPoses.back().frameid;
+  ros::Time latestTime = ros::Time(std::max(worldToGpsPoses.back().time, odomToGpsPoses.back().time));
 
   // Publish ICP-matched trajectories
   // GPS antenna trajectory acquired from GPS in WORLD coordinates
@@ -328,7 +325,7 @@ void LidarSlamNode::GpsSlamCalibration()
   {
     nav_msgs::Path gpsPath;
     gpsPath.header.frame_id = gpsFrameId;
-    gpsPath.header.stamp = ros::Time::now();
+    gpsPath.header.stamp = latestTime;
     for (const Transform& pose: worldToGpsPoses)
     {
       gpsPath.poses.emplace_back(TransformToPoseStampedMsg(pose));
@@ -340,7 +337,7 @@ void LidarSlamNode::GpsSlamCalibration()
   {
     nav_msgs::Path slamPath;
     slamPath.header.frame_id = gpsFrameId;
-    slamPath.header.stamp = ros::Time::now();
+    slamPath.header.stamp = latestTime;
     for (const Transform& pose: odomToGpsPoses)
     {
       Transform worldToGpsPose(worldToOdom * pose.GetIsometry(), pose.time, pose.frameid);
@@ -351,7 +348,7 @@ void LidarSlamNode::GpsSlamCalibration()
 
   // Publish static tf with calibration to link world (UTM) frame to SLAM odometry origin
   geometry_msgs::TransformStamped tfStamped;
-  tfStamped.header.stamp = ros::Time::now();
+  tfStamped.header.stamp = latestTime;
   tfStamped.header.frame_id = gpsFrameId;
   tfStamped.child_frame_id = this->OdometryFrameId;
   tfStamped.transform = TransformToTfMsg(Transform(worldToOdom));
@@ -391,7 +388,7 @@ void LidarSlamNode::PoseGraphOptimization()
   Transform odomToBase = this->LidarSlam.GetWorldTransform();
   geometry_msgs::TransformStamped tfStamped;
   tfStamped.header.stamp = ros::Time(odomToBase.time);
-  tfStamped.header.frame_id = this->GpsPoses[0].frameid;
+  tfStamped.header.frame_id = worldToGpsPositions.back().frameid;
   tfStamped.child_frame_id = this->OdometryFrameId;
   tfStamped.transform = TransformToTfMsg(Transform(gpsToBaseOffset));
   this->StaticTfBroadcaster.sendTransform(tfStamped);
@@ -553,7 +550,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   SetSlamParam(bool,   "slam/undistortion", Undistortion)
   SetSlamParam(int,    "slam/verbosity", Verbosity)
   SetSlamParam(int,    "slam/n_threads", NbThreads)
-  SetSlamParam(int, "slam/logging_timeout", LoggingTimeout)
+  SetSlamParam(double, "slam/logging_timeout", LoggingTimeout)
   SetSlamParam(double, "slam/max_distance_for_ICP_matching", MaxDistanceForICPMatching)
   int  pointCloudStorage;
   if (priv_nh.getParam("slam/logging_storage", pointCloudStorage))
