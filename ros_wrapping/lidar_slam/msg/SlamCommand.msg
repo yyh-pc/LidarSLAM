@@ -22,11 +22,11 @@ uint8 GPS_SLAM_CALIBRATION = 0
 # WARNING : this process is not real time.
 uint8 GPS_SLAM_POSE_GRAPH_OPTIMIZATION = 2
 
-# Tell SLAM node to listen to next GPS pose, and set SLAM pose estimate with it.
+# Tell node to set SLAM pose estimate from last received GPS pose.
 # NOTE: SLAM node use of GPS must be enabled.
-# NOTE: Pose graph optimization must be already executed in order to match GPS
-#       and SLAM coordinates systems.
-uint8 SET_SLAM_POSE_FROM_NEXT_GPS = 4
+# NOTE: Pose graph optimization or GPS/SLAM calibration may have been already
+#       executed in order to match GPS and SLAM coordinates systems.
+uint8 SET_SLAM_POSE_FROM_GPS = 4
 
 # Disable/enable SLAM maps update with new frames keypoints. This can be usefull
 # if we want to keep the pose graph optimized SLAM map untouched.

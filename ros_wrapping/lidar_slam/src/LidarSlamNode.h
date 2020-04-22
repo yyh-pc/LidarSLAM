@@ -116,7 +116,8 @@ private:
   std::vector<size_t> LaserIdMapping;
   double LidarFreq = 10.;
 
-  // ROS subscribers and publishers
+  // ROS node handles, subscribers and publishers
+  ros::NodeHandle &Nh, &PrivNh;
   ros::Subscriber CloudSub;
   ros::Subscriber SlamCommandSub;
   std::unordered_map<int, ros::Publisher> Publishers;
@@ -130,18 +131,12 @@ private:
   tf2_ros::TransformBroadcaster TfBroadcaster;
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
 
-  // Optional saving of pointclouds to PCD files.
-  PCDFormat PcdFormat = PCDFormat::BINARY_COMPRESSED;  ///< Save pointclouds as ascii/binary/binary_compressed PCD files.
-
   // Optional use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization (PGO).
   bool UseGps = false;                          ///< Enable GPS data logging for Pose Graph Optimization or GPS/SLAM calibration.
-  bool CalibrationNoRoll = false;               ///< DEBUG Impose GPS/SLAM calibration to have no roll angle.
-  std::string PgoG2oFileName = "";              ///< Filename of g2o file where to save pose graph to optimize.
   std::deque<Transform> GpsPoses;               ///< Buffer of last received GPS poses.
   std::deque<std::array<double, 9>> GpsCovars;  ///< Buffer of last received GPS positions covariances.
   Eigen::Isometry3d BaseToGpsOffset = Eigen::Isometry3d::Identity();  ///< Pose of the GPS antenna in BASE coordinates.
   ros::Subscriber GpsOdomSub;
-  bool SetSlamPoseFromGpsRequest = false;
 };
 
 #endif // LIDAR_SLAM_NODE_H

@@ -96,7 +96,7 @@ At any time, command `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_UPDATE` or `lidar_s
 
 #### Setting SLAM pose from GPS pose guess
 
-If you want to run another bag on the same zone to refine the SLAM map or to run localization only with the previously built map, you need to give an approximate new init pose to SLAM if trajectory is not continuous with end pose. You can send `lidar_slam/SlamCommand/SET_SLAM_POSE_FROM_NEXT_GPS` command to '*slam_command*' topic to use the next received GPS pose as a pose guess for SLAM.
+If you want to run another bag on the same zone to refine the SLAM map or to run localization only with the previously built map, you need to give an approximate new init pose to SLAM if trajectory is not continuous with end pose. You can send `lidar_slam/SlamCommand/SET_SLAM_POSE_FROM_GPS` command to '*slam_command*' topic to use the next received GPS pose as a pose guess for SLAM.
 
 NOTE: To be able to use this command, SLAM and GPS coordinates must be precisely linked with a valid TF tree. Be sure you already called [SLAM pose graph optimization](#slam-pose-graph-optimization-pgo-with-gps-prior).
 

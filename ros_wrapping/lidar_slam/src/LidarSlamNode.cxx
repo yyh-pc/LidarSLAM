@@ -37,11 +37,12 @@ enum Output
 //------------------------------------------------------------------------------
 LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   : TfListener(TfBuffer)
+  , Nh(nh)
+  , PrivNh(priv_nh)
 {
   // Get SLAM params
   this->SetSlamParameters(priv_nh);
 
-  // ***************************************************************************
   // Init laserIdMapping
   std::vector<int> intLaserIdMapping;
   int nLasers;
@@ -66,39 +67,14 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
                     "n_lasers will be guessed from 1st frame to build linear mapping.");
   }
 
-  // ***************************************************************************
   // Get LiDAR frequency
   priv_nh.getParam("lidar_frequency", this->LidarFreq);
 
-  // Get PCD saving parameters
-  int pcdFormat;
-  if (priv_nh.getParam("pcd_saving/pcd_format", pcdFormat))
-  {
-    this->PcdFormat = static_cast<PCDFormat>(pcdFormat);
-    if (pcdFormat != PCDFormat::ASCII && pcdFormat != PCDFormat::BINARY && pcdFormat != PCDFormat::BINARY_COMPRESSED)
-    {
-      ROS_ERROR_STREAM("Incorrect PCD format value (" << pcdFormat << "). Setting it to 'BINARY_COMPRESSED'.");
-      this->PcdFormat = PCDFormat::BINARY_COMPRESSED;
-    }
-  }
-
-  // ***************************************************************************
-  // Init GPS/SLAM calibration or Pose Graph Optimization.
+  // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   priv_nh.getParam("gps/use_gps", this->UseGps);
-  if (this->UseGps)
-  {
-    // Init logging of GPS data for GPS/SLAM calibration or Pose Graph Optimization.
-    this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
-
-    // Init GPS/SLAM calibration to output SLAM pose to world coordinates.
-    priv_nh.getParam("gps/calibration/no_roll", this->CalibrationNoRoll);
-
-    // Init optional use of GPS data to perform pose graph optimization to correct SLAM poses and maps.
-    priv_nh.getParam("gps/pose_graph_optimization/g2o_file_name", this->PgoG2oFileName);
-  }
 
   // ***************************************************************************
-  // Init publishers
+  // Init ROS publishers
 
   #define initPublisher(publisher, topic, type, rosParam, publishDefault, queue, latch)   \
     priv_nh.param(rosParam, this->Publish[publisher], publishDefault);                    \
@@ -128,9 +104,13 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   }
 
   // ***************************************************************************
-  // Init basic ROS subscribers
+  // Init ROS subscribers
   this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::ScanCallback, this);
   this->SlamCommandSub = nh.subscribe("slam_command", 1,  &LidarSlamNode::SlamCommandCallback, this);
+
+  // Init logging of GPS data for GPS/SLAM calibration or Pose Graph Optimization.
+  if (this->UseGps)
+    this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
 
   ROS_INFO_STREAM(GREEN("LiDAR SLAM is ready !"));
 }
@@ -203,17 +183,6 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
     // Update BASE to GPS offset
     // Get the latest transform (we expect a static transform, so timestamp does not matter)
     Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
-
-    // If there is a request to set SLAM pose from GPS, do it.
-    // This should be done only after pose graph optimization.
-    if (this->SetSlamPoseFromGpsRequest)
-    {
-      Transform& gpsPose = this->GpsPoses.back();
-      Transform lidarPose = Transform(this->BaseToGpsOffset * gpsPose.GetIsometry(), gpsPose.time, gpsPose.frameid);
-      this->LidarSlam.SetWorldTransformFromGuess(lidarPose);
-      this->SetSlamPoseFromGpsRequest = false;
-      ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << this->GpsPoses.back().GetMatrix());
-    }
   }
 }
 
@@ -236,16 +205,25 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
 
     // Request to set SLAM pose from next GPS pose
     // NOTE : This function should only be called after PGO has been triggered.
-    case lidar_slam::SlamCommand::SET_SLAM_POSE_FROM_NEXT_GPS:
+    case lidar_slam::SlamCommand::SET_SLAM_POSE_FROM_GPS:
+    {
       if (!this->UseGps)
       {
         ROS_ERROR_STREAM("Cannot set SLAM pose from GPS as GPS logging has not been enabled. "
-                        "Please set 'gps/use_gps' private parameter to 'true'.");
+                         "Please set 'gps/use_gps' private parameter to 'true'.");
         return;
       }
-      this->SetSlamPoseFromGpsRequest = true;
-      ROS_WARN_STREAM("Request to set SLAM pose set from next GPS pose received.");
+      if (this->GpsPoses.empty())
+      {
+        ROS_ERROR_STREAM("Cannot set SLAM pose from GPS as no GPS pose has been received yet.");
+        return;
+      }
+      Transform& gpsPose = this->GpsPoses.back();
+      Transform lidarPose = Transform(this->BaseToGpsOffset * gpsPose.GetIsometry(), gpsPose.time, gpsPose.frameid);
+      this->LidarSlam.SetWorldTransformFromGuess(lidarPose);
+      ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << gpsPose.GetMatrix());
       break;
+    }
 
     // Enable SLAM maps update
     case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_UPDATE:
@@ -261,9 +239,17 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
 
     // Save SLAM keypoints maps to PCD files
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
+    {
       ROS_INFO_STREAM("Saving keypoints maps to PCD.");
-      this->LidarSlam.SaveMapsToPCD(msg.string_arg, this->PcdFormat);
+      PCDFormat pcdFormat = static_cast<PCDFormat>(this->PrivNh.param("pcd_saving/pcd_format", static_cast<int>(PCDFormat::BINARY_COMPRESSED)));
+      if (pcdFormat != PCDFormat::ASCII && pcdFormat != PCDFormat::BINARY && pcdFormat != PCDFormat::BINARY_COMPRESSED)
+      {
+        ROS_ERROR_STREAM("Incorrect PCD format value (" << pcdFormat << "). Setting it to 'BINARY_COMPRESSED'.");
+        pcdFormat = PCDFormat::BINARY_COMPRESSED;
+      }
+      this->LidarSlam.SaveMapsToPCD(msg.string_arg, pcdFormat);
       break;
+    }
 
     // Load SLAM keypoints maps from PCD files
     case lidar_slam::SlamCommand::LOAD_KEYPOINTS_MAPS:
@@ -326,7 +312,7 @@ void LidarSlamNode::GpsSlamCalibration()
 
   // Run calibration : compute transform from SLAM to WORLD
   GlobalTrajectoriesRegistration registration;
-  registration.SetNoRoll(this->CalibrationNoRoll);  // DEBUG
+  registration.SetNoRoll(this->PrivNh.param("gps/calibration/no_roll", false));  // DEBUG
   registration.SetVerbose(this->LidarSlam.GetVerbosity() >= 2);
   Eigen::Isometry3d worldToOdom;
   if (!registration.ComputeTransformOffset(odomToGpsPoses, worldToGpsPoses, worldToOdom))
@@ -394,8 +380,9 @@ void LidarSlamNode::PoseGraphOptimization()
 
   // Run pose graph optimization
   Eigen::Isometry3d gpsToBaseOffset = this->BaseToGpsOffset.inverse();
+  std::string pgoG2oFile = this->PrivNh.param("gps/pose_graph_optimization/g2o_file_name", std::string(""));
   this->LidarSlam.RunPoseGraphOptimization(worldToGpsPositions, worldToGpsCovars,
-                                           gpsToBaseOffset, this->PgoG2oFileName);
+                                           gpsToBaseOffset, pgoG2oFile);
 
   // Update GPS/LiDAR calibration
   this->BaseToGpsOffset = gpsToBaseOffset.inverse();
