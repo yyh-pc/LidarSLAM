@@ -98,9 +98,9 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   if (this->UseGps)
   {
-    initPublisher(PGO_PATH, "pgo_slam_path", nav_msgs::Path, "gps/pose_graph_optimization/publish_optimized_trajectory", false, 1, true);
-    initPublisher(ICP_CALIB_SLAM_PATH, "icp_slam_path", nav_msgs::Path, "gps/calibration/publish_icp_trajectories", false, 1, true);
-    initPublisher(ICP_CALIB_GPS_PATH,  "icp_gps_path",  nav_msgs::Path, "gps/calibration/publish_icp_trajectories", false, 1, true);
+    initPublisher(PGO_PATH,            "pgo_slam_path", nav_msgs::Path, "gps/pgo/publish_path",              false, 1, true);
+    initPublisher(ICP_CALIB_SLAM_PATH, "icp_slam_path", nav_msgs::Path, "gps/calibration/publish_icp_paths", false, 1, true);
+    initPublisher(ICP_CALIB_GPS_PATH,  "icp_gps_path",  nav_msgs::Path, "gps/calibration/publish_icp_paths", false, 1, true);
   }
 
   // ***************************************************************************
@@ -241,7 +241,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
     {
       ROS_INFO_STREAM("Saving keypoints maps to PCD.");
-      PCDFormat pcdFormat = static_cast<PCDFormat>(this->PrivNh.param("pcd_saving/pcd_format", static_cast<int>(PCDFormat::BINARY_COMPRESSED)));
+      PCDFormat pcdFormat = static_cast<PCDFormat>(this->PrivNh.param("maps_saving/pcd_format", static_cast<int>(PCDFormat::BINARY_COMPRESSED)));
       if (pcdFormat != PCDFormat::ASCII && pcdFormat != PCDFormat::BINARY && pcdFormat != PCDFormat::BINARY_COMPRESSED)
       {
         ROS_ERROR_STREAM("Incorrect PCD format value (" << pcdFormat << "). Setting it to 'BINARY_COMPRESSED'.");
@@ -380,7 +380,7 @@ void LidarSlamNode::PoseGraphOptimization()
 
   // Run pose graph optimization
   Eigen::Isometry3d gpsToBaseOffset = this->BaseToGpsOffset.inverse();
-  std::string pgoG2oFile = this->PrivNh.param("gps/pose_graph_optimization/g2o_file_name", std::string(""));
+  std::string pgoG2oFile = this->PrivNh.param("gps/pgo/g2o_file", std::string(""));
   this->LidarSlam.RunPoseGraphOptimization(worldToGpsPositions, worldToGpsCovars,
                                            gpsToBaseOffset, pgoG2oFile);
 
@@ -548,11 +548,11 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
 {
   #define SetSlamParam(type, rosParam, slamParam) { type val; if (priv_nh.getParam(rosParam, val)) this->LidarSlam.Set##slamParam(val); }
 
-  // common
-  SetSlamParam(bool, "slam/fast_slam", FastSlam)
-  SetSlamParam(bool, "slam/undistortion", Undistortion)
-  SetSlamParam(int, "slam/verbosity", Verbosity)
-  SetSlamParam(int, "slam/n_threads", NbThreads)
+  // General
+  SetSlamParam(bool,   "slam/fast_slam", FastSlam)
+  SetSlamParam(bool,   "slam/undistortion", Undistortion)
+  SetSlamParam(int,    "slam/verbosity", Verbosity)
+  SetSlamParam(int,    "slam/n_threads", NbThreads)
   SetSlamParam(int, "slam/logging_timeout", LoggingTimeout)
   SetSlamParam(double, "slam/max_distance_for_ICP_matching", MaxDistanceForICPMatching)
   int  pointCloudStorage;
@@ -568,59 +568,59 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
     LidarSlam.SetLoggingStorage(storage);
   }
 
-  // frame Ids
+  // Frame Ids
   priv_nh.param("odometry_frame", this->OdometryFrameId, this->OdometryFrameId);
   this->LidarSlam.SetWorldFrameId(this->OdometryFrameId);
   if (priv_nh.getParam("tracking_frame", this->TrackingFrameId))
     this->LidarSlam.SetBaseFrameId(this->TrackingFrameId);
 
-  // ego motion
-  SetSlamParam(int, "slam/ego_motion_LM_max_iter", EgoMotionLMMaxIter)
-  SetSlamParam(int, "slam/ego_motion_ICP_max_iter", EgoMotionICPMaxIter)
-  SetSlamParam(int, "slam/ego_motion_line_distance_nbr_neighbors", EgoMotionLineDistanceNbrNeighbors)
-  SetSlamParam(int, "slam/ego_motion_minimum_line_neighbor_rejection", EgoMotionMinimumLineNeighborRejection)
-  SetSlamParam(int, "slam/ego_motion_plane_distance_nbr_neighbors", EgoMotionPlaneDistanceNbrNeighbors)
-  SetSlamParam(double, "slam/ego_motion_line_distance_factor", EgoMotionLineDistancefactor)
-  SetSlamParam(double, "slam/ego_motion_plane_distance_factor1", EgoMotionPlaneDistancefactor1)
-  SetSlamParam(double, "slam/ego_motion_plane_distance_factor2", EgoMotionPlaneDistancefactor2)
-  SetSlamParam(double, "slam/ego_motion_max_line_distance", EgoMotionMaxLineDistance)
-  SetSlamParam(double, "slam/ego_motion_max_plane_distance", EgoMotionMaxPlaneDistance)
-  SetSlamParam(double, "slam/ego_motion_init_loss_scale", EgoMotionInitLossScale)
-  SetSlamParam(double, "slam/ego_motion_final_loss_scale", EgoMotionFinalLossScale)
+  // Ego motion
+  SetSlamParam(int,    "slam/ego_motion/LM_max_iter", EgoMotionLMMaxIter)
+  SetSlamParam(int,    "slam/ego_motion/ICP_max_iter", EgoMotionICPMaxIter)
+  SetSlamParam(int,    "slam/ego_motion/line_distance_nbr_neighbors", EgoMotionLineDistanceNbrNeighbors)
+  SetSlamParam(int,    "slam/ego_motion/minimum_line_neighbor_rejection", EgoMotionMinimumLineNeighborRejection)
+  SetSlamParam(int,    "slam/ego_motion/plane_distance_nbr_neighbors", EgoMotionPlaneDistanceNbrNeighbors)
+  SetSlamParam(double, "slam/ego_motion/line_distance_factor", EgoMotionLineDistancefactor)
+  SetSlamParam(double, "slam/ego_motion/plane_distance_factor1", EgoMotionPlaneDistancefactor1)
+  SetSlamParam(double, "slam/ego_motion/plane_distance_factor2", EgoMotionPlaneDistancefactor2)
+  SetSlamParam(double, "slam/ego_motion/max_line_distance", EgoMotionMaxLineDistance)
+  SetSlamParam(double, "slam/ego_motion/max_plane_distance", EgoMotionMaxPlaneDistance)
+  SetSlamParam(double, "slam/ego_motion/init_loss_scale", EgoMotionInitLossScale)
+  SetSlamParam(double, "slam/ego_motion/final_loss_scale", EgoMotionFinalLossScale)
 
-  // mapping
-  SetSlamParam(int, "slam/mapping_LM_max_iter", MappingLMMaxIter)
-  SetSlamParam(int, "slam/mapping_ICP_max_iter", MappingICPMaxIter)
-  SetSlamParam(int, "slam/mapping_line_distance_nbr_neighbors", MappingLineDistanceNbrNeighbors)
-  SetSlamParam(int, "slam/mapping_minimum_line_neighbor_rejection", MappingMinimumLineNeighborRejection)
-  SetSlamParam(int, "slam/mapping_plane_distance_nbr_neighbors", MappingPlaneDistanceNbrNeighbors)
-  SetSlamParam(double, "slam/mapping_line_distance_factor", MappingLineDistancefactor)
-  SetSlamParam(double, "slam/mapping_line_max_dist_inlier", MappingLineMaxDistInlier)
-  SetSlamParam(double, "slam/mapping_plane_distance_factor1", MappingPlaneDistancefactor1)
-  SetSlamParam(double, "slam/mapping_plane_distance_factor2", MappingPlaneDistancefactor2)
-  SetSlamParam(double, "slam/mapping_max_line_distance", MappingMaxLineDistance)
-  SetSlamParam(double, "slam/mapping_max_plane_distance", MappingMaxPlaneDistance)
-  SetSlamParam(double, "slam/mapping_init_loss_scale", MappingInitLossScale)
-  SetSlamParam(double, "slam/mapping_final_loss_scale", MappingFinalLossScale)
+  // Mapping
+  SetSlamParam(int,    "slam/mapping/LM_max_iter", MappingLMMaxIter)
+  SetSlamParam(int,    "slam/mapping/ICP_max_iter", MappingICPMaxIter)
+  SetSlamParam(int,    "slam/mapping/line_distance_nbr_neighbors", MappingLineDistanceNbrNeighbors)
+  SetSlamParam(int,    "slam/mapping/minimum_line_neighbor_rejection", MappingMinimumLineNeighborRejection)
+  SetSlamParam(int,    "slam/mapping/plane_distance_nbr_neighbors", MappingPlaneDistanceNbrNeighbors)
+  SetSlamParam(double, "slam/mapping/line_distance_factor", MappingLineDistancefactor)
+  SetSlamParam(double, "slam/mapping/line_max_dist_inlier", MappingLineMaxDistInlier)
+  SetSlamParam(double, "slam/mapping/plane_distance_factor1", MappingPlaneDistancefactor1)
+  SetSlamParam(double, "slam/mapping/plane_distance_factor2", MappingPlaneDistancefactor2)
+  SetSlamParam(double, "slam/mapping/max_line_distance", MappingMaxLineDistance)
+  SetSlamParam(double, "slam/mapping/max_plane_distance", MappingMaxPlaneDistance)
+  SetSlamParam(double, "slam/mapping/init_loss_scale", MappingInitLossScale)
+  SetSlamParam(double, "slam/mapping/final_loss_scale", MappingFinalLossScale)
 
-  // rolling grids
-  SetSlamParam(double, "slam/voxel_grid_leaf_size_edges", VoxelGridLeafSizeEdges)
-  SetSlamParam(double, "slam/voxel_grid_leaf_size_planes", VoxelGridLeafSizePlanes)
-  SetSlamParam(double, "slam/voxel_grid_leaf_size_blobs", VoxelGridLeafSizeBlobs)
-  SetSlamParam(double, "slam/voxel_grid_resolution", VoxelGridResolution)
-  SetSlamParam(int, "slam/voxel_grid_size", VoxelGridSize)
+  // Rolling grids
+  SetSlamParam(double, "slam/voxel_grid/leaf_size_edges", VoxelGridLeafSizeEdges)
+  SetSlamParam(double, "slam/voxel_grid/leaf_size_planes", VoxelGridLeafSizePlanes)
+  SetSlamParam(double, "slam/voxel_grid/leaf_size_blobs", VoxelGridLeafSizeBlobs)
+  SetSlamParam(double, "slam/voxel_grid/resolution", VoxelGridResolution)
+  SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
 
-  // keypoints extractor
+  // Keypoints extraction
   #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (priv_nh.getParam(rosParam, val)) this->LidarSlam.GetKeyPointsExtractor()->Set##keParam(val);}
-  SetKeypointsExtractorParam(int, "slam/ke_neighbor_width", NeighborWidth)
-  SetKeypointsExtractorParam(double, "slam/ke_min_distance_to_sensor", MinDistanceToSensor)
-  SetKeypointsExtractorParam(double, "slam/ke_angle_resolution", AngleResolution)
-  SetKeypointsExtractorParam(double, "slam/ke_plane_sin_angle_threshold", PlaneSinAngleThreshold)
-  SetKeypointsExtractorParam(double, "slam/ke_edge_sin_angle_threshold", EdgeSinAngleThreshold)
-  // SetKeypointsExtractorParam(double, "slam/ke_dist_to_line_threshold", DistToLineThreshold)
-  SetKeypointsExtractorParam(double, "slam/ke_edge_depth_gap_threshold", EdgeDepthGapThreshold)
-  SetKeypointsExtractorParam(double, "slam/ke_edge_saliency_threshold", EdgeSaliencyThreshold)
-  SetKeypointsExtractorParam(double, "slam/ke_edge_intensity_gap_threshold", EdgeIntensityGapThreshold)
+  SetKeypointsExtractorParam(int,    "slam/ke/neighbor_width", NeighborWidth)
+  SetKeypointsExtractorParam(double, "slam/ke/min_distance_to_sensor", MinDistanceToSensor)
+  SetKeypointsExtractorParam(double, "slam/ke/angle_resolution", AngleResolution)
+  SetKeypointsExtractorParam(double, "slam/ke/plane_sin_angle_threshold", PlaneSinAngleThreshold)
+  SetKeypointsExtractorParam(double, "slam/ke/edge_sin_angle_threshold", EdgeSinAngleThreshold)
+  // SetKeypointsExtractorParam(double, "slam/ke/dist_to_line_threshold", DistToLineThreshold)
+  SetKeypointsExtractorParam(double, "slam/ke/edge_depth_gap_threshold", EdgeDepthGapThreshold)
+  SetKeypointsExtractorParam(double, "slam/ke/edge_saliency_threshold", EdgeSaliencyThreshold)
+  SetKeypointsExtractorParam(double, "slam/ke/edge_intensity_gap_threshold", EdgeIntensityGapThreshold)
 }
 
 //------------------------------------------------------------------------------

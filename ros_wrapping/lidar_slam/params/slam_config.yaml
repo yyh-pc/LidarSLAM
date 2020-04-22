@@ -36,34 +36,35 @@ output:
 
 # Pointclouds saving to PCD files.
 # To save keypoints maps, send command SlamCommand::SAVE_KEYPOINTS_MAPS to 'slam_command' topic.
-pcd_saving:
+maps_saving:
   pcd_format: 2  # Save with given PCD file format : 0) ascii,  1) binary,  2) binary_compressed.
 
-# Optional GPS-like pose publication or GPS position use to improve SLAM trajectory.
+# Optional GPS position use (if 'gps/use_gps'=true), subscribing to Odometry msg on 'gps_odom' topic.
+# It allows to estimate calibration between GPS and SLAM trajectories,
+# or post-optimize SLAM trajectory with pose graph optimization (PGO).
 gps:
 
   # Optional GPS positions use to calibrate output SLAM pose to world coordinates and/or optimize SLAM trajectory.
-  # If true, subscribes to gps topic 'gps_odom' (nav_msgs/Odometry), and logs GPS positions during 'slam/logging_timeout' seconds.
+  # If true, subscribes to topic 'gps_odom' (nav_msgs/Odometry), and logs GPS positions during 'slam/logging_timeout' seconds.
   # (WARNING Can be overridden in slam.launch with 'gps' arg).
   use_gps: false
 
-  # Approximate GPS/SLAM calibration (enabled if use_gps=true)
-  # Use GPS positions to approximately calibrate output SLAM pose to world coordinates. It will try to fit GPS
-  # trajectory to SLAM trajectory with ICP to estimate the rigid transform that links 'gps_odom/header/frame_id' to
-  # 'slam_origin_frame', and publish it to static TF server.
+  # Approximate GPS/SLAM calibration (available if use_gps=true)
+  # Fit GPS trajectory to SLAM trajectory with ICP to estimate the rigid transform that links 'gps_odom/header/frame_id'
+  # to 'odometry_frame', and publish it to static TF server, linking SLAM pose to world coordinates.
   # GPS/SLAM calibration can be triggered by sending SlamCommand::GPS_SLAM_CALIBRATION to 'slam_command' topic.
   calibration:
-    no_roll: false                   # If true, impose calibration to have no roll rotation. DEBUG
-    publish_icp_trajectories: false  # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps_path' and 'icp_slam_path' latched topics.
+    no_roll: false            # If true, impose calibration to have no roll rotation. DEBUG
+    publish_icp_paths: false  # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps_path' and 'icp_slam_path' latched topics.
 
-  # Pose Graph Optimization (PGO) (enabled if use_gps=true)
-  # Use GPS positions and covariances to optimize computed SLAM trajectory and maps by correcting drift, and precisely
-  # link SLAM pose to world coordinates.
+  # Pose Graph Optimization (PGO) (available if use_gps=true)
+  # Use GPS positions and covariances to optimize SLAM trajectory and maps by correcting drift,
+  # and more precisely link SLAM pose to world coordinates.
   # PGO can be triggered by sending SlamCommand::GPS_SLAM_POSE_GRAPH_OPTIMIZATION to 'slam_command' topic.
   # WARNING : this process is not real-time.
-  pose_graph_optimization:
-    g2o_file_name: "/path/to/dir/pose_graph_optimization.g2o"  # Save pose graph to file (or do not save if null string or unset).
-    publish_optimized_trajectory: false                        # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic.
+  pgo:
+    g2o_file: "/home/user/pgo.g2o"  # Save pose graph to file (or do not save if null string or unset).
+    publish_path: false             # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic.
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
@@ -99,47 +100,51 @@ slam:
   max_distance_for_ICP_matching: 20.            # [m] Max distance allowed between two keypoints during ICP matching.
 
   # ICP and LM parameters for Ego-Motion step
-  ego_motion_ICP_max_iter: 4                     # Max number of iterations of ICP matching.
-  ego_motion_LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
-  ego_motion_line_distance_nbr_neighbors: 8      # Number of nearest neighbors to look for in previous frame (all scan lines considered) to build line model.
-  ego_motion_minimum_line_neighbor_rejection: 3  # Min number of valid nearest neighbors (max 1 per scan line) to keep neighborhood to build line model.
-  ego_motion_line_distance_factor: 5.            # PCA eigenvalues ratio to consider a neighborhood fits a line model (V2 > factor * V1).
-  ego_motion_plane_distance_nbr_neighbors: 5     # Number of nearest neighbors to look for in previous frame to build plane model.
-  ego_motion_plane_distance_factor1: 35.         # PCA eigenvalues ratio to consider a neighborhood fits a plane model :
-  ego_motion_plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
-  ego_motion_max_line_distance: 0.2              # [m] Max distance to line model allowed to keep neighborhood.
-  ego_motion_max_plane_distance: 0.2             # [m] Max distance to plane model allowed to keep neighborhood.
-  ego_motion_init_loss_scale: 2.                 # initial arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
-  ego_motion_final_loss_scale: 0.2               # final arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
+  ego_motion:
+    ICP_max_iter: 4                     # Max number of iterations of ICP matching.
+    LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
+    line_distance_nbr_neighbors: 8      # Number of nearest neighbors to look for in previous frame (all scan lines considered) to build line model.
+    minimum_line_neighbor_rejection: 3  # Min number of valid nearest neighbors (max 1 per scan line) to keep neighborhood to build line model.
+    line_distance_factor: 5.            # PCA eigenvalues ratio to consider a neighborhood fits a line model (V2 > factor * V1).
+    plane_distance_nbr_neighbors: 5     # Number of nearest neighbors to look for in previous frame to build plane model.
+    plane_distance_factor1: 35.         # PCA eigenvalues ratio to consider a neighborhood fits a plane model :
+    plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
+    max_line_distance: 0.2              # [m] Max distance to line model allowed to keep neighborhood.
+    max_plane_distance: 0.2             # [m] Max distance to plane model allowed to keep neighborhood.
+    init_loss_scale: 2.                 # Initial arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
+    final_loss_scale: 0.2               # Final arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
 
   # ICP and LM parameters for Mapping step
-  mapping_ICP_max_iter: 3                     # Max number of iterations of ICP matching.
-  mapping_LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
-  mapping_line_distance_nbr_neighbors: 10     # Number of nearest neighbors to look for in map to build line model.
-  mapping_minimum_line_neighbor_rejection: 4  # Min number of valid nearest neighbors (close to line model) to keep neighborhood to conisder line model.
-  mapping_line_distance_factor: 5.            # PCA eigenvalues ratio to consider a neighborhood fits a line model (V2 > factor * V1).
-  mapping_plane_distance_nbr_neighbors: 5     # Number of nearest neighbors to look for in map to build plane model.
-  mapping_plane_distance_factor1: 35.         # PCA eigenvalues ratio to consider a neighborhood fits a plane model :
-  mapping_plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
-  mapping_max_line_distance: 0.2              # [m] Max distance to line model allowed to keep neighborhood.
-  mapping_max_plane_distance: 0.2             # [m] Max distance to plane model allowed to keep neighborhood.
-  mapping_line_max_dist_inlier: 0.2           # [m] Max distance of current point to tested line model so that it votes for the validity of this model
-  mapping_init_loss_scale: 0.7                # initial arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
-  mapping_final_loss_scale: 0.05              # final arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
+  mapping:
+    ICP_max_iter: 3                     # Max number of iterations of ICP matching.
+    LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
+    line_distance_nbr_neighbors: 10     # Number of nearest neighbors to look for in map to build line model.
+    minimum_line_neighbor_rejection: 4  # Min number of valid nearest neighbors (close to line model) to keep neighborhood to conisder line model.
+    line_distance_factor: 5.            # PCA eigenvalues ratio to consider a neighborhood fits a line model (V2 > factor * V1).
+    plane_distance_nbr_neighbors: 5     # Number of nearest neighbors to look for in map to build plane model.
+    plane_distance_factor1: 35.         # PCA eigenvalues ratio to consider a neighborhood fits a plane model :
+    plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
+    max_line_distance: 0.2              # [m] Max distance to line model allowed to keep neighborhood.
+    max_plane_distance: 0.2             # [m] Max distance to plane model allowed to keep neighborhood.
+    line_max_dist_inlier: 0.2           # [m] Max distance of current point to tested line model so that it votes for the validity of this model
+    init_loss_scale: 0.7                # Initial arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
+    final_loss_scale: 0.05              # Final arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
 
   # Keypoints maps, saved as downsampled voxel grids
-  voxel_grid_leaf_size_edges: 0.30   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
-  voxel_grid_leaf_size_planes: 0.60  # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
-  voxel_grid_leaf_size_blobs: 0.30   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
-  voxel_grid_size: 50                # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
-  voxel_grid_resolution: 10.         # [m/voxel] Resolution of a voxel.
+  voxel_grid:
+    leaf_size_edges: 0.30   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
+    leaf_size_planes: 0.60  # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
+    leaf_size_blobs: 0.30   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
+    size: 50                # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
+    resolution: 10.         # [m/voxel] Resolution of a voxel.
 
-   # Keypoints extraction
-  ke_angle_resolution: 0.00698          # [rad] Maximal angular resolution of the lidar azimutal resolution.
-  ke_min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
-  ke_neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
-  ke_plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
-  ke_edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
-  ke_edge_depth_gap_threshold: 0.15     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
-  ke_edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
-  ke_edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
+  # Keypoints extraction
+  ke:
+    angle_resolution: 0.00698          # [rad] Maximal angular resolution of the lidar azimutal resolution.
+    min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
+    neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
+    plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
+    edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
+    edge_depth_gap_threshold: 0.15     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
+    edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
+    edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
