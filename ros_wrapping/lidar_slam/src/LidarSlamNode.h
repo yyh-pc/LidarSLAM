@@ -94,20 +94,15 @@ private:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief     Publish TF and PoseWithCovariance.
-   * @param[in] odomToBase  Transform from OdometryFrameId to TrackingFrameId to send.
-   * @param[in] poseCovar   Covariance associated to full 6 DOF pose.
-   *
-   * NOTE : poseCovar encodes covariance for DoF in this order : (X, Y, Z, rX, rY, rZ)
+   * @brief Publish SLAM outputs as requested by user.
+   * 
+   * It is possible to send :
+   *  - pose and covariance as Odometry msg or TF
+   *  - extracted keypoints from current frame
+   *  - keypoints maps
+   *  - other debug info
    */
-  void PublishTfOdom(const Transform& odomToBase, const std::array<double, 36>& poseCovar);
-
-  //----------------------------------------------------------------------------
-  /*!
-   * @brief     Publish SLAM features maps.
-   * @param[in] pclStamp Timestamp of the maps (number of µs since UNIX epoch).
-   */
-  void PublishFeaturesMaps(uint64_t pclStamp = 0) const;
+  void PublishOutput();
 
   //----------------------------------------------------------------------------
   /*!
@@ -135,15 +130,16 @@ private:
 
   // SLAM stuff
   Slam LidarSlam;
+  CloudS::Ptr CurrentFrame;
   std::vector<size_t> LaserIdMapping;
   double LidarFreq = 10.;
-  int Verbosity = 1;
-  unsigned int PreviousFrameId = 0;
 
-  // Basic publishers & subscribers
-  ros::Publisher PoseCovarPub;
+  // ROS node handles, subscribers and publishers
+  ros::NodeHandle &Nh, &PrivNh;
   ros::Subscriber CloudSub;
   ros::Subscriber SlamCommandSub;
+  std::unordered_map<int, ros::Publisher> Publishers;
+  std::unordered_map<int, bool> Publish;
 
   // TF stuff
   std::string OdometryFrameId = "odom";  ///< Frame in which SLAM odometry and maps are expressed.
@@ -153,26 +149,12 @@ private:
   tf2_ros::TransformBroadcaster TfBroadcaster;
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
 
-  // Optional saving of pointclouds to PCD files.
-  PCDFormat PcdFormat = PCDFormat::BINARY_COMPRESSED;  ///< Save pointclouds as ascii/binary/binary_compressed PCD files.
-
   // Optional use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization (PGO).
   bool UseGps = false;                          ///< Enable GPS data logging for Pose Graph Optimization or GPS/SLAM calibration.
-  bool CalibrationNoRoll = false;               ///< DEBUG Impose GPS/SLAM calibration to have no roll angle.
-  std::string PgoG2oFileName = "";              ///< Filename of g2o file where to save pose graph to optimize.
   std::deque<Transform> GpsPoses;               ///< Buffer of last received GPS poses.
   std::deque<std::array<double, 9>> GpsCovars;  ///< Buffer of last received GPS positions covariances.
   Eigen::Isometry3d BaseToGpsOffset = Eigen::Isometry3d::Identity();  ///< Pose of the GPS antenna in BASE coordinates.
   ros::Subscriber GpsOdomSub;
-  bool SetSlamPoseFromGpsRequest = false;
-
-  // Debug publishers
-  ros::Publisher GpsPathPub, SlamPathPub;
-  ros::Publisher OptimizedSlamTrajectoryPub;
-  ros::Publisher SlamCloudPub;
-  ros::Publisher EdgesPub, PlanarsPub, BlobsPub;
-  bool PublishIcpTrajectories = false, PublishOptimizedTrajectory = false;
-  bool PublishEdges = false, PublishPlanars = false, PublishBlobs = false;
 };
 
 #endif // LIDAR_SLAM_NODE_H

@@ -5,8 +5,7 @@
     - [Description and basic usage](#description-and-basic-usage)
     - [More advanced usage](#more-advanced-usage)
   - [Optional GPS use](#optional-gps-use)
-    - [SLAM output as GPS antenna pose](#slam-output-as-gps-antenna-pose)
-    - [GPS/SLAM calibration](#gpsslam-calibration)
+    - [Map (GPS) / Odom (SLAM) calibration](#map-gps--odom-slam-calibration)
     - [SLAM pose graph optimization (PGO) with GPS prior](#slam-pose-graph-optimization-pgo-with-gps-prior)
     - [Running SLAM on same zone at different times (e.g. refining/aggregating map or running localization only on fixed map)](#running-slam-on-same-zone-at-different-times-eg-refiningaggregating-map-or-running-localization-only-on-fixed-map)
       - [Enabling/disabling SLAM map udpate](#enablingdisabling-slam-map-udpate)
@@ -20,7 +19,7 @@ Wrapping for Kitware LiDAR-only SLAM. It can also use GPS data to publish SLAM o
 
 ### Description and basic usage
 
-The raw SLAM node subscribes to velodyne pointclouds, and publishes the lidar odometry (as well as TF) of the current pose with respect to the initial pose (= 1st LiDAR frame pose).
+The raw SLAM node subscribes to velodyne pointclouds, and computes current pose of the tracked frame relative to the fixed odometry frame. It can output various data, such as SLAM pose (as Odometry msg or TF), keypoints maps, etc.
 
 SLAM node supports massive configuration from ROS parameter server (even if default values are already provided). An example of configuration file can be found in [`params/slam_config.yaml`](params/slam_config.yaml). All parameters have to be set as private parameters.
 
@@ -32,11 +31,11 @@ If you want to specify parameters, you should consider using a launchfile.
 
 ### More advanced usage
 
-SLAM is often used with a multi-sensor system, for navigation or mapping purposes. Therefore, for easier fusion procedure, it can be usefull to output SLAM pose as a world GPS coordinate. In that case, consider using the given launchfile :
+SLAM is often used with a multi-sensor system, for navigation or mapping purposes. Therefore, for easier fusion procedure, it can be useful to output SLAM pose in an other frame than LiDAR sensor's or as a world GPS coordinate. In that case, consider using the given launchfile :
 - To start SLAM when replaying rosbag file, run :
 ```bash
-rosbag play --clock <my_bag_file>
-roslaunch lidar_slam slam.launch
+roslaunch lidar_slam slam.launch   # in 1st shell
+rosbag play --clock <my_bag_file>  # in 2nd shell
 ```
 - When using it in real conditions, use :
 ```bash
@@ -45,30 +44,42 @@ roslaunch lidar_slam slam.launch use_sim_time:=false
 
 This launch file will start a *lidar_slam_node*, a pre-configured RViz session, and GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
 
-Input pointcloud fix must be a *sensor_msgs/PointCloud2* message (of points `velodyne_pointcloud::PointXYZIR`) published on topic '*velodyne_points*'. Input GPS fix must be a *gps_common/GPSFix* message published on topic '*gps_fix*'.
-It outputs the SLAM pose as a *nav_msgs/Odometry* message on topic '*slam_odom*' and as a *sensor_msgs/NavSatFix* message on topic '*slam_fix*', and publishes the corresponding transforms on TF server.
+Input pointcloud must be a *sensor_msgs/PointCloud2* message (of points `velodyne_pointcloud::PointXYZIR`) published on topic '*velodyne_points*'.
+Optional input GPS (see [Optional GPS use](#optional-gps-use) section) fix must be a *gps_common/GPSFix* message published on topic '*gps_fix*'.
+
+SLAM outputs can also be configured out to publish :
+- current pose as an *nav_msgs/Odometry* message on topic '*slam_odom*' and/or a TF from '*odometry_frame*' to '*tracking_frame*';
+- extracted keypoints from current frame as *sensor_msgs/PointCloud2* on topics '*keypoints/{edges,planes,blobs}*';
+- keypoints maps as *sensor_msgs/PointCloud2* on topics '*maps/{edges,planes,blobs}*';
+
+UTM/GPS conversion node can output SLAM pose as a *sensor_msgs/NavSatFix* message on topic '*slam_fix*'.
+
+**NOTE** : It is possible to track any *tracking_frame* in *odometry_frame*, using a pointcloud expressed in an *lidar_frame*. However, please ensure that a valid TF tree is beeing published to link *lidar_frame* to *tracking_frame*.
 
 ## Optional GPS use
 
-### SLAM output as GPS antenna pose
+If GPS use is enabled, *LidarSlamNode* subscribes to the GPS odometry on topic '*gps_odom*', and records the most recent GPS positions. To use GPS data, we transform GPS WGS84 fix into cartesian space using UTM projection. This can be used to estimate calibration between GPS and SLAM trajectories, or post-optimize SLAM trajectory with pose graph optimization (PGO).
 
-LiDAR SLAM is often used when GPS is unreliable, by providing a continuous trajectory for a short time period. However, the output SLAM pose matches with LiDAR sensor pose, which may be quite different from GPS antenna pose. To easily substitute GPS with SLAM in these no satellite-signal zones, it is possible to tell the SLAM node to output the odometry (and TF) corresponding to GPS sensor pose instead of LiDAR's.
+To use GPS data :
+- enable gps use : `gps/use_gps = true`:
+- enable logging of previous poses, covariances and keypoints : `slam/logging_timeout != 0`
 
-To enable this GPS antenna pose publication instead of LiDAR's, set `gps/output_gps_pose` parameter to `true`, give the name (`output_gps_pose_frame_id`) of the new frame attached to GPS antenna, and provide the transform between GPS and LiDAR sensors.
+**NOTE** : If GPS odometry expresses the pose of a *gps_frame* different from *tracking_frame*, please ensure a valid static TF is beeing broadcasted.
 
-### GPS/SLAM calibration
+### Map (GPS) / Odom (SLAM) calibration
 
-To be able to publish local SLAM odometry as GPS coordinates, it is necessary to link SLAM initial pose to a 3D GPS pose (position + orientation) transformed into cartesian space with UTM projection. However, full 3D GPS pose is rarely known (we generally only have 3D position and sometimes an approximate yaw heading angle), and the calibration from GPS antenna to LiDAR sensor is always approximate (3D translation offset is more/less correct, but 3D rotation is unknown).
+To be able to publish local SLAM odometry as GPS coordinates, it is necessary to link local SLAM odometry frame (often called `odom`) to world fixed frame (often called `map`).
 
-If these full 3D transforms are perfectly known, fill them in [`launch/slam.launch`](launch/slam.launch) to ensure that the correct transformation is applied to output SLAM pose to the WGS84 format.
+If GPS use is enabled, *LidarSlamNode* can try to estimate the transform that links these frames by aligning SLAM and GPS trajectories with rigid ICP matching. The resulting transform is published as a static transform on TF server.
 
-If these transforms are unknown, the SLAM node can try to auto-compute them for you. If this GPS/SLAM calibration is enabled, the node subscribes to the topic '*gps_odom*' records the last GPS and SLAM positions (and forgets the ones older than a pre-defined timeout threshold). The calibration process can be triggered at any time by publishing the `lidar_slam/SlamCommand/GPS_SLAM_CALIBRATION` command to '*slam_command*' topic. When triggered, the recorded SLAM and GPS trajectories are aligned with rigid ICP matching, giving the global 3D static transform to link a SLAM pose into GPS coordinates, published on TF server.
-1. NOTE: During this auto-calibration process, GPS position should be precise enough to guarantee a robust calibration.
+The calibration process can be triggered at any time by publishing the `lidar_slam/SlamCommand/GPS_SLAM_CALIBRATION` command to '*slam_command*' topic.
+
+1. NOTE: During this auto-calibration process, GPS position and SLAM should be precise enough to guarantee a robust calibration.
 2. NOTE: As registration is done via ICP without any other prior, the trajectories need to have some turns in order to fully constrain the problem. If the movement is only following a straight line, 1 rotation remains unconstrained, and could lead to serious artefacts.
 3. NOTE: To fix this straight line case, a supplementary prior can be introduced, imposing for example the output calibration to have no roll angle (hypothesis of flat ground plane in front direction). However, if ground is not flat, it could also lead to bad calibration.
 4. NOTE: Timestamps are currently not used for calibration, as GPS and SLAM clocks are not synchronized. It could be a nice future improvement.
 
-To enable this GPS/SLAM auto-calibration, use option `gps:=true` :
+To enable this GPS/SLAM auto-calibration, you can use option `gps:=true` :
 ```bash
 roslaunch lidar_slam slam.launch gps:=true  # Start SLAM node and enable GPS use.
 ...
@@ -77,11 +88,13 @@ rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 0"  # Trigger GPS
 
 ### SLAM pose graph optimization (PGO) with GPS prior
 
-If some GPS positions are available, they can be used to optimize the SLAM trajectory by correcting drift error accumulated over time. PGO can be triggered at any time by publishing the `lidar_slam/SlamCommand/GPS_SLAM_POSE_GRAPH_OPTIMIZATION` command to '*slam_command*' topic. When triggered, the GPS positions and their associated covariances can be used as priors to optimize the SLAM pose graph with g2o framework. SLAM maps will also be corrected. The GPS/LiDAR calibration will also be computed and published as a static TF (more precise than the global ICP calibration process).
+Available GPS positions can also be used to optimize the SLAM trajectory by correcting drift error accumulated over time. The GPS positions and their associated covariances can be used as priors to optimize the SLAM pose graph with g2o framework. SLAM maps will also be corrected. The [map/odom calibration](#map-gps--odom-slam-calibration) will also be computed and published as a static TF (but should be more precise than the global ICP calibration process).
+
+PGO can be triggered at any time by publishing the `lidar_slam/SlamCommand/GPS_SLAM_POSE_GRAPH_OPTIMIZATION` command to '*slam_command*' topic.
 
 NOTE: This PGO is not real-time, and should therefore be run when system is not or slowly moving.
 
-To enable this GPS/SLAM pose graph optimization, enable logging of previous poses, covariances and keypoints (`slam/logging_timeout != 0`) and use option `gps:=true`:
+To enable PGO, you can use option `gps:=true` :
 ```bash
 roslaunch lidar_slam slam.launch gps:=true  # Start SLAM node and enable GPS use.
 ...
@@ -92,13 +105,13 @@ rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 2"  # Trigger PGO
 
 #### Enabling/disabling SLAM map udpate
 
-At any time, command `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_UPDATE` or `lidar_slam/SlamCommand/DISABLE_SLAM_MAP_UPDATE` can be published to '*slam_command*' topic to enable or disable SLAM map update. During normal SLAM behavior, map update is enabled, which means SLAM performs keypoints registration in the world to aggregate previous frames to be able to run localization in this map. However, it is possibe to disable this map update and to run localization only in the fixed keypoints map. This can be usefull when the map has been pre-optimized with PGO and we don't want to pollute it with unreliable new frames.
+At any time, command `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_UPDATE` or `lidar_slam/SlamCommand/DISABLE_SLAM_MAP_UPDATE` can be published to '*slam_command*' topic to enable or disable SLAM map update. During normal SLAM behavior, map update is enabled, which means SLAM performs keypoints registration in the odometry frame to aggregate previous frames to be able to run localization in this local map. However, it is possibe to disable this map update and to run localization only in the fixed keypoints map. This can be useful when the map has been pre-optimized with PGO and we don't want to pollute it with unreliable new frames.
 
 #### Setting SLAM pose from GPS pose guess
 
-If you want to run another bag on the same zone to refine the SLAM map or to run localization only with the previously built map, you need to give an approximate new init pose to SLAM if trajectory is not continuous with end pose. You can send `lidar_slam/SlamCommand/SET_SLAM_POSE_FROM_NEXT_GPS` command to '*slam_command*' topic to use the next received GPS pose as a pose guess for SLAM.
+If you want to run another bag on the same zone to refine the SLAM map or to run localization only with the previously built map, you need to give an approximate new init pose to SLAM if trajectory is not continuous with end pose. You can send `lidar_slam/SlamCommand/SET_SLAM_POSE_FROM_GPS` command to '*slam_command*' topic to use the last received GPS pose as a pose guess for SLAM.
 
-NOTE: To be able to use this command, SLAM and GPS coordinates must be precisely linked with a valid TF tree. Be sure you already called [SLAM pose graph optimization](#slam-pose-graph-optimization-pgo-with-gps-prior).
+NOTE: To be able to use this command, SLAM and GPS coordinates must be precisely linked with a valid TF tree. Be sure you already called [pose graph optimization](#slam-pose-graph-optimization-pgo-with-gps-prior) or at least [map/odom calibration](#map-gps--odom-slam-calibration).
 
 #### Running SLAM on same zone
 
@@ -114,20 +127,22 @@ rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 4"    # If the st
 
 ## About the published TF tree
 
-Here is the complete TF tree maintained by different nodes as well as descriptions of each frame (default frame names) :
+Here is an example of the complete TF tree that can be maintained by different nodes as well as descriptions of each frame (default frame names) :
 
 ```bash
 utm
-|__ gps_init
-    |__ gps
-    |__ slam_init
-        |__ velodyne
-            |__ (slam)
+└─ enu
+   └─ map
+      └─ odom
+         └─ base_link
+            ├─ velodyne
+            └─ gps
 ```
 
 - **utm**: "world" ENU fixed frame, corresponding to the origin of the current considered UTM zone/band in which GPS coordinates are projected into.
-- **gps_init**: first received GPS pose. It defines the origin of the local map, easier to use than UTM frame (because coordinates in UTM frames can be very large, leading to floating points discretization errors). If the GPS data provides an orientation, this frame is oriented alongside this direction. Otherwise, the frame orientation remains unchanged, and corresponds to UTM East-North-Up (ENU) coordinates, offset by the 1st GPS position. The static TF `utm -> gps_init` is published by `gps_conversions/gps_to_utm` node.
-- **gps**: current GPS pose (pose (or position if orientation isn't provided) of the GPS antenna). The TF `gps_init -> gps` is published by `gps_conversions/gps_to_utm` node.
-- **slam_init**: initial pose of the SLAM, which is the pose of the velodyne sensor of the first received pointcloud. The static TF `gps_init -> slam_init` is published either by `lidar_slam/lidar_slam_node` node (in case of GPS/SLAM auto-calibration) or manually set with tf2 static publishers in [`launch/slam.launch`](launch/slam.launch) (in case of pre-defined calibration).
-- **velodyne**: current pose of the velodyne sensor, according to SLAM. The TF `slam_init -> velodyne` is published by `lidar_slam/lidar_slam_node` node.
-- **slam**: (optional) current pose of the GPS antenna, according to SLAM. This TF is published only if `gps/output_gps_pose` is enabled. This pose can be directly compared to the *gps* frame, and should exactly match if SLAM was perfect. The static TF `velodyne -> slam` is published by `lidar_slam/lidar_slam_node` node according to `gps/gps_to_lidar_offset` parameter value.
+- **enu**: local ENU fixed frame attached to 1st received GPS position in UTM coordinates, easier to use than **utm** because UTM coordinates can grow very large, leading to floating points discretization errors. The static TF `utm -> enu` is published by `gps_conversions/gps_to_utm` node.
+- **map**: first received full 6D GPS pose. It defines the origin of the local map. If GPS does not provide orientation, pitch and heading can be estimated from motion. The static TF `enu -> map` is published by `gps_conversions/gps_to_utm` node.
+- **odom**: origin of the SLAM. The TF `map -> odom` can be published by a custom node, by `lidar_slam/lidar_slam_node` node (in case of GPS/SLAM auto-calibration or PGO), or manually set with tf2 static publishers in [`launch/slam.launch`](launch/slam.launch) (in case of pre-defined calibration).
+- **base_link**: current pose computed by SLAM algorithm (here `base_link` is the tracking frame). The TF `odom -> base_link` can be published by `lidar_slam/lidar_slam_node` node.
+- **velodyne**: pose of the LiDAR sensor on the moving base. The TF `base_link -> velodyne` should be published by a `tf2_ros/static_transform_publisher` node.
+- **gps**: pose of the GPS sensor on the moving base. The TF `base_link -> gps` should be published by a `tf2_ros/static_transform_publisher` node.
