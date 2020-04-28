@@ -439,23 +439,32 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
   cloudS->resize(cloudV.size());
   cloudS->header = cloudV.header;
 
-  // Get approximate timestamp of the first point
-  double stampInit = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();  // timestamp of last Velodyne raw packet
-  stampInit -= 1. / this->LidarFreq;  // approximate timestamp of first Velodyne raw packet
+  // Helpers to estimate frameAdvancement
+  auto wrapMax = [](double x, double max) {return std::fmod(max + std::fmod(x, max), max);};
+  auto advancement = [](const PointV& velodynePoint) {return (M_PI - std::atan2(velodynePoint.y, velodynePoint.x)) / (2 * M_PI);};
+  const double initAdvancement = advancement(cloudV.front());
+  std::vector<double> previousAdvancementPerRing(this->LaserIdMapping.size(), -1);
 
   // Build SLAM pointcloud
   for(unsigned int i = 0; i < cloudV.size(); i++)
   {
     const PointV& velodynePoint = cloudV[i];
     PointS& slamPoint = cloudS->at(i);
+
+    // Get normalized angle (in [0-1]), with angle 0 being first point direction
+    double frameAdvancement = advancement(velodynePoint);
+    frameAdvancement = wrapMax(frameAdvancement - initAdvancement, 1.);
+    // If we detect overflow, correct it
+    if (frameAdvancement < previousAdvancementPerRing[velodynePoint.ring])
+      frameAdvancement += 1;
+    previousAdvancementPerRing[velodynePoint.ring] = frameAdvancement;
+
     slamPoint.x = velodynePoint.x;
     slamPoint.y = velodynePoint.y;
     slamPoint.z = velodynePoint.z;
     slamPoint.intensity = velodynePoint.intensity;
     slamPoint.laserId = velodynePoint.ring;
-    double frameAdvancement = (M_PI + std::atan2(velodynePoint.y, velodynePoint.x)) / (M_PI * 2);
-    slamPoint.time = stampInit + frameAdvancement / this->LidarFreq;
-    // slamPoint.time = frameAdvancement;
+    slamPoint.time = frameAdvancement / this->LidarFreq; // time is 0 for first point, and should match LiDAR period for last point for a complete scan.
   }
   return cloudS;
 }

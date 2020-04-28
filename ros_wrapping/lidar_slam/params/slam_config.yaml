@@ -12,7 +12,8 @@
 odometry_frame: "odom"       # Frame in which SLAM odometry and maps are expressed (default: odom).
 # tracking_frame: "base_link"  # Frame to track (default: input pointcloud frame_id; If different, ensure a valid TF tree is published).
 
-# [Hz] Number of frames per second acquired by the LiDAR sensor (used to generate approximate point-wise timestamp)
+# [Hz] Number of frames per second acquired by the LiDAR sensor
+# (used to generate approximate point-wise timestamp when using undistortion)
 lidar_frequency: 10.
 
 # SLAM node outputs
