@@ -226,6 +226,11 @@ void Slam::Reset(bool resetLog)
   this->MotionParametersMapping = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
   this->TworldCovariance = Eigen::Matrix<double, 6, 6>::Identity();
 
+  // Reset point clouds
+  this->CurrentEdgesPoints.reset(new PointCloud);
+  this->CurrentPlanarsPoints.reset(new PointCloud);
+  this->CurrentBlobsPoints.reset(new PointCloud);
+
   // Reset debug variables
   this->EgoMotionEdgesPointsUsed = 0;
   this->EgoMotionPlanesPointsUsed = 0;
@@ -690,16 +695,6 @@ void Slam::ExtractKeypoints(const PointCloud::Ptr& inputPc, const std::vector<si
 //-----------------------------------------------------------------------------
 void Slam::ComputeEgoMotion()
 {
-  // Check that there is enough points to compute the EgoMotion
-  if ((this->CurrentEdgesPoints->size() == 0 || this->PreviousEdgesPoints->size() == 0) &&
-      (this->CurrentPlanarsPoints->size() == 0 || this->PreviousPlanarsPoints->size() == 0))
-  {
-    this->EgoMotionEdgesPointsUsed = 0;
-    this->EgoMotionPlanesPointsUsed = 0;
-    std::cerr << "[WARNING] Not enough keypoints, EgoMotion skipped for this frame." << std::endl;
-    return;
-  }
-
   // reset the relative transform
   // TODO : keep last frame transform as an init for optimization ?
   this->Trelative = Eigen::Isometry3d::Identity();
@@ -732,9 +727,8 @@ void Slam::ComputeEgoMotion()
   IF_VERBOSE(3, StopTimeAndDisplay("EgoMotion : build KD tree"));
 
   // Reset ICP results
-  unsigned int usedEdges = 0, usedPlanes = 0;
-  unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
-                             + this->CurrentPlanarsPoints->size();
+  const unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
+                                   + this->CurrentPlanarsPoints->size();
   this->Xvalues.reserve(nbKeypoints);
   this->Avalues.reserve(nbKeypoints);
   this->Pvalues.reserve(nbKeypoints);
@@ -764,7 +758,7 @@ void Slam::ComputeEgoMotion()
     }
 
     // loop over edges if there is enough previous edge keypoints
-    if (this->PreviousEdgesPoints->size() > this->EgoMotionLineDistanceNbrNeighbors)
+    if (this->CurrentEdgesPoints->size() > 0 && this->PreviousEdgesPoints->size() > this->EgoMotionLineDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int edgeIndex = 0; edgeIndex < this->CurrentEdgesPoints->size(); ++edgeIndex)
@@ -782,7 +776,7 @@ void Slam::ComputeEgoMotion()
     }
 
     // loop over planars if there is enough previous planar keypoints
-    if (this->PreviousPlanarsPoints->size() > this->EgoMotionPlaneDistanceNbrNeighbors)
+    if (this->CurrentPlanarsPoints->size() > 0 && this->PreviousPlanarsPoints->size() > this->EgoMotionPlaneDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int planarIndex = 0; planarIndex < this->CurrentPlanarsPoints->size(); ++planarIndex)
@@ -800,13 +794,13 @@ void Slam::ComputeEgoMotion()
     }
 
     // ICP matching summary
-    usedEdges = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
-    usedPlanes = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
+    this->EgoMotionEdgesPointsUsed = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
+    this->EgoMotionPlanesPointsUsed = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
 
     // Skip this frame if there are too few geometric keypoints matched
-    if ((usedPlanes + usedEdges) < 20)
+    if ((this->EgoMotionEdgesPointsUsed + this->EgoMotionPlanesPointsUsed) < 20)
     {
-      std::cerr << "[WARNING] Too few geometric features, EgoMotion skipped for this frame." << std::endl;
+      std::cerr << "[WARNING] Not enough keypoints, EgoMotion skipped for this frame.\n";
       break;
     }
 
@@ -883,10 +877,9 @@ void Slam::ComputeEgoMotion()
 
   IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : whole ICP-LM loop"));
 
-  this->EgoMotionEdgesPointsUsed = usedEdges;
-  this->EgoMotionPlanesPointsUsed  = usedPlanes;
-  PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() <<
-                   " (" << usedEdges << " edges, " << usedPlanes << " planes).");
+  PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " ("
+                    << this->EgoMotionEdgesPointsUsed << " edges, "
+                    << this->EgoMotionPlanesPointsUsed << " planes).");
 
   // Integrate the relative motion to the world transformation
   this->UpdateTworldUsingTrelative();
@@ -895,17 +888,6 @@ void Slam::ComputeEgoMotion()
 //-----------------------------------------------------------------------------
 void Slam::Mapping()
 {
-  // Check that there is enough key-points to compute the Mapping
-  if (this->CurrentEdgesPoints->size() == 0 && this->CurrentPlanarsPoints->size() == 0)
-  {
-    this->MappingVarianceError = 10.;
-    this->MappingEdgesPointsUsed = 0;
-    this->MappingPlanesPointsUsed = 0;
-    this->MappingBlobsPointsUsed = 0;
-    std::cerr << "[WARNING] Not enough keypoints, Mapping skipped for this frame." << std::endl;
-    return;
-  }
-
   // Update motion model parameters
   if (this->Undistortion)
   {
@@ -951,10 +933,9 @@ void Slam::Mapping()
   IF_VERBOSE(3, StopTimeAndDisplay("Mapping : keypoints extraction"));
 
   // Reset ICP results
-  unsigned int usedEdges = 0, usedPlanes = 0, usedBlobs = 0;
-  unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
-                             + this->CurrentPlanarsPoints->size()
-                             + this->CurrentBlobsPoints->size();
+  const unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
+                                   + this->CurrentPlanarsPoints->size()
+                                   + this->CurrentBlobsPoints->size();
   this->Xvalues.reserve(nbKeypoints);
   this->Avalues.reserve(nbKeypoints);
   this->Pvalues.reserve(nbKeypoints);
@@ -985,7 +966,7 @@ void Slam::Mapping()
     }
 
     // loop over edges
-    if (this->CurrentEdgesPoints->size() > 0 && subEdgesPointsLocalMap->points.size() > 10)
+    if (this->CurrentEdgesPoints->size() > 0 && subEdgesPointsLocalMap->size() > this->MappingLineDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int edgeIndex = 0; edgeIndex < this->CurrentEdgesPoints->size(); ++edgeIndex)
@@ -1000,7 +981,7 @@ void Slam::Mapping()
     }
 
     // loop over surfaces
-    if (this->CurrentPlanarsPoints->size() > 0 && subPlanarPointsLocalMap->size() > 10)
+    if (this->CurrentPlanarsPoints->size() > 0 && subPlanarPointsLocalMap->size() > this->MappingPlaneDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int planarIndex = 0; planarIndex < this->CurrentPlanarsPoints->size(); ++planarIndex)
@@ -1015,7 +996,7 @@ void Slam::Mapping()
     }
 
     // loop over blobs
-    if (!this->FastSlam && this->NbrFrameProcessed > 10)
+    if (!this->FastSlam && this->CurrentBlobsPoints->size() > 0  && subBlobPointsLocalMap->size() > 10)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int blobIndex = 0; blobIndex < this->CurrentBlobsPoints->size(); ++blobIndex)
@@ -1030,15 +1011,14 @@ void Slam::Mapping()
     }
 
     // ICP matching summary
-    usedEdges = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
-    usedPlanes = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
-    usedBlobs = this->MatchRejectionHistogramBlob[MatchingResult::SUCCESS];
+    this->MappingEdgesPointsUsed  = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
+    this->MappingPlanesPointsUsed = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
+    this->MappingBlobsPointsUsed  = this->MatchRejectionHistogramBlob[MatchingResult::SUCCESS];
 
     // Skip this frame if there is too few geometric keypoints matched
-    if ((usedPlanes + usedEdges + usedBlobs) < 20)
+    if ((this->MappingEdgesPointsUsed + this->MappingPlanesPointsUsed + this->MappingBlobsPointsUsed) < 20)
     {
-      std::cerr << "[WARNING] Too few geometric features, breaking Mapping loop "
-                << "(" << usedPlanes << " planes, " << usedEdges << " edges, " << usedBlobs << " blobs)." << std::endl;
+      std::cerr << "[WARNING] Not enough keypoints, Mapping skipped for this frame.\n";
       break;
     }
 
@@ -1140,17 +1120,15 @@ void Slam::Mapping()
 
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eig(this->TworldCovariance);
   Eigen::MatrixXd D = eig.eigenvalues();
-
   this->MappingVarianceError = D(5);
-  this->MappingEdgesPointsUsed = usedEdges;
-  this->MappingPlanesPointsUsed = usedPlanes;
-  this->MappingBlobsPointsUsed = usedBlobs;
 
-  PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " "
-                   "(" << usedEdges << " edges, " << usedPlanes << " planes, " << usedBlobs << " blobs)." << std::endl <<
-                   "Covariance eigen values: " << D.transpose() << std::endl <<
-                   "Maximum variance eigen vector: " << eig.eigenvectors().col(5).transpose() << std::endl <<
-                   "Maximum variance: " << D(5));
+  PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " ("
+                   << this->MappingEdgesPointsUsed  << " edges, "
+                   << this->MappingPlanesPointsUsed << " planes, "
+                   << this->MappingBlobsPointsUsed  << " blobs)."
+                   "\nCovariance eigen values: " << D.transpose() <<
+                   "\nMaximum variance eigen vector: " << eig.eigenvectors().col(5).transpose() <<
+                   "\nMaximum variance: " << D(5));
 
   if (this->Undistortion)
   {
