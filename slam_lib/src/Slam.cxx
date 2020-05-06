@@ -282,10 +282,13 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   // odometry and mapping steps
   if (this->NbrFrameProcessed > 0)
   {
-    // Perfom EgoMotion : compute Trelative from previous and current frame keypoints, and guess current Tworld
-    IF_VERBOSE(3, InitTime("Ego-Motion"));
-    this->ComputeEgoMotion();
-    IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion"));
+    // Compute Trelative by registering current frame on previous one
+    if (this->EgoMotionRegistration)
+    {
+      IF_VERBOSE(3, InitTime("Ego-Motion"));
+      this->ComputeEgoMotion();
+      IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion"));
+    }
 
     // Integrate the relative motion to the world transformation
     this->Tworld = this->PreviousTworld * this->Trelative;
@@ -657,7 +660,20 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
     std::cerr << "[WARNING] SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s" : "") << ".\n\n";
   this->PreviousFrameSeq = inputPc->header.seq;
 
+  // Extrapolate new transforms at current time
+  // (if we have not already processed 2 frames, these transforms are already set to identity)
+  Eigen::Isometry3d TworldEstimation = Eigen::Isometry3d::Identity();
+  if (this->NbrFrameProcessed > 2)
+  {
+    // Estimate new Tworld with a constant velocity model
+    const double t = inputPc->header.stamp * 1e-6;
+    const double t1 = this->LogTrajectory[this->NbrFrameProcessed - 1].time;
+    const double t0 = this->LogTrajectory[this->NbrFrameProcessed - 2].time;
+    TworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
+  }
   this->PreviousTworld = this->Tworld;
+  this->Tworld = TworldEstimation;
+  this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
 
   // Current keypoints become previous ones
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;
@@ -724,10 +740,6 @@ void Slam::ExtractKeypoints(const std::vector<size_t>& laserIdMapping)
 //-----------------------------------------------------------------------------
 void Slam::ComputeEgoMotion()
 {
-  // reset the relative transform
-  // TODO : keep last frame transform as an init for optimization ?
-  this->Trelative = Eigen::Isometry3d::Identity();
-
   // kd-tree to process fast nearest neighbor
   // among the keypoints of the previous pointcloud
   // CHECK : This step behaves strangely much slower when using OpenMP.

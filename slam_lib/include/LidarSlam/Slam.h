@@ -170,6 +170,9 @@ public:
   GetMacro(FastSlam, bool)
   SetMacro(FastSlam, bool)
 
+  GetMacro(EgoMotionRegistration, bool)
+  SetMacro(EgoMotionRegistration, bool)
+
   SetMacro(Undistortion, bool)
   GetMacro(Undistortion, bool)
 
@@ -308,6 +311,11 @@ private:
   // all points that are not set to invalid will be used
   // as mapping planars points.
   bool FastSlam = true;
+
+  // If set to true, Ego-Motion step will be perfomed by globally registering
+  // current frame on previous one.
+  // Otherwise, Ego-Motion is estimated using previous motion extrapolation.
+  bool EgoMotionRegistration = false;
 
   // Should the algorithm undistord the frame or not
   // The undistortion will improve the accuracy but
