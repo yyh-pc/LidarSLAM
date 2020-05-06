@@ -34,3 +34,12 @@ AffineIsometry SampledSensorPath::operator()(double time) const
                                                            time);
   return AffineIsometry(H.block(0, 0, 3, 3), H.block(0, 3, 3, 1), time);
 }
+
+//-----------------------------------------------------------------------------
+Eigen::Isometry3d LinearInterpolation(const Eigen::Isometry3d& H0, const Eigen::Isometry3d& H1, double t, double t0, double t1)
+{
+  const double time = (t - t0) / (t1 - t0);
+  Eigen::Quaterniond rot(Eigen::Quaterniond(H0.rotation()).slerp(time, Eigen::Quaterniond(H1.rotation())));
+  Eigen::Translation3d trans(H0.translation() + time * (H1.translation() - H0.translation()));
+  return trans * rot;
+}

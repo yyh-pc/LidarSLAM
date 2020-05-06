@@ -1,6 +1,7 @@
 //==============================================================================
 // Copyright 2018-2020 Kitware, Inc., Kitware SAS
 // Author: Guilbert Pierre (Kitware SAS)
+//         Cadart Nicolas (Kitware SAS)
 // Creation date: 2018-03-27
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,13 +30,31 @@
 
 namespace CostFunctions
 {
+template <typename T>
+Eigen::Matrix<T, 3, 3> RotationMatrixFromRPY(const T& rx, const T& ry, const T& rz)
+{
+  const T crx = ceres::cos(rx);  const T srx = ceres::sin(rx);
+  const T cry = ceres::cos(ry);  const T sry = ceres::sin(ry);
+  const T crz = ceres::cos(rz);  const T srz = ceres::sin(rz);
+
+  Eigen::Matrix<T, 3, 3> R;
+  R << cry*crz,  srx*sry*crz-crx*srz,  crx*sry*crz+srx*srz,
+       cry*srz,  srx*sry*srz+crx*crz,  crx*sry*srz-srx*crz,
+          -sry,              srx*cry,              crx*cry;
+  return R;
+}
+
 /**
-* \class MahalanobisDistanceAffineIsometryResidual
-* \brief Cost function to minimize to estimate the affine isometry transformation
-*        (rotation and translation) that minimizes the mahalanobis distance
-*        between a point X and its neighborhood encoded by the mean point C
-*        and the variance covariance matrix A
-*/
+ * \class MahalanobisDistanceAffineIsometryResidual
+ * \brief Cost function to optimize the affine isometry transformation
+ *        (rotation and translation) that minimizes the mahalanobis distance
+ *        between a point X and its neighborhood encoded by the mean point C
+ *        and the variance covariance matrix A
+ *
+ * It takes one 6D parameters block :
+ *   - 3 first parameters to encode rotation with euler angles : rX, rY, rZ
+ *   - 3 last parameters to encode translation : X, Y, Z
+ */
 //-----------------------------------------------------------------------------
 struct MahalanobisDistanceAffineIsometryResidual
 {
@@ -43,72 +62,53 @@ public:
   MahalanobisDistanceAffineIsometryResidual(const Eigen::Matrix3d& argA,
                                             const Eigen::Vector3d& argC,
                                             const Eigen::Vector3d& argX,
-                                            double argLambda)
-  {
-    this->A = argA;
-    this->C = argC;
-    this->X = argX;
-    this->lambda = argLambda;
-  }
+                                            double argWeight)
+    : A(argA)
+    , C(argC)
+    , X(argX)
+    , Weight(argWeight)
+  {}
 
   template <typename T>
   bool operator()(const T* const w, T* residual) const
   {
-    // Create sin / cos evaluation variables in static way.
-    // The idea is that all residual function will need to
-    // evaluate those sin / cos so we will only compute then
-    // once each time the parameters values change
-    static T crx, cry, crz, srx, sry, srz;
-    static T lastWValues[6] = {T(-1.0), T(-1.0), T(-1.0), T(-1.0), T(-1.0), T(-1.0)};
-    if ((w[0] != lastWValues[0]) || (w[1] != lastWValues[1]) || (w[2] != lastWValues[2]) ||
-        (w[3] != lastWValues[3]) || (w[4] != lastWValues[4]) || (w[5] != lastWValues[5]))
+    using Matrix3T = Eigen::Matrix<T, 3, 3>;
+    using Vector3T = Eigen::Matrix<T, 3, 1>;
+
+    // Get translation part
+    Eigen::Map<const Vector3T> trans(&w[3]);
+
+    // Get rotation part, in a static way.
+    // The idea is that all residual functions will need to evaluate those
+    // sin/cos so we only compute them once each time the parameters change.
+    static Matrix3T rot = Matrix3T::Identity();
+    static T lastRot[3] = {T(-1.), T(-1.), T(-1.)};
+    if (!std::equal(w, w + 3, lastRot))
     {
-      // store sin / cos values for this angle
-      crx = ceres::cos(w[0]); srx = ceres::sin(w[0]);
-      cry = ceres::cos(w[1]); sry = ceres::sin(w[1]);
-      crz = ceres::cos(w[2]); srz = ceres::sin(w[2]);
-
-      for (int k = 0; k < 6; ++k)
-        lastWValues[k] = w[k];
+      rot = RotationMatrixFromRPY(w[0], w[1], w[2]);
+      std::copy(w, w + 3, lastRot);
     }
-
-    // Convert internal double matrix
-    // to a Jet matrix for auto diff calculous
-    Eigen::Matrix<T, 3, 3> Ac = this->A.cast<T>();
-    Eigen::Matrix<T, 3, 1> Xc = this->X.cast<T>();
-    Eigen::Matrix<T, 3, 1> Cc = this->C.cast<T>();
 
     // Compute Y = R(theta) * X + T - C
-    Eigen::Matrix<T, 3, 1> Y;
-    Y << cry*crz*Xc(0) + (srx*sry*crz-crx*srz)*Xc(1) + (crx*sry*crz+srx*srz)*Xc(2) + w[3] - Cc(0),
-         cry*srz*Xc(0) + (srx*sry*srz+crx*crz)*Xc(1) + (crx*sry*srz-srx*crz)*Xc(2) + w[4] - Cc(1),
-         -sry*Xc(0) + srx*cry*Xc(1) + crx*cry*Xc(2) + w[5] - Cc(2);
+    const Vector3T Y = rot * X + trans - C;
 
     // Compute final residual value which is:
-    // Ht * A * H with H = R(theta)X + T
-    T squaredResidual = T(lambda) * (Y.transpose() * Ac * Y)(0);
+    //   Ht * A * H with H = R(theta)X + T
+    const T squaredResidual = Weight * (Y.transpose() * A * Y)(0);
 
-    // since t -> sqrt(t) is not differentiable
-    // in 0, we check the value of the distance
-    // infenitesimale part. If it is not finite
-    // it means that the first order derivative
-    // has been evaluated in 0
-    if (squaredResidual < T(1e-6))
-    {
-      residual[0] = T(0);
-    }
-    else
-    {
-      residual[0] = ceres::sqrt(squaredResidual);
-    }
+    // Since t -> sqrt(t) is not differentiable in 0, we check the value of the
+    // distance infenitesimale part. If it is not finite, it means that the
+    // first order derivative has been evaluated in 0
+    residual[0] = squaredResidual < 1e-6 ? T(0) : ceres::sqrt(squaredResidual);
+
     return true;
   }
 
 private:
-  Eigen::Matrix3d A;
-  Eigen::Vector3d C;
-  Eigen::Vector3d X;
-  double lambda;
+  const Eigen::Matrix3d A;
+  const Eigen::Vector3d C;
+  const Eigen::Vector3d X;
+  const double Weight;
 };
 
 /**
@@ -288,12 +288,18 @@ private:
 };
 
 /**
-* \class MahalanobisDistanceLinearDistortionResidual
-* \brief Cost function to minimize to estimate the rotation R1 and translation T1 so that:
-         The linearly interpolated transform:
-         (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
-         applies to X acquired at time t minimizes the mahalanobis distance.
-*/
+ * \class MahalanobisDistanceInterpolatedMotionResidual
+ * \brief Cost function to optimize the isometries (R0, T0) and  (R1, T1) so that:
+ *        The linearly interpolated transform:
+ *        (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
+ *        applies to X acquired at time t minimizes the mahalanobis distance.
+ *
+ * It takes one 12D parameters block :
+ *   - 3 parameters (0, 1, 2) to encode rotation R0 with euler angles : rX, rY, rZ
+ *   - 3 parameters (3, 4, 5) to encode translation T0 : X, Y, Z
+ *   - 3 parameters (6, 7, 8) to encode rotation R1 with euler angles : rX, rY, rZ
+ *   - 3 parameters (9, 10, 11) to encode translation T1 : X, Y, Z
+ */
 //-----------------------------------------------------------------------------
 struct MahalanobisDistanceInterpolatedMotionResidual
 {
@@ -302,81 +308,71 @@ public:
                                                 const Eigen::Vector3d& argC,
                                                 const Eigen::Vector3d& argX,
                                                 double argTime,
-                                                double argLambda)
-  {
-    this->A = argA;
-    this->C = argC;
-    this->X = argX;
-    this->time = argTime;
-    this->lambda = argLambda;
-  }
+                                                double argWeight)
+    : A(argA)
+    , C(argC)
+    , X(argX)
+    , Time(argTime)
+    , Weight(argWeight)
+  {}
 
   template <typename T>
   bool operator()(const T* const w, T* residual) const
   {
-    // Convert internal double matrix
-    // to a Jet matrix for auto diff calculous
-    Eigen::Matrix<T, 3, 3> Ac = this->A.cast<T>();
-    Eigen::Matrix<T, 3, 1> Xc = this->X.cast<T>();
-    Eigen::Matrix<T, 3, 1> Cc = this->C.cast<T>();
+    using Vector3T = Eigen::Matrix<T, 3, 1>;
+    using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
 
-    // Get the current estimation positions
-    Eigen::Matrix<T, 3, 1> T0c(w[3], w[4], w[5]);
-    Eigen::Matrix<T, 3, 1> T1c(w[9], w[10], w[11]);
+    // Create H0 / H1 transforms in static way.
+    // The idea is that all residual functions will need to
+    // evaluate those variables so we will only compute then
+    // once each time the parameters values change
+    static Isometry3T H0 = Isometry3T::Identity(), H1 = Isometry3T::Identity();
+    static LinearTransformInterpolator<T> transformInterpolator;
+    static T lastW[12] = {T(-1.), T(-1.), T(-1.), T(-1.), T(-1.), T(-1.),
+                          T(-1.), T(-1.), T(-1.), T(-1.), T(-1.), T(-1.)};
 
-    // Get the current estimation orientations
-    T crx = ceres::cos(w[0]); T srx = ceres::sin(w[0]);
-    T cry = ceres::cos(w[1]); T sry = ceres::sin(w[1]);
-    T crz = ceres::cos(w[2]); T srz = ceres::sin(w[2]);
-    Eigen::Matrix<T, 3, 3> R0c;
-    R0c << cry*crz, (srx*sry*crz-crx*srz), (crx*sry*crz+srx*srz),
-           cry*srz, (srx*sry*srz+crx*crz), (crx*sry*srz-srx*crz),
-              -sry,               srx*cry,               crx*cry;
+    // Update H0 if needed
+    if (!std::equal(w, w + 6, lastW))
+    {
+      H0.linear() << RotationMatrixFromRPY(w[0], w[1], w[2]);
+      H0.translation() << w[3], w[4], w[5];
+      transformInterpolator.SetH0(H0);
+      std::copy(w, w + 6, lastW);
+    }
 
-    crx = ceres::cos(w[6]); srx = ceres::sin(w[6]);
-    cry = ceres::cos(w[7]); sry = ceres::sin(w[7]);
-    crz = ceres::cos(w[8]); srz = ceres::sin(w[8]);
-    Eigen::Matrix<T, 3, 3> R1c;
-    R1c << cry*crz, (srx*sry*crz-crx*srz), (crx*sry*crz+srx*srz),
-           cry*srz, (srx*sry*srz+crx*crz), (crx*sry*srz-srx*crz),
-              -sry,               srx*cry,               crx*cry;
+    // Update H1 if needed
+    if (!std::equal(w + 6, w + 12, lastW + 6))
+    {
+      H1.linear() << RotationMatrixFromRPY(w[6], w[7], w[8]);
+      H1.translation() << w[9], w[10], w[11];
+      transformInterpolator.SetH1(H1);
+      std::copy(w + 6, w + 12, lastW + 6);
+    }
 
-    // Now, compute the rotation and translation to
-    // apply to X depending on (R0, T0) and (R1, T1)
-    // The applied isometry will be the linear
-    // interpolation between these two transforms:
+    // Compute the transform to apply to X depending on (R0, T0) and (R1, T1).
+    // The applied isometry will be the linear interpolation between them :
     // (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
-    Eigen::Matrix<T, 4, 4> H = LinearTransformInterpolation<T>(R0c, T0c, R1c, T1c, T(this->time));
-    Eigen::Matrix<T, 3, 3> Rc = H.block(0, 0, 3, 3);
-    Eigen::Matrix<T, 3, 1> Tc = H.block(0, 3, 3, 1);
+    const Isometry3T H = transformInterpolator(T(this->Time));
 
     // Compute final residual value which is:
-    // Yt * A * Y with Y = R(theta) * X + T - C
-    Eigen::Matrix<T, 3, 1> Y = Rc * Xc + Tc  - Cc;
-    T squaredResidual = T(lambda) * (Y.transpose() * Ac * Y)(0);
+    //  Yt * A * Y with Y = R(theta) * X + T - C
+    const Vector3T Y = H.linear() * this->X + H.translation() - this->C;
+    const T squaredResidual = this->Weight * (Y.transpose() * this->A * Y)(0);
 
-    // since t -> sqrt(t) is not differentiable
-    // in 0, we check the value of the distance
-    // infenitesimale part. If it is not finite
-    // it means that the first order derivative
-    // has been evaluated in 0
-    if (squaredResidual < T(1e-6))
-    {
-      residual[0] = T(0);
-    }
-    else
-    {
-      residual[0] = ceres::sqrt(squaredResidual);
-    }
+    // Since t -> sqrt(t) is not differentiable in 0, we check the value of the
+    // distance infenitesimale part. If it is not finite, it means that the
+    // first order derivative has been evaluated in 0
+    residual[0] = squaredResidual < 1e-6 ? T(0) : ceres::sqrt(squaredResidual);
+
     return true;
   }
 
 private:
-  Eigen::Matrix3d A;
-  Eigen::Vector3d C;
-  Eigen::Vector3d X;
-  double time;
-  double lambda;
+  const Eigen::Matrix3d A;
+  const Eigen::Vector3d C;
+  const Eigen::Vector3d X;
+  const double Time;
+  const double Weight;
 };
 
 /**
