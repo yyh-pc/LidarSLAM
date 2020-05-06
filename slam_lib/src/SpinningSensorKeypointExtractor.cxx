@@ -191,26 +191,14 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
 {
-  // Get frame duration
-  double frameStartTime = 0., frameEndTime = 0.;
-  for (Point const& point: *this->pclCurrentFrame)
-  {
-    frameStartTime = std::min(frameStartTime, point.time);
-    frameEndTime = std::max(frameEndTime, point.time);
-  }
-  const double frameDuration = frameEndTime - frameStartTime;
-
   // Separate pointcloud into different scan lines
-  // Modify the point so that:
-  // - laserId is corrected with the laserIdMapping
-  // - time become a relative advancement time (between 0 and 1)
+  // Modify the point so that laserId is corrected with the laserIdMapping
   for (Point const& oldPoint: *this->pclCurrentFrame)
   {
     int id = this->LaserIdMapping[oldPoint.laserId];
     Point newPoint(oldPoint);
-    newPoint.laserId = id;
-    newPoint.time = (oldPoint.time - frameStartTime) / frameDuration;  // CHECK unused
-
+    newPoint.laserId = static_cast<uint8_t>(id);
+  
     // add the current point to its corresponding laser scan
     this->pclCurrentFrameByScan[id]->push_back(newPoint);
   }

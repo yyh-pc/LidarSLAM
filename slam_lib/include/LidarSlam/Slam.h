@@ -399,6 +399,10 @@ private:
   //   Keypoints extraction and maps
   // ---------------------------------------------------------------------------
 
+  // Current frame
+  PointCloud::Ptr CurrentFrame;
+
+  // Keypoints extractor
   std::shared_ptr<SpinningSensorKeypointExtractor> KeyPointsExtractor;
 
   // keypoints extracted
@@ -541,9 +545,12 @@ private:
   //   Main sub-problems and methods
   // ---------------------------------------------------------------------------
 
+  // Update current frame (check frame dropping, correct time field)
+  void UpdateFrameAndState(const PointCloud::Ptr& inputPc);
+
   // Extract keypoints from input pointcloud,
   // and transform them from LIDAR to BASE coordinate system.
-  void ExtractKeypoints(const PointCloud::Ptr& inputPc, const std::vector<size_t>& laserIdMapping);
+  void ExtractKeypoints(const std::vector<size_t>& laserIdMapping);
 
   // Find the ego motion of the sensor between
   // the current frame and the next one using

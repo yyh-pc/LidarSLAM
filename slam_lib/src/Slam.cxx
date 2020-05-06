@@ -221,12 +221,14 @@ void Slam::Reset(bool resetLog)
 
   // n-DoF parameters
   this->Tworld = Eigen::Isometry3d::Identity();
+  this->PreviousTworld = Eigen::Isometry3d::Identity();
   this->Trelative = Eigen::Isometry3d::Identity();
   this->MotionParametersEgoMotion = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
   this->MotionParametersMapping = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
   this->TworldCovariance = Eigen::Matrix<double, 6, 6>::Identity();
 
   // Reset point clouds
+  this->CurrentFrame.reset(new PointCloud);
   this->CurrentEdgesPoints.reset(new PointCloud);
   this->CurrentPlanarsPoints.reset(new PointCloud);
   this->CurrentBlobsPoints.reset(new PointCloud);
@@ -265,15 +267,15 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
   PRINT_VERBOSE(2, "#########################################################" << std::endl);
 
-  // Check frame dropping
-  unsigned int droppedFrames = pc->header.seq - this->PreviousFrameSeq - 1;
-  if ((this->PreviousFrameSeq > 0) && (droppedFrames > 0))
-    std::cerr << "[WARNING] SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s" : "") << ".\n\n";
-  this->PreviousFrameSeq = pc->header.seq;
+  // Update current frame (check frame dropping, correct time field) and
+  // estimate new state (extrapolate new pose with a constant velocity model)
+  IF_VERBOSE(3, InitTime("Update frame and state"));
+  this->UpdateFrameAndState(pc);
+  IF_VERBOSE(3, StopTimeAndDisplay("Update frame and state"));
 
   // Compute the edges and planars keypoints
   IF_VERBOSE(3, InitTime("Keypoints extraction"));
-  this->ExtractKeypoints(pc, laserIdMapping);
+  this->ExtractKeypoints(laserIdMapping);
   IF_VERBOSE(3, StopTimeAndDisplay("Keypoints extraction"));
 
   // If the new frame is the first one we just add the
@@ -307,18 +309,9 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     IF_VERBOSE(3, StopTimeAndDisplay("Maps update"));
   }
 
-  // Update the PreviousTworld data
-  this->PreviousTworld = this->Tworld;  // CHECK unused ?
-
-  // Current keypoints become previous ones
-  this->PreviousEdgesPoints = this->CurrentEdgesPoints;
-  this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
-  this->PreviousBlobsPoints = this->CurrentBlobsPoints;  // CHECK unused ?
-  this->NbrFrameProcessed++;
-
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, InitTime("Logging"));
-  this->LogCurrentFrameState(pc->header.stamp * 1e-6, this->WorldFrameId);
+  this->LogCurrentFrameState(this->CurrentFrame->header.stamp * 1e-6, this->WorldFrameId);
   IF_VERBOSE(3, StopTimeAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
@@ -357,6 +350,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 
   // Frame processing duration
   this->Latency = GetTime("SLAM frame processing");
+  this->NbrFrameProcessed++;
   IF_VERBOSE(1, StopTimeAndDisplay("SLAM frame processing"));
 }
 
@@ -653,10 +647,43 @@ Slam::PointCloud::Ptr Slam::GetBlobsMap() const
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-void Slam::ExtractKeypoints(const PointCloud::Ptr& inputPc, const std::vector<size_t>& laserIdMapping)
+void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
 {
-  // Transform pointcloud from LIDAR to BASE coordinates
-  auto transformToBase = [this](const PointCloud::Ptr& inputPc)
+  // Check frame dropping
+  unsigned int droppedFrames = inputPc->header.seq - this->PreviousFrameSeq - 1;
+  if ((this->PreviousFrameSeq > 0) && (droppedFrames > 0))
+    std::cerr << "[WARNING] SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s" : "") << ".\n\n";
+  this->PreviousFrameSeq = inputPc->header.seq;
+
+  this->PreviousTworld = this->Tworld;
+
+  // Current keypoints become previous ones
+  this->PreviousEdgesPoints = this->CurrentEdgesPoints;
+  this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
+
+  // Copy the input cloud to avoid modifying input
+  // CHECK : no other way to avoid this copy? Could be heavy with 64 or 128...
+  this->CurrentFrame = inputPc->makeShared();
+
+  // Get frame duration
+  double frameStartTime = std::numeric_limits<double>::max(),
+         frameEndTime   = std::numeric_limits<double>::min();
+  for (const Point& point: *this->CurrentFrame)
+  {
+    frameStartTime = std::min(frameStartTime, point.time);
+    frameEndTime = std::max(frameEndTime, point.time);
+  }
+  const double frameDuration = frameEndTime - frameStartTime;
+
+  // Modify the points so that time becomes a relative advancement (between 0 and 1)
+  for (Point& point: *this->CurrentFrame)
+    point.time = (point.time - frameStartTime) / frameDuration;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::ExtractKeypoints(const std::vector<size_t>& laserIdMapping)
+{
+  auto transformToBase = [this](const Slam::PointCloud::Ptr& inputPc)
   {
     PointCloud::Ptr baseCloud;
     // If transform to apply is identity, avoid much work and just change frame id if it is defined
@@ -676,7 +703,7 @@ void Slam::ExtractKeypoints(const PointCloud::Ptr& inputPc, const std::vector<si
   };
 
   // Extract keypoints from input cloud,
-  this->KeyPointsExtractor->ComputeKeyPoints(inputPc, laserIdMapping);
+  this->KeyPointsExtractor->ComputeKeyPoints(this->CurrentFrame, laserIdMapping);
 
   // Get keypoints and transform them from LIDAR to BASE coordinates if needed.
   this->CurrentEdgesPoints   = transformToBase(this->KeyPointsExtractor->GetEdgePoints());
