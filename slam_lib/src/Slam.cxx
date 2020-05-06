@@ -223,7 +223,6 @@ void Slam::Reset(bool resetLog)
   this->Tworld = Eigen::Isometry3d::Identity();
   this->PreviousTworld = Eigen::Isometry3d::Identity();
   this->Trelative = Eigen::Isometry3d::Identity();
-  this->MotionParametersEgoMotion = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
   this->MotionParametersMapping = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
   this->TworldCovariance = Eigen::Matrix<double, 6, 6>::Identity();
 
@@ -288,6 +287,9 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     this->ComputeEgoMotion();
     IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion"));
 
+    // Integrate the relative motion to the world transformation
+    this->Tworld = this->PreviousTworld * this->Trelative;
+  
     // Transform the current keypoints to the
     // referential of the sensor at the end of
     // frame acquisition
@@ -725,7 +727,6 @@ void Slam::ComputeEgoMotion()
   // reset the relative transform
   // TODO : keep last frame transform as an init for optimization ?
   this->Trelative = Eigen::Isometry3d::Identity();
-  this->MotionParametersEgoMotion = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
 
   // kd-tree to process fast nearest neighbor
   // among the keypoints of the previous pointcloud
@@ -777,12 +778,6 @@ void Slam::ComputeEgoMotion()
 
     // clear all keypoints matching data
     this->ResetDistanceParameters();
-
-    // Init the undistortion interpolator
-    if (this->Undistortion)
-    {
-      this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::EGO_MOTION);
-    }
 
     // loop over edges if there is enough previous edge keypoints
     if (this->CurrentEdgesPoints->size() > 0 && this->PreviousEdgesPoints->size() > this->EgoMotionLineDistanceNbrNeighbors)
@@ -841,11 +836,6 @@ void Slam::ComputeEgoMotion()
     // TODO : update Ceres cost function to take as arg the Isometry3d data
     Eigen::Matrix<double, 6, 1> TrelativeArray;
     TrelativeArray << GetRPY(this->Trelative.linear()), this->Trelative.translation();
-    Eigen::Matrix<double, 12, 1> motionParametersEgoMotionArray;
-    motionParametersEgoMotionArray << GetRPY(this->MotionParametersEgoMotion.first.linear()),
-                                      this->MotionParametersEgoMotion.first.translation(),
-                                      GetRPY(this->MotionParametersEgoMotion.second.linear()),
-                                      this->MotionParametersEgoMotion.second.translation();
 
     // We want to estimate our 6-DOF parameters using a non
     // linear least square minimization. The non linear part
@@ -855,22 +845,12 @@ void Slam::ComputeEgoMotion()
     ceres::Problem problem;
     for (unsigned int k = 0; k < Xvalues.size(); ++k)
     {
-      if (this->Undistortion)
-      {
-        ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceInterpolatedMotionResidual, 1, 12>(
-                                             new CostFunctions::MahalanobisDistanceInterpolatedMotionResidual(
-                                                this->Avalues[k], this->Pvalues[k], this->Xvalues[k],
-                                                this->TimeValues[k], this->residualCoefficient[k]));
-        problem.AddResidualBlock(cost_function, new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k],
-                                                                      ceres::TAKE_OWNERSHIP), motionParametersEgoMotionArray.data());
-      }
-      else
-      {
-        ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceAffineIsometryResidual, 1, 6>(
-                                             new CostFunctions::MahalanobisDistanceAffineIsometryResidual(this->Avalues[k], this->Pvalues[k],
-                                                                                                          this->Xvalues[k], this->residualCoefficient[k]));
-        problem.AddResidualBlock(cost_function, new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP), TrelativeArray.data());
-      }
+      ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceAffineIsometryResidual, 1, 6>(
+                                            new CostFunctions::MahalanobisDistanceAffineIsometryResidual(this->Avalues[k], this->Pvalues[k],
+                                                                                                         this->Xvalues[k], this->residualCoefficient[k]));
+      problem.AddResidualBlock(cost_function,
+                               new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
+                               TrelativeArray.data());
     }
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : build ceres problem"));
@@ -886,10 +866,8 @@ void Slam::ComputeEgoMotion()
     ceres::Solve(options, &problem, &summary);
     PRINT_VERBOSE(4, summary.BriefReport());
 
-    // Unpack Trelative and MotionParametersEgoMotion
+    // Unpack Trelative back to isometry
     this->Trelative = ArrayToIsometry(TrelativeArray);
-    this->MotionParametersEgoMotion.first = ArrayToIsometry(motionParametersEgoMotionArray.topRows(6));
-    this->MotionParametersEgoMotion.second = ArrayToIsometry(motionParametersEgoMotionArray.bottomRows(6));
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : LM optim"));
 
@@ -907,9 +885,6 @@ void Slam::ComputeEgoMotion()
   PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " ("
                     << this->EgoMotionEdgesPointsUsed << " edges, "
                     << this->EgoMotionPlanesPointsUsed << " planes).");
-
-  // Integrate the relative motion to the world transformation
-  this->UpdateTworldUsingTrelative();
 }
 
 //-----------------------------------------------------------------------------
@@ -1212,27 +1187,6 @@ void Slam::UpdateMapsUsingTworld()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::UpdateTworldUsingTrelative()
-{
-  // Next estimation of Tworld using the odometry result.
-  // The new pose of the sensor in the world referential is the previous one
-  // composed with the relative motion estimated at the odometry step.
-  if (this->Undistortion)
-  {
-    // This estimation will be used to undistort the frame and to initialize the
-    // optimization.
-    // CHECK : do not use MotionParametersMapping.first ?
-    this->MotionParametersMapping.first = this->MotionParametersMapping.second * this->MotionParametersEgoMotion.first;
-    this->MotionParametersMapping.second = this->MotionParametersMapping.second * this->MotionParametersEgoMotion.second;
-  }
-  else
-  {
-    // This estimation will be used to initialize the optimization.
-    this->Tworld = this->Tworld * this->Trelative;
-  }
-}
-
-//-----------------------------------------------------------------------------
 void Slam::UpdateCurrentKeypointsUsingTworld()
 {
   // Create the undistortion interpolator
@@ -1309,7 +1263,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
 
   Eigen::Vector3d P0(p.x, p.y, p.z);
   // Time continuous motion model to take into account the rolling shutter distortion
-  if (this->Undistortion)
+  if (this->Undistortion && matchingMode == MatchingMode::MAPPING)
   {
     this->ExpressPointInOtherReferencial(p);
   }
@@ -1461,7 +1415,7 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
 
   Eigen::Vector3d P0(p.x, p.y, p.z);
   // Time continuous motion model to take into account the rolling shutter distortion
-  if (this->Undistortion)
+  if (this->Undistortion && matchingMode == MatchingMode::MAPPING)
   {
     this->ExpressPointInOtherReferencial(p);
   }
@@ -1875,27 +1829,17 @@ void Slam::TransformToWorld(Point& p) const
 //-----------------------------------------------------------------------------
 void Slam::CreateWithinFrameTrajectory(SampledSensorPath& path, WithinFrameTrajMode mode)
 {
-  const auto& motionParameters = (mode == WithinFrameTrajMode::EGO_MOTION) ? this->MotionParametersEgoMotion
-                                                                           : this->MotionParametersMapping;
-
-  path.Samples.resize(2);
-  // Add orientation and position of the sensor at the beginning of the frame
-  this->WithinFrameTrajectory.Samples[0].R = motionParameters.first.linear();
-  this->WithinFrameTrajectory.Samples[0].T = motionParameters.first.translation();
-  this->WithinFrameTrajectory.Samples[0].time = 0.0;
-  // Add orientation and position of the sensor at the end of the frame
-  this->WithinFrameTrajectory.Samples[1].R = motionParameters.second.linear();
-  this->WithinFrameTrajectory.Samples[1].T = motionParameters.second.translation();
-  this->WithinFrameTrajectory.Samples[1].time = 1.0;
-
-  if (mode == WithinFrameTrajMode::UNDISTORTION)  // CHECK unreachable code (mode is never set to UNDISTORTION)
+  if (mode == WithinFrameTrajMode::MAPPING)
   {
-    // Relative motion between t0 and t1
-    Eigen::Isometry3d dH = motionParameters.second.inverse() * motionParameters.first;
-    this->WithinFrameTrajectory.Samples[0].R = dH.linear();
-    this->WithinFrameTrajectory.Samples[0].T = dH.translation();
-    this->WithinFrameTrajectory.Samples[1].R = Eigen::Matrix3d::Identity();
-    this->WithinFrameTrajectory.Samples[1].T = Eigen::Vector3d::Zero();
+    path.Samples.resize(2);
+    this->WithinFrameTrajectory.Samples[0].time = 0.0;
+    this->WithinFrameTrajectory.Samples[1].time = 1.0;
+    // Add orientation and position of the sensor at the beginning of the frame
+    this->WithinFrameTrajectory.Samples[0].R = this->MotionParametersMapping.first.linear();
+    this->WithinFrameTrajectory.Samples[0].T = this->MotionParametersMapping.first.translation();
+    // Add orientation and position of the sensor at the end of the frame
+    this->WithinFrameTrajectory.Samples[1].R = this->MotionParametersMapping.second.linear();
+    this->WithinFrameTrajectory.Samples[1].T = this->MotionParametersMapping.second.translation();
   }
 }
 

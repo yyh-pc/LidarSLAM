@@ -365,7 +365,6 @@ private:
   // Transformation to map the current pointcloud
   // in the referential of the previous one
   Eigen::Isometry3d Trelative;
-  std::pair<Eigen::Isometry3d, Eigen::Isometry3d> MotionParametersEgoMotion;
 
   // Transformation to map the current pointcloud
   // in the world (i.e first frame) one
@@ -561,11 +560,6 @@ private:
   // the current frame in the world referential
   // using the map and the keypoints extracted.
   void Mapping();
-
-  // Update the world transformation by integrating
-  // the relative motion recover and the previous
-  // world transformation
-  void UpdateTworldUsingTrelative();
 
   // Update the maps by populate the rolling grids
   // using the current keypoints expressed in the
