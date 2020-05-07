@@ -100,6 +100,26 @@ public:
   using Point = PointXYZTIId;
   using PointCloud = pcl::PointCloud<Point>;
 
+  // How to deal with undistortion
+  enum UndistortionMode
+  {
+    //! No undistortion is performed :
+    //!  - End scan pose is optimized using rigid registration of raw scan and map.
+    //!  - Raw input scan is added to maps.
+    NONE = 0,
+
+    //! Minimal undistortion is performed :
+    //!  - Begin scan pose is linearly interpolated between previous and current end scan poses.
+    //!  - End scan pose is optimized using rigid registration of undistort scan and map.
+    //!  - Scan is linearly undistort between begin and end scan poses.
+    APPROXIMATED = 1,
+
+    //! Ceres-optimized undistortion is performed :
+    //!  - Both begin and end scan poses are optimized using registration of undistort scan and map.
+    //!  - Scan is linearly undistort between begin and end scan poses.
+    OPTIMIZED = 2
+  };
+
   // Initialization
   Slam();
   void Reset(bool resetLog = true);
@@ -173,8 +193,8 @@ public:
   GetMacro(EgoMotionRegistration, bool)
   SetMacro(EgoMotionRegistration, bool)
 
-  SetMacro(Undistortion, bool)
-  GetMacro(Undistortion, bool)
+  SetMacro(Undistortion, UndistortionMode)
+  GetMacro(Undistortion, UndistortionMode)
 
   SetMacro(LoggingTimeout, double)
   GetMacro(LoggingTimeout, double)
@@ -317,10 +337,10 @@ private:
   // Otherwise, Ego-Motion is estimated using previous motion extrapolation.
   bool EgoMotionRegistration = false;
 
-  // Should the algorithm undistord the frame or not
-  // The undistortion will improve the accuracy but
-  // the computation speed will decrease
-  bool Undistortion = false;
+  // How the algorithm should undistort the lidar scans.
+  // The undistortion should improve the accuracy, but the computation speed
+  // may decrease, and the result might be unstable in difficult situations.
+  UndistortionMode Undistortion = UndistortionMode::APPROXIMATED;
 
   // Indicate verbosity level to display more or less information :
   // 0: print errors, warnings or one time info
@@ -358,8 +378,10 @@ private:
   unsigned int PreviousFrameSeq = 0;
 
   // ---------------------------------------------------------------------------
-  //   Trajectory and transforms
+  //   Trajectory, transforms and undistortion
   // ---------------------------------------------------------------------------
+
+  // **** COORDINATES SYSTEMS ****
 
   // Static transform to link BASE and LIDAR coordinates systems
   // It corresponds to the pose of LIDAR origin in BASE coordinates
@@ -370,26 +392,38 @@ private:
   std::string BaseFrameId;             // CS of current keypoints, defaults to input cloud frame_id if BaseToLidarOffset is unset, or BaseFrameIdDefault otherwise.
   const std::string BaseFrameIdDefault = "base";  // Default BASE name to use if BaseToLidarOffset is defined but not BaseFrameId.
 
-  // Transformation to map the current pointcloud
-  // in the referential of the previous one
+  // **** LOCALIZATION ****
+
+  // Global transformation to map the current pointcloud to the previous one
   Eigen::Isometry3d Trelative;
 
-  // Transformation to map the current pointcloud
-  // in the world (i.e first frame) one
+  // Transformation to map the current pointcloud in the world coordinates
   Eigen::Isometry3d Tworld;
-  Eigen::Isometry3d PreviousTworld; // CHECK unused ?
-  std::pair<Eigen::Isometry3d, Eigen::Isometry3d> MotionParametersMapping;
+  Eigen::Isometry3d PreviousTworld;
 
   // Variance-Covariance matrix that estimates the
   // estimation error about the 6-DoF parameters
   // (DoF order : rX, rY, rZ, X, Y, Z)
   Eigen::Matrix<double, 6, 6> TworldCovariance;
 
-  // Represents estimated samples of the trajectory
-  // of the sensor within a lidar frame. The orientation
-  // and position of the sensor at a random time t can then
-  // be obtained using an interpolation
-  SampledSensorPath WithinFrameTrajectory;
+  // [s] SLAM computation duration of last processed frame (~Tworld delay)
+  // used to compute latency compensated pose
+  double Latency;
+
+  // **** UNDISTORTION ****
+
+  // Poses at the beginning and end of current frame
+  std::pair<Eigen::Isometry3d, Eigen::Isometry3d> WithinFrameMotionBounds;
+
+  // Transform interpolator to estimate the pose of the sensor within a lidar
+  // frame, using poses at the beginning and end of frame.
+  LinearTransformInterpolator<double> WithinFrameMotion;
+
+  // If Undistortion is enabled, it is necessary to save frame duration
+  // (time ellapsed between first and last point measurements)
+  double FrameDuration;
+
+  // **** LOGGING ****
 
   // Computed trajectory of the sensor (the list of past computed poses,
   // covariances and keypoints of each frame).
@@ -398,9 +432,6 @@ private:
   std::deque<PointCloudStorage<Point>> LogEdgesPoints;
   std::deque<PointCloudStorage<Point>> LogPlanarsPoints;
   std::deque<PointCloudStorage<Point>> LogBlobsPoints;
-
-  // [s] SLAM computation duration of last processed frame (~Tworld delay)
-  double Latency;
 
   // ---------------------------------------------------------------------------
   //   Keypoints extraction and maps
@@ -552,33 +583,25 @@ private:
   //   Main sub-problems and methods
   // ---------------------------------------------------------------------------
 
-  // Update current frame (check frame dropping, correct time field)
+  // Update current frame (check frame dropping, correct time field) and
+  // estimate new state (estimate new pose with a constant velocity model)
   void UpdateFrameAndState(const PointCloud::Ptr& inputPc);
 
   // Extract keypoints from input pointcloud,
   // and transform them from LIDAR to BASE coordinate system.
   void ExtractKeypoints(const std::vector<size_t>& laserIdMapping);
 
-  // Find the ego motion of the sensor between
-  // the current frame and the next one using
-  // the keypoints extracted.
+  // Estimate the ego motion since last frame by registering current frame
+  // keypoints on previous frame keypoints between
   void ComputeEgoMotion();
 
-  // Map the position of the sensor from
-  // the current frame in the world referential
-  // using the map and the keypoints extracted.
+  // Compute the pose of the current frame in world referential by registering
+  // current frame keypoints on keypoints from maps
   void Mapping();
 
-  // Update the maps by populate the rolling grids
-  // using the current keypoints expressed in the
-  // world reference frame coordinate system
+  // Update the maps by adding to the rolling grids the current keypoints
+  // expressed in the world reference frame coordinate system
   void UpdateMapsUsingTworld();
-
-  // Update the current keypoints by expressing
-  // them in the reference coordinate system that
-  // correspond to the one attached to the sensor
-  // at the time of the end of the frame
-  void UpdateCurrentKeypointsUsingTworld();
 
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState(double time, const std::string& frameId);
@@ -587,36 +610,25 @@ private:
   //   Geometrical transformations
   // ---------------------------------------------------------------------------
 
-  // Transform the input point already undistort into Tworld.
-  void TransformToWorld(Point& p) const;
+  // Transform a point either with rigid 'transform' or with undistortion using
+  // 'transformInterpolator' depending on 'undistortion' param.
+ void TransformPoint(Point& p,
+                     const Eigen::Isometry3d& transform,
+                     const LinearTransformInterpolator<double>& transformInterpolator,
+                     const bool& undistortion) const;
 
-  // All points of the current frame has been
-  // acquired at a different timestamp. The goal
-  // is to express them in a same referential
-  // This can be done using estimated egomotion and assuming
-  // a constant angular velocity and velocity during a sweep
-  // or any other motion model
+  // All points of the current frame have been acquired at a different timestamp.
+  // The goal is to express them in the same referential. This can be done using
+  // estimated egomotion and assuming a constant angular velocity and velocity
+  // during a sweep, or any other motion model.
 
-  // Express the provided point into the referential of the sensor
-  // at time tf. The referential at time of acquisition t is estimated
-  // using the constant velocity hypothesis and the provided sensor
-  // position estimation
-  void ExpressPointInOtherReferencial(Point& p) const;
-  void ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud) const;
+  // Interpolate scan begin pose from PreviousTworld and Tworld.
+  Eigen::Isometry3d InterpolateBeginScanPose();
 
-  enum class WithinFrameTrajMode
-  {
-    EGO_MOTION = 0,
-    MAPPING = 1,
-    UNDISTORTION = 2
-  };
-
-  // Compute the trajectory of the sensor within a frame according to the sensor
-  // motion model.
-  // For the EgoMotion part it is just an interpolation between Id and Trelative.
-  // For the Mapping part it is an interpolation between identity and the
-  // incremental transform between TworldPrevious and Tworld.
-  void CreateWithinFrameTrajectory(SampledSensorPath& path, WithinFrameTrajMode mode);
+  // Perform approximated undistotion, interpolating BeginFrame pose from
+  // PreviousTworld and Tworld, then linearly undistort keypoints between
+  // BeginFrame and Tworld.
+  void ApproximateKeypointsUndistortion();
 
   // ---------------------------------------------------------------------------
   //   Features associations and optimization
@@ -639,7 +651,7 @@ private:
   MatchingResult ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, const Eigen::Isometry3d& transform,
                                                 Point p, MatchingMode matchingMode);
   MatchingResult ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtreePreviousBlobs, const Eigen::Isometry3d& transform,
-                                                Point p, MatchingMode /*matchingMode*/);
+                                                Point p, MatchingMode matchingMode);
 
   // Instead of taking the k-nearest neigbors in the odometry step we will take
   // specific neighbor using the particularities of the lidar sensor

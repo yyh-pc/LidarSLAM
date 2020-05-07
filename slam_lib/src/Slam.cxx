@@ -134,6 +134,31 @@ std::array<double, 36> FlipAndConvertCovariance(const Eigen::Matrix<double, 6, 6
 }
 
 //-----------------------------------------------------------------------------
+inline void TransformPoint(Slam::Point& p, const Eigen::Isometry3d& transform)
+{
+  p.getVector4fMap() = (transform * Eigen::Vector4d(p.x, p.y, p.z, 1.)).cast<float>();
+}
+
+//-----------------------------------------------------------------------------
+inline void UndistortPoint(Slam::Point& p, const LinearTransformInterpolator<double>& transformInterpolator)
+{
+  // Get transform at point timestamp and transform point
+  TransformPoint(p, transformInterpolator(p.time));
+}
+
+//-----------------------------------------------------------------------------
+// Interpolate a pointcloud between 2 transforms (matching H0 at t=0, and H1 at t=1).
+void UndistortPointCloud(Slam::PointCloud::Ptr& cloud, const Eigen::Isometry3d& H0, const Eigen::Isometry3d& H1)
+{
+  // Create transform interpolator
+  LinearTransformInterpolator<double> transformInterpolator(H0, H1);
+
+  // Loop over points
+  for (Slam::Point& p : *cloud)
+    UndistortPoint(p, transformInterpolator);
+}
+
+//-----------------------------------------------------------------------------
 std::unordered_map<std::string, std::chrono::steady_clock::time_point> startTimes;
 std::unordered_map<std::string, double> totalDurations;
 std::unordered_map<std::string, unsigned int> totalCalls;
@@ -223,7 +248,7 @@ void Slam::Reset(bool resetLog)
   this->Tworld = Eigen::Isometry3d::Identity();
   this->PreviousTworld = Eigen::Isometry3d::Identity();
   this->Trelative = Eigen::Isometry3d::Identity();
-  this->MotionParametersMapping = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
+  this->WithinFrameMotionBounds = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
   this->TworldCovariance = Eigen::Matrix<double, 6, 6>::Identity();
 
   // Reset point clouds
@@ -277,11 +302,15 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   this->ExtractKeypoints(laserIdMapping);
   IF_VERBOSE(3, StopTimeAndDisplay("Keypoints extraction"));
 
-  // If the new frame is the first one we just add the
-  // extracted keypoints into the map without running
-  // odometry and mapping steps
+  // If the new frame is the first one we just add the extracted keypoints into
+  // the map without running odometry and mapping steps
   if (this->NbrFrameProcessed > 0)
   {
+    // Use extrapolated motion to undistort keypoints (transform the current
+    // keypoints to BASE referential at the end of frame acquisition)
+    if (this->Undistortion == UndistortionMode::APPROXIMATED)
+      this->ApproximateKeypointsUndistortion();
+
     // Compute Trelative by registering current frame on previous one
     if (this->EgoMotionRegistration)
     {
@@ -292,18 +321,22 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 
     // Integrate the relative motion to the world transformation
     this->Tworld = this->PreviousTworld * this->Trelative;
-  
-    // Transform the current keypoints to the
-    // referential of the sensor at the end of
-    // frame acquisition
-    //IF_VERBOSE(3, InitTime("Undistortion"));
-    //this->TransformCurrentKeypointsToEnd();
-    //IF_VERBOSE(3, StopTimeAndDisplay("Undistortion"));
+    if (this->Undistortion == UndistortionMode::OPTIMIZED)
+    {
+      this->WithinFrameMotionBounds.first = this->InterpolateBeginScanPose();
+      this->WithinFrameMotionBounds.second = this->Tworld;
+      this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
+    }
 
     // Perform Mapping : compute Tworld from map and current frame keypoints
     IF_VERBOSE(3, InitTime("Mapping"));
     this->Mapping();
     IF_VERBOSE(3, StopTimeAndDisplay("Mapping"));
+
+    // Use refined motion to improve undistortion (transform the current
+    // keypoints to BASE referential at the end of frame acquisition)
+    if (this->Undistortion == UndistortionMode::APPROXIMATED)
+      this->ApproximateKeypointsUndistortion();
   }
 
   // Update keypoints maps : add current keypoints to map using Tworld
@@ -322,14 +355,20 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   // Motion and localization parameters estimation information display
   if (this->Verbosity >= 2)
   {
-    std::cout << "========== SLAM results ==========" << std::endl;
-    Eigen::Vector3d angles, trans;
-    angles << Rad2Deg(GetRPY(this->Trelative.linear()));
-    trans << this->Trelative.translation();
-    std::cout << "Ego-Motion:   angles = [" << angles.transpose() << "] translation = [" << trans.transpose() << "]" << std::endl;
-    angles << Rad2Deg(GetRPY(this->Tworld.linear()));
-    trans << this->Tworld.translation();
-    std::cout << "Localization: angles = [" << angles.transpose() << "] translation = [" << trans.transpose() << "]" << std::endl;
+    Eigen::Isometry3d relative = this->PreviousTworld.inverse() * this->Tworld;
+    Eigen::Isometry3d motion = this->WithinFrameMotionBounds.first.inverse() * this->WithinFrameMotionBounds.second;
+    std::cout << "========== SLAM results ==========\n"
+                 "Ego-Motion:\n"
+                 " translation = [" << this->Trelative.translation().transpose()             << "]\n"
+                 " rotation    = [" << Rad2Deg(GetRPY(this->Trelative.linear())).transpose() << "]\n"
+                 "Within frame motion:\n"
+                 " translation = [" << motion.translation().transpose()                << "]\n"
+                 " rotation    = [" << Rad2Deg(GetRPY(motion.linear())).transpose()    << "]\n"
+                 "Localization:\n"
+                 " translation = [" << relative.translation().transpose()             << "]\n"
+                 " rotation    = [" << Rad2Deg(GetRPY(relative.linear())).transpose() << "]\n"
+                 " position    = [" << this->Tworld.translation().transpose()                << "]\n"
+                 " orientation = [" << Rad2Deg(GetRPY(this->Tworld.linear())).transpose()    << "]" << std::endl;
   }
 
   if (this->Verbosity >= 5)
@@ -675,6 +714,10 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
   this->Tworld = TworldEstimation;
   this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
 
+  // Reset undistortion
+  this->WithinFrameMotionBounds.first = this->Tworld;
+  this->WithinFrameMotionBounds.second = this->Tworld;
+
   // Current keypoints become previous ones
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;
   this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
@@ -691,11 +734,11 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
     frameStartTime = std::min(frameStartTime, point.time);
     frameEndTime = std::max(frameEndTime, point.time);
   }
-  const double frameDuration = frameEndTime - frameStartTime;
+  this->FrameDuration = frameEndTime - frameStartTime;
 
   // Modify the points so that time becomes a relative advancement (between 0 and 1)
   for (Point& point: *this->CurrentFrame)
-    point.time = (point.time - frameStartTime) / frameDuration;
+    point.time = (point.time - frameStartTime) / this->FrameDuration;
 }
 
 //-----------------------------------------------------------------------------
@@ -779,11 +822,10 @@ void Slam::ComputeEgoMotion()
 
   IF_VERBOSE(3, InitTime("Ego-Motion : whole ICP-LM loop"));
 
-  // ICP - Levenberg-Marquardt loop:
-  // At each step of this loop an ICP matching is performed.
-  // Once the keypoints are matched, we estimate the 6-DOF
-  // parameters by minimizing a non-linear least square cost
-  // function using a Levenberg-Marquardt algorithm
+  // ICP - Levenberg-Marquardt loop
+  // At each step of this loop an ICP matching is performed. Once the keypoints
+  // are matched, we estimate the the 6-DOF parameters by minimizing the
+  // non-linear least square cost function using Levenberg-Marquardt algorithm.
   for (unsigned int icpCount = 0; icpCount < this->EgoMotionICPMaxIter; ++icpCount)
   {
     IF_VERBOSE(3, InitTime("  Ego-Motion : ICP"));
@@ -849,11 +891,10 @@ void Slam::ComputeEgoMotion()
     Eigen::Matrix<double, 6, 1> TrelativeArray;
     TrelativeArray << GetRPY(this->Trelative.linear()), this->Trelative.translation();
 
-    // We want to estimate our 6-DOF parameters using a non
-    // linear least square minimization. The non linear part
-    // comes from the Euler Angle parametrization of the rotation
-    // endomorphism of SO(3). To minimize it, we use CERES to perform
-    // the Levenberg-Marquardt algorithm.
+    // We want to estimate our 6-DOF parameters using a non linear least square
+    // minimization. The non linear part comes from the parametrization of the
+    // rotation endomorphism SO(3). To minimize it, we use CERES to perform
+    // Levenberg-Marquardt algorithm.
     ceres::Problem problem;
     for (unsigned int k = 0; k < Xvalues.size(); ++k)
     {
@@ -883,9 +924,8 @@ void Slam::ComputeEgoMotion()
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : LM optim"));
 
-    // If no L-M iteration has been made since the
-    // last ICP matching it means we reached a local
-    // minimum for the ICP-LM algorithm
+    // If no L-M iteration has been made since the last ICP matching, it means
+    // that we reached a local minimum for the ICP-LM algorithm.
     if (summary.num_successful_steps == 1)
     {
       break;
@@ -902,13 +942,6 @@ void Slam::ComputeEgoMotion()
 //-----------------------------------------------------------------------------
 void Slam::Mapping()
 {
-  // Update motion model parameters
-  if (this->Undistortion)
-  {
-    // CHECK : what about call to UpdateTworldUsingTrelative() ?
-    this->MotionParametersMapping.first = this->MotionParametersMapping.second;
-  }
-
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, InitTime("Mapping : keypoints extraction"));
   PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
@@ -961,23 +994,16 @@ void Slam::Mapping()
 
   IF_VERBOSE(3, InitTime("Mapping : whole ICP-LM loop"));
 
-  // ICP - Levenberg-Marquardt loop:
-  // At each step of this loop an ICP matching is performed
-  // Once the keypoints matched, we estimate the the 6-DOF
-  // parameters by minimizing a non-linear least square cost
-  // function using a Levenberg-Marquardt algorithm
+  // ICP - Levenberg-Marquardt loop
+  // At each step of this loop an ICP matching is performed. Once the keypoints
+  // are matched, we estimate the the 6-DOF parameters by minimizing the
+  // non-linear least square cost function using Levenberg-Marquardt algorithm.
   for (unsigned int icpCount = 0; icpCount < this->MappingICPMaxIter; ++icpCount)
   {
     IF_VERBOSE(3, InitTime("  Mapping : ICP"));
 
     // clear all keypoints matching data
     this->ResetDistanceParameters();
-
-    // Init the undistortion interpolator
-    if (this->Undistortion)
-    {
-      this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MAPPING);
-    }
 
     // loop over edges
     if (this->CurrentEdgesPoints->size() > 0 && subEdgesPointsLocalMap->size() > this->MappingLineDistanceNbrNeighbors)
@@ -1043,44 +1069,40 @@ void Slam::Mapping()
     double lossScale = this->MappingInitLossScale + static_cast<double>(icpCount) * (this->MappingFinalLossScale - this->MappingInitLossScale) / (1.0 * this->MappingICPMaxIter);
 
     // Convert to raw data
-    // TODO : update Ceres cost function to take as arg the Isometry3d data
     Eigen::Matrix<double, 6, 1> TworldArray;
     TworldArray << GetRPY(this->Tworld.linear()), this->Tworld.translation();
-    Eigen::Matrix<double, 12, 1> motionParametersMappingArray;
-    motionParametersMappingArray << GetRPY(this->MotionParametersMapping.first.linear()),
-                                    this->MotionParametersMapping.first.translation(),
-                                    GetRPY(this->MotionParametersMapping.second.linear()),
-                                    this->MotionParametersMapping.second.translation();
+    Eigen::Matrix<double, 12, 1> withinFrameMotionArray;
+    withinFrameMotionArray << GetRPY(this->WithinFrameMotionBounds.first.linear()),
+                              this->WithinFrameMotionBounds.first.translation(),
+                              GetRPY(this->WithinFrameMotionBounds.second.linear()),
+                              this->WithinFrameMotionBounds.second.translation();
 
-    // We want to estimate our 6-DOF parameters using a non
-    // linear least square minimization. The non linear part
-    // comes from the Euler Angle parametrization of the rotation
-    // endomorphism SO(3). To minimize it we use CERES to perform
-    // the Levenberg-Marquardt algorithm.
+    // We want to estimate our 6-DOF parameters using a non linear least square
+    // minimization. The non linear part comes from the parametrization of the
+    // rotation endomorphism SO(3). To minimize it, we use CERES to perform
+    // Levenberg-Marquardt algorithm.
     ceres::Problem problem;
-    for (unsigned int k = 0; k < Xvalues.size(); ++k)
+    if (this->Undistortion == UndistortionMode::OPTIMIZED)
     {
-      if (this->Undistortion)
+      for (unsigned int k = 0; k < Xvalues.size(); ++k)
       {
         ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceInterpolatedMotionResidual, 1, 12>(
                                                 new CostFunctions::MahalanobisDistanceInterpolatedMotionResidual(
-                                                  this->Avalues[k], this->Pvalues[k], this->Xvalues[k], 
-                                                  this->TimeValues[k], this->residualCoefficient[k]));
+                                                  this->Avalues[k], this->Pvalues[k], this->Xvalues[k], this->TimeValues[k], this->residualCoefficient[k]));
         problem.AddResidualBlock(cost_function, 
-                                 new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale),
-                                                       this->residualCoefficient[k],
-                                                       ceres::TAKE_OWNERSHIP),
-                                 motionParametersMappingArray.data());
+                                 new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
+                                 withinFrameMotionArray.data());
       }
-      else
+    }
+    else
+    {
+      for (unsigned int k = 0; k < Xvalues.size(); ++k)
       {
         ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceAffineIsometryResidual, 1, 6>(
                                                 new CostFunctions::MahalanobisDistanceAffineIsometryResidual(
                                                   this->Avalues[k], this->Pvalues[k], this->Xvalues[k], this->residualCoefficient[k]));
         problem.AddResidualBlock(cost_function,
-                                 new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale),
-                                                       this->residualCoefficient[k],
-                                                       ceres::TAKE_OWNERSHIP),
+                                 new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
                                  TworldArray.data());
       }
     }
@@ -1098,19 +1120,26 @@ void Slam::Mapping()
     ceres::Solve(options, &problem, &summary);
     PRINT_VERBOSE(4, summary.BriefReport());
 
-    // Unpack Tworld and MotionParametersMapping
-    this->Tworld = ArrayToIsometry(TworldArray);
-    this->MotionParametersMapping.first = ArrayToIsometry(motionParametersMappingArray.topRows(6));
-    this->MotionParametersMapping.second = ArrayToIsometry(motionParametersMappingArray.bottomRows(6));
+    // Unpack Tworld and WithinFrameMotionBounds
+    if (this->Undistortion == UndistortionMode::OPTIMIZED)
+    {
+      this->WithinFrameMotionBounds.first = ArrayToIsometry(withinFrameMotionArray.topRows(6));
+      this->WithinFrameMotionBounds.second = ArrayToIsometry(withinFrameMotionArray.bottomRows(6));
+      this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
+      this->Tworld = this->WithinFrameMotionBounds.second;
+    }
+    else
+    {
+      this->Tworld = ArrayToIsometry(TworldArray);
+    }
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : LM optim"));
 
-    // If no L-M iteration has been made since the
-    // last ICP matching it means we reached a local
-    // minimum for the ICP-LM algorithm
+    // If no L-M iteration has been made since the last ICP matching, it means
+    // that we reached a local minimum for the ICP-LM algorithm.
     if (((summary.num_successful_steps == 1) ||
         (icpCount == (this->MappingICPMaxIter - 1))) &&
-        !this->Undistortion)
+        (this->Undistortion != UndistortionMode::OPTIMIZED))
     {
       // Now evaluate the quality of the parameters
       // estimated using an approximate computation
@@ -1143,34 +1172,11 @@ void Slam::Mapping()
                    "\nCovariance eigen values: " << D.transpose() <<
                    "\nMaximum variance eigen vector: " << eig.eigenvectors().col(5).transpose() <<
                    "\nMaximum variance: " << D(5));
-
-  if (this->Undistortion)
-  {
-    this->Tworld = this->MotionParametersMapping.second;
-  }
-
-  // CHECK order of next steps : UpdateMapsUsingTworld, UpdateCurrentKeypointsUsingTworld, CreateWithinFrameTrajectory
-
-  // Transform the current keypoints in the sensor reference frame
-  // corresponding to the end of the frame
-  if (this->Undistortion)
-  {
-    this->UpdateCurrentKeypointsUsingTworld();
-  }
-  // Compute the undistortion interpolator before replacing previousTworld
-  // this interpolator will be used to output the mapped current frame
-  this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MAPPING);
 }
 
 //-----------------------------------------------------------------------------
 void Slam::UpdateMapsUsingTworld()
 {
-  // Init the mapping interpolator
-  if (this->Undistortion)
-  {
-    this->CreateWithinFrameTrajectory(this->WithinFrameTrajectory, WithinFrameTrajMode::MAPPING);
-  }
-
   // it would be nice to add the point from the frame directly to the map
   auto updateMap = [this] (std::shared_ptr<RollingGrid> map, PointCloud::Ptr frame)
   {
@@ -1179,7 +1185,7 @@ void Slam::UpdateMapsUsingTworld()
     for (size_t i = 0; i < frame->size(); ++i)
     {
       temporaryMap->push_back(frame->at(i));
-      this->TransformToWorld(temporaryMap->at(i));
+      this->TransformPoint(temporaryMap->at(i), this->Tworld, this->WithinFrameMotion, this->Undistortion == OPTIMIZED);
     }
     map->Roll(this->Tworld.translation());
     map->Add(temporaryMap);
@@ -1196,17 +1202,6 @@ void Slam::UpdateMapsUsingTworld()
     if (!this->FastSlam)
       updateMap(this->BlobsPointsLocalMap, this->CurrentBlobsPoints);
   }
-}
-
-//-----------------------------------------------------------------------------
-void Slam::UpdateCurrentKeypointsUsingTworld()
-{
-  // Create the undistortion interpolator
-
-  // Now transform the keypoints
-  this->ExpressPointCloudInOtherReferencial(this->CurrentEdgesPoints);
-  this->ExpressPointCloudInOtherReferencial(this->CurrentPlanarsPoints);
-  this->ExpressPointCloudInOtherReferencial(this->CurrentBlobsPoints);
 }
 
 //-----------------------------------------------------------------------------
@@ -1273,18 +1268,10 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
   // =====================================================
   // Transform the point using the current pose estimation
 
-  Eigen::Vector3d P0(p.x, p.y, p.z);
-  // Time continuous motion model to take into account the rolling shutter distortion
-  if (this->Undistortion && matchingMode == MatchingMode::MAPPING)
-  {
-    this->ExpressPointInOtherReferencial(p);
-  }
-  // Rigid transform
-  else
-  {
-    Eigen::Vector3d P = transform * P0;
-    p.x = P.x(); p.y = P.y(); p.z = P.z();
-  }
+  // Rigid transform or time continuous motion model to take into account the
+  // rolling shutter distortion.
+  const Eigen::Vector3d P0(p.x, p.y, p.z);
+  this->TransformPoint(p, transform, this->WithinFrameMotion, this->Undistortion == OPTIMIZED && matchingMode == MatchingMode::MAPPING);
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
@@ -1412,7 +1399,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
     this->Avalues.emplace_back(A);
     this->Pvalues.emplace_back(mean);
     this->Xvalues.emplace_back(P0);
-    this->TimeValues.emplace_back(p.intensity);  // CHECK intensity ? Not time ?
+    this->TimeValues.emplace_back(p.time);
     this->residualCoefficient.emplace_back(fitQualityCoeff);
   }
   return MatchingResult::SUCCESS;
@@ -1425,18 +1412,10 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
   // =====================================================
   // Transform the point using the current pose estimation
 
-  Eigen::Vector3d P0(p.x, p.y, p.z);
-  // Time continuous motion model to take into account the rolling shutter distortion
-  if (this->Undistortion && matchingMode == MatchingMode::MAPPING)
-  {
-    this->ExpressPointInOtherReferencial(p);
-  }
-  // Rigid transform
-  else
-  {
-    Eigen::Vector3d P = transform * P0;
-    p.x = P.x(); p.y = P.y(); p.z = P.z();
-  }
+  // Rigid transform or time continuous motion model to take into account the
+  // rolling shutter distortion.
+  const Eigen::Vector3d P0(p.x, p.y, p.z);
+  this->TransformPoint(p, transform, this->WithinFrameMotion, this->Undistortion == OPTIMIZED && matchingMode == MatchingMode::MAPPING);
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
@@ -1555,7 +1534,7 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
     this->Avalues.emplace_back(A);
     this->Pvalues.emplace_back(mean);
     this->Xvalues.emplace_back(P0);
-    this->TimeValues.emplace_back(p.intensity);  // CHECK not time ?
+    this->TimeValues.emplace_back(p.time);
     this->residualCoefficient.emplace_back(fitQualityCoeff);
   }
   return MatchingResult::SUCCESS;
@@ -1563,23 +1542,15 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
 
 //-----------------------------------------------------------------------------
 Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtreePreviousBlobs, const Eigen::Isometry3d& transform,
-                                                          Point p, MatchingMode /*matchingMode*/)
+                                                          Point p, MatchingMode matchingMode)
 {
   // =====================================================
   // Transform the point using the current pose estimation
 
-  Eigen::Vector3d P0(p.x, p.y, p.z);
-  // Time continuous motion model to take into account the rolling shutter distortion
-  if (this->Undistortion)
-  {
-    this->ExpressPointInOtherReferencial(p);
-  }
-  // Rigid transform
-  else
-  {
-    Eigen::Vector3d P = transform * P0;
-    p.x = P.x(); p.y = P.y(); p.z = P.z();
-  }
+  // Rigid transform or time continuous motion model to take into account the
+  // rolling shutter distortion.
+  const Eigen::Vector3d P0(p.x, p.y, p.z);
+  this->TransformPoint(p, transform, this->WithinFrameMotion, this->Undistortion == OPTIMIZED && matchingMode == MatchingMode::MAPPING);
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
@@ -1681,7 +1652,7 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtr
     this->Avalues.emplace_back(A);
     this->Pvalues.emplace_back(mean);
     this->Xvalues.emplace_back(P0);
-    this->TimeValues.emplace_back(p.intensity);  // CHECK intensity ? Not time ?
+    this->TimeValues.emplace_back(p.time);
     this->residualCoefficient.emplace_back(fitQualityCoeff);
   }
   return MatchingResult::SUCCESS;
@@ -1822,57 +1793,45 @@ void Slam::GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::v
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-void Slam::TransformToWorld(Point& p) const
+void Slam::TransformPoint(Point& p,
+                          const Eigen::Isometry3d& transform,
+                          const LinearTransformInterpolator<double>& transformInterpolator,
+                          const bool& undistortion) const
 {
-  if (this->Undistortion)
+  // Apply transform to point, using either rigid or interpolated transform.
+  if (undistortion)
+    ::UndistortPoint(p, transformInterpolator);
+  else
+    ::TransformPoint(p, transform);
+}
+
+//-----------------------------------------------------------------------------
+Eigen::Isometry3d Slam::InterpolateBeginScanPose()
+{
+  if (this->NbrFrameProcessed > 0)
   {
-    this->ExpressPointInOtherReferencial(p);
+    const double prevFrameEnd = this->LogTrajectory.back().time;
+    const double currFrameEnd = this->CurrentFrame->header.stamp * 1e-6;
+    const double currFrameStart = currFrameEnd - this->FrameDuration;
+    return LinearInterpolation(this->PreviousTworld, this->Tworld, currFrameStart, prevFrameEnd, currFrameEnd);
   }
   else
-  {
-    Eigen::Vector3d P(p.x, p.y, p.z);
-    P = this->Tworld * P;
-    p.x = P.x();
-    p.y = P.y();
-    p.z = P.z();
-  }
+    return Eigen::Isometry3d::Identity();
 }
 
 //-----------------------------------------------------------------------------
-void Slam::CreateWithinFrameTrajectory(SampledSensorPath& path, WithinFrameTrajMode mode)
+void Slam::ApproximateKeypointsUndistortion()
 {
-  if (mode == WithinFrameTrajMode::MAPPING)
-  {
-    path.Samples.resize(2);
-    this->WithinFrameTrajectory.Samples[0].time = 0.0;
-    this->WithinFrameTrajectory.Samples[1].time = 1.0;
-    // Add orientation and position of the sensor at the beginning of the frame
-    this->WithinFrameTrajectory.Samples[0].R = this->MotionParametersMapping.first.linear();
-    this->WithinFrameTrajectory.Samples[0].T = this->MotionParametersMapping.first.translation();
-    // Add orientation and position of the sensor at the end of the frame
-    this->WithinFrameTrajectory.Samples[1].R = this->MotionParametersMapping.second.linear();
-    this->WithinFrameTrajectory.Samples[1].T = this->MotionParametersMapping.second.translation();
-  }
-}
-
-//-----------------------------------------------------------------------------
-void Slam::ExpressPointInOtherReferencial(Point& p) const
-{
-  // interpolate the transform
-  AffineIsometry iso = this->WithinFrameTrajectory(p.intensity);  // CHECK intensity ? not time ?
-  Eigen::Vector3d X(p.x, p.y, p.z);
-  Eigen::Vector3d Y = iso.R * X + iso.T;
-  p.x = Y.x(); p.y = Y.y(); p.z = Y.z();
-}
-
-//-----------------------------------------------------------------------------
-void Slam::ExpressPointCloudInOtherReferencial(PointCloud::Ptr& pointcloud) const
-{
-  #pragma omp parallel for num_threads(this->NbThreads) schedule(static)
-  for (unsigned int index = 0; index < pointcloud->size(); ++index)
-  {
-    ExpressPointInOtherReferencial(pointcloud->points[index]);
-  }
+  const Eigen::Isometry3d previousFrameEndToFrameStart = this->WithinFrameMotionBounds.second.inverse()
+                                                         * this->WithinFrameMotionBounds.first;
+  this->WithinFrameMotionBounds.first = this->InterpolateBeginScanPose();
+  this->WithinFrameMotionBounds.second = this->Tworld;
+  const Eigen::Isometry3d frameEndToFrameStart = this->WithinFrameMotionBounds.second.inverse()
+                                                 * this->WithinFrameMotionBounds.first
+                                                 * previousFrameEndToFrameStart.inverse();
+  UndistortPointCloud(this->CurrentEdgesPoints,   frameEndToFrameStart, Eigen::Isometry3d::Identity());
+  UndistortPointCloud(this->CurrentPlanarsPoints, frameEndToFrameStart, Eigen::Isometry3d::Identity());
+  UndistortPointCloud(this->CurrentBlobsPoints,   frameEndToFrameStart, Eigen::Isometry3d::Identity());
 }
 
 //==============================================================================
