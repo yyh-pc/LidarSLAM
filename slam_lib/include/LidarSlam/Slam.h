@@ -610,13 +610,6 @@ private:
   //   Geometrical transformations
   // ---------------------------------------------------------------------------
 
-  // Transform a point either with rigid 'transform' or with undistortion using
-  // 'transformInterpolator' depending on 'undistortion' param.
- void TransformPoint(Point& p,
-                     const Eigen::Isometry3d& transform,
-                     const LinearTransformInterpolator<double>& transformInterpolator,
-                     const bool& undistortion) const;
-
   // All points of the current frame have been acquired at a different timestamp.
   // The goal is to express them in the same referential. This can be done using
   // estimated egomotion and assuming a constant angular velocity and velocity
@@ -624,11 +617,6 @@ private:
 
   // Interpolate scan begin pose from PreviousTworld and Tworld.
   Eigen::Isometry3d InterpolateBeginScanPose();
-
-  // Perform approximated undistotion, interpolating BeginFrame pose from
-  // PreviousTworld and Tworld, then linearly undistort keypoints between
-  // BeginFrame and Tworld.
-  void ApproximateKeypointsUndistortion();
 
   // ---------------------------------------------------------------------------
   //   Features associations and optimization
@@ -640,28 +628,27 @@ private:
     MAPPING = 1
   };
 
+  void ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal);
+
   // Match the current keypoint with its neighborhood in the map / previous
   // frames. From this match we compute the point-to-neighborhood distance
   // function:
   // (R * X + T - P).t * A * (R * X + T - P)
   // Where P is the mean point of the neighborhood and A is the symmetric
   // variance-covariance matrix encoding the shape of the neighborhood
-  MatchingResult ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtreePreviousEdges, const Eigen::Isometry3d& transform,
-                                               Point p, MatchingMode matchingMode);
-  MatchingResult ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, const Eigen::Isometry3d& transform,
-                                                Point p, MatchingMode matchingMode);
-  MatchingResult ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtreePreviousBlobs, const Eigen::Isometry3d& transform,
-                                                Point p, MatchingMode matchingMode);
+  MatchingResult ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtreePreviousEdges,   const Point& p, MatchingMode matchingMode);
+  MatchingResult ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode);
+  MatchingResult ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtreePreviousBlobs,  const Point& p, MatchingMode matchingMode);
 
   // Instead of taking the k-nearest neigbors in the odometry step we will take
   // specific neighbor using the particularities of the lidar sensor
   void GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist,
-                                        unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p) const;
+                                      unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const double pos[3]) const;
 
   // Instead of taking the k-nearest neighbors in the mapping
   // step we will take specific neighbor using a sample consensus  model
   void GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
-                                      unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p) const;
+                                      unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const double pos[3]) const;
 
   void ResetDistanceParameters();
 

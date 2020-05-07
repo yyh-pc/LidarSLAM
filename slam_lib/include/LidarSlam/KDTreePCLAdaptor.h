@@ -67,6 +67,12 @@ public:
     resultSet.init(out_indices, out_distances_sq);
     this->Index->findNeighbors(resultSet, pt, nanoflann::SearchParams());
   }
+  inline void query(const double query_point[3], int knearest, int* out_indices, double* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  {
+    nanoflann::KNNResultSet<double, int> resultSet(knearest);
+    resultSet.init(out_indices, out_distances_sq);
+    this->Index->findNeighbors(resultSet, query_point, nanoflann::SearchParams());
+  }
 
   inline const KDTreePCLAdaptor& derived() const
   {

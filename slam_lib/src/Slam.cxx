@@ -136,26 +136,14 @@ std::array<double, 36> FlipAndConvertCovariance(const Eigen::Matrix<double, 6, 6
 //-----------------------------------------------------------------------------
 inline void TransformPoint(Slam::Point& p, const Eigen::Isometry3d& transform)
 {
-  p.getVector4fMap() = (transform * Eigen::Vector4d(p.x, p.y, p.z, 1.)).cast<float>();
+  p.getVector4fMap() = (transform * p.getVector4fMap().cast<double>()).cast<float>();
 }
 
-//-----------------------------------------------------------------------------
-inline void UndistortPoint(Slam::Point& p, const LinearTransformInterpolator<double>& transformInterpolator)
+inline Slam::Point TransformPoint(const Slam::Point& p, const Eigen::Isometry3d& transform)
 {
-  // Get transform at point timestamp and transform point
-  TransformPoint(p, transformInterpolator(p.time));
-}
-
-//-----------------------------------------------------------------------------
-// Interpolate a pointcloud between 2 transforms (matching H0 at t=0, and H1 at t=1).
-void UndistortPointCloud(Slam::PointCloud::Ptr& cloud, const Eigen::Isometry3d& H0, const Eigen::Isometry3d& H1)
-{
-  // Create transform interpolator
-  LinearTransformInterpolator<double> transformInterpolator(H0, H1);
-
-  // Loop over points
-  for (Slam::Point& p : *cloud)
-    UndistortPoint(p, transformInterpolator);
+  Slam::Point out(p);
+  TransformPoint(out, transform);
+  return out;
 }
 
 //-----------------------------------------------------------------------------
@@ -306,11 +294,6 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   // the map without running odometry and mapping steps
   if (this->NbrFrameProcessed > 0)
   {
-    // Use extrapolated motion to undistort keypoints (transform the current
-    // keypoints to BASE referential at the end of frame acquisition)
-    if (this->Undistortion == UndistortionMode::APPROXIMATED)
-      this->ApproximateKeypointsUndistortion();
-
     // Compute Trelative by registering current frame on previous one
     if (this->EgoMotionRegistration)
     {
@@ -321,8 +304,11 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 
     // Integrate the relative motion to the world transformation
     this->Tworld = this->PreviousTworld * this->Trelative;
-    if (this->Undistortion == UndistortionMode::OPTIMIZED)
+    if (this->Undistortion)
     {
+      // Use extrapolated motion to undistort keypoints
+      // (All keypoints will be transformed to the BASE referential at the end
+      // of frame acquisition)
       this->WithinFrameMotionBounds.first = this->InterpolateBeginScanPose();
       this->WithinFrameMotionBounds.second = this->Tworld;
       this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
@@ -332,11 +318,6 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     IF_VERBOSE(3, InitTime("Mapping"));
     this->Mapping();
     IF_VERBOSE(3, StopTimeAndDisplay("Mapping"));
-
-    // Use refined motion to improve undistortion (transform the current
-    // keypoints to BASE referential at the end of frame acquisition)
-    if (this->Undistortion == UndistortionMode::APPROXIMATED)
-      this->ApproximateKeypointsUndistortion();
   }
 
   // Update keypoints maps : add current keypoints to map using Tworld
@@ -844,7 +825,7 @@ void Slam::ComputeEgoMotion()
         // i.e A = (I - n*n.t)^2 with n being the director vector
         // and P a point of the line
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreePreviousEdges, this->Trelative, currentPoint, MatchingMode::EGO_MOTION);
+        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreePreviousEdges, currentPoint, MatchingMode::EGO_MOTION);
         this->EdgePointRejectionEgoMotion[edgeIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramLine[rejectionIndex]++;
@@ -862,7 +843,7 @@ void Slam::ComputeEgoMotion()
         // i.e A = n * n.t with n being a normal of the plane
         // and is a point of the plane
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePreviousPlanes, this->Trelative, currentPoint, MatchingMode::EGO_MOTION);
+        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePreviousPlanes, currentPoint, MatchingMode::EGO_MOTION);
         this->PlanarPointRejectionEgoMotion[planarIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramPlane[rejectionIndex]++;
@@ -1013,7 +994,7 @@ void Slam::Mapping()
       {
         // Find the closest correspondence edge line of the current edge point
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, this->Tworld, currentPoint, MatchingMode::MAPPING);
+        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, currentPoint, MatchingMode::MAPPING);
         this->EdgePointRejectionMapping[edgeIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramLine[rejectionIndex]++;
@@ -1028,7 +1009,7 @@ void Slam::Mapping()
       {
         // Find the closest correspondence plane of the current planar point
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, this->Tworld, currentPoint, MatchingMode::MAPPING);
+        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, currentPoint, MatchingMode::MAPPING);
         this->PlanarPointRejectionMapping[planarIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramPlane[rejectionIndex]++;
@@ -1043,7 +1024,7 @@ void Slam::Mapping()
       {
         // Find the closest correspondence plane of the current blob point
         const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];
-        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, this->Tworld, currentPoint, MatchingMode::MAPPING);
+        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, currentPoint, MatchingMode::MAPPING);
         this->BlobPointRejectionMapping[blobIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramBlob[rejectionIndex]++;
@@ -1159,6 +1140,14 @@ void Slam::Mapping()
     }
   }
 
+  // Refine undistortion using optimized ego-motion
+  if (this->Undistortion == UndistortionMode::APPROXIMATED)
+  {
+    this->WithinFrameMotionBounds.first = this->InterpolateBeginScanPose();
+    this->WithinFrameMotionBounds.second = this->Tworld;
+    this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
+  }
+
   IF_VERBOSE(3, StopTimeAndDisplay("Mapping : whole ICP-LM loop"));
 
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eig(this->TworldCovariance);
@@ -1178,17 +1167,20 @@ void Slam::Mapping()
 void Slam::UpdateMapsUsingTworld()
 {
   // it would be nice to add the point from the frame directly to the map
-  auto updateMap = [this] (std::shared_ptr<RollingGrid> map, PointCloud::Ptr frame)
+  auto updateMap = [this](std::shared_ptr<RollingGrid> map, PointCloud::Ptr frame)
   {
-    PointCloud::Ptr temporaryMap(new PointCloud());
-    temporaryMap->points.reserve(frame->size());
-    for (size_t i = 0; i < frame->size(); ++i)
-    {
-      temporaryMap->push_back(frame->at(i));
-      this->TransformPoint(temporaryMap->at(i), this->Tworld, this->WithinFrameMotion, this->Undistortion == OPTIMIZED);
-    }
+    // Transform keypoints to WORLD coordinates
+    PointCloud::Ptr worldKeypoints(new PointCloud());
+    worldKeypoints->points.reserve(frame->size());
+    if (this->Undistortion)
+      for (const Point& p : *frame)
+        worldKeypoints->push_back(TransformPoint(p, this->WithinFrameMotion(p.time)));
+    else
+      for (const Point& p : *frame)
+        worldKeypoints->push_back(TransformPoint(p, this->Tworld));
+    // Roll grid to current position, and add new keypoints
     map->Roll(this->Tworld.translation());
-    map->Add(temporaryMap);
+    map->Add(worldKeypoints);
   };
 
   // run maps update
@@ -1262,16 +1254,40 @@ void Slam::ResetDistanceParameters()
 }
 
 //-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtreePreviousEdges, const Eigen::Isometry3d& transform,
-                                                         Point p, MatchingMode matchingMode)
+void Slam::ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal)
+{
+  // Undistortion can only be done during Localization step
+  const bool isMappingStep = matchingMode == MatchingMode::MAPPING;
+  const Eigen::Vector3d pos = p.getVector3fMap().cast<double>();
+
+  if (this->Undistortion == UndistortionMode::OPTIMIZED && isMappingStep)
+  {
+    pInit = pos;
+    pFinal = this->WithinFrameMotion(p.time) * pos;
+  }
+  else if (this->Undistortion == UndistortionMode::APPROXIMATED && isMappingStep)
+  {
+    pFinal = this->WithinFrameMotion(p.time) * pos;
+    pInit = this->WithinFrameMotionBounds.second.inverse() * pFinal;
+  }
+  else
+  {
+    const Eigen::Isometry3d& transform = isMappingStep ? this->Tworld : this->Trelative;
+    pInit = pos;
+    pFinal = transform * pos;
+  }
+}
+
+//-----------------------------------------------------------------------------
+Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p, MatchingMode matchingMode)
 {
   // =====================================================
   // Transform the point using the current pose estimation
 
   // Rigid transform or time continuous motion model to take into account the
   // rolling shutter distortion.
-  const Eigen::Vector3d P0(p.x, p.y, p.z);
-  this->TransformPoint(p, transform, this->WithinFrameMotion, this->Undistortion == OPTIMIZED && matchingMode == MatchingMode::MAPPING);
+  Eigen::Vector3d pInit, pFinal;
+  this->ComputePointInitAndFinalPose(matchingMode, p, pInit, pFinal);
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
@@ -1288,7 +1304,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
     eigenValuesRatio = this->EgoMotionLineDistancefactor;
     squaredMaxDist = this->EgoMotionMaxLineDistance * this->EgoMotionMaxLineDistance;
     minNeighbors = this->EgoMotionMinimumLineNeighborRejection;
-    GetEgoMotionLineSpecificNeighbor(nearestIndex, nearestDist, requiredNearest, kdtreePreviousEdges, p);
+    GetEgoMotionLineSpecificNeighbor(nearestIndex, nearestDist, requiredNearest, kdtreePreviousEdges, pFinal.data());
   }
   else if (matchingMode == MatchingMode::MAPPING)
   {
@@ -1296,7 +1312,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
     eigenValuesRatio = this->MappingLineDistancefactor;
     squaredMaxDist = this->MappingMaxLineDistance * this->MappingMaxLineDistance;
     minNeighbors = this->MappingMinimumLineNeighborRejection;
-    GetMappingLineSpecificNeigbbor(nearestIndex, nearestDist, this->MappingLineMaxDistInlier, requiredNearest, kdtreePreviousEdges, p);
+    GetMappingLineSpecificNeigbbor(nearestIndex, nearestDist, this->MappingLineMaxDistInlier, requiredNearest, kdtreePreviousEdges, pFinal.data());
   }
   else
   {
@@ -1398,7 +1414,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
   {
     this->Avalues.emplace_back(A);
     this->Pvalues.emplace_back(mean);
-    this->Xvalues.emplace_back(P0);
+    this->Xvalues.emplace_back(pInit);
     this->TimeValues.emplace_back(p.time);
     this->residualCoefficient.emplace_back(fitQualityCoeff);
   }
@@ -1406,16 +1422,15 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
 }
 
 //-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, const Eigen::Isometry3d& transform,
-                                                          Point p, MatchingMode matchingMode)
+Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode)
 {
   // =====================================================
   // Transform the point using the current pose estimation
 
   // Rigid transform or time continuous motion model to take into account the
   // rolling shutter distortion.
-  const Eigen::Vector3d P0(p.x, p.y, p.z);
-  this->TransformPoint(p, transform, this->WithinFrameMotion, this->Undistortion == OPTIMIZED && matchingMode == MatchingMode::MAPPING);
+  Eigen::Vector3d pInit, pFinal;
+  this->ComputePointInitAndFinalPose(matchingMode, p, pInit, pFinal);
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
@@ -1445,7 +1460,7 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
 
   std::vector<int> nearestIndex(requiredNearest, -1);
   std::vector<double> nearestDist(requiredNearest, -1.0);
-  kdtreePreviousPlanes.query(p, requiredNearest, nearestIndex.data(), nearestDist.data());
+  kdtreePreviousPlanes.query(pFinal.data(), requiredNearest, nearestIndex.data(), nearestDist.data());
 
   // It means that there is not enough keypoints in the neighborhood
   if (nearestIndex.back() == -1)
@@ -1533,7 +1548,7 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
   {
     this->Avalues.emplace_back(A);
     this->Pvalues.emplace_back(mean);
-    this->Xvalues.emplace_back(P0);
+    this->Xvalues.emplace_back(pInit);
     this->TimeValues.emplace_back(p.time);
     this->residualCoefficient.emplace_back(fitQualityCoeff);
   }
@@ -1541,16 +1556,15 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
 }
 
 //-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtreePreviousBlobs, const Eigen::Isometry3d& transform,
-                                                          Point p, MatchingMode matchingMode)
+Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtreePreviousBlobs, const Point& p, MatchingMode matchingMode)
 {
   // =====================================================
   // Transform the point using the current pose estimation
 
   // Rigid transform or time continuous motion model to take into account the
   // rolling shutter distortion.
-  const Eigen::Vector3d P0(p.x, p.y, p.z);
-  this->TransformPoint(p, transform, this->WithinFrameMotion, this->Undistortion == OPTIMIZED && matchingMode == MatchingMode::MAPPING);
+  Eigen::Vector3d pInit, pFinal;
+  this->ComputePointInitAndFinalPose(matchingMode, p, pInit, pFinal);
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
@@ -1561,7 +1575,7 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtr
 
   std::vector<int> nearestIndex(requiredNearest, -1);
   std::vector<double> nearestDist(requiredNearest, -1.0);
-  kdtreePreviousBlobs.query(p, requiredNearest, nearestIndex.data(), nearestDist.data());
+  kdtreePreviousBlobs.query(pFinal.data(), requiredNearest, nearestIndex.data(), nearestDist.data());
 
   // It means that there is not enough keypoints in the neighborhood
   if (nearestIndex.back() == -1)
@@ -1651,7 +1665,7 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtr
   {
     this->Avalues.emplace_back(A);
     this->Pvalues.emplace_back(mean);
-    this->Xvalues.emplace_back(P0);
+    this->Xvalues.emplace_back(pInit);
     this->TimeValues.emplace_back(p.time);
     this->residualCoefficient.emplace_back(fitQualityCoeff);
   }
@@ -1660,7 +1674,7 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtr
 
 //-----------------------------------------------------------------------------
 void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist,
-                                            unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p) const
+                                            unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const double pos[3]) const
 {
   // Clear vector
   nearestValid.clear();
@@ -1669,7 +1683,7 @@ void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std:
   // Get nearest neighbors of the query point
   std::vector<int> nearestIndex(nearestSearch, -1);
   std::vector<double> nearestDist(nearestSearch, -1.0);
-  kdtreePreviousEdges.query(p, nearestSearch, nearestIndex.data(), nearestDist.data());
+  kdtreePreviousEdges.query(pos, nearestSearch, nearestIndex.data(), nearestDist.data());
 
   // Check neighborhood validity
   unsigned int neighborhoodSize = nearestIndex.size();
@@ -1712,7 +1726,7 @@ void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std:
 
 //-----------------------------------------------------------------------------
 void Slam::GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
-                                          unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p) const
+                                          unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const double pos[3]) const
 {
   // reset vectors
   nearestValid.clear();
@@ -1721,7 +1735,7 @@ void Slam::GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::v
   // Get nearest neighbors of the query point
   std::vector<int> nearestIndex(nearestSearch, -1);
   std::vector<double> nearestDist(nearestSearch, -1.0);
-  kdtreePreviousEdges.query(p, nearestSearch, nearestIndex.data(), nearestDist.data());
+  kdtreePreviousEdges.query(pos, nearestSearch, nearestIndex.data(), nearestDist.data());
 
   // Check neighborhood validity
   unsigned int neighborhoodSize = nearestIndex.size();
@@ -1793,19 +1807,6 @@ void Slam::GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::v
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-void Slam::TransformPoint(Point& p,
-                          const Eigen::Isometry3d& transform,
-                          const LinearTransformInterpolator<double>& transformInterpolator,
-                          const bool& undistortion) const
-{
-  // Apply transform to point, using either rigid or interpolated transform.
-  if (undistortion)
-    ::UndistortPoint(p, transformInterpolator);
-  else
-    ::TransformPoint(p, transform);
-}
-
-//-----------------------------------------------------------------------------
 Eigen::Isometry3d Slam::InterpolateBeginScanPose()
 {
   if (this->NbrFrameProcessed > 0)
@@ -1817,21 +1818,6 @@ Eigen::Isometry3d Slam::InterpolateBeginScanPose()
   }
   else
     return Eigen::Isometry3d::Identity();
-}
-
-//-----------------------------------------------------------------------------
-void Slam::ApproximateKeypointsUndistortion()
-{
-  const Eigen::Isometry3d previousFrameEndToFrameStart = this->WithinFrameMotionBounds.second.inverse()
-                                                         * this->WithinFrameMotionBounds.first;
-  this->WithinFrameMotionBounds.first = this->InterpolateBeginScanPose();
-  this->WithinFrameMotionBounds.second = this->Tworld;
-  const Eigen::Isometry3d frameEndToFrameStart = this->WithinFrameMotionBounds.second.inverse()
-                                                 * this->WithinFrameMotionBounds.first
-                                                 * previousFrameEndToFrameStart.inverse();
-  UndistortPointCloud(this->CurrentEdgesPoints,   frameEndToFrameStart, Eigen::Isometry3d::Identity());
-  UndistortPointCloud(this->CurrentPlanarsPoints, frameEndToFrameStart, Eigen::Isometry3d::Identity());
-  UndistortPointCloud(this->CurrentBlobsPoints,   frameEndToFrameStart, Eigen::Isometry3d::Identity());
 }
 
 //==============================================================================
