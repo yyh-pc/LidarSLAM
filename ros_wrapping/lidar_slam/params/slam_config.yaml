@@ -70,6 +70,22 @@ gps:
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
 
+  n_threads: 1      # Max number of threads to use for parallel processing
+  fast_slam: true   # Use only edge and planar keypoints (do not use blob keypoints)
+
+  # Undistortion mode, to correct rolling shutter distortion during frame acquisition:
+  #  0) No undistortion is performed :
+  #     - End scan pose is optimized using rigid registration of raw scan and map.
+  #     - Raw input scan is added to maps.
+  #  1) Minimal undistortion is performed (might be unstable if jumps occur):
+  #     - Begin scan pose is linearly interpolated between previous and current end scan poses.
+  #     - End scan pose is optimized using rigid registration of undistort scan and map.
+  #     - Scan is linearly undistort between begin and end scan poses.
+  #  2) Ceres-optimized undistortion is performed (slower, and may be unstable):
+  #     - Both begin and end scan poses are optimized using registration of undistort scan and map.
+  #     - Scan is linearly undistort between begin and end scan poses.
+  undistortion: 1
+
   # Verbosity level :
   #  0) print errors, warnings or one time info
   #  1) 0 + frame number, total frame processing time
@@ -78,10 +94,6 @@ slam:
   #  4) 3 + ceres optimization summary
   #  5) 4 + logging/maps memory usage
   verbosity: 3
-
-  n_threads: 1         # Max number of threads to use for parallel processing
-  fast_slam: true      # Use only planars keypoints used during EgoMotion for Mapping step, and not all.
-  undistortion: false  # Undistort the frame to correct rolling shutter distortion. DEBUG
 
   # Optional logging of computed pose, mapping covariance and keypoints of each processed frame.
   #  - A value of 0. will disable logging.
@@ -100,7 +112,8 @@ slam:
 
   max_distance_for_ICP_matching: 20.            # [m] Max distance allowed between two keypoints during ICP matching.
 
-  # ICP and LM parameters for Ego-Motion step
+  # ICP and LM parameters for Ego-Motion step, used only if ego_motion_registration=true
+  ego_motion_registration: false        # Register current frame on previous one, or only extrapolate from previous motion.
   ego_motion:
     ICP_max_iter: 4                     # Max number of iterations of ICP matching.
     LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.

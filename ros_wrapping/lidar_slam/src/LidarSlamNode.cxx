@@ -153,16 +153,16 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   }
 
   // Convert pointcloud PointV type to expected PointS type
-  this->CurrentFrame = this->ConvertToSlamPointCloud(cloudV);
+  CloudS::Ptr cloudS = this->ConvertToSlamPointCloud(cloudV);
 
   // If no tracking frame is set, track input pointcloud origin
   if (this->TrackingFrameId.empty())
-    this->TrackingFrameId = this->CurrentFrame->header.frame_id;
+    this->TrackingFrameId = cloudS->header.frame_id;
   // Update TF from BASE to LiDAR
-  this->UpdateBaseToLidarOffset(this->CurrentFrame->header.frame_id, this->CurrentFrame->header.stamp);
+  this->UpdateBaseToLidarOffset(cloudS->header.frame_id, cloudS->header.stamp);
 
   // Run SLAM : register new frame and update position and mapping.
-  this->LidarSlam.AddFrame(this->CurrentFrame, this->LaserIdMapping);
+  this->LidarSlam.AddFrame(cloudS, this->LaserIdMapping);
 
   // Publish SLAM output as requested by user
   this->PublishOutput();
@@ -564,7 +564,7 @@ void LidarSlamNode::PublishOutput()
   publishPointCloud(BLOBS_KEYPOINTS,  this->LidarSlam.GetKeyPointsExtractor()->GetBlobPoints());
 
   // debug cloud
-  publishPointCloud(SLAM_CLOUD, this->CurrentFrame);
+  publishPointCloud(SLAM_CLOUD, this->LidarSlam.GetOutputFrame());
 }
 
 //------------------------------------------------------------------------------
@@ -574,12 +574,23 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
 
   // General
   SetSlamParam(bool,   "slam/fast_slam", FastSlam)
-  SetSlamParam(bool,   "slam/undistortion", Undistortion)
+  SetSlamParam(bool,   "slam/ego_motion_registration", EgoMotionRegistration)
   SetSlamParam(int,    "slam/verbosity", Verbosity)
   SetSlamParam(int,    "slam/n_threads", NbThreads)
   SetSlamParam(double, "slam/logging_timeout", LoggingTimeout)
   SetSlamParam(double, "slam/max_distance_for_ICP_matching", MaxDistanceForICPMatching)
-  int  pointCloudStorage;
+  int undistortionMode;
+  if (priv_nh.getParam("slam/undistortion", undistortionMode))
+  {
+    Slam::UndistortionMode undistortion = static_cast<Slam::UndistortionMode>(undistortionMode);
+    if (undistortion != Slam::NONE && undistortion != Slam::APPROXIMATED && undistortion != Slam::OPTIMIZED)
+    {
+      ROS_ERROR_STREAM("Invalid undistortion mode (" << undistortion << "). Setting it to 'APPROXIMATED'.");
+      undistortion = Slam::UndistortionMode::APPROXIMATED;
+    }
+    LidarSlam.SetUndistortion(undistortion);
+  }
+  int pointCloudStorage;
   if (priv_nh.getParam("slam/logging_storage", pointCloudStorage))
   {
     PointCloudStorageType storage = static_cast<PointCloudStorageType>(pointCloudStorage);

@@ -130,7 +130,6 @@ private:
 
   // SLAM stuff
   Slam LidarSlam;
-  CloudS::Ptr CurrentFrame;
   std::vector<size_t> LaserIdMapping;
   double LidarFreq = 10.;
 
