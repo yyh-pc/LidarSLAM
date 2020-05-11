@@ -1109,6 +1109,13 @@ void Slam::Mapping()
       this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
       this->Tworld = this->WithinFrameMotionBounds.second;
     }
+    else if (this->Undistortion == UndistortionMode::APPROXIMATED)
+    {
+      this->Tworld = ArrayToIsometry(TworldArray);
+      this->WithinFrameMotionBounds.first = this->InterpolateBeginScanPose();
+      this->WithinFrameMotionBounds.second = this->Tworld;
+      this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
+    }
     else
     {
       this->Tworld = ArrayToIsometry(TworldArray);
@@ -1138,14 +1145,6 @@ void Slam::Mapping()
       covariance.GetCovarianceBlock(TworldArray.data(), TworldArray.data(), this->TworldCovariance.data());
       break;
     }
-  }
-
-  // Refine undistortion using optimized ego-motion
-  if (this->Undistortion == UndistortionMode::APPROXIMATED)
-  {
-    this->WithinFrameMotionBounds.first = this->InterpolateBeginScanPose();
-    this->WithinFrameMotionBounds.second = this->Tworld;
-    this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
   }
 
   IF_VERBOSE(3, StopTimeAndDisplay("Mapping : whole ICP-LM loop"));
