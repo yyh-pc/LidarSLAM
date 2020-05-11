@@ -398,6 +398,8 @@ private:
   Eigen::Isometry3d Trelative;
 
   // Transformation to map the current pointcloud in the world coordinates
+  // This pose is the pose of BASE in WORLD coordinates, at the time
+  // corresponding to the end of Lidar scan.
   Eigen::Isometry3d Tworld;
   Eigen::Isometry3d PreviousTworld;
 
@@ -412,8 +414,8 @@ private:
 
   // **** UNDISTORTION ****
 
-  // Poses at the beginning and end of current frame
-  std::pair<Eigen::Isometry3d, Eigen::Isometry3d> WithinFrameMotionBounds;
+  // Pose at the beginning of current frame
+  Eigen::Isometry3d TworldFrameStart;
 
   // Transform interpolator to estimate the pose of the sensor within a lidar
   // frame, using poses at the beginning and end of frame.

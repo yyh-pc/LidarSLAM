@@ -244,7 +244,8 @@ void Slam::Reset(bool resetLog)
   this->Tworld = Eigen::Isometry3d::Identity();
   this->PreviousTworld = Eigen::Isometry3d::Identity();
   this->Trelative = Eigen::Isometry3d::Identity();
-  this->WithinFrameMotionBounds = std::make_pair(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
+  this->TworldFrameStart = Eigen::Isometry3d::Identity();
+  this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
   this->TworldCovariance = Eigen::Matrix<double, 6, 6>::Identity();
 
   // Reset point clouds
@@ -314,12 +315,11 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     this->Tworld = this->PreviousTworld * this->Trelative;
     if (this->Undistortion)
     {
-      // Use extrapolated motion to undistort keypoints
+      // Use extrapolated motion to initialize keypoints undistortion.
       // (All keypoints will be transformed to the BASE referential at the end
       // of frame acquisition)
-      this->WithinFrameMotionBounds.first = this->InterpolateBeginScanPose();
-      this->WithinFrameMotionBounds.second = this->Tworld;
-      this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
+      this->TworldFrameStart = this->InterpolateBeginScanPose();
+      this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
     }
 
     // Perform Mapping : compute Tworld from map and current frame keypoints
@@ -345,7 +345,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   if (this->Verbosity >= 2)
   {
     Eigen::Isometry3d relative = this->PreviousTworld.inverse() * this->Tworld;
-    Eigen::Isometry3d motion = this->WithinFrameMotionBounds.first.inverse() * this->WithinFrameMotionBounds.second;
+    Eigen::Isometry3d motion = this->TworldFrameStart.inverse() * this->Tworld;
     std::cout << "========== SLAM results ==========\n"
                  "Ego-Motion:\n"
                  " translation = [" << this->Trelative.translation().transpose()             << "]\n"
@@ -703,10 +703,6 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
   this->Tworld = TworldEstimation;
   this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
 
-  // Reset undistortion
-  this->WithinFrameMotionBounds.first = this->Tworld;
-  this->WithinFrameMotionBounds.second = this->Tworld;
-
   // Current keypoints become previous ones
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;
   this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
@@ -1058,9 +1054,8 @@ void Slam::Mapping()
     double lossScale = this->MappingInitLossScale + static_cast<double>(icpCount) * (this->MappingFinalLossScale - this->MappingInitLossScale) / (1.0 * this->MappingICPMaxIter);
 
     // Convert isometries to 6D state vectors : rX, rY, rZ, X, Y, Z
-    Eigen::Matrix<double, 6, 1> TworldArray      = IsometryToArray(this->Tworld);
-    Eigen::Matrix<double, 6, 1> TworldStartArray = IsometryToArray(this->WithinFrameMotionBounds.first);
-    Eigen::Matrix<double, 6, 1> TworldEndArray   = IsometryToArray(this->WithinFrameMotionBounds.second);
+    Eigen::Matrix<double, 6, 1> TworldArray = IsometryToArray(this->Tworld);  // pose at the end of frame
+    Eigen::Matrix<double, 6, 1> TworldStartArray = IsometryToArray(this->TworldFrameStart);  // pose at the beginning of frame
 
     // We want to estimate our 6-DOF parameters using a non linear least square
     // minimization. The non linear part comes from the parametrization of the
@@ -1076,7 +1071,7 @@ void Slam::Mapping()
                                                   this->Avalues[k], this->Pvalues[k], this->Xvalues[k], this->TimeValues[k], this->residualCoefficient[k]));
         problem.AddResidualBlock(cost_function, 
                                  new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
-                                 TworldStartArray.data(), TworldEndArray.data());
+                                 TworldStartArray.data(), TworldArray.data());
       }
     }
     else
@@ -1105,24 +1100,17 @@ void Slam::Mapping()
     ceres::Solve(options, &problem, &summary);
     PRINT_VERBOSE(4, summary.BriefReport());
 
-    // Unpack Tworld and WithinFrameMotionBounds
+    // Unpack Tworld and TworldFrameStart
+    this->Tworld = ArrayToIsometry(TworldArray);
     if (this->Undistortion == UndistortionMode::OPTIMIZED)
     {
-      this->WithinFrameMotionBounds.first = ArrayToIsometry(TworldStartArray);
-      this->WithinFrameMotionBounds.second = ArrayToIsometry(TworldEndArray);
-      this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
-      this->Tworld = this->WithinFrameMotionBounds.second;
+      this->TworldFrameStart = ArrayToIsometry(TworldStartArray);
+      this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
     }
     else if (this->Undistortion == UndistortionMode::APPROXIMATED)
     {
-      this->Tworld = ArrayToIsometry(TworldArray);
-      this->WithinFrameMotionBounds.first = this->InterpolateBeginScanPose();
-      this->WithinFrameMotionBounds.second = this->Tworld;
-      this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
-    }
-    else
-    {
-      this->Tworld = ArrayToIsometry(TworldArray);
+      this->TworldFrameStart = this->InterpolateBeginScanPose();
+      this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
     }
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : LM optim"));
@@ -1131,18 +1119,17 @@ void Slam::Mapping()
     // that we reached a local minimum for the ICP-LM algorithm.
     // We evaluate the quality of the Tworld optimization using an approximate
     // computation of the variance covariance matrix.
-    if ((summary.num_successful_steps == 1) || (icpIter == this->MappingICPMaxIter - 1))
+    if ((summary.num_successful_steps == 1) || (icpCount == this->MappingICPMaxIter - 1))
     {
       // Covariance computation options
       ceres::Covariance::Options covOptions;
       covOptions.apply_loss_function = true;
       covOptions.algorithm_type = ceres::CovarianceAlgorithmType::DENSE_SVD;
 
-      const double* paramBlock = this->Undistortion == UndistortionMode::OPTIMIZED ? TworldEndArray.data() : TworldArray.data();
-
       // Computation of the variance-covariance matrix
       ceres::Covariance covariance(covOptions);
       std::vector<std::pair<const double*, const double*>> covariance_blocks;
+      const double* paramBlock = TworldArray.data();
       covariance_blocks.push_back(std::make_pair(paramBlock, paramBlock));
       covariance.Compute(covariance_blocks, &problem);
       covariance.GetCovarianceBlock(paramBlock, paramBlock, this->TworldCovariance.data());
@@ -1270,7 +1257,7 @@ void Slam::ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& 
   else if (this->Undistortion == UndistortionMode::APPROXIMATED && isMappingStep)
   {
     pFinal = this->WithinFrameMotion(p.time) * pos;
-    pInit = this->WithinFrameMotionBounds.second.inverse() * pFinal;
+    pInit = this->Tworld.inverse() * pFinal;
   }
   else
   {
