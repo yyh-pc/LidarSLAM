@@ -152,6 +152,9 @@ public:
   PointCloud::Ptr GetPlanarsMap() const;
   PointCloud::Ptr GetBlobsMap() const;
 
+  // Get current frame
+  PointCloud::Ptr GetOutputFrame();
+
   // Get current number of frames already processed
   GetMacro(NbrFrameProcessed, unsigned int)
 

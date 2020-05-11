@@ -649,6 +649,34 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
 }
 
 //-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetOutputFrame()
+{
+  PointCloud::Ptr output(new PointCloud);
+
+  // Transform from LiDAR sensor to BASE coordinate system,
+  // followed by rigid transform or undistortion
+  if (this->Undistortion)
+  {
+    const Eigen::Isometry3d beginPose = this->TworldFrameStart * this->BaseToLidarOffset;
+    const Eigen::Isometry3d endPose = this->Tworld * this->BaseToLidarOffset;
+    LinearTransformInterpolator<double> transformInterpolator(beginPose, endPose);
+
+    output->header = this->CurrentFrame->header;
+    output->points.reserve(this->CurrentFrame->size());
+    for (const Slam::Point& p : *this->CurrentFrame)
+      output->push_back(TransformPoint(p, transformInterpolator(p.time)));
+  }
+  else
+  {
+    const Eigen::Isometry3d endPose = this->Tworld * this->BaseToLidarOffset;
+    pcl::transformPointCloud(*this->CurrentFrame, *output, endPose.matrix());
+  }
+
+  output->header.frame_id = this->WorldFrameId;
+  return output;
+}
+
+//-----------------------------------------------------------------------------
 Slam::PointCloud::Ptr Slam::GetEdgesMap() const
 {
   PointCloud::Ptr map = this->EdgesPointsLocalMap->Get();
