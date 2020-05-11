@@ -294,9 +294,11 @@ private:
  *        (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
  *        applies to X acquired at time t minimizes the mahalanobis distance.
  *
- * It takes one 12D parameters block :
+ * It takes two 6D parameters blocks :
+ *  1) First isometry H0 :
  *   - 3 parameters (0, 1, 2) to encode rotation R0 with euler angles : rX, rY, rZ
  *   - 3 parameters (3, 4, 5) to encode translation T0 : X, Y, Z
+ *  2) Second isometry H1 :
  *   - 3 parameters (6, 7, 8) to encode rotation R1 with euler angles : rX, rY, rZ
  *   - 3 parameters (9, 10, 11) to encode translation T1 : X, Y, Z
  */
@@ -317,7 +319,7 @@ public:
   {}
 
   template <typename T>
-  bool operator()(const T* const w, T* residual) const
+  bool operator()(const T* const w0, const T* const w1, T* residual) const
   {
     using Vector3T = Eigen::Matrix<T, 3, 1>;
     using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
@@ -328,25 +330,25 @@ public:
     // once each time the parameters values change
     static Isometry3T H0 = Isometry3T::Identity(), H1 = Isometry3T::Identity();
     static LinearTransformInterpolator<T> transformInterpolator;
-    static T lastW[12] = {T(-1.), T(-1.), T(-1.), T(-1.), T(-1.), T(-1.),
-                          T(-1.), T(-1.), T(-1.), T(-1.), T(-1.), T(-1.)};
+    static T lastW0[6] = {T(-1.), T(-1.), T(-1.), T(-1.), T(-1.), T(-1.)};
+    static T lastW1[6] = {T(-1.), T(-1.), T(-1.), T(-1.), T(-1.), T(-1.)};
 
     // Update H0 if needed
-    if (!std::equal(w, w + 6, lastW))
+    if (!std::equal(w0, w0 + 6, lastW0))
     {
-      H0.linear() << RotationMatrixFromRPY(w[0], w[1], w[2]);
-      H0.translation() << w[3], w[4], w[5];
+      H0.linear() << RotationMatrixFromRPY(w0[0], w0[1], w0[2]);
+      H0.translation() << w0[3], w0[4], w0[5];
       transformInterpolator.SetH0(H0);
-      std::copy(w, w + 6, lastW);
+      std::copy(w0, w0 + 6, lastW0);
     }
 
     // Update H1 if needed
-    if (!std::equal(w + 6, w + 12, lastW + 6))
+    if (!std::equal(w1, w1 + 6, lastW1))
     {
-      H1.linear() << RotationMatrixFromRPY(w[6], w[7], w[8]);
-      H1.translation() << w[9], w[10], w[11];
+      H1.linear() << RotationMatrixFromRPY(w1[0], w1[1], w1[2]);
+      H1.translation() << w1[3], w1[4], w1[5];
       transformInterpolator.SetH1(H1);
-      std::copy(w + 6, w + 12, lastW + 6);
+      std::copy(w1, w1 + 6, lastW1);
     }
 
     // Compute the transform to apply to X depending on (R0, T0) and (R1, T1).

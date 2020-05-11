@@ -107,6 +107,14 @@ Eigen::Vector3d GetRPY(const Eigen::Matrix3d& rot)
 }
 
 //-----------------------------------------------------------------------------
+Eigen::Matrix<double, 6, 1> IsometryToArray(const Eigen::Isometry3d& pose)
+{
+  Eigen::Matrix<double, 6, 1> data;
+  data << GetRPY(pose.linear()), pose.translation();
+  return data;
+}
+
+//-----------------------------------------------------------------------------
 Eigen::Isometry3d ArrayToIsometry(const Eigen::Matrix<double, 6, 1>& data)
 {
   // Build translation part.
@@ -1049,14 +1057,10 @@ void Slam::Mapping()
     // Arctan loss scale factor to saturate costs according to their distance
     double lossScale = this->MappingInitLossScale + static_cast<double>(icpCount) * (this->MappingFinalLossScale - this->MappingInitLossScale) / (1.0 * this->MappingICPMaxIter);
 
-    // Convert to raw data
-    Eigen::Matrix<double, 6, 1> TworldArray;
-    TworldArray << GetRPY(this->Tworld.linear()), this->Tworld.translation();
-    Eigen::Matrix<double, 12, 1> withinFrameMotionArray;
-    withinFrameMotionArray << GetRPY(this->WithinFrameMotionBounds.first.linear()),
-                              this->WithinFrameMotionBounds.first.translation(),
-                              GetRPY(this->WithinFrameMotionBounds.second.linear()),
-                              this->WithinFrameMotionBounds.second.translation();
+    // Convert isometries to 6D state vectors : rX, rY, rZ, X, Y, Z
+    Eigen::Matrix<double, 6, 1> TworldArray      = IsometryToArray(this->Tworld);
+    Eigen::Matrix<double, 6, 1> TworldStartArray = IsometryToArray(this->WithinFrameMotionBounds.first);
+    Eigen::Matrix<double, 6, 1> TworldEndArray   = IsometryToArray(this->WithinFrameMotionBounds.second);
 
     // We want to estimate our 6-DOF parameters using a non linear least square
     // minimization. The non linear part comes from the parametrization of the
@@ -1067,12 +1071,12 @@ void Slam::Mapping()
     {
       for (unsigned int k = 0; k < Xvalues.size(); ++k)
       {
-        ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceInterpolatedMotionResidual, 1, 12>(
+        ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceInterpolatedMotionResidual, 1, 6, 6>(
                                                 new CostFunctions::MahalanobisDistanceInterpolatedMotionResidual(
                                                   this->Avalues[k], this->Pvalues[k], this->Xvalues[k], this->TimeValues[k], this->residualCoefficient[k]));
         problem.AddResidualBlock(cost_function, 
                                  new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
-                                 withinFrameMotionArray.data());
+                                 TworldStartArray.data(), TworldEndArray.data());
       }
     }
     else
@@ -1104,8 +1108,8 @@ void Slam::Mapping()
     // Unpack Tworld and WithinFrameMotionBounds
     if (this->Undistortion == UndistortionMode::OPTIMIZED)
     {
-      this->WithinFrameMotionBounds.first = ArrayToIsometry(withinFrameMotionArray.topRows(6));
-      this->WithinFrameMotionBounds.second = ArrayToIsometry(withinFrameMotionArray.bottomRows(6));
+      this->WithinFrameMotionBounds.first = ArrayToIsometry(TworldStartArray);
+      this->WithinFrameMotionBounds.second = ArrayToIsometry(TworldEndArray);
       this->WithinFrameMotion.SetTransforms(this->WithinFrameMotionBounds.first, this->WithinFrameMotionBounds.second);
       this->Tworld = this->WithinFrameMotionBounds.second;
     }
@@ -1125,24 +1129,23 @@ void Slam::Mapping()
 
     // If no L-M iteration has been made since the last ICP matching, it means
     // that we reached a local minimum for the ICP-LM algorithm.
-    if (((summary.num_successful_steps == 1) ||
-        (icpCount == (this->MappingICPMaxIter - 1))) &&
-        (this->Undistortion != UndistortionMode::OPTIMIZED))
+    // We evaluate the quality of the Tworld optimization using an approximate
+    // computation of the variance covariance matrix.
+    if ((summary.num_successful_steps == 1) || (icpIter == this->MappingICPMaxIter - 1))
     {
-      // Now evaluate the quality of the parameters
-      // estimated using an approximate computation
-      // of the variance covariance matrix
       // Covariance computation options
       ceres::Covariance::Options covOptions;
       covOptions.apply_loss_function = true;
       covOptions.algorithm_type = ceres::CovarianceAlgorithmType::DENSE_SVD;
 
+      const double* paramBlock = this->Undistortion == UndistortionMode::OPTIMIZED ? TworldEndArray.data() : TworldArray.data();
+
       // Computation of the variance-covariance matrix
       ceres::Covariance covariance(covOptions);
       std::vector<std::pair<const double*, const double*>> covariance_blocks;
-      covariance_blocks.push_back(std::make_pair(TworldArray.data(), TworldArray.data()));
+      covariance_blocks.push_back(std::make_pair(paramBlock, paramBlock));
       covariance.Compute(covariance_blocks, &problem);
-      covariance.GetCovarianceBlock(TworldArray.data(), TworldArray.data(), this->TworldCovariance.data());
+      covariance.GetCovarianceBlock(paramBlock, paramBlock, this->TworldCovariance.data());
       break;
     }
   }
