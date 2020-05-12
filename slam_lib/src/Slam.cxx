@@ -278,9 +278,18 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 {
   IF_VERBOSE(1, InitTime("SLAM frame processing"));
 
+  // Skip frame if empty
   if (pc->empty())
   {
     std::cerr << "[ERROR] SLAM entry is an empty pointcloud : frame ignored." << std::endl;
+    return;
+  }
+
+  // Skip frame if it has the same timestamp as previous one (will induce problems in extrapolation)
+  if (pc->header.stamp == this->CurrentFrame->header.stamp)
+  {
+    std::cerr << "[ERROR] SLAM entry has the same timestamp (" << pc->header.stamp 
+              << ") as previous pointcloud : frame ignored." << std::endl;
     return;
   }
 
@@ -719,12 +728,12 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
   // Extrapolate new transforms at current time
   // (if we have not already processed 2 frames, these transforms are already set to identity)
   Eigen::Isometry3d TworldEstimation = Eigen::Isometry3d::Identity();
-  if (this->NbrFrameProcessed > 2)
+  if (this->NbrFrameProcessed >= 2)
   {
     // Estimate new Tworld with a constant velocity model
     const double t = inputPc->header.stamp * 1e-6;
-    const double t1 = this->LogTrajectory[this->NbrFrameProcessed - 1].time;
-    const double t0 = this->LogTrajectory[this->NbrFrameProcessed - 2].time;
+    const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
+    const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
     TworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
   }
   this->PreviousTworld = this->Tworld;
