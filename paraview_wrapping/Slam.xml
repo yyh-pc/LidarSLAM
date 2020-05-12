@@ -57,17 +57,6 @@
       <!-- ==================== General ==================== -->
 
       <IntVectorProperty
-          name="Fast Slam"
-          command="SetFastSlam"
-          default_values="1"
-          number_of_elements="1">
-        <BooleanDomain name="bool" />
-        <Documentation>
-          If fast slam is enabled, we don't use blob keypoints
-        </Documentation>
-      </IntVectorProperty>
-
-      <IntVectorProperty
           name="Display Mode"
           command="SetDisplayMode"
           default_values="1"
@@ -107,6 +96,55 @@
       </IntVectorProperty>
 
       <IntVectorProperty
+          name="Fast Slam"
+          command="SetFastSlam"
+          default_values="1"
+          number_of_elements="1">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If fast slam is enabled, we don't use blob keypoints
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+          name="Ego-Motion registration"
+          command="SetEgoMotionRegistration"
+          default_values="0"
+          number_of_elements="1">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, Ego-Motion step will be perfomed by globally registering
+          current frame on previous one. Otherwise, Ego-Motion is estimated
+          using previous motion extrapolation.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+          name="Undistortion Mode"
+          command="SetUndistortion"
+          default_values="1"
+          number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Disabled"/>
+          <Entry value="1" text="Approximated"/>
+          <Entry value="2" text="Optimized"/>
+        </EnumerationDomain>
+        <Documentation>
+          Undistortion mode, to correct rolling shutter distortion during a
+          whole sweep during Lidar frame acquisition. This might be slower
+          and unstable in case of jumps.
+          If DISABLED, SLAM will compute a rigid transform that will be applied
+          to the whole frame without taking into account the distortion due to
+          the lidar motion during a sweep.
+          If APPROXIMATED, current beginning sweep pose will be guessed using a
+          constant speed motion model from previous and current end sweep poses.
+          Then, linear undistortion between current begin and end poses is applied.
+          If OPTIMIZED, both current begin and end sweep poses are optimized.
+          Then, linear undistortion between current begin and end poses is applied.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
           name="Number of threads"
           command="SetNbThreads"
           default_values="1"
@@ -117,28 +155,13 @@
         </Documentation>
       </IntVectorProperty>
 
-      <!-- TODO : fix undistortion -->
-      <!-- <IntVectorProperty
-          name="Undistortion Model"
-          command="SetUndistortion"
-          default_values="0"
-          number_of_elements="1">
-        <BooleanDomain name="bool" />
-        <Documentation>
-          If undistortion model is enabled, the SLAM will use a motion
-          model to undistort the acquired frame during a sweep of the
-          lidar. If it is not enabled, the slam will compute a rigid
-          transform that will be applied to the whole frame without taking
-          into account the distortion due to the lidar motion during a sweep
-        </Documentation>
-      </IntVectorProperty>-->
-
       <PropertyGroup label="General Parameters">
-        <Property name="Fast Slam" />
         <Property name="Display Mode" />
         <Property name="Verbosity Level" />
+        <Property name="Fast Slam" />
+        <Property name="Ego-Motion registration" />
+        <Property name="Undistortion Mode" />
         <Property name="Number of threads" />
-        <!-- <Property name="Undistortion Model" /> -->
       </PropertyGroup>
 
       <!-- ================ Keypoints extraction Parameters ================ -->

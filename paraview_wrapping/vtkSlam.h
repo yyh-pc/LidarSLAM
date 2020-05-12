@@ -73,14 +73,17 @@ public:
   vtkCustomGetMacro(FastSlam, bool)
   vtkCustomSetMacro(FastSlam, bool)
 
+  vtkCustomGetMacro(EgoMotionRegistration, bool)
+  vtkCustomSetMacro(EgoMotionRegistration, bool)
+
   vtkCustomGetMacro(Verbosity, int)
   vtkCustomSetMacro(Verbosity, int)
 
-  vtkCustomGetMacro(Undistortion, bool)
-  vtkCustomSetMacro(Undistortion, bool)
-
   vtkCustomGetMacro(NbThreads, int)
   vtkCustomSetMacro(NbThreads, int)
+
+  int GetUndistortion();
+  void SetUndistortion(int mode);
 
   // ---------------------------------------------------------------------------
   //   BASE to LIDAR transform
