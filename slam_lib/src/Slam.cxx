@@ -353,18 +353,18 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   // Motion and localization parameters estimation information display
   if (this->Verbosity >= 2)
   {
-    Eigen::Isometry3d relative = this->PreviousTworld.inverse() * this->Tworld;
-    Eigen::Isometry3d motion = this->TworldFrameStart.inverse() * this->Tworld;
     std::cout << "========== SLAM results ==========\n"
                  "Ego-Motion:\n"
                  " translation = [" << this->Trelative.translation().transpose()             << "]\n"
-                 " rotation    = [" << Rad2Deg(GetRPY(this->Trelative.linear())).transpose() << "]\n"
-                 "Within frame motion:\n"
-                 " translation = [" << motion.translation().transpose()                << "]\n"
-                 " rotation    = [" << Rad2Deg(GetRPY(motion.linear())).transpose()    << "]\n"
-                 "Localization:\n"
-                 " translation = [" << relative.translation().transpose()             << "]\n"
-                 " rotation    = [" << Rad2Deg(GetRPY(relative.linear())).transpose() << "]\n"
+                 " rotation    = [" << Rad2Deg(GetRPY(this->Trelative.linear())).transpose() << "]\n";
+    if (this->Undistortion)
+    {
+      Eigen::Isometry3d motion = this->TworldFrameStart.inverse() * this->Tworld;
+      std::cout << "Within frame motion:\n"
+                   " translation = [" << motion.translation().transpose()                << "]\n"
+                   " rotation    = [" << Rad2Deg(GetRPY(motion.linear())).transpose()    << "]\n";
+    }
+    std::cout << "Localization:\n"
                  " position    = [" << this->Tworld.translation().transpose()                << "]\n"
                  " orientation = [" << Rad2Deg(GetRPY(this->Tworld.linear())).transpose()    << "]" << std::endl;
   }
@@ -739,6 +739,11 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
   this->PreviousTworld = this->Tworld;
   this->Tworld = TworldEstimation;
   this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
+
+  PRINT_VERBOSE(2, "========== Update SLAM State ==========\n"
+                   "Extrapolated Ego-Motion:\n"
+                   " translation = [" << this->Trelative.translation().transpose()             << "]\n"
+                   " rotation    = [" << Rad2Deg(GetRPY(this->Trelative.linear())).transpose() << "]");
 
   // Current keypoints become previous ones
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;
@@ -1139,6 +1144,7 @@ void Slam::Mapping()
 
     // Unpack Tworld and TworldFrameStart
     this->Tworld = ArrayToIsometry(TworldArray);
+    this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
     if (this->Undistortion == UndistortionMode::OPTIMIZED)
     {
       this->TworldFrameStart = ArrayToIsometry(TworldStartArray);
