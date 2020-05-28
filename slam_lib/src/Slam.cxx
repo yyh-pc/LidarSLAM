@@ -595,18 +595,16 @@ Transform Slam::GetLatencyCompensatedWorldTransform() const
     std::cerr << "[WARNING] Unable to compute latency-compensated transform : timestamps undefined or too close." << std::endl;
     return current;
   }
-  double predictedTime = 1. + this->Latency / (current.time - previous.time);
   // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
-  if (std::abs(predictedTime) > 4.)
+  if (std::abs(this->Latency / (current.time - previous.time)) > 4.)
   {
     std::cerr << "[WARNING] Unable to compute latency-compensated transform : extrapolation time is too far." << std::endl;
     return current;
   }
 
   // Extrapolate H0 and H1 to get expected Hpred at current time
-  Eigen::Isometry3d Hpred(LinearTransformInterpolation<double>(H0.linear(), H0.translation(),
-                                                               H1.linear(), H1.translation(),
-                                                               predictedTime));
+  Eigen::Isometry3d Hpred = LinearInterpolation(H0, H1, current.time + this->Latency, previous.time, current.time);
+
   return Transform(Hpred, current.time, current.frameid);
 }
 

@@ -1,6 +1,7 @@
 //==============================================================================
 // Copyright 2019-2020 Kitware, Inc., Kitware SAS
 // Author: Guilbert Pierre (Kitware SAS)
+//         Cadart Nicolas (Kitware SAS)
 // Creation date: 2019-04-08
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,24 +17,7 @@
 // limitations under the License.
 //==============================================================================
 
-// LOCAL
 #include "LidarSlam/MotionModel.h"
-
-//-----------------------------------------------------------------------------
-AffineIsometry::AffineIsometry(const Eigen::Matrix3d& argR, const Eigen::Vector3d& argT, double argTime)
-  : R(argR)
-  , T(argT)
-  , time(argTime)
-{}
-
-//-----------------------------------------------------------------------------
-AffineIsometry SampledSensorPath::operator()(double time) const
-{
-  Eigen::Matrix4d H = LinearTransformInterpolation<double>(this->Samples[0].R, this->Samples[0].T,
-                                                           this->Samples[1].R, this->Samples[1].T,
-                                                           time);
-  return AffineIsometry(H.block(0, 0, 3, 3), H.block(0, 3, 3, 1), time);
-}
 
 //-----------------------------------------------------------------------------
 Eigen::Isometry3d LinearInterpolation(const Eigen::Isometry3d& H0, const Eigen::Isometry3d& H1, double t, double t0, double t1)
