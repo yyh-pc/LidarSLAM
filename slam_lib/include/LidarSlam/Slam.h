@@ -110,13 +110,13 @@ public:
 
     //! Minimal undistortion is performed :
     //!  - Begin scan pose is linearly interpolated between previous and current end scan poses.
-    //!  - End scan pose is optimized using rigid registration of undistort scan and map.
-    //!  - Scan is linearly undistort between begin and end scan poses.
+    //!  - End scan pose is optimized using rigid registration of undistorted scan and map.
+    //!  - Scan is linearly undistorted between begin and end scan poses.
     APPROXIMATED = 1,
 
     //! Ceres-optimized undistortion is performed :
-    //!  - Both begin and end scan poses are optimized using registration of undistort scan and map.
-    //!  - Scan is linearly undistort between begin and end scan poses.
+    //!  - Both begin and end scan poses are optimized using registration of undistorted scan and map.
+    //!  - Scan is linearly undistorted between begin and end scan poses.
     OPTIMIZED = 2
   };
 

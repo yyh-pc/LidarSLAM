@@ -244,18 +244,18 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   auto keypointExtractor = this->SlamAlgo->GetKeyPointsExtractor();
 
   // ===== SLAM frame and pose =====
-  // Output : Current undistort LiDAR frame in world coordinates
+  // Output : Current undistorted LiDAR frame in world coordinates
   auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
   slamFrame->ShallowCopy(input);
   Slam::PointCloud::Ptr worldFrame = this->SlamAlgo->GetOutputFrame();
-  auto undistortPoints = vtkSmartPointer<vtkPoints>::New();
-  undistortPoints->SetNumberOfPoints(worldFrame->size());
+  auto undistortedPoints = vtkSmartPointer<vtkPoints>::New();
+  undistortedPoints->SetNumberOfPoints(worldFrame->size());
   for (unsigned int i = 0; i < worldFrame->size(); i++)
   {
     const Slam::Point& p = worldFrame->points[i];
-    undistortPoints->SetPoint(i, p.x, p.y, p.z);
+    undistortedPoints->SetPoint(i, p.x, p.y, p.z);
   }
-  slamFrame->SetPoints(undistortPoints);
+  slamFrame->SetPoints(undistortedPoints);
   // Output : SLAM Trajectory
   auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
   slamTrajectory->ShallowCopy(this->Trajectory);
