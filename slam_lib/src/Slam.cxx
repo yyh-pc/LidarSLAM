@@ -576,6 +576,8 @@ Transform Slam::GetWorldTransform() const
 //-----------------------------------------------------------------------------
 Transform Slam::GetLatencyCompensatedWorldTransform() const
 {
+  constexpr double MAX_EXTRAPOLATION_RATIO = 3.;
+
   // Get 2 last transforms
   unsigned int trajectorySize = this->LogTrajectory.size();
   if (trajectorySize == 0)
@@ -596,7 +598,7 @@ Transform Slam::GetLatencyCompensatedWorldTransform() const
     return current;
   }
   // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
-  if (std::abs(this->Latency / (current.time - previous.time)) > 4.)
+  if (std::abs(this->Latency / (current.time - previous.time)) > MAX_EXTRAPOLATION_RATIO)
   {
     std::cerr << "[WARNING] Unable to compute latency-compensated transform : extrapolation time is too far." << std::endl;
     return current;
@@ -859,7 +861,7 @@ void Slam::ComputeEgoMotion()
     this->ResetDistanceParameters();
 
     // loop over edges if there is enough previous edge keypoints
-    if (this->CurrentEdgesPoints->size() > 0 && this->PreviousEdgesPoints->size() > this->EgoMotionLineDistanceNbrNeighbors)
+    if (!this->CurrentEdgesPoints->empty() && this->PreviousEdgesPoints->size() > this->EgoMotionLineDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int edgeIndex = 0; edgeIndex < this->CurrentEdgesPoints->size(); ++edgeIndex)
@@ -877,7 +879,7 @@ void Slam::ComputeEgoMotion()
     }
 
     // loop over planars if there is enough previous planar keypoints
-    if (this->CurrentPlanarsPoints->size() > 0 && this->PreviousPlanarsPoints->size() > this->EgoMotionPlaneDistanceNbrNeighbors)
+    if (!this->CurrentPlanarsPoints->empty() && this->PreviousPlanarsPoints->size() > this->EgoMotionPlaneDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int planarIndex = 0; planarIndex < this->CurrentPlanarsPoints->size(); ++planarIndex)
@@ -899,7 +901,7 @@ void Slam::ComputeEgoMotion()
     this->EgoMotionPlanesPointsUsed = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
 
     // Skip this frame if there are too few geometric keypoints matched
-    if ((this->EgoMotionEdgesPointsUsed + this->EgoMotionPlanesPointsUsed) < 20)
+    if ((this->EgoMotionEdgesPointsUsed + this->EgoMotionPlanesPointsUsed) < this->MinNbrMatchedKeypoints)
     {
       std::cerr << "[WARNING] Not enough keypoints, EgoMotion skipped for this frame.\n";
       break;
@@ -1031,7 +1033,7 @@ void Slam::Mapping()
     this->ResetDistanceParameters();
 
     // loop over edges
-    if (this->CurrentEdgesPoints->size() > 0 && subEdgesPointsLocalMap->size() > this->MappingLineDistanceNbrNeighbors)
+    if (!this->CurrentEdgesPoints->empty() && subEdgesPointsLocalMap->size() > this->MappingLineDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int edgeIndex = 0; edgeIndex < this->CurrentEdgesPoints->size(); ++edgeIndex)
@@ -1046,7 +1048,7 @@ void Slam::Mapping()
     }
 
     // loop over surfaces
-    if (this->CurrentPlanarsPoints->size() > 0 && subPlanarPointsLocalMap->size() > this->MappingPlaneDistanceNbrNeighbors)
+    if (!this->CurrentPlanarsPoints->empty() && subPlanarPointsLocalMap->size() > this->MappingPlaneDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int planarIndex = 0; planarIndex < this->CurrentPlanarsPoints->size(); ++planarIndex)
@@ -1061,7 +1063,7 @@ void Slam::Mapping()
     }
 
     // loop over blobs
-    if (!this->FastSlam && this->CurrentBlobsPoints->size() > 0  && subBlobPointsLocalMap->size() > 10)
+    if (!this->FastSlam && !this->CurrentBlobsPoints->empty()  && subBlobPointsLocalMap->size() > this->MappingBlobDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int blobIndex = 0; blobIndex < this->CurrentBlobsPoints->size(); ++blobIndex)
@@ -1081,7 +1083,7 @@ void Slam::Mapping()
     this->MappingBlobsPointsUsed  = this->MatchRejectionHistogramBlob[MatchingResult::SUCCESS];
 
     // Skip this frame if there is too few geometric keypoints matched
-    if ((this->MappingEdgesPointsUsed + this->MappingPlanesPointsUsed + this->MappingBlobsPointsUsed) < 20)
+    if ((this->MappingEdgesPointsUsed + this->MappingPlanesPointsUsed + this->MappingBlobsPointsUsed) < this->MinNbrMatchedKeypoints)
     {
       std::cerr << "[WARNING] Not enough keypoints, Mapping skipped for this frame.\n";
       break;

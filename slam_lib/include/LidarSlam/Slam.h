@@ -564,6 +564,8 @@ private:
   double MappingMaxLineDistance = 0.2;
   double MappingLineMaxDistInlier = 0.2;
 
+  unsigned int MappingBlobDistanceNbrNeighbors = 25.;  // TODO : set from user interface
+
   unsigned int EgoMotionLineDistanceNbrNeighbors = 8;
   unsigned int EgoMotionMinimumLineNeighborRejection = 3;
   double EgoMotionLineDistancefactor = 5.;
@@ -574,6 +576,8 @@ private:
 
   double EgoMotionMaxPlaneDistance = 0.2;
   double EgoMotionMaxLineDistance = 0.2;
+
+  double MinNbrMatchedKeypoints = 20.;  // TODO : set from user interface
 
   // Loss saturation properties
   // The loss function used is  L(residual) = scale * arctan(residual / scale)
