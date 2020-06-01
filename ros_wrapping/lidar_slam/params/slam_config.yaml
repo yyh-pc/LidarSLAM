@@ -73,7 +73,26 @@ slam:
   n_threads: 1      # Max number of threads to use for parallel processing
   fast_slam: true   # Use only edge and planar keypoints (do not use blob keypoints)
 
-  # Undistortion mode, to correct rolling shutter distortion during frame acquisition:
+  # How to estimate Ego-Motion (approximate relative motion since last frame).
+  # The ego-motion step aims to give a fast and approximate initialization of new
+  # frame world pose to ensure faster and more precise convergence in Localization step.
+  #  0) No ego-motion step is performed : relative motion is Identity, new estimated
+  #     Tworld is equal to previous Tworld. Fast, but may lead to unstable and imprecise
+  #     Localization step if motion is important.
+  #  1) Previous motion is linearly extrapolated to estimate new Tworld pose from the
+  #     2 previous poses. Fast and precise if motion is roughly constant and continuous
+  #  2) Estimate Trelative (and therefore Tworld) by globally registering new frame
+  #     on previous frame. Slower and need textured enough environment, but do not
+  #     rely on constant motion hypothesis.
+  #  3) Previous motion is linearly extrapolated to estimate new Tworld pose from
+  #     the 2 previous poses. Then this estimation is refined by globally registering
+  #     new frame on previous frame. Slower and need textured enough environment,
+  #     but should be more precise and rely less on constant motion hypothesis.
+  ego_motion: 1
+
+  # Undistortion mode, to correct rolling shutter distortion during frame acquisition.
+  # The undistortion should improve the accuracy, but the computation speed may
+  # decrease, and the result might be unstable in difficult situations.
   #  0) No undistortion is performed :
   #     - End scan pose is optimized using rigid registration of raw scan and map.
   #     - Raw input scan is added to maps.
@@ -112,9 +131,8 @@ slam:
 
   max_distance_for_ICP_matching: 20.            # [m] Max distance allowed between two keypoints during ICP matching.
 
-  # ICP and LM parameters for Ego-Motion step, used only if ego_motion_registration=true
-  ego_motion_registration: false        # Register current frame on previous one, or only extrapolate from previous motion.
-  ego_motion:
+  # ICP and LM parameters for Ego-Motion registrayion step (used only if ego_motion is 2 or 3)
+  ego_motion_registration:
     ICP_max_iter: 4                     # Max number of iterations of ICP matching.
     LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
     line_distance_nbr_neighbors: 8      # Number of nearest neighbors to look for in previous frame (all scan lines considered) to build line model.

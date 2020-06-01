@@ -73,14 +73,14 @@ public:
   vtkCustomGetMacro(FastSlam, bool)
   vtkCustomSetMacro(FastSlam, bool)
 
-  vtkCustomGetMacro(EgoMotionRegistration, bool)
-  vtkCustomSetMacro(EgoMotionRegistration, bool)
-
   vtkCustomGetMacro(Verbosity, int)
   vtkCustomSetMacro(Verbosity, int)
 
   vtkCustomGetMacro(NbThreads, int)
   vtkCustomSetMacro(NbThreads, int)
+
+  int GetEgoMotion();
+  void SetEgoMotion(int mode);
 
   int GetUndistortion();
   void SetUndistortion(int mode);

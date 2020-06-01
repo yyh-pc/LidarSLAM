@@ -412,6 +412,33 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
 }
 
 //-----------------------------------------------------------------------------
+int vtkSlam::GetEgoMotion()
+{
+  int egoMotion = static_cast<int>(this->SlamAlgo->GetEgoMotion());
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning Ego-Motion of " << egoMotion);
+  return egoMotion;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetEgoMotion(int mode)
+{
+  Slam::EgoMotionMode egoMotion = static_cast<Slam::EgoMotionMode>(mode);
+  if (egoMotion != Slam::EgoMotionMode::NONE         && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION &&
+      egoMotion != Slam::EgoMotionMode::REGISTRATION && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+  {
+    vtkErrorMacro("Invalid ego-motion mode (" << mode << "), ignoring setting.");
+    return;
+  }
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting Ego-Motion to " << mode);
+  if (this->SlamAlgo->GetEgoMotion() != egoMotion)
+  {
+    this->SlamAlgo->SetEgoMotion(egoMotion);
+    this->Modified();
+    this->ParametersModificationTime.Modified();
+  }
+}
+
+//-----------------------------------------------------------------------------
 int vtkSlam::GetUndistortion()
 {
   int undistortion = static_cast<int>(this->SlamAlgo->GetUndistortion());

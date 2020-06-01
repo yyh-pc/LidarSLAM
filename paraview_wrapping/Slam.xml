@@ -113,15 +113,36 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="Ego-Motion registration"
-          command="SetEgoMotionRegistration"
-          default_values="0"
+          name="Ego-Motion Mode"
+          command="SetEgoMotion"
+          default_values="1"
           number_of_elements="1">
-        <BooleanDomain name="bool" />
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Disabled"/>
+          <Entry value="1" text="Motion extrapolation"/>
+          <Entry value="2" text="Registration on previous frame"/>
+          <Entry value="3" text="Motion extrapolation + Registration"/>
+        </EnumerationDomain>
         <Documentation>
-          If enabled, Ego-Motion step will be perfomed by globally registering
-          current frame on previous one. Otherwise, Ego-Motion is estimated
-          using previous motion extrapolation.
+          How to estimate Ego-Motion (approximate relative motion since last frame).
+          The ego-motion step aims to give a fast and approximate initialization of new
+          frame world pose to ensure faster and more precise convergence in Localization step.
+
+          If DISABLED, no ego-motion step is performed : relative motion is Identity, new estimated
+          Tworld is equal to previous Tworld. Fast, but may lead to unstable and imprecise
+          Localization step if motion is important.
+
+          If MOTION EXTRAPOLATION, previous motion is linearly extrapolated to estimate new Tworld pose
+          from the 2 previous poses. Fast and precise if motion is roughly constant and continuous.
+
+          If REGISTRATION ON PREVIOUS FRAME, Trelative (and therefore Tworld) is estimated by globally
+          registering new frame on previous frame. Slower and need textured enough environment, but do not
+          rely on constant motion hypothesis.
+
+          If MOTION EXTRAPOLATION + REGISTRATION ON PREVIOUS FRAME, previous motion is linearly extrapolated
+          to estimate new Tworld pose from the 2 previous poses. Then this estimation is refined by globally
+          registering new frame on previous frame. Slower and need textured enough environment, but should
+          be more precise and rely less on constant motion hypothesis.
         </Documentation>
       </IntVectorProperty>
 
@@ -168,7 +189,7 @@
         <Property name="Display Mode" />
         <Property name="Verbosity Level" />
         <Property name="Fast Slam" />
-        <Property name="Ego-Motion registration" />
+        <Property name="Ego-Motion Mode" />
         <Property name="Undistortion Mode" />
         <Property name="Number of threads" />
       </PropertyGroup>

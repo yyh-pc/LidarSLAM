@@ -313,7 +313,8 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   if (this->NbrFrameProcessed > 0)
   {
     // Compute Trelative by registering current frame on previous one
-    if (this->EgoMotionRegistration)
+    if (this->EgoMotion == EgoMotionMode::REGISTRATION ||
+        this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
     {
       IF_VERBOSE(3, InitTime("Ego-Motion"));
       this->ComputeEgoMotion();
@@ -725,10 +726,13 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
     std::cerr << "[WARNING] SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s" : "") << ".\n\n";
   this->PreviousFrameSeq = inputPc->header.seq;
 
-  // Extrapolate new transforms at current time
-  // (if we have not already processed 2 frames, these transforms are already set to identity)
-  Eigen::Isometry3d TworldEstimation = Eigen::Isometry3d::Identity();
-  if (this->NbrFrameProcessed >= 2)
+  // Estimate world pose at current time
+  // Use previous pose as new pose estimation
+  Eigen::Isometry3d TworldEstimation = this->Tworld;
+  // Or linearly extrapolate previous motion to estimate new pose
+  if (this->NbrFrameProcessed >= 2 &&
+      (this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION ||
+       this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION))
   {
     // Estimate new Tworld with a constant velocity model
     const double t = inputPc->header.stamp * 1e-6;
@@ -741,7 +745,7 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
   this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
 
   PRINT_VERBOSE(2, "========== Update SLAM State ==========\n"
-                   "Extrapolated Ego-Motion:\n"
+                   "Estimated Ego-Motion:\n"
                    " translation = [" << this->Trelative.translation().transpose()             << "]\n"
                    " rotation    = [" << Rad2Deg(GetRPY(this->Trelative.linear())).transpose() << "]");
 

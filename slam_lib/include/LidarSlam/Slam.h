@@ -100,6 +100,34 @@ public:
   using Point = PointXYZTIId;
   using PointCloud = pcl::PointCloud<Point>;
 
+  // How to estimate Ego-Motion (approximate relative motion since last frame)
+  enum class EgoMotionMode
+  {
+    //! No ego-motion step is performed : relative motion is Identity, new
+    //! estimated Tworld is equal to previous Tworld.
+    //! Fast, but may lead to unstable and imprecise Localization step if motion
+    //! is important.
+    NONE = 0,
+
+    //! Previous motion is linearly extrapolated to estimate new Tworld pose
+    //! from the 2 previous poses.
+    //! Fast and precise if motion is roughly constant and continuous.
+    MOTION_EXTRAPOLATION = 1,
+
+    //! Estimate Trelative (and therefore Tworld) by globally registering new
+    //! frame on previous frame.
+    //! Slower and need textured enough environment, but do not rely on
+    //! constant motion hypothesis.
+    REGISTRATION = 2,
+
+    //! Previous motion is linearly extrapolated to estimate new Tworld pose
+    //! from the 2 previous poses. Then this estimation is refined by globally
+    //! registering new frame on previous frame.
+    //! Slower and need textured enough environment, but should be more precise
+    //! and rely less on constant motion hypothesis.
+    MOTION_EXTRAPOLATION_AND_REGISTRATION = 3
+  };
+
   // How to deal with undistortion
   enum UndistortionMode
   {
@@ -193,8 +221,8 @@ public:
   GetMacro(FastSlam, bool)
   SetMacro(FastSlam, bool)
 
-  GetMacro(EgoMotionRegistration, bool)
-  SetMacro(EgoMotionRegistration, bool)
+  SetMacro(EgoMotion, EgoMotionMode)
+  GetMacro(EgoMotion, EgoMotionMode)
 
   SetMacro(Undistortion, UndistortionMode)
   GetMacro(Undistortion, UndistortionMode)
@@ -335,10 +363,11 @@ private:
   // as mapping planars points.
   bool FastSlam = true;
 
-  // If set to true, Ego-Motion step will be perfomed by globally registering
-  // current frame on previous one.
-  // Otherwise, Ego-Motion is estimated using previous motion extrapolation.
-  bool EgoMotionRegistration = false;
+  // How to estimate Ego-Motion (approximate relative motion since last frame).
+  // The ego-motion step aims to give a fast and approximate initialization of
+  // new frame world pose to ensure faster and more precise convergence in
+  // Localization step.
+  EgoMotionMode EgoMotion = EgoMotionMode::MOTION_EXTRAPOLATION;
 
   // How the algorithm should undistort the lidar scans.
   // The undistortion should improve the accuracy, but the computation speed

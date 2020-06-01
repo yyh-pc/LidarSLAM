@@ -579,6 +579,18 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   SetSlamParam(int,    "slam/n_threads", NbThreads)
   SetSlamParam(double, "slam/logging_timeout", LoggingTimeout)
   SetSlamParam(double, "slam/max_distance_for_ICP_matching", MaxDistanceForICPMatching)
+  int egoMotionMode;
+  if (priv_nh.getParam("slam/ego_motion", egoMotionMode))
+  {
+    Slam::EgoMotionMode egoMotion = static_cast<Slam::EgoMotionMode>(egoMotionMode);
+    if (egoMotion != Slam::EgoMotionMode::NONE         && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION &&
+        egoMotion != Slam::EgoMotionMode::REGISTRATION && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+    {
+      ROS_ERROR_STREAM("Invalid ego-motion mode (" << egoMotionMode << "). Setting it to 'MOTION_EXTRAPOLATION'.");
+      egoMotion = Slam::EgoMotionMode::MOTION_EXTRAPOLATION;
+    }
+    LidarSlam.SetEgoMotion(egoMotion);
+  }
   int undistortionMode;
   if (priv_nh.getParam("slam/undistortion", undistortionMode))
   {
@@ -610,18 +622,18 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
     this->LidarSlam.SetBaseFrameId(this->TrackingFrameId);
 
   // Ego motion
-  SetSlamParam(int,    "slam/ego_motion/LM_max_iter", EgoMotionLMMaxIter)
-  SetSlamParam(int,    "slam/ego_motion/ICP_max_iter", EgoMotionICPMaxIter)
-  SetSlamParam(int,    "slam/ego_motion/line_distance_nbr_neighbors", EgoMotionLineDistanceNbrNeighbors)
-  SetSlamParam(int,    "slam/ego_motion/minimum_line_neighbor_rejection", EgoMotionMinimumLineNeighborRejection)
-  SetSlamParam(int,    "slam/ego_motion/plane_distance_nbr_neighbors", EgoMotionPlaneDistanceNbrNeighbors)
-  SetSlamParam(double, "slam/ego_motion/line_distance_factor", EgoMotionLineDistancefactor)
-  SetSlamParam(double, "slam/ego_motion/plane_distance_factor1", EgoMotionPlaneDistancefactor1)
-  SetSlamParam(double, "slam/ego_motion/plane_distance_factor2", EgoMotionPlaneDistancefactor2)
-  SetSlamParam(double, "slam/ego_motion/max_line_distance", EgoMotionMaxLineDistance)
-  SetSlamParam(double, "slam/ego_motion/max_plane_distance", EgoMotionMaxPlaneDistance)
-  SetSlamParam(double, "slam/ego_motion/init_loss_scale", EgoMotionInitLossScale)
-  SetSlamParam(double, "slam/ego_motion/final_loss_scale", EgoMotionFinalLossScale)
+  SetSlamParam(int,    "slam/ego_motion_registration/LM_max_iter", EgoMotionLMMaxIter)
+  SetSlamParam(int,    "slam/ego_motion_registration/ICP_max_iter", EgoMotionICPMaxIter)
+  SetSlamParam(int,    "slam/ego_motion_registration/line_distance_nbr_neighbors", EgoMotionLineDistanceNbrNeighbors)
+  SetSlamParam(int,    "slam/ego_motion_registration/minimum_line_neighbor_rejection", EgoMotionMinimumLineNeighborRejection)
+  SetSlamParam(int,    "slam/ego_motion_registration/plane_distance_nbr_neighbors", EgoMotionPlaneDistanceNbrNeighbors)
+  SetSlamParam(double, "slam/ego_motion_registration/line_distance_factor", EgoMotionLineDistancefactor)
+  SetSlamParam(double, "slam/ego_motion_registration/plane_distance_factor1", EgoMotionPlaneDistancefactor1)
+  SetSlamParam(double, "slam/ego_motion_registration/plane_distance_factor2", EgoMotionPlaneDistancefactor2)
+  SetSlamParam(double, "slam/ego_motion_registration/max_line_distance", EgoMotionMaxLineDistance)
+  SetSlamParam(double, "slam/ego_motion_registration/max_plane_distance", EgoMotionMaxPlaneDistance)
+  SetSlamParam(double, "slam/ego_motion_registration/init_loss_scale", EgoMotionInitLossScale)
+  SetSlamParam(double, "slam/ego_motion_registration/final_loss_scale", EgoMotionFinalLossScale)
 
   // Mapping
   SetSlamParam(int,    "slam/mapping/LM_max_iter", MappingLMMaxIter)
