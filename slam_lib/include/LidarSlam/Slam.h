@@ -180,6 +180,14 @@ public:
   PointCloud::Ptr GetPlanarsMap() const;
   PointCloud::Ptr GetBlobsMap() const;
 
+  // Get extracted keypoints from current frame.
+  // If worldCoordinates=false, it returns raw keypoints in BASE coordinates,
+  // without undistortion. If worldCoordinates=true, it returns undistorted
+  // keypoints in WORLD coordinates.
+  PointCloud::Ptr GetEdgesKeypoints(bool worldCoordinates = true) const;
+  PointCloud::Ptr GetPlanarsKeypoints(bool worldCoordinates = true) const;
+  PointCloud::Ptr GetBlobsKeypoints(bool worldCoordinates = true) const;
+
   // Get current frame
   PointCloud::Ptr GetOutputFrame();
 
@@ -477,13 +485,18 @@ private:
   // Keypoints extractor
   std::shared_ptr<SpinningSensorKeypointExtractor> KeyPointsExtractor;
 
-  // keypoints extracted
+  // Raw extracted keypoints, in BASE coordinates (no undistortion)
   PointCloud::Ptr CurrentEdgesPoints;
   PointCloud::Ptr CurrentPlanarsPoints;
   PointCloud::Ptr CurrentBlobsPoints;
   PointCloud::Ptr PreviousEdgesPoints;
   PointCloud::Ptr PreviousPlanarsPoints;
   PointCloud::Ptr PreviousBlobsPoints;
+
+  // Extracted keypoints, in WORLD coordinates (with undistortion if enabled)
+  PointCloud::Ptr CurrentWorldEdgesPoints;
+  PointCloud::Ptr CurrentWorldPlanarsPoints;
+  PointCloud::Ptr CurrentWorldBlobsPoints;
 
   // keypoints local map
   std::shared_ptr<RollingGrid> EdgesPointsLocalMap;

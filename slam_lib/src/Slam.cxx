@@ -253,6 +253,9 @@ void Slam::Reset(bool resetLog)
   this->CurrentEdgesPoints.reset(new PointCloud);
   this->CurrentPlanarsPoints.reset(new PointCloud);
   this->CurrentBlobsPoints.reset(new PointCloud);
+  this->CurrentWorldEdgesPoints.reset(new PointCloud);
+  this->CurrentWorldPlanarsPoints.reset(new PointCloud);
+  this->CurrentWorldBlobsPoints.reset(new PointCloud);
 
   // Reset debug variables
   this->EgoMotionEdgesPointsUsed = 0;
@@ -711,6 +714,24 @@ Slam::PointCloud::Ptr Slam::GetBlobsMap() const
   map->header.frame_id = this->WorldFrameId;
   map->header.stamp = std::round(this->GetWorldTransform().time * 1e6);
   return map;
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetEdgesKeypoints(bool worldCoordinates) const
+{
+  return worldCoordinates ? this->CurrentWorldEdgesPoints : this->CurrentEdgesPoints;
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetPlanarsKeypoints(bool worldCoordinates) const
+{
+  return worldCoordinates ? this->CurrentWorldPlanarsPoints : this->CurrentPlanarsPoints;
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetBlobsKeypoints(bool worldCoordinates) const
+{
+  return worldCoordinates ? this->CurrentWorldBlobsPoints : this->CurrentBlobsPoints;
 }
 
 //==============================================================================
@@ -1203,32 +1224,34 @@ void Slam::Mapping()
 void Slam::UpdateMapsUsingTworld()
 {
   // it would be nice to add the point from the frame directly to the map
-  auto updateMap = [this](std::shared_ptr<RollingGrid> map, PointCloud::Ptr frame)
+  auto updateMap = [this](std::shared_ptr<RollingGrid> map, PointCloud::Ptr baseFrame, PointCloud::Ptr worldFrame)
   {
     // Transform keypoints to WORLD coordinates
-    PointCloud::Ptr worldKeypoints(new PointCloud());
-    worldKeypoints->points.reserve(frame->size());
+    worldFrame->clear();
+    worldFrame->points.reserve(baseFrame->size());
+    worldFrame->header = baseFrame->header;
+    worldFrame->header.frame_id = this->WorldFrameId;
     if (this->Undistortion)
-      for (const Point& p : *frame)
-        worldKeypoints->push_back(TransformPoint(p, this->WithinFrameMotion(p.time)));
+      for (const Point& p : *baseFrame)
+        worldFrame->push_back(TransformPoint(p, this->WithinFrameMotion(p.time)));
     else
-      for (const Point& p : *frame)
-        worldKeypoints->push_back(TransformPoint(p, this->Tworld));
+      for (const Point& p : *baseFrame)
+        worldFrame->push_back(TransformPoint(p, this->Tworld));
     // Roll grid to current position, and add new keypoints
     map->Roll(this->Tworld.translation());
-    map->Add(worldKeypoints);
+    map->Add(worldFrame);
   };
 
   // run maps update
   #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
   {
     #pragma omp section
-    updateMap(this->EdgesPointsLocalMap, this->CurrentEdgesPoints);
+    updateMap(this->EdgesPointsLocalMap, this->CurrentEdgesPoints, this->CurrentWorldEdgesPoints);
     #pragma omp section
-    updateMap(this->PlanarPointsLocalMap, this->CurrentPlanarsPoints);
+    updateMap(this->PlanarPointsLocalMap, this->CurrentPlanarsPoints, this->CurrentWorldPlanarsPoints);
     #pragma omp section
     if (!this->FastSlam)
-      updateMap(this->BlobsPointsLocalMap, this->CurrentBlobsPoints);
+      updateMap(this->BlobsPointsLocalMap, this->CurrentBlobsPoints, this->CurrentWorldBlobsPoints);
   }
 }
 
