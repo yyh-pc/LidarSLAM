@@ -559,9 +559,9 @@ void LidarSlamNode::PublishOutput()
   publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetBlobsMap());
 
   // Current keypoints
-  publishPointCloud(EDGES_KEYPOINTS,  this->LidarSlam.GetKeyPointsExtractor()->GetEdgePoints());
-  publishPointCloud(PLANES_KEYPOINTS, this->LidarSlam.GetKeyPointsExtractor()->GetPlanarPoints());
-  publishPointCloud(BLOBS_KEYPOINTS,  this->LidarSlam.GetKeyPointsExtractor()->GetBlobPoints());
+  publishPointCloud(EDGES_KEYPOINTS,  this->LidarSlam.GetEdgesKeypoints());
+  publishPointCloud(PLANES_KEYPOINTS, this->LidarSlam.GetPlanarsKeypoints());
+  publishPointCloud(BLOBS_KEYPOINTS,  this->LidarSlam.GetBlobsKeypoints());
 
   // debug cloud
   publishPointCloud(SLAM_CLOUD, this->LidarSlam.GetOutputFrame());
