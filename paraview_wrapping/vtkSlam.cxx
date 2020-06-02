@@ -274,13 +274,13 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // ===== Extracted keypoints from current frame =====
   // Output : Current edge keypoints
   auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
-  PointCloudToPolyData(this->SlamAlgo->GetEdgesKeypoints(), edgePoints);
+  PointCloudToPolyData(this->SlamAlgo->GetEdgesKeypoints(this->OutputKeypointsInWorldCoordinates), edgePoints);
   // Output : Current planar keypoints
   auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
-  PointCloudToPolyData(this->SlamAlgo->GetPlanarsKeypoints(), planarPoints);
+  PointCloudToPolyData(this->SlamAlgo->GetPlanarsKeypoints(this->OutputKeypointsInWorldCoordinates), planarPoints);
   // Output : Current blob keypoints
   auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
-  PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(), blobPoints);
+  PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(this->OutputKeypointsInWorldCoordinates), blobPoints);
 
   // add debug information if displayMode is enabled
   if (this->DisplayMode)

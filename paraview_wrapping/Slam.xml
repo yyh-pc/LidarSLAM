@@ -72,6 +72,22 @@
       </IntVectorProperty>
 
       <IntVectorProperty
+          name="Output keypoints in WORLD coordinates"
+          command="SetOutputKeypointsInWorldCoordinates"
+          default_values="1"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If disabled, return raw keypoints extracted from current frame in BASE
+          coordinates, without undistortion.
+
+          If enabled, return keypoints in WORLD coordinates, optionally
+          undistorted if undistortion is activated.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
           name="Verbosity Level"
           command="SetVerbosity"
           default_values="0"
@@ -187,6 +203,7 @@
 
       <PropertyGroup label="General Parameters">
         <Property name="Display Mode" />
+        <Property name="Output keypoints in WORLD coordinates" />
         <Property name="Verbosity Level" />
         <Property name="Fast Slam" />
         <Property name="Ego-Motion Mode" />
