@@ -76,11 +76,14 @@ public:
   vtkCustomGetMacro(Verbosity, int)
   vtkCustomSetMacro(Verbosity, int)
 
-  vtkCustomGetMacro(Undistortion, bool)
-  vtkCustomSetMacro(Undistortion, bool)
-
   vtkCustomGetMacro(NbThreads, int)
   vtkCustomSetMacro(NbThreads, int)
+
+  int GetEgoMotion();
+  void SetEgoMotion(int mode);
+
+  int GetUndistortion();
+  void SetUndistortion(int mode);
 
   // ---------------------------------------------------------------------------
   //   BASE to LIDAR transform

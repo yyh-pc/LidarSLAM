@@ -36,8 +36,6 @@
 #include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
 #include <vtkTable.h>
-#include <vtkTransform.h>
-#include <vtkTransformPolyDataFilter.h>
 
 // PCL
 #include <pcl/common/transforms.h>
@@ -149,7 +147,7 @@ void PolyDataToPointCloud(vtkPolyData* poly, pcl::PointCloud<Slam::Point>::Ptr p
 
   // Loop over points data
   pc->resize(nbPoints);
-  pc->header.stamp = arrayTime->GetTuple1(0);
+  pc->header.stamp = arrayTime->GetTuple1(nbPoints - 1); // time in microseconds
   for (vtkIdType i = 0; i < nbPoints; i++)
   {
     Slam::Point& p = pc->points[i];
@@ -235,19 +233,6 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   Transform Tworld = this->SlamAlgo->GetWorldTransform();
   Eigen::Isometry3d odomToBase = Tworld.GetIsometry();
   Eigen::Isometry3d odomToLidar = odomToBase * this->SlamAlgo->GetBaseToLidarOffset();
-  vtkSmartPointer<vtkTransform> transform = vtkSmartPointer<vtkTransform>::New();
-  transform->PostMultiply();
-  Eigen::Vector3d ypr = odomToLidar.linear().eulerAngles(2, 1, 0);
-  transform->RotateX(Rad2Deg(ypr[2]));
-  transform->RotateY(Rad2Deg(ypr[1]));
-  transform->RotateZ(Rad2Deg(ypr[0]));
-  transform->Translate(odomToLidar.translation().data());
-
-  // Transform the current frame to world coordinates
-  vtkSmartPointer<vtkTransformPolyDataFilter> transformFilter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
-  transformFilter->SetInputData(input);
-  transformFilter->SetTransform(transform);
-  transformFilter->Update();
 
   // Update Trajectory
   AddPoseToPolyData(odomToBase, this->Trajectory);
@@ -259,9 +244,18 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   auto keypointExtractor = this->SlamAlgo->GetKeyPointsExtractor();
 
   // ===== SLAM frame and pose =====
-  // Output : Current LiDAR frame in world coordinates
+  // Output : Current undistorted LiDAR frame in world coordinates
   auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
-  slamFrame->ShallowCopy(transformFilter->GetOutput());
+  slamFrame->ShallowCopy(input);
+  Slam::PointCloud::Ptr worldFrame = this->SlamAlgo->GetOutputFrame();
+  auto undistortedPoints = vtkSmartPointer<vtkPoints>::New();
+  undistortedPoints->SetNumberOfPoints(worldFrame->size());
+  for (unsigned int i = 0; i < worldFrame->size(); i++)
+  {
+    const Slam::Point& p = worldFrame->points[i];
+    undistortedPoints->SetPoint(i, p.x, p.y, p.z);
+  }
+  slamFrame->SetPoints(undistortedPoints);
   // Output : SLAM Trajectory
   auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
   slamTrajectory->ShallowCopy(this->Trajectory);
@@ -415,6 +409,59 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
     vtkErrorMacro(<< "The calibration data has no column named 'verticalCorrection'");
   }
   return laserIdMapping;
+}
+
+//-----------------------------------------------------------------------------
+int vtkSlam::GetEgoMotion()
+{
+  int egoMotion = static_cast<int>(this->SlamAlgo->GetEgoMotion());
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning Ego-Motion of " << egoMotion);
+  return egoMotion;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetEgoMotion(int mode)
+{
+  Slam::EgoMotionMode egoMotion = static_cast<Slam::EgoMotionMode>(mode);
+  if (egoMotion != Slam::EgoMotionMode::NONE         && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION &&
+      egoMotion != Slam::EgoMotionMode::REGISTRATION && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+  {
+    vtkErrorMacro("Invalid ego-motion mode (" << mode << "), ignoring setting.");
+    return;
+  }
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting Ego-Motion to " << mode);
+  if (this->SlamAlgo->GetEgoMotion() != egoMotion)
+  {
+    this->SlamAlgo->SetEgoMotion(egoMotion);
+    this->Modified();
+    this->ParametersModificationTime.Modified();
+  }
+}
+
+//-----------------------------------------------------------------------------
+int vtkSlam::GetUndistortion()
+{
+  int undistortion = static_cast<int>(this->SlamAlgo->GetUndistortion());
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning Undistortion of " << undistortion);
+  return undistortion;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetUndistortion(int mode)
+{
+  Slam::UndistortionMode undistortion = static_cast<Slam::UndistortionMode>(mode);
+  if (undistortion != Slam::NONE && undistortion != Slam::APPROXIMATED && undistortion != Slam::OPTIMIZED)
+  {
+    vtkErrorMacro("Invalid undistortion mode (" << mode << "), ignoring setting.");
+    return;
+  }
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting Undistortion to " << mode);
+  if (this->SlamAlgo->GetUndistortion() != undistortion)
+  {
+    this->SlamAlgo->SetUndistortion(undistortion);
+    this->Modified();
+    this->ParametersModificationTime.Modified();
+  }
 }
 
 //-----------------------------------------------------------------------------

@@ -57,17 +57,6 @@
       <!-- ==================== General ==================== -->
 
       <IntVectorProperty
-          name="Fast Slam"
-          command="SetFastSlam"
-          default_values="1"
-          number_of_elements="1">
-        <BooleanDomain name="bool" />
-        <Documentation>
-          If fast slam is enabled, we don't use blob keypoints
-        </Documentation>
-      </IntVectorProperty>
-
-      <IntVectorProperty
           name="Display Mode"
           command="SetDisplayMode"
           default_values="1"
@@ -97,12 +86,91 @@
         </EnumerationDomain>
         <Documentation>
           Indicate verbosity level to display more or less information in console:
+
            (0) print errors, warnings or one time info;
+
            (1) 0 + frame number and total processing duration;
+
            (2) 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary;
+
            (3) 2 + sub-problems processing duration;
+
            (4) 3 + ceres optimization summary;
+
            (5) 4 + logging/maps memory usage.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+          name="Fast Slam"
+          command="SetFastSlam"
+          default_values="1"
+          number_of_elements="1">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If fast slam is enabled, we don't use blob keypoints
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+          name="Ego-Motion Mode"
+          command="SetEgoMotion"
+          default_values="1"
+          number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Disabled"/>
+          <Entry value="1" text="Motion extrapolation"/>
+          <Entry value="2" text="Registration on previous frame"/>
+          <Entry value="3" text="Motion extrapolation + Registration"/>
+        </EnumerationDomain>
+        <Documentation>
+          How to estimate Ego-Motion (approximate relative motion since last frame).
+          The ego-motion step aims to give a fast and approximate initialization of new
+          frame world pose to ensure faster and more precise convergence in Localization step.
+
+          If DISABLED, no ego-motion step is performed : relative motion is Identity, new estimated
+          Tworld is equal to previous Tworld. Fast, but may lead to unstable and imprecise
+          Localization step if motion is important.
+
+          If MOTION EXTRAPOLATION, previous motion is linearly extrapolated to estimate new Tworld pose
+          from the 2 previous poses. Fast and precise if motion is roughly constant and continuous.
+
+          If REGISTRATION ON PREVIOUS FRAME, Trelative (and therefore Tworld) is estimated by globally
+          registering new frame on previous frame. Slower and need textured enough environment, but do not
+          rely on constant motion hypothesis.
+
+          If MOTION EXTRAPOLATION + REGISTRATION ON PREVIOUS FRAME, previous motion is linearly extrapolated
+          to estimate new Tworld pose from the 2 previous poses. Then this estimation is refined by globally
+          registering new frame on previous frame. Slower and need textured enough environment, but should
+          be more precise and rely less on constant motion hypothesis.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+          name="Undistortion Mode"
+          command="SetUndistortion"
+          default_values="1"
+          number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Disabled"/>
+          <Entry value="1" text="Approximated"/>
+          <Entry value="2" text="Optimized"/>
+        </EnumerationDomain>
+        <Documentation>
+          Undistortion mode, to correct rolling shutter distortion during a
+          whole sweep during Lidar frame acquisition. This might be slower
+          and unstable in case of jumps.
+
+          If DISABLED, SLAM will compute a rigid transform that will be applied
+          to the whole frame without taking into account the distortion due to
+          the lidar motion during a sweep.
+
+          If APPROXIMATED, current beginning sweep pose will be guessed using a
+          constant speed motion model from previous and current end sweep poses.
+          Then, linear undistortion between current begin and end poses is applied.
+
+          If OPTIMIZED, both current begin and end sweep poses are optimized.
+          Then, linear undistortion between current begin and end poses is applied.
         </Documentation>
       </IntVectorProperty>
 
@@ -117,28 +185,13 @@
         </Documentation>
       </IntVectorProperty>
 
-      <!-- TODO : fix undistortion -->
-      <!-- <IntVectorProperty
-          name="Undistortion Model"
-          command="SetUndistortion"
-          default_values="0"
-          number_of_elements="1">
-        <BooleanDomain name="bool" />
-        <Documentation>
-          If undistortion model is enabled, the SLAM will use a motion
-          model to undistort the acquired frame during a sweep of the
-          lidar. If it is not enabled, the slam will compute a rigid
-          transform that will be applied to the whole frame without taking
-          into account the distortion due to the lidar motion during a sweep
-        </Documentation>
-      </IntVectorProperty>-->
-
       <PropertyGroup label="General Parameters">
-        <Property name="Fast Slam" />
         <Property name="Display Mode" />
         <Property name="Verbosity Level" />
+        <Property name="Fast Slam" />
+        <Property name="Ego-Motion Mode" />
+        <Property name="Undistortion Mode" />
         <Property name="Number of threads" />
-        <!-- <Property name="Undistortion Model" /> -->
       </PropertyGroup>
 
       <!-- ================ Keypoints extraction Parameters ================ -->
@@ -162,6 +215,7 @@
           panel_visibility="advanced">
         <Documentation>
           Position of the LiDAR sensor in BASE coordinate system (X, Y, Z).
+
           It is often useful to track a BASE pose instead of LiDAR sensor pose.
           If set, this parameter transform all input pointcloud into BASE coordinate
           system in order to output BASE trajectory.
@@ -176,6 +230,7 @@
           panel_visibility="advanced">
         <Documentation>
           Rotation of the LiDAR sensor in BASE coordinate system (rX, rY, rZ, euler angles in ZYX convention, in degrees).
+
           It is often useful to track a BASE pose instead of LiDAR sensor pose.
           If set, this parameter transform all input pointcloud into BASE coordinate
           system in order to output BASE trajectory.
@@ -190,7 +245,7 @@
       <!-- ==================== Ego Motion Parameters ==================== -->
 
       <IntVectorProperty
-          name="Lev-Mardt Maximum Iteration"
+          name="Lev-Mardt Maximum Iteration EM"
           command="SetEgoMotionLMMaxIter"
           default_values="15"
           number_of_elements="1"
@@ -205,7 +260,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="ICP Maximum Iteration"
+          name="ICP Maximum Iteration EM"
           command="SetEgoMotionICPMaxIter"
           default_values="4"
           number_of_elements="1"
@@ -218,7 +273,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="# Edges Neighbors Minimum After Ransac"
+          name="Nb Edges Neighbors Minimum After Ransac EM"
           command="SetEgoMotionMinimumLineNeighborRejection"
           default_values="3"
           number_of_elements="1"
@@ -231,7 +286,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="# Edge Neighbors"
+          name="Nb Edge Neighbors EM"
           command="SetEgoMotionLineDistanceNbrNeighbors"
           default_values="8"
           number_of_elements="1"
@@ -243,7 +298,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="# Plane Neighbors"
+          name="Nb Plane Neighbors EM"
           command="SetEgoMotionPlaneDistanceNbrNeighbors"
           default_values="5"
           number_of_elements="1"
@@ -255,45 +310,53 @@
       </IntVectorProperty>
 
       <DoubleVectorProperty
-          name="Linearity Factor #1"
+          name="Linearity Factor EM"
           command="SetEgoMotionLineDistancefactor"
           default_values="5"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject an edge keypoint if its neighborhood is not distributed
-          along a line eigenvalue1 > Factor * eigenvalue2
+          along a line :
+
+          eigenvalue1 > Factor x eigenvalue2
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Planarity Factor #1"
+          name="Planarity Factor 1 EM"
           command="SetEgoMotionPlaneDistancefactor1"
           default_values="35"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject a planar keypoint if its neighborhood is not distributed
-          along a plane: Factor1 * eigenvalue2 > eigenvalue1 and
-          eigenvalue2 > Factor2 * eigenvalue3
+          along a plane:
+
+          Factor1 x eigenvalue2 > eigenvalue1
+
+          eigenvalue2 > Factor2 x eigenvalue3
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Planarity Factor #2"
+          name="Planarity Factor 2 EM"
           command="SetEgoMotionPlaneDistancefactor2"
           default_values="8"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject a planar keypoint if its neighborhood is not distributed
-          along a plane: Factor1 * eigenvalue2 > eigenvalue1 and
-          eigenvalue2 > Factor2 * eigenvalue3
+          along a plane:
+
+          Factor1 x eigenvalue2 > eigenvalue1
+
+          eigenvalue2 > Factor2 x eigenvalue3
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max Edge-Neighbors Distance To Fitted Line"
+          name="Max Edge-Neighbors Distance To Fitted Line EM"
           command="SetEgoMotionMaxLineDistance"
           default_values="0.2"
           number_of_elements="1"
@@ -305,7 +368,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max Plane-Neighbors Distance To Fitted Plane"
+          name="Max Plane-Neighbors Distance To Fitted Plane EM"
           command="SetEgoMotionMaxPlaneDistance"
           default_values="0.2"
           number_of_elements="1"
@@ -317,7 +380,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Ego Motion Init Loss Scale"
+          name="Init Loss Scale EM"
           command="SetEgoMotionInitLossScale"
           default_values="2.0"
           number_of_elements="1"
@@ -325,7 +388,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Ego Motion Final Loss Scale"
+          name="Final Loss Scale EM"
           command="SetEgoMotionFinalLossScale"
           default_values="0.2"
           number_of_elements="1"
@@ -333,24 +396,30 @@
       </DoubleVectorProperty>
 
       <PropertyGroup label="Ego-Motion ICP Matching And Optimization Parameters">
-        <Property name="Lev-Mardt Maximum Iteration" />
-        <Property name="ICP Maximum Iteration" />
-        <Property name="# Edges Neighbors Minimum After Ransac" />
-        <Property name="# Edge Neighbors" />
-        <Property name="# Plane Neighbors" />
-        <Property name="Linearity Factor #1" />
-        <Property name="Planarity Factor #1" />
-        <Property name="Planarity Factor #2" />
-        <Property name="Max Edge-Neighbors Distance To Fitted Line" />
-        <Property name="Max Plane-Neighbors Distance To Fitted Plane" />
-        <Property name="Ego Motion Init Loss Scale" />
-        <Property  name="Ego Motion Final Loss Scale" />
+        <Property name="Lev-Mardt Maximum Iteration EM" />
+        <Property name="ICP Maximum Iteration EM" />
+        <Property name="Nb Edges Neighbors Minimum After Ransac EM" />
+        <Property name="Nb Edge Neighbors EM" />
+        <Property name="Nb Plane Neighbors EM" />
+        <Property name="Linearity Factor EM" />
+        <Property name="Planarity Factor 1 EM" />
+        <Property name="Planarity Factor 2 EM" />
+        <Property name="Max Edge-Neighbors Distance To Fitted Line EM" />
+        <Property name="Max Plane-Neighbors Distance To Fitted Plane EM" />
+        <Property name="Init Loss Scale EM" />
+        <Property name="Final Loss Scale EM" />
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator"
+                                   mode="visibility"
+                                   property="Ego-Motion registration"
+                                   value="1" />
+        </Hints>
       </PropertyGroup>
 
       <!-- ==================== Mapping Parameters ==================== -->
 
       <IntVectorProperty
-          name="Lev-Mardt Maximum Iteration M"
+          name="Lev-Mardt Maximum Iteration"
           command="SetMappingLMMaxIter"
           default_values="15"
           number_of_elements="1"
@@ -365,7 +434,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="ICP Maximum Iteration M"
+          name="ICP Maximum Iteration"
           command="SetMappingICPMaxIter"
           default_values="3"
           number_of_elements="1"
@@ -378,7 +447,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="# Edges Neighbors Minimum After Ransac M"
+          name="Nb Edges Neighbors Minimum After Ransac"
           command="SetMappingMinimumLineNeighborRejection"
           default_values="4"
           number_of_elements="1"
@@ -391,7 +460,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="# Edge Neighbors M"
+          name="Nb Edge Neighbors"
           command="SetMappingLineDistanceNbrNeighbors"
           default_values="10"
           number_of_elements="1"
@@ -403,7 +472,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="# Plane Neighbors M"
+          name="Nb Plane Neighbors"
           command="SetMappingPlaneDistanceNbrNeighbors"
           default_values="5"
           number_of_elements="1"
@@ -415,40 +484,48 @@
       </IntVectorProperty>
 
       <DoubleVectorProperty
-          name="Linearity Factor #1 M"
+          name="Linearity Factor"
           command="SetMappingLineDistancefactor"
           default_values="5"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject an edge keypoint if its neighborhood is not distributed
-          along a line eigenvalue1 > Factor * eigenvalue2
+          along a line :
+
+          eigenvalue1 > Factor x eigenvalue2
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Planarity Factor #1 M"
+          name="Planarity Factor 1"
           command="SetMappingPlaneDistancefactor1"
           default_values="35"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject a planar keypoint if its neighborhood is not distributed
-          along a plane: Factor1 * eigenvalue2 > eigenvalue1 and
-          eigenvalue2 > Factor2 * eigenvalue3
+          along a plane:
+
+          Factor1 x eigenvalue2 > eigenvalue1
+
+          eigenvalue2 > Factor2 x eigenvalue3
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Planarity Factor #2 M"
+          name="Planarity Factor 2"
           command="SetMappingPlaneDistancefactor2"
           default_values="8"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject a planar keypoint if its neighborhood is not distributed
-          along a plane: Factor1 * eigenvalue2 > eigenvalue1 and
-          eigenvalue2 > Factor2 * eigenvalue3
+          along a plane:
+
+          Factor1 x eigenvalue2 > eigenvalue1
+
+          eigenvalue2 > Factor2 x eigenvalue3
         </Documentation>
       </DoubleVectorProperty>
 
@@ -465,7 +542,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max Edge-Neighbors Distance To Fitted Line M"
+          name="Max Edge-Neighbors Distance To Fitted Line"
           command="SetMappingMaxLineDistance"
           default_values="0.2"
           number_of_elements="1"
@@ -477,7 +554,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max Plane-Neighbors Distance To Fitted Plane M"
+          name="Max Plane-Neighbors Distance To Fitted Plane"
           command="SetMappingMaxPlaneDistance"
           default_values="0.2"
           number_of_elements="1"
@@ -489,7 +566,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Mapping Init Loss Scale"
+          name="Init Loss Scale"
           command="SetMappingInitLossScale"
           default_values="0.7"
           number_of_elements="1"
@@ -497,7 +574,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Mapping Final Loss Scale"
+          name="Final Loss Scale"
           command="SetMappingFinalLossScale"
           default_values="0.05"
           number_of_elements="1"
@@ -505,19 +582,19 @@
       </DoubleVectorProperty>
 
       <PropertyGroup label="Mapping ICP Matching And Optimization Parameters">
-        <Property name="Lev-Mardt Maximum Iteration M" />
-        <Property name="ICP Maximum Iteration M" />
-        <Property name="# Edges Neighbors Minimum After Ransac M" />
-        <Property name="# Edge Neighbors M" />
-        <Property name="# Plane Neighbors M" />
-        <Property name="Linearity Factor #1 M" />
-        <Property name="Planarity Factor #1 M" />
-        <Property name="Planarity Factor #2 M" />
+        <Property name="Lev-Mardt Maximum Iteration" />
+        <Property name="ICP Maximum Iteration" />
+        <Property name="Nb Edges Neighbors Minimum After Ransac" />
+        <Property name="Nb Edge Neighbors" />
+        <Property name="Nb Plane Neighbors" />
+        <Property name="Linearity Factor" />
+        <Property name="Planarity Factor 1" />
+        <Property name="Planarity Factor 2" />
         <Property name="Maximum Inlier Distance Ransac Line Fitting" />
-        <Property name="Max Edge-Neighbors Distance To Fitted Line M" />
-        <Property name="Max Plane-Neighbors Distance To Fitted Plane M" />
-        <Property name="Mapping Init Loss Scale" />
-        <Property name="Mapping Final Loss Scale" />
+        <Property name="Max Edge-Neighbors Distance To Fitted Line" />
+        <Property name="Max Plane-Neighbors Distance To Fitted Plane" />
+        <Property name="Init Loss Scale" />
+        <Property name="Final Loss Scale" />
       </PropertyGroup>
 
       <!-- ==================== Map Parameters ==================== -->

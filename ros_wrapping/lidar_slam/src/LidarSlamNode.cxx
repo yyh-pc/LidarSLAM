@@ -153,16 +153,16 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   }
 
   // Convert pointcloud PointV type to expected PointS type
-  this->CurrentFrame = this->ConvertToSlamPointCloud(cloudV);
+  CloudS::Ptr cloudS = this->ConvertToSlamPointCloud(cloudV);
 
   // If no tracking frame is set, track input pointcloud origin
   if (this->TrackingFrameId.empty())
-    this->TrackingFrameId = this->CurrentFrame->header.frame_id;
+    this->TrackingFrameId = cloudS->header.frame_id;
   // Update TF from BASE to LiDAR
-  this->UpdateBaseToLidarOffset(this->CurrentFrame->header.frame_id, this->CurrentFrame->header.stamp);
+  this->UpdateBaseToLidarOffset(cloudS->header.frame_id, cloudS->header.stamp);
 
   // Run SLAM : register new frame and update position and mapping.
-  this->LidarSlam.AddFrame(this->CurrentFrame, this->LaserIdMapping);
+  this->LidarSlam.AddFrame(cloudS, this->LaserIdMapping);
 
   // Publish SLAM output as requested by user
   this->PublishOutput();
@@ -439,23 +439,32 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
   cloudS->resize(cloudV.size());
   cloudS->header = cloudV.header;
 
-  // Get approximate timestamp of the first point
-  double stampInit = pcl_conversions::fromPCL(cloudV.header).stamp.toSec();  // timestamp of last Velodyne raw packet
-  stampInit -= 1. / this->LidarFreq;  // approximate timestamp of first Velodyne raw packet
+  // Helpers to estimate frameAdvancement
+  auto wrapMax = [](double x, double max) {return std::fmod(max + std::fmod(x, max), max);};
+  auto advancement = [](const PointV& velodynePoint) {return (M_PI - std::atan2(velodynePoint.y, velodynePoint.x)) / (2 * M_PI);};
+  const double initAdvancement = advancement(cloudV.front());
+  std::vector<double> previousAdvancementPerRing(this->LaserIdMapping.size(), -1);
 
   // Build SLAM pointcloud
   for(unsigned int i = 0; i < cloudV.size(); i++)
   {
     const PointV& velodynePoint = cloudV[i];
     PointS& slamPoint = cloudS->at(i);
+
+    // Get normalized angle (in [0-1]), with angle 0 being first point direction
+    double frameAdvancement = advancement(velodynePoint);
+    frameAdvancement = wrapMax(frameAdvancement - initAdvancement, 1.);
+    // If we detect overflow, correct it
+    if (frameAdvancement < previousAdvancementPerRing[velodynePoint.ring])
+      frameAdvancement += 1;
+    previousAdvancementPerRing[velodynePoint.ring] = frameAdvancement;
+
     slamPoint.x = velodynePoint.x;
     slamPoint.y = velodynePoint.y;
     slamPoint.z = velodynePoint.z;
     slamPoint.intensity = velodynePoint.intensity;
     slamPoint.laserId = velodynePoint.ring;
-    double frameAdvancement = (M_PI + std::atan2(velodynePoint.y, velodynePoint.x)) / (M_PI * 2);
-    slamPoint.time = stampInit + frameAdvancement / this->LidarFreq;
-    // slamPoint.time = frameAdvancement;
+    slamPoint.time = frameAdvancement / this->LidarFreq; // time is 0 for first point, and should match LiDAR period for last point for a complete scan.
   }
   return cloudS;
 }
@@ -555,7 +564,7 @@ void LidarSlamNode::PublishOutput()
   publishPointCloud(BLOBS_KEYPOINTS,  this->LidarSlam.GetKeyPointsExtractor()->GetBlobPoints());
 
   // debug cloud
-  publishPointCloud(SLAM_CLOUD, this->CurrentFrame);
+  publishPointCloud(SLAM_CLOUD, this->LidarSlam.GetOutputFrame());
 }
 
 //------------------------------------------------------------------------------
@@ -565,12 +574,35 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
 
   // General
   SetSlamParam(bool,   "slam/fast_slam", FastSlam)
-  SetSlamParam(bool,   "slam/undistortion", Undistortion)
+  SetSlamParam(bool,   "slam/ego_motion_registration", EgoMotionRegistration)
   SetSlamParam(int,    "slam/verbosity", Verbosity)
   SetSlamParam(int,    "slam/n_threads", NbThreads)
   SetSlamParam(double, "slam/logging_timeout", LoggingTimeout)
   SetSlamParam(double, "slam/max_distance_for_ICP_matching", MaxDistanceForICPMatching)
-  int  pointCloudStorage;
+  int egoMotionMode;
+  if (priv_nh.getParam("slam/ego_motion", egoMotionMode))
+  {
+    Slam::EgoMotionMode egoMotion = static_cast<Slam::EgoMotionMode>(egoMotionMode);
+    if (egoMotion != Slam::EgoMotionMode::NONE         && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION &&
+        egoMotion != Slam::EgoMotionMode::REGISTRATION && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+    {
+      ROS_ERROR_STREAM("Invalid ego-motion mode (" << egoMotionMode << "). Setting it to 'MOTION_EXTRAPOLATION'.");
+      egoMotion = Slam::EgoMotionMode::MOTION_EXTRAPOLATION;
+    }
+    LidarSlam.SetEgoMotion(egoMotion);
+  }
+  int undistortionMode;
+  if (priv_nh.getParam("slam/undistortion", undistortionMode))
+  {
+    Slam::UndistortionMode undistortion = static_cast<Slam::UndistortionMode>(undistortionMode);
+    if (undistortion != Slam::NONE && undistortion != Slam::APPROXIMATED && undistortion != Slam::OPTIMIZED)
+    {
+      ROS_ERROR_STREAM("Invalid undistortion mode (" << undistortion << "). Setting it to 'APPROXIMATED'.");
+      undistortion = Slam::UndistortionMode::APPROXIMATED;
+    }
+    LidarSlam.SetUndistortion(undistortion);
+  }
+  int pointCloudStorage;
   if (priv_nh.getParam("slam/logging_storage", pointCloudStorage))
   {
     PointCloudStorageType storage = static_cast<PointCloudStorageType>(pointCloudStorage);
@@ -590,18 +622,18 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
     this->LidarSlam.SetBaseFrameId(this->TrackingFrameId);
 
   // Ego motion
-  SetSlamParam(int,    "slam/ego_motion/LM_max_iter", EgoMotionLMMaxIter)
-  SetSlamParam(int,    "slam/ego_motion/ICP_max_iter", EgoMotionICPMaxIter)
-  SetSlamParam(int,    "slam/ego_motion/line_distance_nbr_neighbors", EgoMotionLineDistanceNbrNeighbors)
-  SetSlamParam(int,    "slam/ego_motion/minimum_line_neighbor_rejection", EgoMotionMinimumLineNeighborRejection)
-  SetSlamParam(int,    "slam/ego_motion/plane_distance_nbr_neighbors", EgoMotionPlaneDistanceNbrNeighbors)
-  SetSlamParam(double, "slam/ego_motion/line_distance_factor", EgoMotionLineDistancefactor)
-  SetSlamParam(double, "slam/ego_motion/plane_distance_factor1", EgoMotionPlaneDistancefactor1)
-  SetSlamParam(double, "slam/ego_motion/plane_distance_factor2", EgoMotionPlaneDistancefactor2)
-  SetSlamParam(double, "slam/ego_motion/max_line_distance", EgoMotionMaxLineDistance)
-  SetSlamParam(double, "slam/ego_motion/max_plane_distance", EgoMotionMaxPlaneDistance)
-  SetSlamParam(double, "slam/ego_motion/init_loss_scale", EgoMotionInitLossScale)
-  SetSlamParam(double, "slam/ego_motion/final_loss_scale", EgoMotionFinalLossScale)
+  SetSlamParam(int,    "slam/ego_motion_registration/LM_max_iter", EgoMotionLMMaxIter)
+  SetSlamParam(int,    "slam/ego_motion_registration/ICP_max_iter", EgoMotionICPMaxIter)
+  SetSlamParam(int,    "slam/ego_motion_registration/line_distance_nbr_neighbors", EgoMotionLineDistanceNbrNeighbors)
+  SetSlamParam(int,    "slam/ego_motion_registration/minimum_line_neighbor_rejection", EgoMotionMinimumLineNeighborRejection)
+  SetSlamParam(int,    "slam/ego_motion_registration/plane_distance_nbr_neighbors", EgoMotionPlaneDistanceNbrNeighbors)
+  SetSlamParam(double, "slam/ego_motion_registration/line_distance_factor", EgoMotionLineDistancefactor)
+  SetSlamParam(double, "slam/ego_motion_registration/plane_distance_factor1", EgoMotionPlaneDistancefactor1)
+  SetSlamParam(double, "slam/ego_motion_registration/plane_distance_factor2", EgoMotionPlaneDistancefactor2)
+  SetSlamParam(double, "slam/ego_motion_registration/max_line_distance", EgoMotionMaxLineDistance)
+  SetSlamParam(double, "slam/ego_motion_registration/max_plane_distance", EgoMotionMaxPlaneDistance)
+  SetSlamParam(double, "slam/ego_motion_registration/init_loss_scale", EgoMotionInitLossScale)
+  SetSlamParam(double, "slam/ego_motion_registration/final_loss_scale", EgoMotionFinalLossScale)
 
   // Mapping
   SetSlamParam(int,    "slam/mapping/LM_max_iter", MappingLMMaxIter)
