@@ -220,6 +220,11 @@ private:
   // results of the slam algorithm such as
   // the extracted keypoints, curvature etc.
   bool DisplayMode = true;
+
+  // If disabled, return raw keypoints extracted from current frame in BASE
+  // coordinates, without undistortion. If enabled, return keypoints in WORLD
+  // coordinates, optionally undistorted if undistortion is activated.
+  bool OutputKeypointsInWorldCoordinates = true;
 };
 
 #endif // VTK_SLAM_H
