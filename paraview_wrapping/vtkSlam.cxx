@@ -79,30 +79,6 @@ inline double Rad2Deg(double val)
 }
 
 //-----------------------------------------------------------------------------
-void AddPoseToPolyData(const Eigen::Isometry3d& pose, vtkPolyData* poly)
-{
-  // Add position
-  Eigen::Vector3d translation = pose.translation();
-  poly->GetPoints()->InsertNextPoint(translation.x(), translation.y(), translation.z());
-
-  // Add orientation
-  Eigen::Quaterniond orientation(pose.linear());
-  double* xyzw = orientation.coeffs().data();
-  double wxyz[] = {xyzw[3], xyzw[0], xyzw[1], xyzw[2]};
-  poly->GetPointData()->GetArray("Orientation")->InsertNextTuple(wxyz);
-
-  // Add line linking 2 successive points
-  vtkIdType nPoints = poly->GetNumberOfPoints();
-  if (nPoints >= 2)
-  {
-    vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
-    line->GetPointIds()->SetId(0, nPoints - 2);
-    line->GetPointIds()->SetId(1, nPoints - 1);
-    poly->GetLines()->InsertNextCell(line);
-  }
-}
-
-//-----------------------------------------------------------------------------
 void PointCloudToPolyData(pcl::PointCloud<Slam::Point>::Ptr pc, vtkPolyData* poly)
 {
   const unsigned int nbPoints = pc->size();
@@ -198,7 +174,8 @@ void vtkSlam::Reset()
   auto cellArray = vtkSmartPointer<vtkCellArray>::New();
   this->Trajectory->SetLines(cellArray);
   this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Time", 1));
-  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Orientation", 4));
+  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
+  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
   this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Covariance", 36));
 
   // add the required array in the trajectory
@@ -232,15 +209,8 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // Run SLAM
   this->SlamAlgo->AddFrame(pc, laserMapping);
 
-  // Get SLAM transform
-  Transform Tworld = this->SlamAlgo->GetWorldTransform();
-  Eigen::Isometry3d odomToBase = Tworld.GetIsometry();
-  Eigen::Isometry3d odomToLidar = odomToBase * this->SlamAlgo->GetBaseToLidarOffset();
-
-  // Update Trajectory
-  AddPoseToPolyData(odomToBase, this->Trajectory);
-  this->Trajectory->GetPointData()->GetArray("Time")->InsertNextTuple(&Tworld.time);
-  this->Trajectory->GetPointData()->GetArray("Covariance")->InsertNextTuple(this->SlamAlgo->GetTransformCovariance().data());
+  // Update Trajectory with new SLAM pose
+  this->AddCurrentPoseToTrajectory();
 
   // ===== SLAM frame and pose =====
   // Output : Current undistorted LiDAR frame in world coordinates
@@ -418,6 +388,47 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
   }
   return laserIdMapping;
 }
+
+//-----------------------------------------------------------------------------
+void vtkSlam::AddCurrentPoseToTrajectory()
+{
+  // Get current SLAM pose in WORLD coordinates
+  Transform Tworld = this->SlamAlgo->GetWorldTransform();
+  Eigen::Isometry3d pose = Tworld.GetIsometry();
+
+  // Add position
+  Eigen::Vector3d translation = pose.translation();
+  this->Trajectory->GetPoints()->InsertNextPoint(translation.x(), translation.y(), translation.z());
+
+  // Add orientation as quaternion
+  Eigen::Quaterniond quaternion(pose.linear());
+  double wxyz[] = {quaternion.w(), quaternion.x(), quaternion.y(), quaternion.z()};
+  this->Trajectory->GetPointData()->GetArray("Orientation(Quaternion)")->InsertNextTuple(wxyz);
+
+  // Add orientation as axis angle
+  Eigen::AngleAxisd angleAxis(pose.linear());
+  Eigen::Vector3d axis = angleAxis.axis();
+  double xyza[] = {axis.x(), axis.y(), axis.z(), angleAxis.angle()};
+  this->Trajectory->GetPointData()->GetArray("Orientation(AxisAngle)")->InsertNextTuple(xyza);
+
+  // Add pose time and covariance
+  this->Trajectory->GetPointData()->GetArray("Time")->InsertNextTuple(&Tworld.time);
+  this->Trajectory->GetPointData()->GetArray("Covariance")->InsertNextTuple(this->SlamAlgo->GetTransformCovariance().data());
+
+  // Add line linking 2 successive points
+  vtkIdType nPoints = this->Trajectory->GetNumberOfPoints();
+  if (nPoints >= 2)
+  {
+    vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
+    line->GetPointIds()->SetId(0, nPoints - 2);
+    line->GetPointIds()->SetId(1, nPoints - 1);
+    this->Trajectory->GetLines()->InsertNextCell(line);
+  }
+}
+
+// =============================================================================
+//   Getters / setters
+// =============================================================================
 
 //-----------------------------------------------------------------------------
 int vtkSlam::GetEgoMotion()

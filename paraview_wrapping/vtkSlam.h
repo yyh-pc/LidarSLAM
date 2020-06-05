@@ -225,6 +225,9 @@ private:
   vtkSmartPointer<vtkPolyData> Trajectory;
   std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
 
+  // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
+  void AddCurrentPoseToTrajectory();
+
   // Indicate if we are in display mode or not.
   // Display mode will add arrays showing some
   // results of the slam algorithm such as
