@@ -242,10 +242,6 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   this->Trajectory->GetPointData()->GetArray("Time")->InsertNextTuple(&Tworld.time);
   this->Trajectory->GetPointData()->GetArray("Covariance")->InsertNextTuple(this->SlamAlgo->GetTransformCovariance().data());
 
-  // Fill SLAM filter outputs
-  Slam::PointCloud::Ptr tmpPcl(new Slam::PointCloud);
-  auto keypointExtractor = this->SlamAlgo->GetKeyPointsExtractor();
-
   // ===== SLAM frame and pose =====
   // Output : Current undistorted LiDAR frame in world coordinates
   auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
@@ -264,33 +260,40 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   slamTrajectory->ShallowCopy(this->Trajectory);
 
   // ===== Aggregated Keypoints maps =====
-  // Output : Edges points map
-  auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
-  PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), edgeMap);
-  // Output : Planar points map
-  auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
-  PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), planarMap);
-  // Output : Blob points map
-  auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
-  PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), blobMap);
+  if (this->OutputKeypointsMaps)
+  {
+    // Output : Edges points map
+    auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
+    PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), edgeMap);
+    // Output : Planar points map
+    auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
+    PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), planarMap);
+    // Output : Blob points map
+    auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
+    PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), blobMap);
+  }
 
   // ===== Extracted keypoints from current frame =====
-  // Output : Current edge keypoints
-  auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
-  PointCloudToPolyData(this->SlamAlgo->GetEdgesKeypoints(this->OutputKeypointsInWorldCoordinates), edgePoints);
-  // Output : Current planar keypoints
-  auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
-  PointCloudToPolyData(this->SlamAlgo->GetPlanarsKeypoints(this->OutputKeypointsInWorldCoordinates), planarPoints);
-  // Output : Current blob keypoints
-  auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
-  PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(this->OutputKeypointsInWorldCoordinates), blobPoints);
+  if (this->OutputCurrentKeypoints)
+  {
+    // Output : Current edge keypoints
+    auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
+    PointCloudToPolyData(this->SlamAlgo->GetEdgesKeypoints(this->OutputKeypointsInWorldCoordinates), edgePoints);
+    // Output : Current planar keypoints
+    auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
+    PointCloudToPolyData(this->SlamAlgo->GetPlanarsKeypoints(this->OutputKeypointsInWorldCoordinates), planarPoints);
+    // Output : Current blob keypoints
+    auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
+    PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(this->OutputKeypointsInWorldCoordinates), blobPoints);
+  }
 
   // add debug information if displayMode is enabled
   if (this->DisplayMode)
   {
     // Keypoints extraction debug array (curvatures, depth gap, intensity gap...)
     // Info added as PointData array of output0
-    auto keypointsExtractionDebugArray = keypointExtractor->GetDebugArray();
+    auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
+    auto keypointsExtractionDebugArray = this->SlamAlgo->GetKeyPointsExtractor()->GetDebugArray();
     for (const auto& it : keypointsExtractionDebugArray)
     {
       auto array = createArray<vtkDoubleArray>(it.first.c_str(), 1, it.second.size());
@@ -309,18 +312,23 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 
     // ICP keypoints matching results for ego-motion or mapping steps
     // Info added as PointData array of output5-7
-    std::unordered_map<std::string, vtkPolyData*> outputMap;
-    outputMap["EgoMotion: edges matches"] = edgePoints;
-    outputMap["Mapping: edges matches"] = edgePoints;
-    outputMap["EgoMotion: planes matches"] = planarPoints;
-    outputMap["Mapping: planes matches"] = planarPoints;
-    auto debugArray = this->SlamAlgo->GetDebugArray();
-    for (const auto& it : outputMap)
+    if (this->OutputCurrentKeypoints)
     {
-      auto array = createArray<vtkDoubleArray>(it.first.c_str(), 1, debugArray[it.first].size());
-      // memcpy is a better alternative than looping on all tuples
-      std::memcpy(array->GetVoidPointer(0), debugArray[it.first].data(), sizeof(double) * debugArray[it.first].size());
-      it.second->GetPointData()->AddArray(array);
+      auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
+      auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
+      std::unordered_map<std::string, vtkPolyData*> outputMap;
+      outputMap["EgoMotion: edges matches"] = edgePoints;
+      outputMap["Mapping: edges matches"] = edgePoints;
+      outputMap["EgoMotion: planes matches"] = planarPoints;
+      outputMap["Mapping: planes matches"] = planarPoints;
+      auto debugArray = this->SlamAlgo->GetDebugArray();
+      for (const auto& it : outputMap)
+      {
+        auto array = createArray<vtkDoubleArray>(it.first.c_str(), 1, debugArray[it.first].size());
+        // memcpy is a better alternative than looping on all tuples
+        std::memcpy(array->GetVoidPointer(0), debugArray[it.first].data(), sizeof(double) * debugArray[it.first].size());
+        it.second->GetPointData()->AddArray(array);
+      }
     }
   }
 

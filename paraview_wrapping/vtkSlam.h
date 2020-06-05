@@ -72,6 +72,15 @@ public:
   vtkGetMacro(DisplayMode, bool)
   vtkSetMacro(DisplayMode, bool)
 
+  vtkGetMacro(OutputCurrentKeypoints, bool)
+  vtkSetMacro(OutputCurrentKeypoints, bool)
+
+  vtkGetMacro(OutputKeypointsMaps, bool)
+  vtkSetMacro(OutputKeypointsMaps, bool)
+
+  vtkGetMacro(OutputKeypointsInWorldCoordinates, bool)
+  vtkSetMacro(OutputKeypointsInWorldCoordinates, bool)
+
   vtkCustomGetMacro(FastSlam, bool)
   vtkCustomSetMacro(FastSlam, bool)
 
@@ -222,9 +231,18 @@ private:
   // the extracted keypoints, curvature etc.
   bool DisplayMode = true;
 
+  // If enabled, SLAM filter will output keypoints maps.
+  // Otherwise, these filter outputs are left empty to save time.
+  bool OutputKeypointsMaps = true;
+
+  // If enabled, SLAM filter will output keypoints extracted from current
+  // frame. Otherwise, these filter outputs are left empty to save time.
+  bool OutputCurrentKeypoints = true;
+
   // If disabled, return raw keypoints extracted from current frame in BASE
   // coordinates, without undistortion. If enabled, return keypoints in WORLD
   // coordinates, optionally undistorted if undistortion is activated.
+  // Only used if OutputCurrentKeypoints = true.
   bool OutputKeypointsInWorldCoordinates = true;
 };
 

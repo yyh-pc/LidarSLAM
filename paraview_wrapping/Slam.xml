@@ -66,24 +66,29 @@
         </Documentation>
       </Property>
 
-      <PropertyGroup label="Filter outputs options">
-        <Property name="Reset state" />
-      </PropertyGroup>
-
-      <!-- ==================== General ==================== -->
-
       <IntVectorProperty
-          name="Display Mode"
-          command="SetDisplayMode"
+          name="Output keypoints maps"
+          command="SetOutputKeypointsMaps"
           default_values="1"
-          number_of_elements="1">
+          number_of_elements="1"
+          panel_visibility="advanced">
         <BooleanDomain name="bool" />
         <Documentation>
-          If display mode is enabled, some extra arrays are
-          added to the output to display some of the SLAM algorithm
-          internal variables (the keypoints labels, the value of the
-          computed geometric features, ...). It is very useful when
-          debugging and improving the SLAM
+          If enabled, SLAM filter will output keypoints maps.
+          Otherwise, these filter outputs are left empty to save time.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+          name="Output current keypoints"
+          command="SetOutputCurrentKeypoints"
+          default_values="1"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, SLAM filter will output keypoints extracted from current
+          frame. Otherwise, these filter outputs are left empty to save time.
         </Documentation>
       </IntVectorProperty>
 
@@ -100,6 +105,36 @@
 
           If enabled, return keypoints in WORLD coordinates, optionally
           undistorted if undistortion is activated.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator"
+                                   mode="visibility"
+                                   property="Output current keypoints"
+                                   value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <PropertyGroup label="Filter outputs options">
+        <Property name="Reset state" />
+        <Property name="Output keypoints maps" />
+        <Property name="Output current keypoints" />
+        <Property name="Output keypoints in WORLD coordinates" />
+      </PropertyGroup>
+
+      <!-- ==================== General ==================== -->
+
+      <IntVectorProperty
+          name="Display Mode"
+          command="SetDisplayMode"
+          default_values="1"
+          number_of_elements="1">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If display mode is enabled, some extra arrays are
+          added to the output to display some of the SLAM algorithm
+          internal variables (the keypoints labels, the value of the
+          computed geometric features, ...). It is very useful when
+          debugging and improving the SLAM
         </Documentation>
       </IntVectorProperty>
 
@@ -219,7 +254,6 @@
 
       <PropertyGroup label="General Parameters">
         <Property name="Display Mode" />
-        <Property name="Output keypoints in WORLD coordinates" />
         <Property name="Verbosity Level" />
         <Property name="Fast Slam" />
         <Property name="Ego-Motion Mode" />
