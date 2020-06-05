@@ -210,6 +210,9 @@ void vtkSlam::Reset()
       this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>(it.first));
     }
   }
+
+  // Refresh view
+  this->Modified();
 }
 
 //-----------------------------------------------------------------------------

@@ -67,6 +67,8 @@ public:
   //   General stuff and flags
   // ---------------------------------------------------------------------------
 
+  void Reset();
+
   vtkGetMacro(DisplayMode, bool)
   vtkSetMacro(DisplayMode, bool)
 
@@ -194,7 +196,6 @@ public:
 
 protected:
   vtkSlam();
-  void Reset();
 
   int FillInputPortInformation(int port, vtkInformation* info) override;
   int RequestData(vtkInformation*, vtkInformationVector**, vtkInformationVector*) override;

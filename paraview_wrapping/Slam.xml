@@ -54,6 +54,22 @@
       <OutputPort name="Current planar keypoints" index="6" id="port6" />
       <OutputPort name="Current blob keypoints" index="7" id="port7" />
 
+      <!-- =============== Paraview filter outputs options =============== -->
+
+      <Property
+          name="Reset state"
+          command="Reset">
+        <Documentation>
+          Reset SLAM internal state : maps and trajectory are cleared, and
+          current pose is set back to origin.
+          This keeps parameters unchanged.
+        </Documentation>
+      </Property>
+
+      <PropertyGroup label="Filter outputs options">
+        <Property name="Reset state" />
+      </PropertyGroup>
+
       <!-- ==================== General ==================== -->
 
       <IntVectorProperty
