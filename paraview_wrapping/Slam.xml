@@ -67,13 +67,13 @@
       </Property>
 
       <IntVectorProperty
-          name="Display Mode"
-          command="SetDisplayMode"
+          name="Advanced return mode"
+          command="SetAdvancedReturnMode"
           default_values="0"
           number_of_elements="1">
         <BooleanDomain name="bool" />
         <Documentation>
-          If display mode is enabled, extra arrays are added to the
+          If advanced return mode is enabled, extra arrays are added to the
           outputs to display some of the SLAM internal variables :
 
            - Trajectory : matching summary, localization error summary
@@ -136,7 +136,7 @@
 
       <PropertyGroup label="Filter outputs options">
         <Property name="Reset state" />
-        <Property name="Display Mode" />
+        <Property name="Advanced return mode" />
         <Property name="Output keypoints maps" />
         <Property name="Output current keypoints" />
         <Property name="Output keypoints in WORLD coordinates" />

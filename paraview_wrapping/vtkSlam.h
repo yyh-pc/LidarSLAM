@@ -69,8 +69,8 @@ public:
 
   void Reset();
 
-  vtkGetMacro(DisplayMode, bool)
-  virtual void SetDisplayMode (bool _arg);
+  vtkGetMacro(AdvancedReturnMode, bool)
+  virtual void SetAdvancedReturnMode(bool _arg);
 
   vtkGetMacro(OutputCurrentKeypoints, bool)
   vtkSetMacro(OutputCurrentKeypoints, bool)
@@ -228,12 +228,12 @@ private:
   // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
   void AddCurrentPoseToTrajectory();
 
-  // If enabled, Display mode will add arrays to outputs showing some additional
-  // results or info of the SLAM algorithm such as :
+  // If enabled, advanced return mode will add arrays to outputs showing some
+  // additional results or info of the SLAM algorithm such as :
   //  - Trajectory : matching summary, localization error summary
   //  - Output transformed frame : saliency, planarity, intensity gap, keypoint validity
   //  - Extracted keypoints : ICP matching results
-  bool DisplayMode = false;
+  bool AdvancedReturnMode = false;
 
   // If enabled, SLAM filter will output keypoints maps.
   // Otherwise, these filter outputs are left empty to save time.
