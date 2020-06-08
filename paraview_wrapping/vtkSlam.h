@@ -67,8 +67,19 @@ public:
   //   General stuff and flags
   // ---------------------------------------------------------------------------
 
+  void Reset();
+
   vtkGetMacro(DisplayMode, bool)
   vtkSetMacro(DisplayMode, bool)
+
+  vtkGetMacro(OutputCurrentKeypoints, bool)
+  vtkSetMacro(OutputCurrentKeypoints, bool)
+
+  vtkGetMacro(OutputKeypointsMaps, bool)
+  vtkSetMacro(OutputKeypointsMaps, bool)
+
+  vtkGetMacro(OutputKeypointsInWorldCoordinates, bool)
+  vtkSetMacro(OutputKeypointsInWorldCoordinates, bool)
 
   vtkCustomGetMacro(FastSlam, bool)
   vtkCustomSetMacro(FastSlam, bool)
@@ -194,7 +205,6 @@ public:
 
 protected:
   vtkSlam();
-  void Reset();
 
   int FillInputPortInformation(int port, vtkInformation* info) override;
   int RequestData(vtkInformation*, vtkInformationVector**, vtkInformationVector*) override;
@@ -215,15 +225,27 @@ private:
   vtkSmartPointer<vtkPolyData> Trajectory;
   std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
 
+  // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
+  void AddCurrentPoseToTrajectory();
+
   // Indicate if we are in display mode or not.
   // Display mode will add arrays showing some
   // results of the slam algorithm such as
   // the extracted keypoints, curvature etc.
   bool DisplayMode = true;
 
+  // If enabled, SLAM filter will output keypoints maps.
+  // Otherwise, these filter outputs are left empty to save time.
+  bool OutputKeypointsMaps = true;
+
+  // If enabled, SLAM filter will output keypoints extracted from current
+  // frame. Otherwise, these filter outputs are left empty to save time.
+  bool OutputCurrentKeypoints = true;
+
   // If disabled, return raw keypoints extracted from current frame in BASE
   // coordinates, without undistortion. If enabled, return keypoints in WORLD
   // coordinates, optionally undistorted if undistortion is activated.
+  // Only used if OutputCurrentKeypoints = true.
   bool OutputKeypointsInWorldCoordinates = true;
 };
 
