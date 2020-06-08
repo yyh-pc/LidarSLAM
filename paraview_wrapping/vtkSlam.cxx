@@ -178,7 +178,7 @@ void vtkSlam::Reset()
   this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
   this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Covariance", 36));
 
-  // add the required array in the trajectory
+  // Add the optional arrays to the trajectory
   if (this->DisplayMode)
   {
     auto debugInfo = this->SlamAlgo->GetDebugInformation();
@@ -429,6 +429,40 @@ void vtkSlam::AddCurrentPoseToTrajectory()
 // =============================================================================
 //   Getters / setters
 // =============================================================================
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetDisplayMode(bool _arg)
+{
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting DisplayMode to " << _arg);
+  if (this->DisplayMode != _arg)
+  {
+    auto debugInfo = this->SlamAlgo->GetDebugInformation();
+
+    // If DisplayMode is being activated
+    if (_arg)
+    {
+      // Add new optional arrays to trajectory, and init past values to 0.
+      for (const auto& it : debugInfo)
+      {
+        auto array = createArray<vtkDoubleArray>(it.first, 1, this->Trajectory->GetNumberOfPoints());
+        for (vtkIdType i = 0; i < this->Trajectory->GetNumberOfPoints(); i++)
+          array->SetTuple1(i, 0.);
+        this->Trajectory->GetPointData()->AddArray(array);
+      }
+    }
+
+    // If DisplayMode is being disabled
+    else
+    {
+      // Delete optional arrays
+      for (const auto& it : debugInfo)
+        this->Trajectory->GetPointData()->RemoveArray(it.first.c_str());
+    }
+
+    this->DisplayMode = _arg;
+    this->Modified();
+  }
+}
 
 //-----------------------------------------------------------------------------
 int vtkSlam::GetEgoMotion()

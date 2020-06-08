@@ -67,6 +67,26 @@
       </Property>
 
       <IntVectorProperty
+          name="Display Mode"
+          command="SetDisplayMode"
+          default_values="0"
+          number_of_elements="1">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If display mode is enabled, extra arrays are added to the
+          outputs to display some of the SLAM internal variables :
+
+           - Trajectory : matching summary, localization error summary
+
+           - Output transformed frame : saliency, planarity, intensity gap, keypoint validity
+
+           - Extracted keypoints : ICP matching results
+
+          It is very useful when debugging or checking the SLAM behavior.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
           name="Output keypoints maps"
           command="SetOutputKeypointsMaps"
           default_values="1"
@@ -116,27 +136,13 @@
 
       <PropertyGroup label="Filter outputs options">
         <Property name="Reset state" />
+        <Property name="Display Mode" />
         <Property name="Output keypoints maps" />
         <Property name="Output current keypoints" />
         <Property name="Output keypoints in WORLD coordinates" />
       </PropertyGroup>
 
       <!-- ==================== General ==================== -->
-
-      <IntVectorProperty
-          name="Display Mode"
-          command="SetDisplayMode"
-          default_values="1"
-          number_of_elements="1">
-        <BooleanDomain name="bool" />
-        <Documentation>
-          If display mode is enabled, some extra arrays are
-          added to the output to display some of the SLAM algorithm
-          internal variables (the keypoints labels, the value of the
-          computed geometric features, ...). It is very useful when
-          debugging and improving the SLAM
-        </Documentation>
-      </IntVectorProperty>
 
       <IntVectorProperty
           name="Verbosity Level"
@@ -253,7 +259,6 @@
       </IntVectorProperty>
 
       <PropertyGroup label="General Parameters">
-        <Property name="Display Mode" />
         <Property name="Verbosity Level" />
         <Property name="Fast Slam" />
         <Property name="Ego-Motion Mode" />
