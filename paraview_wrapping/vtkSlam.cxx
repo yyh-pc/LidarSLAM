@@ -178,8 +178,8 @@ void vtkSlam::Reset()
   this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
   this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Covariance", 36));
 
-  // add the required array in the trajectory
-  if (this->DisplayMode)
+  // Add the optional arrays to the trajectory
+  if (this->AdvancedReturnMode)
   {
     auto debugInfo = this->SlamAlgo->GetDebugInformation();
     for (const auto& it : debugInfo)
@@ -257,8 +257,8 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(this->OutputKeypointsInWorldCoordinates), blobPoints);
   }
 
-  // add debug information if displayMode is enabled
-  if (this->DisplayMode)
+  // Add debug information if advanced return mode is enabled
+  if (this->AdvancedReturnMode)
   {
     // Keypoints extraction debug array (curvatures, depth gap, intensity gap...)
     // Info added as PointData array of output0
@@ -429,6 +429,40 @@ void vtkSlam::AddCurrentPoseToTrajectory()
 // =============================================================================
 //   Getters / setters
 // =============================================================================
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetAdvancedReturnMode(bool _arg)
+{
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting AdvancedReturnMode to " << _arg);
+  if (this->AdvancedReturnMode != _arg)
+  {
+    auto debugInfo = this->SlamAlgo->GetDebugInformation();
+
+    // If AdvancedReturnMode is being activated
+    if (_arg)
+    {
+      // Add new optional arrays to trajectory, and init past values to 0.
+      for (const auto& it : debugInfo)
+      {
+        auto array = createArray<vtkDoubleArray>(it.first, 1, this->Trajectory->GetNumberOfPoints());
+        for (vtkIdType i = 0; i < this->Trajectory->GetNumberOfPoints(); i++)
+          array->SetTuple1(i, 0.);
+        this->Trajectory->GetPointData()->AddArray(array);
+      }
+    }
+
+    // If AdvancedReturnMode is being disabled
+    else
+    {
+      // Delete optional arrays
+      for (const auto& it : debugInfo)
+        this->Trajectory->GetPointData()->RemoveArray(it.first.c_str());
+    }
+
+    this->AdvancedReturnMode = _arg;
+    this->Modified();
+  }
+}
 
 //-----------------------------------------------------------------------------
 int vtkSlam::GetEgoMotion()
