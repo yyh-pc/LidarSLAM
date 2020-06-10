@@ -1,18 +1,17 @@
 # LiDAR SLAM
 
-- [LiDAR SLAM](#lidar-slam)
-  - [Introduction and contents](#introduction-and-contents)
-  - [Core SLAM lib](#core-slam-lib)
-    - [Dependencies](#dependencies)
-    - [Installation](#installation)
-  - [ROS wrapping](#ros-wrapping)
-    - [Dependencies](#dependencies-1)
-    - [Installation](#installation-1)
-    - [Usage](#usage)
-  - [ParaView wrapping](#paraview-wrapping)
-    - [Dependencies](#dependencies-2)
-    - [Installation](#installation-2)
-    - [Usage](#usage-1)
+- [Introduction and contents](#introduction-and-contents)
+- [Core SLAM lib](#core-slam-lib)
+  - [Dependencies](#dependencies)
+  - [Installation](#installation)
+- [ROS wrapping](#ros-wrapping)
+  - [Dependencies](#dependencies-1)
+  - [Installation](#installation-1)
+  - [Usage](#usage)
+- [ParaView wrapping](#paraview-wrapping)
+  - [Dependencies](#dependencies-2)
+  - [Installation](#installation-2)
+  - [Usage](#usage-1)
 
 ## Introduction and contents
 
@@ -49,7 +48,7 @@ Dependencies are listed in the table below along with the version used during de
 
 To build only *LidarSlam* lib, just `cd` to this repo root dir and run :
 
-```{.sh}
+```bash
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
@@ -99,7 +98,7 @@ Be careful to use and link to the same libraries as ParaView/LidarView (especial
 
 To build *LidarSlam* lib and this ParaView plugin *LidarSlamPlugin*, just `cd` to this repo root dir and run :
 
-```{.sh}
+```bash
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSLAM_PARAVIEW_PLUGIN:BOOL=ON
@@ -110,8 +109,11 @@ make install
 ### Usage
 
 - Open ParaView
-- Tools > Manage Plugins > Load New
+- **Tools** tab > **Manage Plugins** > **Load New**
 - Browse to the `<install>/lib/` dir and select `libLidarSlamPlugin.so`
-- To use Slam filter, load LiDAR frames and LiDAR calibration to use, select calibration, and apply Slam filter.
+- Load LiDAR frames and LiDAR calibration to use
+- Select the frames in the Pipeline Browser, instantiate a SLAM filter, and apply it.
 
 Currently, all features are not available in ParaView plugin. Features such as GPS/LiDAR calibration, pose graph optimization or temporal logging are only supported in ROS wrapping. However, ParaView plugin is useful to play with SLAM, load it in LidarView, and interactively try out parameters.
+
+This *LidarSlamPlugin* is natively included in [LidarView](https://www.paraview.org/lidarview/). For more detailed information on how to enable and use SLAM filter in LidarView, see [paraview_wrapping/doc/How_to_SLAM_with_LidarView.md](paraview_wrapping/doc/How_to_SLAM_with_LidarView.md).
