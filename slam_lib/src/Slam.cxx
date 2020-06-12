@@ -52,7 +52,7 @@
 // Since the function f(R, T) is a non-linear mean square error function
 // we decided to use the Levenberg-Marquardt algorithm to recover its argmin.
 //
-// - Mapping: This step consists of refining the motion recovered in the Ego-Motion
+// - Localization: This step consists of refining the motion recovered in the Ego-Motion
 // step and to add the new frame in the environment map. Thanks to the ego-motion
 // recovered at the previous step it is now possible to estimate the new position of
 // the sensor in the map. We use this estimation as an initial point (R0, T0) and we
@@ -260,10 +260,10 @@ void Slam::Reset(bool resetLog)
   // Reset debug variables
   this->EgoMotionEdgesPointsUsed = 0;
   this->EgoMotionPlanesPointsUsed = 0;
-  this->MappingEdgesPointsUsed = 0;
-  this->MappingPlanesPointsUsed = 0;
-  this->MappingBlobsPointsUsed = 0;
-  this->MappingVarianceError = 0.;
+  this->LocalizationEdgesPointsUsed = 0;
+  this->LocalizationPlanesPointsUsed = 0;
+  this->LocalizationBlobsPointsUsed = 0;
+  this->LocalizationVarianceError = 0.;
 
   // Reset log history
   if (resetLog)
@@ -312,7 +312,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   IF_VERBOSE(3, StopTimeAndDisplay("Keypoints extraction"));
 
   // If the new frame is the first one we just add the extracted keypoints into
-  // the map without running odometry and mapping steps
+  // the map without running odometry and localization steps
   if (this->NbrFrameProcessed > 0)
   {
     // Compute Trelative by registering current frame on previous one
@@ -335,10 +335,10 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
       this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
     }
 
-    // Perform Mapping : compute Tworld from map and current frame keypoints
-    IF_VERBOSE(3, InitTime("Mapping"));
-    this->Mapping();
-    IF_VERBOSE(3, StopTimeAndDisplay("Mapping"));
+    // Perform Localization : compute Tworld from map and current frame keypoints
+    IF_VERBOSE(3, InitTime("Localization"));
+    this->Localization();
+    IF_VERBOSE(3, StopTimeAndDisplay("Localization"));
   }
 
   // Update keypoints maps : add current keypoints to map using Tworld
@@ -641,10 +641,10 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation() const
   std::unordered_map<std::string, double> map;
   map["EgoMotion: edges used"]   = this->EgoMotionEdgesPointsUsed;
   map["EgoMotion: planes used"]  = this->EgoMotionPlanesPointsUsed;
-  map["Mapping: edges used"]     = this->MappingEdgesPointsUsed;
-  map["Mapping: planes used"]    = this->MappingPlanesPointsUsed;
-  map["Mapping: blobs used"]     = this->MappingBlobsPointsUsed;
-  map["Mapping: variance error"] = this->MappingVarianceError;
+  map["Localization: edges used"]     = this->LocalizationEdgesPointsUsed;
+  map["Localization: planes used"]    = this->LocalizationPlanesPointsUsed;
+  map["Localization: blobs used"]     = this->LocalizationBlobsPointsUsed;
+  map["Localization: variance error"] = this->LocalizationVarianceError;
   return map;
 }
 
@@ -656,8 +656,8 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
   std::unordered_map<std::string, std::vector<double>> map;
   map["EgoMotion: edges matches"]  = toDoubleVector(this->EdgePointRejectionEgoMotion);
   map["EgoMotion: planes matches"] = toDoubleVector(this->PlanarPointRejectionEgoMotion);
-  map["Mapping: edges matches"]    = toDoubleVector(this->EdgePointRejectionMapping);
-  map["Mapping: planes matches"]   = toDoubleVector(this->PlanarPointRejectionMapping);
+  map["Localization: edges matches"]    = toDoubleVector(this->EdgePointRejectionLocalization);
+  map["Localization: planes matches"]   = toDoubleVector(this->PlanarPointRejectionLocalization);
   return map;
 }
 
@@ -823,7 +823,7 @@ void Slam::ExtractKeypoints(const std::vector<size_t>& laserIdMapping)
   this->CurrentPlanarsPoints = transformToBase(this->KeyPointsExtractor->GetPlanarPoints());
   this->CurrentBlobsPoints   = transformToBase(this->KeyPointsExtractor->GetBlobPoints());
 
-  // Set keypoints bounds in rolling grids to reduce map searching radius during mapping step
+  // Set keypoints bounds in rolling grids to reduce map searching radius during localization step
   this->SetFrameMinMaxKeypoints();
 
   PRINT_VERBOSE(2, "========== Keypoints extraction ==========" << std::endl <<
@@ -992,10 +992,10 @@ void Slam::ComputeEgoMotion()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::Mapping()
+void Slam::Localization()
 {
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
-  IF_VERBOSE(3, InitTime("Mapping : keypoints extraction"));
+  IF_VERBOSE(3, InitTime("Localization : keypoints extraction"));
   PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
   KDTreePCLAdaptor kdtreeEdges, kdtreePlanes, kdtreeBlobs;
 
@@ -1023,13 +1023,13 @@ void Slam::Mapping()
       extractMapKeypointsAndBuildKdTree(*this->BlobsPointsLocalMap, subBlobPointsLocalMap, kdtreeBlobs);
   }
 
-  PRINT_VERBOSE(2, "========== Mapping ==========\n"
+  PRINT_VERBOSE(2, "========== Localization ==========\n"
                    << "Keypoints extracted from map : "
                    << subEdgesPointsLocalMap->size() << " edges, "
                    << subPlanarPointsLocalMap->size() << " planes, "
                    << subBlobPointsLocalMap->size() << " blobs");
 
-  IF_VERBOSE(3, StopTimeAndDisplay("Mapping : keypoints extraction"));
+  IF_VERBOSE(3, StopTimeAndDisplay("Localization : keypoints extraction"));
 
   // Reset ICP results
   const unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
@@ -1040,85 +1040,85 @@ void Slam::Mapping()
   this->Pvalues.reserve(nbKeypoints);
   this->TimeValues.reserve(nbKeypoints);
   this->residualCoefficient.reserve(nbKeypoints);
-  this->EdgePointRejectionMapping.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
-  this->PlanarPointRejectionMapping.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
-  this->BlobPointRejectionMapping.assign(this->CurrentBlobsPoints->size(), MatchingResult::UNKOWN);
+  this->EdgePointRejectionLocalization.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
+  this->PlanarPointRejectionLocalization.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
+  this->BlobPointRejectionLocalization.assign(this->CurrentBlobsPoints->size(), MatchingResult::UNKOWN);
 
-  IF_VERBOSE(3, InitTime("Mapping : whole ICP-LM loop"));
+  IF_VERBOSE(3, InitTime("Localization : whole ICP-LM loop"));
 
   // ICP - Levenberg-Marquardt loop
   // At each step of this loop an ICP matching is performed. Once the keypoints
   // are matched, we estimate the the 6-DOF parameters by minimizing the
   // non-linear least square cost function using Levenberg-Marquardt algorithm.
-  for (unsigned int icpCount = 0; icpCount < this->MappingICPMaxIter; ++icpCount)
+  for (unsigned int icpCount = 0; icpCount < this->LocalizationICPMaxIter; ++icpCount)
   {
-    IF_VERBOSE(3, InitTime("  Mapping : ICP"));
+    IF_VERBOSE(3, InitTime("  Localization : ICP"));
 
     // clear all keypoints matching data
     this->ResetDistanceParameters();
 
     // loop over edges
-    if (!this->CurrentEdgesPoints->empty() && subEdgesPointsLocalMap->size() > this->MappingLineDistanceNbrNeighbors)
+    if (!this->CurrentEdgesPoints->empty() && subEdgesPointsLocalMap->size() > this->LocalizationLineDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int edgeIndex = 0; edgeIndex < this->CurrentEdgesPoints->size(); ++edgeIndex)
       {
         // Find the closest correspondence edge line of the current edge point
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, currentPoint, MatchingMode::MAPPING);
-        this->EdgePointRejectionMapping[edgeIndex] = rejectionIndex;
+        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, currentPoint, MatchingMode::LOCALIZATION);
+        this->EdgePointRejectionLocalization[edgeIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramLine[rejectionIndex]++;
       }
     }
 
     // loop over surfaces
-    if (!this->CurrentPlanarsPoints->empty() && subPlanarPointsLocalMap->size() > this->MappingPlaneDistanceNbrNeighbors)
+    if (!this->CurrentPlanarsPoints->empty() && subPlanarPointsLocalMap->size() > this->LocalizationPlaneDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int planarIndex = 0; planarIndex < this->CurrentPlanarsPoints->size(); ++planarIndex)
       {
         // Find the closest correspondence plane of the current planar point
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, currentPoint, MatchingMode::MAPPING);
-        this->PlanarPointRejectionMapping[planarIndex] = rejectionIndex;
+        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, currentPoint, MatchingMode::LOCALIZATION);
+        this->PlanarPointRejectionLocalization[planarIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramPlane[rejectionIndex]++;
       }
     }
 
     // loop over blobs
-    if (!this->FastSlam && !this->CurrentBlobsPoints->empty()  && subBlobPointsLocalMap->size() > this->MappingBlobDistanceNbrNeighbors)
+    if (!this->FastSlam && !this->CurrentBlobsPoints->empty()  && subBlobPointsLocalMap->size() > this->LocalizationBlobDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (unsigned int blobIndex = 0; blobIndex < this->CurrentBlobsPoints->size(); ++blobIndex)
       {
         // Find the closest correspondence plane of the current blob point
         const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];
-        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, currentPoint, MatchingMode::MAPPING);
-        this->BlobPointRejectionMapping[blobIndex] = rejectionIndex;
+        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, currentPoint, MatchingMode::LOCALIZATION);
+        this->BlobPointRejectionLocalization[blobIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramBlob[rejectionIndex]++;
       }
     }
 
     // ICP matching summary
-    this->MappingEdgesPointsUsed  = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
-    this->MappingPlanesPointsUsed = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
-    this->MappingBlobsPointsUsed  = this->MatchRejectionHistogramBlob[MatchingResult::SUCCESS];
+    this->LocalizationEdgesPointsUsed  = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
+    this->LocalizationPlanesPointsUsed = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
+    this->LocalizationBlobsPointsUsed  = this->MatchRejectionHistogramBlob[MatchingResult::SUCCESS];
 
     // Skip this frame if there is too few geometric keypoints matched
-    if ((this->MappingEdgesPointsUsed + this->MappingPlanesPointsUsed + this->MappingBlobsPointsUsed) < this->MinNbrMatchedKeypoints)
+    if ((this->LocalizationEdgesPointsUsed + this->LocalizationPlanesPointsUsed + this->LocalizationBlobsPointsUsed) < this->MinNbrMatchedKeypoints)
     {
-      std::cerr << "[WARNING] Not enough keypoints, Mapping skipped for this frame.\n";
+      std::cerr << "[WARNING] Not enough keypoints, Localization skipped for this frame.\n";
       break;
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : ICP"));
-    IF_VERBOSE(3, InitTime("  Mapping : build ceres problem"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Localization : ICP"));
+    IF_VERBOSE(3, InitTime("  Localization : build ceres problem"));
 
     // Arctan loss scale factor to saturate costs according to their distance
-    double lossScale = this->MappingInitLossScale + static_cast<double>(icpCount) * (this->MappingFinalLossScale - this->MappingInitLossScale) / (1.0 * this->MappingICPMaxIter);
+    double lossScale = this->LocalizationInitLossScale + static_cast<double>(icpCount) * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / (1.0 * this->LocalizationICPMaxIter);
 
     // Convert isometries to 6D state vectors : rX, rY, rZ, X, Y, Z
     Eigen::Matrix<double, 6, 1> TworldArray = IsometryToArray(this->Tworld);  // pose at the end of frame
@@ -1154,11 +1154,11 @@ void Slam::Mapping()
       }
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : build ceres problem"));
-    IF_VERBOSE(3, InitTime("  Mapping : LM optim"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Localization : build ceres problem"));
+    IF_VERBOSE(3, InitTime("  Localization : LM optim"));
 
     ceres::Solver::Options options;
-    options.max_num_iterations = this->MappingLMMaxIter;
+    options.max_num_iterations = this->LocalizationLMMaxIter;
     options.linear_solver_type = ceres::DENSE_QR;  // TODO test other optimizer
     options.minimizer_progress_to_stdout = false;
     options.num_threads = this->NbThreads;
@@ -1181,13 +1181,13 @@ void Slam::Mapping()
       this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("  Mapping : LM optim"));
+    IF_VERBOSE(3, StopTimeAndDisplay("  Localization : LM optim"));
 
     // If no L-M iteration has been made since the last ICP matching, it means
     // that we reached a local minimum for the ICP-LM algorithm.
     // We evaluate the quality of the Tworld optimization using an approximate
     // computation of the variance covariance matrix.
-    if ((summary.num_successful_steps == 1) || (icpCount == this->MappingICPMaxIter - 1))
+    if ((summary.num_successful_steps == 1) || (icpCount == this->LocalizationICPMaxIter - 1))
     {
       // Covariance computation options
       ceres::Covariance::Options covOptions;
@@ -1205,16 +1205,16 @@ void Slam::Mapping()
     }
   }
 
-  IF_VERBOSE(3, StopTimeAndDisplay("Mapping : whole ICP-LM loop"));
+  IF_VERBOSE(3, StopTimeAndDisplay("Localization : whole ICP-LM loop"));
 
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eig(this->TworldCovariance);
   Eigen::MatrixXd D = eig.eigenvalues();
-  this->MappingVarianceError = D(5);
+  this->LocalizationVarianceError = D(5);
 
   PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " ("
-                   << this->MappingEdgesPointsUsed  << " edges, "
-                   << this->MappingPlanesPointsUsed << " planes, "
-                   << this->MappingBlobsPointsUsed  << " blobs)."
+                   << this->LocalizationEdgesPointsUsed  << " edges, "
+                   << this->LocalizationPlanesPointsUsed << " planes, "
+                   << this->LocalizationBlobsPointsUsed  << " blobs)."
                    "\nCovariance eigen values: " << D.transpose() <<
                    "\nMaximum variance eigen vector: " << eig.eigenvectors().col(5).transpose() <<
                    "\nMaximum variance: " << D(5));
@@ -1316,22 +1316,22 @@ void Slam::ResetDistanceParameters()
 void Slam::ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal)
 {
   // Undistortion can only be done during Localization step
-  const bool isMappingStep = matchingMode == MatchingMode::MAPPING;
+  const bool isLocalizationStep = matchingMode == MatchingMode::LOCALIZATION;
   const Eigen::Vector3d pos = p.getVector3fMap().cast<double>();
 
-  if (this->Undistortion == UndistortionMode::OPTIMIZED && isMappingStep)
+  if (this->Undistortion == UndistortionMode::OPTIMIZED && isLocalizationStep)
   {
     pInit = pos;
     pFinal = this->WithinFrameMotion(p.time) * pos;
   }
-  else if (this->Undistortion == UndistortionMode::APPROXIMATED && isMappingStep)
+  else if (this->Undistortion == UndistortionMode::APPROXIMATED && isLocalizationStep)
   {
     pFinal = this->WithinFrameMotion(p.time) * pos;
     pInit = this->Tworld.inverse() * pFinal;
   }
   else
   {
-    const Eigen::Isometry3d& transform = isMappingStep ? this->Tworld : this->Trelative;
+    const Eigen::Isometry3d& transform = isLocalizationStep ? this->Tworld : this->Trelative;
     pInit = pos;
     pFinal = transform * pos;
   }
@@ -1365,13 +1365,13 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
     minNeighbors = this->EgoMotionMinimumLineNeighborRejection;
     GetEgoMotionLineSpecificNeighbor(nearestIndex, nearestDist, requiredNearest, kdtreePreviousEdges, pFinal.data());
   }
-  else if (matchingMode == MatchingMode::MAPPING)
+  else if (matchingMode == MatchingMode::LOCALIZATION)
   {
-    requiredNearest = this->MappingLineDistanceNbrNeighbors;
-    eigenValuesRatio = this->MappingLineDistancefactor;
-    squaredMaxDist = this->MappingMaxLineDistance * this->MappingMaxLineDistance;
-    minNeighbors = this->MappingMinimumLineNeighborRejection;
-    GetMappingLineSpecificNeigbbor(nearestIndex, nearestDist, this->MappingLineMaxDistInlier, requiredNearest, kdtreePreviousEdges, pFinal.data());
+    requiredNearest = this->LocalizationLineDistanceNbrNeighbors;
+    eigenValuesRatio = this->LocalizationLineDistancefactor;
+    squaredMaxDist = this->LocalizationMaxLineDistance * this->LocalizationMaxLineDistance;
+    minNeighbors = this->LocalizationMinimumLineNeighborRejection;
+    GetLocalizationLineSpecificNeighbor(nearestIndex, nearestDist, this->LocalizationLineMaxDistInlier, requiredNearest, kdtreePreviousEdges, pFinal.data());
   }
   else
   {
@@ -1505,12 +1505,12 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
     requiredNearest = this->EgoMotionPlaneDistanceNbrNeighbors;
     squaredMaxDist = this->EgoMotionMaxPlaneDistance * this->EgoMotionMaxPlaneDistance;
   }
-  else if (matchingMode == MatchingMode::MAPPING)
+  else if (matchingMode == MatchingMode::LOCALIZATION)
   {
-    significantlyFactor1 = this->MappingPlaneDistancefactor1;
-    significantlyFactor2 = this->MappingPlaneDistancefactor2;
-    requiredNearest = this->MappingPlaneDistanceNbrNeighbors;
-    squaredMaxDist = this->MappingMaxPlaneDistance * this->MappingMaxPlaneDistance;
+    significantlyFactor1 = this->LocalizationPlaneDistancefactor1;
+    significantlyFactor2 = this->LocalizationPlaneDistancefactor2;
+    requiredNearest = this->LocalizationPlaneDistanceNbrNeighbors;
+    squaredMaxDist = this->LocalizationMaxPlaneDistance * this->LocalizationMaxPlaneDistance;
   }
   else
   {
@@ -1784,8 +1784,8 @@ void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std:
 }
 
 //-----------------------------------------------------------------------------
-void Slam::GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
-                                          unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const double pos[3]) const
+void Slam::GetLocalizationLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
+                                               unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const double pos[3]) const
 {
   // reset vectors
   nearestValid.clear();

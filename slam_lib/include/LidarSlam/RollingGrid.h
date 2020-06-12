@@ -31,7 +31,7 @@
  * The map reconstructed from the SLAM algorithm is stored in a voxel grid
  * which splits the space in different regions. From this voxel grid, it is
  * possible to only load the parts of the map which are pertinent when we run
- * the mapping optimization algorithm. Morevover, when a region of the space is
+ * the localization optimization step. Morevover, when a region of the space is
  * too far from the current sensor position, it is possible to remove the points
  * stored in this region and to move the voxel grid in a closest region of the
  * sensor position. This is used to decrease the memory used by the algorithm.

@@ -8,7 +8,7 @@
                    The SLAM algorithm is composed of three sequential steps:
                    - Sampling strategy: extract keypoints that provide strong geometric information
                    - Ego Motion: Sensor motion estimation between two frames
-                   - Mapping: Map the frame in an environment map">
+                   - Localization: Map the frame in an environment map">
         Filter which performs slam on pointcloud data
       </Documentation>
 
@@ -164,7 +164,7 @@
 
            (1) 0 + frame number and total processing duration;
 
-           (2) 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary;
+           (2) 1 + extracted features, used keypoints, localization variance, ego-motion and localization summary;
 
            (3) 2 + sub-problems processing duration;
 
@@ -488,11 +488,11 @@
         </Hints>
       </PropertyGroup>
 
-      <!-- ==================== Mapping Parameters ==================== -->
+      <!-- ==================== Localization Parameters ==================== -->
 
       <IntVectorProperty
           name="Lev-Mardt Maximum Iteration"
-          command="SetMappingLMMaxIter"
+          command="SetLocalizationLMMaxIter"
           default_values="15"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -507,7 +507,7 @@
 
       <IntVectorProperty
           name="ICP Maximum Iteration"
-          command="SetMappingICPMaxIter"
+          command="SetLocalizationICPMaxIter"
           default_values="3"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -520,12 +520,12 @@
 
       <IntVectorProperty
           name="Nb Edges Neighbors Minimum After Ransac"
-          command="SetMappingMinimumLineNeighborRejection"
+          command="SetLocalizationMinimumLineNeighborRejection"
           default_values="4"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          In the Mapping step, the neighborhood of an edge keypoint
+          In the Localization step, the neighborhood of an edge keypoint
           is fitted using a ransac algorithm. This parameter sets the
           minimum number of inliers we want to keep currently considered point
         </Documentation>
@@ -533,7 +533,7 @@
 
       <IntVectorProperty
           name="Nb Edge Neighbors"
-          command="SetMappingLineDistanceNbrNeighbors"
+          command="SetLocalizationLineDistanceNbrNeighbors"
           default_values="10"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -545,7 +545,7 @@
 
       <IntVectorProperty
           name="Nb Plane Neighbors"
-          command="SetMappingPlaneDistanceNbrNeighbors"
+          command="SetLocalizationPlaneDistanceNbrNeighbors"
           default_values="5"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -557,7 +557,7 @@
 
       <DoubleVectorProperty
           name="Linearity Factor"
-          command="SetMappingLineDistancefactor"
+          command="SetLocalizationLineDistancefactor"
           default_values="5"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -571,7 +571,7 @@
 
       <DoubleVectorProperty
           name="Planarity Factor 1"
-          command="SetMappingPlaneDistancefactor1"
+          command="SetLocalizationPlaneDistancefactor1"
           default_values="35"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -587,7 +587,7 @@
 
       <DoubleVectorProperty
           name="Planarity Factor 2"
-          command="SetMappingPlaneDistancefactor2"
+          command="SetLocalizationPlaneDistancefactor2"
           default_values="8"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -603,7 +603,7 @@
 
       <DoubleVectorProperty
           name="Maximum Inlier Distance Ransac Line Fitting"
-          command="SetMappingLineMaxDistInlier"
+          command="SetLocalizationLineMaxDistInlier"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -615,7 +615,7 @@
 
       <DoubleVectorProperty
           name="Max Edge-Neighbors Distance To Fitted Line"
-          command="SetMappingMaxLineDistance"
+          command="SetLocalizationMaxLineDistance"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -627,7 +627,7 @@
 
       <DoubleVectorProperty
           name="Max Plane-Neighbors Distance To Fitted Plane"
-          command="SetMappingMaxPlaneDistance"
+          command="SetLocalizationMaxPlaneDistance"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -639,7 +639,7 @@
 
       <DoubleVectorProperty
           name="Init Loss Scale"
-          command="SetMappingInitLossScale"
+          command="SetLocalizationInitLossScale"
           default_values="0.7"
           number_of_elements="1"
           panel_visibility="advanced">
@@ -647,13 +647,13 @@
 
       <DoubleVectorProperty
           name="Final Loss Scale"
-          command="SetMappingFinalLossScale"
+          command="SetLocalizationFinalLossScale"
           default_values="0.05"
           number_of_elements="1"
           panel_visibility="advanced">
       </DoubleVectorProperty>
 
-      <PropertyGroup label="Mapping ICP Matching And Optimization Parameters">
+      <PropertyGroup label="Localization ICP Matching And Optimization Parameters">
         <Property name="Lev-Mardt Maximum Iteration" />
         <Property name="ICP Maximum Iteration" />
         <Property name="Nb Edges Neighbors Minimum After Ransac" />
@@ -765,7 +765,7 @@
                    The SLAM algorithm is composed of three sequential steps:
                    - Sampling strategy: extract keypoints that provide strong geometric information
                    - Ego Motion: Sensor motion estimation between two frames
-                   - Mapping: Map the frame in a environment map">
+                   - Localization: Map the frame in a environment map">
         Filter which performs slam on point cloud data.
       </Documentation>
 

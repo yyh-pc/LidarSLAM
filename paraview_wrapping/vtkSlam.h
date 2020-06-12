@@ -148,45 +148,45 @@ public:
   vtkCustomGetMacro(EgoMotionFinalLossScale, double)
   vtkCustomSetMacro(EgoMotionFinalLossScale, double)
 
-  // Get/Set Mapping
-  vtkCustomGetMacro(MappingLMMaxIter, unsigned int)
-  vtkCustomSetMacro(MappingLMMaxIter, unsigned int)
+  // Get/Set Localization
+  vtkCustomGetMacro(LocalizationLMMaxIter, unsigned int)
+  vtkCustomSetMacro(LocalizationLMMaxIter, unsigned int)
 
-  vtkCustomGetMacro(MappingICPMaxIter, unsigned int)
-  vtkCustomSetMacro(MappingICPMaxIter, unsigned int)
+  vtkCustomGetMacro(LocalizationICPMaxIter, unsigned int)
+  vtkCustomSetMacro(LocalizationICPMaxIter, unsigned int)
 
-  vtkCustomGetMacro(MappingLineDistanceNbrNeighbors, unsigned int)
-  vtkCustomSetMacro(MappingLineDistanceNbrNeighbors, unsigned int)
+  vtkCustomGetMacro(LocalizationLineDistanceNbrNeighbors, unsigned int)
+  vtkCustomSetMacro(LocalizationLineDistanceNbrNeighbors, unsigned int)
 
-  vtkCustomGetMacro(MappingMinimumLineNeighborRejection, unsigned int)
-  vtkCustomSetMacro(MappingMinimumLineNeighborRejection, unsigned int)
+  vtkCustomGetMacro(LocalizationMinimumLineNeighborRejection, unsigned int)
+  vtkCustomSetMacro(LocalizationMinimumLineNeighborRejection, unsigned int)
 
-  vtkCustomGetMacro(MappingLineDistancefactor, double)
-  vtkCustomSetMacro(MappingLineDistancefactor, double)
+  vtkCustomGetMacro(LocalizationLineDistancefactor, double)
+  vtkCustomSetMacro(LocalizationLineDistancefactor, double)
 
-  vtkCustomGetMacro(MappingPlaneDistanceNbrNeighbors, unsigned int)
-  vtkCustomSetMacro(MappingPlaneDistanceNbrNeighbors, unsigned int)
+  vtkCustomGetMacro(LocalizationPlaneDistanceNbrNeighbors, unsigned int)
+  vtkCustomSetMacro(LocalizationPlaneDistanceNbrNeighbors, unsigned int)
 
-  vtkCustomGetMacro(MappingPlaneDistancefactor1, double)
-  vtkCustomSetMacro(MappingPlaneDistancefactor1, double)
+  vtkCustomGetMacro(LocalizationPlaneDistancefactor1, double)
+  vtkCustomSetMacro(LocalizationPlaneDistancefactor1, double)
 
-  vtkCustomGetMacro(MappingPlaneDistancefactor2, double)
-  vtkCustomSetMacro(MappingPlaneDistancefactor2, double)
+  vtkCustomGetMacro(LocalizationPlaneDistancefactor2, double)
+  vtkCustomSetMacro(LocalizationPlaneDistancefactor2, double)
 
-  vtkCustomGetMacro(MappingMaxLineDistance, double)
-  vtkCustomSetMacro(MappingMaxLineDistance, double)
+  vtkCustomGetMacro(LocalizationMaxLineDistance, double)
+  vtkCustomSetMacro(LocalizationMaxLineDistance, double)
 
-  vtkCustomGetMacro(MappingMaxPlaneDistance, double)
-  vtkCustomSetMacro(MappingMaxPlaneDistance, double)
+  vtkCustomGetMacro(LocalizationMaxPlaneDistance, double)
+  vtkCustomSetMacro(LocalizationMaxPlaneDistance, double)
 
-  vtkCustomGetMacro(MappingLineMaxDistInlier, double)
-  vtkCustomSetMacro(MappingLineMaxDistInlier, double)
+  vtkCustomGetMacro(LocalizationLineMaxDistInlier, double)
+  vtkCustomSetMacro(LocalizationLineMaxDistInlier, double)
 
-  vtkCustomGetMacro(MappingInitLossScale, double)
-  vtkCustomSetMacro(MappingInitLossScale, double)
+  vtkCustomGetMacro(LocalizationInitLossScale, double)
+  vtkCustomSetMacro(LocalizationInitLossScale, double)
 
-  vtkCustomGetMacro(MappingFinalLossScale, double)
-  vtkCustomSetMacro(MappingFinalLossScale, double)
+  vtkCustomGetMacro(LocalizationFinalLossScale, double)
+  vtkCustomSetMacro(LocalizationFinalLossScale, double)
 
   // ---------------------------------------------------------------------------
   //   Rolling grid parameters and Keypoints extractor

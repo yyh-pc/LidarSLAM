@@ -108,13 +108,13 @@ slam:
   # Verbosity level :
   #  0) print errors, warnings or one time info
   #  1) 0 + frame number, total frame processing time
-  #  2) 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary
+  #  2) 1 + extracted features, used keypoints, localization variance, ego-motion and localization summary
   #  3) 2 + sub-problems processing duration
   #  4) 3 + ceres optimization summary
   #  5) 4 + logging/maps memory usage
   verbosity: 3
 
-  # Optional logging of computed pose, mapping covariance and keypoints of each processed frame.
+  # Optional logging of computed pose, localization covariance and keypoints of each processed frame.
   #  - A value of 0. will disable logging.
   #  - A negative value will log all incoming data, without any timeout.
   #  - A positive value will keep only most recent data, forgetting all previous data older than LoggingTimeout seconds.
@@ -146,8 +146,8 @@ slam:
     init_loss_scale: 2.                 # Initial arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
     final_loss_scale: 0.2               # Final arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
 
-  # ICP and LM parameters for Mapping step
-  mapping:
+  # ICP and LM parameters for Localization step
+  localization:
     ICP_max_iter: 3                     # Max number of iterations of ICP matching.
     LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
     line_distance_nbr_neighbors: 10     # Number of nearest neighbors to look for in map to build line model.

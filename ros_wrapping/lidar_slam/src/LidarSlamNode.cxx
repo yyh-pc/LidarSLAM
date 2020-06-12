@@ -161,7 +161,7 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
   // Update TF from BASE to LiDAR
   this->UpdateBaseToLidarOffset(cloudS->header.frame_id, cloudS->header.stamp);
 
-  // Run SLAM : register new frame and update position and mapping.
+  // Run SLAM : register new frame and update localization and map.
   this->LidarSlam.AddFrame(cloudS, this->LaserIdMapping);
 
   // Publish SLAM output as requested by user
@@ -635,20 +635,20 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   SetSlamParam(double, "slam/ego_motion_registration/init_loss_scale", EgoMotionInitLossScale)
   SetSlamParam(double, "slam/ego_motion_registration/final_loss_scale", EgoMotionFinalLossScale)
 
-  // Mapping
-  SetSlamParam(int,    "slam/mapping/LM_max_iter", MappingLMMaxIter)
-  SetSlamParam(int,    "slam/mapping/ICP_max_iter", MappingICPMaxIter)
-  SetSlamParam(int,    "slam/mapping/line_distance_nbr_neighbors", MappingLineDistanceNbrNeighbors)
-  SetSlamParam(int,    "slam/mapping/minimum_line_neighbor_rejection", MappingMinimumLineNeighborRejection)
-  SetSlamParam(int,    "slam/mapping/plane_distance_nbr_neighbors", MappingPlaneDistanceNbrNeighbors)
-  SetSlamParam(double, "slam/mapping/line_distance_factor", MappingLineDistancefactor)
-  SetSlamParam(double, "slam/mapping/line_max_dist_inlier", MappingLineMaxDistInlier)
-  SetSlamParam(double, "slam/mapping/plane_distance_factor1", MappingPlaneDistancefactor1)
-  SetSlamParam(double, "slam/mapping/plane_distance_factor2", MappingPlaneDistancefactor2)
-  SetSlamParam(double, "slam/mapping/max_line_distance", MappingMaxLineDistance)
-  SetSlamParam(double, "slam/mapping/max_plane_distance", MappingMaxPlaneDistance)
-  SetSlamParam(double, "slam/mapping/init_loss_scale", MappingInitLossScale)
-  SetSlamParam(double, "slam/mapping/final_loss_scale", MappingFinalLossScale)
+  // Localization
+  SetSlamParam(int,    "slam/localization/LM_max_iter", LocalizationLMMaxIter)
+  SetSlamParam(int,    "slam/localization/ICP_max_iter", LocalizationICPMaxIter)
+  SetSlamParam(int,    "slam/localization/line_distance_nbr_neighbors", LocalizationLineDistanceNbrNeighbors)
+  SetSlamParam(int,    "slam/localization/minimum_line_neighbor_rejection", LocalizationMinimumLineNeighborRejection)
+  SetSlamParam(int,    "slam/localization/plane_distance_nbr_neighbors", LocalizationPlaneDistanceNbrNeighbors)
+  SetSlamParam(double, "slam/localization/line_distance_factor", LocalizationLineDistancefactor)
+  SetSlamParam(double, "slam/localization/line_max_dist_inlier", LocalizationLineMaxDistInlier)
+  SetSlamParam(double, "slam/localization/plane_distance_factor1", LocalizationPlaneDistancefactor1)
+  SetSlamParam(double, "slam/localization/plane_distance_factor2", LocalizationPlaneDistancefactor2)
+  SetSlamParam(double, "slam/localization/max_line_distance", LocalizationMaxLineDistance)
+  SetSlamParam(double, "slam/localization/max_plane_distance", LocalizationMaxPlaneDistance)
+  SetSlamParam(double, "slam/localization/init_loss_scale", LocalizationInitLossScale)
+  SetSlamParam(double, "slam/localization/final_loss_scale", LocalizationFinalLossScale)
 
   // Rolling grids
   SetSlamParam(double, "slam/voxel_grid/leaf_size_edges", VoxelGridLeafSizeEdges)
