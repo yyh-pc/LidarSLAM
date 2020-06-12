@@ -54,9 +54,9 @@ enum Output
 
 //------------------------------------------------------------------------------
 LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
-  : TfListener(TfBuffer)
-  , Nh(nh)
+  : Nh(nh)
   , PrivNh(priv_nh)
+  , TfListener(TfBuffer)
 {
   // Get SLAM params
   this->SetSlamParameters(priv_nh);
