@@ -1,15 +1,29 @@
 <ServerManagerConfiguration>
+
   <!-- Begin Online Slam -->
   <ProxyGroup name="filters">
-    <SourceProxy name="Slam (Online)" class="vtkSlam" label="Slam (Online)">
+    <SourceProxy name="SlamOnline"
+                 class="vtkSlam"
+                 label="SLAM (online)">
+
       <Documentation
-        short_help="Performs SLAM algorithm on the Lidar sensor's point cloud"
-        long_help="Performs SLAM algorithm on the Lidar sensor's point cloud.
-                   The SLAM algorithm is composed of three sequential steps:
-                   - Sampling strategy: extract keypoints that provide strong geometric information
-                   - Ego Motion: Sensor motion estimation between two frames
-                   - Localization: Map the frame in an environment map">
-        Filter which performs slam on pointcloud data
+        short_help="Performs real-time SLAM on the Lidar sensor's pointclouds."
+        long_help="Performs real-time SLAM on the Lidar sensor's pointclouds.">
+        The SLAM filter uses LiDAR sensor pointclouds to compute sensor's
+        trajectory and build a map of the environment.
+
+        The SLAM algorithm is composed of four sequential steps:
+
+          - Sampling strategy: extract keypoints that provide strong geometric information
+
+          - Ego-Motion: estimate sensor motion since last frame
+
+          - Localization: compute current frame pose in map using estimated Ego-Motion
+
+          - Map update : add current registered points in map
+
+        This filter performs real-time processing of input frames (it may skip
+        some frames if too slow) with live display.
       </Documentation>
 
       <InputProperty
@@ -25,7 +39,7 @@
           <DataType value="vtkPolyData"/>
         </DataTypeDomain>
         <Documentation>
-          Set the input point cloud
+          Set the input port to use where LiDAR point clouds are broadcasted.
         </Documentation>
       </InputProperty>
 
@@ -41,18 +55,18 @@
           <DataType value="vtkTable"/>
         </DataTypeDomain>
         <Documentation>
-          Set the LiDAR calibration
+          Set the LiDAR sensor calibration to use.
         </Documentation>
       </InputProperty>
 
-      <OutputPort name="Last Frame processed" index="0" id="port0" />
-      <OutputPort name="Trajectory" index="1" id="port1" />
-      <OutputPort name="Edge Map" index="2" id="port2" />
-      <OutputPort name="Planar Map" index="3" id="port3" />
-      <OutputPort name="Blob Map" index="4" id="port4" />
-      <OutputPort name="Current edge keypoints" index="5" id="port5" />
-      <OutputPort name="Current planar keypoints" index="6" id="port6" />
-      <OutputPort name="Current blob keypoints" index="7" id="port7" />
+      <OutputPort name="Current transformed frame" index="0" id="port0" />
+      <OutputPort name="Trajectory"                index="1" id="port1" />
+      <OutputPort name="Edge map"                  index="2" id="port2" />
+      <OutputPort name="Planar map"                index="3" id="port3" />
+      <OutputPort name="Blob map"                  index="4" id="port4" />
+      <OutputPort name="Current edge keypoints"    index="5" id="port5" />
+      <OutputPort name="Current planar keypoints"  index="6" id="port6" />
+      <OutputPort name="Current blob keypoints"    index="7" id="port7" />
 
       <!-- =============== Paraview filter outputs options =============== -->
 
@@ -90,8 +104,7 @@
           name="Output keypoints maps"
           command="SetOutputKeypointsMaps"
           default_values="1"
-          number_of_elements="1"
-          panel_visibility="advanced">
+          number_of_elements="1">
         <BooleanDomain name="bool" />
         <Documentation>
           If enabled, SLAM filter will output keypoints maps.
@@ -103,8 +116,7 @@
           name="Output current keypoints"
           command="SetOutputCurrentKeypoints"
           default_values="1"
-          number_of_elements="1"
-          panel_visibility="advanced">
+          number_of_elements="1">
         <BooleanDomain name="bool" />
         <Documentation>
           If enabled, SLAM filter will output keypoints extracted from current
@@ -128,7 +140,7 @@
         </Documentation>
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator"
-                                   mode="visibility"
+                                   mode="enabled_state"
                                    property="Output current keypoints"
                                    value="1" />
         </Hints>
@@ -145,7 +157,18 @@
       <!-- ==================== General ==================== -->
 
       <IntVectorProperty
-          name="Verbosity Level"
+          name="Fast Slam"
+          command="SetFastSlam"
+          default_values="1"
+          number_of_elements="1">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, blobs keypoints are not used.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+          name="Verbosity level"
           command="SetVerbosity"
           default_values="0"
           number_of_elements="1">
@@ -175,18 +198,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="Fast Slam"
-          command="SetFastSlam"
-          default_values="1"
-          number_of_elements="1">
-        <BooleanDomain name="bool" />
-        <Documentation>
-          If fast slam is enabled, we don't use blob keypoints
-        </Documentation>
-      </IntVectorProperty>
-
-      <IntVectorProperty
-          name="Ego-Motion Mode"
+          name="Ego-Motion mode"
           command="SetEgoMotion"
           default_values="1"
           number_of_elements="1">
@@ -220,7 +232,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="Undistortion Mode"
+          name="Undistortion mode"
           command="SetUndistortion"
           default_values="1"
           number_of_elements="1">
@@ -259,10 +271,10 @@
       </IntVectorProperty>
 
       <PropertyGroup label="General Parameters">
-        <Property name="Verbosity Level" />
         <Property name="Fast Slam" />
-        <Property name="Ego-Motion Mode" />
-        <Property name="Undistortion Mode" />
+        <Property name="Verbosity level" />
+        <Property name="Ego-Motion mode" />
+        <Property name="Undistortion mode" />
         <Property name="Number of threads" />
       </PropertyGroup>
 
@@ -271,10 +283,13 @@
       <ProxyProperty
         name="KeyPointsExtractor"
         command="SetKeyPointsExtractor"
-        label="KeyPointsExtractor">
+        label="Keypoints extractor">
         <ProxyListDomain name="proxy_list">
-          <Group name="KeyPointsExtractor"/>
+          <Group name="KeyPointsExtractors"/>
         </ProxyListDomain>
+        <Documentation>
+          The keypoints extractor to use to get keypoints from raw input frame.
+        </Documentation>
       </ProxyProperty>
 
       <!-- ==================== BASE to LIDAR transform ==================== -->
@@ -317,48 +332,51 @@
       <!-- ==================== Ego Motion Parameters ==================== -->
 
       <IntVectorProperty
-          name="Lev-Mardt Maximum Iteration EM"
-          command="SetEgoMotionLMMaxIter"
-          default_values="15"
-          number_of_elements="1"
-          panel_visibility="advanced">
-        <Documentation>
-          The sensor motion estimation is performed using an ICP Mahalanobis
-          distance function. This lead to a numerical optimization problem with a
-          non-linear least square cost function (with a loss-function). To solve this
-          optimization problem we use the Levenberg-Marquardt algorithm which is an iterative
-          algorithm.
-        </Documentation>
-      </IntVectorProperty>
-
-      <IntVectorProperty
-          name="ICP Maximum Iteration EM"
+          name="ICP-Optimization iterations EM"
+          label="ICP-Optimization iterations"
           command="SetEgoMotionICPMaxIter"
           default_values="4"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          The sensor motion estimation is performed using an ICP Mahalanobis
-          distance function. The ICP algorithm is an iterative algorithm and the number
-          of iteration has to be set
+          The registration of the current frame on the previous frame is performed iteratively,
+          building point-to-feature Mahalanobis distance functions during an ICP
+          step, followed by a non-linear optimization of these residuals.
+          This parameter is the number of ICP-optimization iterations to perform.
         </Documentation>
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="Nb Edges Neighbors Minimum After Ransac EM"
+          name="Lev-Mardt max iterations EM"
+          label="Lev-Mardt max iterations"
+          command="SetEgoMotionLMMaxIter"
+          default_values="15"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          Maximum number of iterations of the numerical optimization step, using
+          Levenberg-Marquardt iterative algorithm with non-linear least square
+          cost functions to solve the problem.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+          name="Nb edges neighbors minimum after Ransac EM"
+          label="Nb edges neighbors minimum after Ransac"
           command="SetEgoMotionMinimumLineNeighborRejection"
           default_values="3"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           In the Ego-Motion step, the neighborhood of an edge keypoint
-          is fitted using a ransac algorithm. This parameter sets the
+          is fitted using a Ransac algorithm. This parameter sets the
           minimum number of inliers we want to keep currently considered point
         </Documentation>
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="Nb Edge Neighbors EM"
+          name="Nb edge neighbors EM"
+          label="Nb edge neighbors"
           command="SetEgoMotionLineDistanceNbrNeighbors"
           default_values="8"
           number_of_elements="1"
@@ -370,7 +388,8 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="Nb Plane Neighbors EM"
+          name="Nb plane neighbors EM"
+          label="Nb plane neighbors"
           command="SetEgoMotionPlaneDistanceNbrNeighbors"
           default_values="5"
           number_of_elements="1"
@@ -382,7 +401,8 @@
       </IntVectorProperty>
 
       <DoubleVectorProperty
-          name="Linearity Factor EM"
+          name="Linearity factor EM"
+          label="Linearity factor"
           command="SetEgoMotionLineDistancefactor"
           default_values="5"
           number_of_elements="1"
@@ -391,12 +411,13 @@
           Reject an edge keypoint if its neighborhood is not distributed
           along a line :
 
-          eigenvalue1 > Factor x eigenvalue2
+          *EigenValue1 > Factor · EigenValue2*
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Planarity Factor 1 EM"
+          name="Planarity factor 1 EM"
+          label="Planarity factor 1"
           command="SetEgoMotionPlaneDistancefactor1"
           default_values="35"
           number_of_elements="1"
@@ -405,14 +426,15 @@
           Reject a planar keypoint if its neighborhood is not distributed
           along a plane:
 
-          Factor1 x eigenvalue2 > eigenvalue1
+          *Factor1 · EigenValue2 > EigenValue1*
 
-          eigenvalue2 > Factor2 x eigenvalue3
+          *EigenValue2 > Factor2 · EigenValue3*
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Planarity Factor 2 EM"
+          name="Planarity factor 2 EM"
+          label="Planarity factor 2"
           command="SetEgoMotionPlaneDistancefactor2"
           default_values="8"
           number_of_elements="1"
@@ -421,118 +443,142 @@
           Reject a planar keypoint if its neighborhood is not distributed
           along a plane:
 
-          Factor1 x eigenvalue2 > eigenvalue1
+          *Factor1 · EigenValue2 > EigenValue1*
 
-          eigenvalue2 > Factor2 x eigenvalue3
+          *EigenValue2 > Factor2 · EigenValue3*
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max Edge-Neighbors Distance To Fitted Line EM"
+          name="Max edge neighbors distance to fitted line EM"
+          label="Max edge neighbors distance to fitted line"
           command="SetEgoMotionMaxLineDistance"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject an edge point if its neighborhood has points that
-          are too far from the fitted line (degenerated ellipsoid)
+          are too far from the fitted line (degenerated ellipsoid).
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max Plane-Neighbors Distance To Fitted Plane EM"
+          name="Max plane neighbors distance to fitted plane EM"
+          label="Max plane neighbors distance to fitted plane"
           command="SetEgoMotionMaxPlaneDistance"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject a planar point if its neighborhood has points that
-          are too far from the fitted plane (degenerated ellipsoid)
+          are too far from the fitted plane (degenerated ellipsoid).
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Init Loss Scale EM"
+          name="Init loss scale EM"
+          label="Init loss scale"
           command="SetEgoMotionInitLossScale"
           default_values="2.0"
           number_of_elements="1"
           panel_visibility="advanced">
+        <Documentation>
+          Arctan loss scale used for the first optimization iteration.
+          The Arctan loss of residual *r* using scale *s* is :
+
+            *L = s · atan(r / s)*
+
+          The scale of loss function at current iteration is linearly
+          interpolated between Init and Final loss scale parameters.
+        </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Final Loss Scale EM"
+          name="Final loss scale EM"
+          label="Final loss scale"
           command="SetEgoMotionFinalLossScale"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
+        <Documentation>
+          Arctan loss scale used for the last optimization iteration.
+          The Arctan loss of residual *r* using scale *s* is :
+
+            *L = s · atan(r / s)*
+
+          The scale of loss function at current iteration is linearly
+          interpolated between Init and Final loss scale parameters.
+        </Documentation>
       </DoubleVectorProperty>
 
-      <PropertyGroup label="Ego-Motion ICP Matching And Optimization Parameters">
-        <Property name="Lev-Mardt Maximum Iteration EM" />
-        <Property name="ICP Maximum Iteration EM" />
-        <Property name="Nb Edges Neighbors Minimum After Ransac EM" />
-        <Property name="Nb Edge Neighbors EM" />
-        <Property name="Nb Plane Neighbors EM" />
-        <Property name="Linearity Factor EM" />
-        <Property name="Planarity Factor 1 EM" />
-        <Property name="Planarity Factor 2 EM" />
-        <Property name="Max Edge-Neighbors Distance To Fitted Line EM" />
-        <Property name="Max Plane-Neighbors Distance To Fitted Plane EM" />
-        <Property name="Init Loss Scale EM" />
-        <Property name="Final Loss Scale EM" />
+      <PropertyGroup label="Ego-Motion registration ICP matching and optimization parameters">
+        <Property name="ICP-Optimization iterations EM" />
+        <Property name="Lev-Mardt max iterations EM" />
+        <Property name="Nb edges neighbors minimum after Ransac EM" />
+        <Property name="Nb edge neighbors EM" />
+        <Property name="Nb plane neighbors EM" />
+        <Property name="Linearity factor EM" />
+        <Property name="Planarity factor 1 EM" />
+        <Property name="Planarity factor 2 EM" />
+        <Property name="Max edge neighbors distance to fitted line EM" />
+        <Property name="Max plane neighbors distance to fitted plane EM" />
+        <Property name="Init loss scale EM" />
+        <Property name="Final loss scale EM" />
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator"
-                                   mode="visibility"
-                                   property="Ego-Motion registration"
-                                   value="1" />
+          <!-- Show these parameters only if Ego-motion registration is enabled (Paraview >5.6)-->
+          <PropertyWidgetDecorator type="CompositeDecorator">
+            <Expression type="or">
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Ego-Motion mode" value="2" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Ego-Motion mode" value="3" />
+            </Expression>
+          </PropertyWidgetDecorator>
         </Hints>
       </PropertyGroup>
 
       <!-- ==================== Localization Parameters ==================== -->
 
       <IntVectorProperty
-          name="Lev-Mardt Maximum Iteration"
-          command="SetLocalizationLMMaxIter"
-          default_values="15"
-          number_of_elements="1"
-          panel_visibility="advanced">
-        <Documentation>
-          The sensor motion estimation is performed using an ICP Mahalanobis
-          distance function. This lead to a numerical optimization problem with a
-          non-linear least square cost function (with a loss-function). To solve this
-          optimization problem we use the Levenberg-Marquardt algorithm which is an iterative
-          algorithm.
-        </Documentation>
-      </IntVectorProperty>
-
-      <IntVectorProperty
-          name="ICP Maximum Iteration"
+          name="ICP-Optimization iterations"
           command="SetLocalizationICPMaxIter"
           default_values="3"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          The sensor motion estimation is performed using an ICP Mahalanobis
-          distance function. The ICP algorithm is an iterative algorithm and the number
-          of iteration has to be set
+          The registration of the current frame on the map is performed iteratively,
+          building point-to-feature Mahalanobis distance functions during an ICP
+          step, followed by a non-linear optimization of these residuals.
+          This parameter is the number of ICP-optimization iterations to perform.
         </Documentation>
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="Nb Edges Neighbors Minimum After Ransac"
+          name="Lev-Mardt max iterations"
+          command="SetLocalizationLMMaxIter"
+          default_values="15"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          Maximum number of iterations of the numerical optimization step, using
+          Levenberg-Marquardt iterative algorithm with non-linear least square
+          cost functions to solve the problem.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
+          name="Nb edges neighbors minimum after Ransac"
           command="SetLocalizationMinimumLineNeighborRejection"
           default_values="4"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           In the Localization step, the neighborhood of an edge keypoint
-          is fitted using a ransac algorithm. This parameter sets the
+          is fitted using a Ransac algorithm. This parameter sets the
           minimum number of inliers we want to keep currently considered point
         </Documentation>
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="Nb Edge Neighbors"
+          name="Nb edge neighbors"
           command="SetLocalizationLineDistanceNbrNeighbors"
           default_values="10"
           number_of_elements="1"
@@ -544,7 +590,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="Nb Plane Neighbors"
+          name="Nb plane neighbors"
           command="SetLocalizationPlaneDistanceNbrNeighbors"
           default_values="5"
           number_of_elements="1"
@@ -556,7 +602,7 @@
       </IntVectorProperty>
 
       <DoubleVectorProperty
-          name="Linearity Factor"
+          name="Linearity factor"
           command="SetLocalizationLineDistancefactor"
           default_values="5"
           number_of_elements="1"
@@ -565,12 +611,12 @@
           Reject an edge keypoint if its neighborhood is not distributed
           along a line :
 
-          eigenvalue1 > Factor x eigenvalue2
+          *EigenValue1 > Factor · EigenValue2*
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Planarity Factor 1"
+          name="Planarity factor 1"
           command="SetLocalizationPlaneDistancefactor1"
           default_values="35"
           number_of_elements="1"
@@ -579,14 +625,14 @@
           Reject a planar keypoint if its neighborhood is not distributed
           along a plane:
 
-          Factor1 x eigenvalue2 > eigenvalue1
+          *Factor1 · EigenValue2 > EigenValue1*
 
-          eigenvalue2 > Factor2 x eigenvalue3
+          *EigenValue2 > Factor2 · EigenValue3*
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Planarity Factor 2"
+          name="Planarity factor 2"
           command="SetLocalizationPlaneDistancefactor2"
           default_values="8"
           number_of_elements="1"
@@ -595,156 +641,190 @@
           Reject a planar keypoint if its neighborhood is not distributed
           along a plane:
 
-          Factor1 x eigenvalue2 > eigenvalue1
+          *Factor1 · EigenValue2 > EigenValue1*
 
-          eigenvalue2 > Factor2 x eigenvalue3
+          *EigenValue2 > Factor2 · EigenValue3*
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Maximum Inlier Distance Ransac Line Fitting"
+          name="Maximum inlier distance Ransac line fitting"
           command="SetLocalizationLineMaxDistInlier"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject an edge point if its neighborhood has points that
-          are too far from the fitted line (degenerated ellipsoid)
+          are too far from the fitted line (degenerated ellipsoid).
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max Edge-Neighbors Distance To Fitted Line"
+          name="Max edge neighbors distance to fitted line"
           command="SetLocalizationMaxLineDistance"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject an edge point if its neighborhood has points that
-          are too far from the fitted line (degenerated ellipsoid)
+          are too far from the fitted line (degenerated ellipsoid).
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max Plane-Neighbors Distance To Fitted Plane"
+          name="Max plane neighbors distance to fitted plane"
           command="SetLocalizationMaxPlaneDistance"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           Reject a planar point if its neighborhood has points that
-          are too far from the fitted plane (degenerated ellipsoid)
+          are too far from the fitted plane (degenerated ellipsoid).
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Init Loss Scale"
+          name="Init loss scale"
           command="SetLocalizationInitLossScale"
           default_values="0.7"
           number_of_elements="1"
           panel_visibility="advanced">
+        <Documentation>
+          Arctan loss scale used for the first optimization iteration.
+          The Arctan loss of residual *r* using scale *s* is :
+
+            *L = s · atan(r / s)*
+
+          The scale of loss function at current iteration is linearly
+          interpolated between Init and Final loss scale parameters.
+        </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Final Loss Scale"
+          name="Final loss scale"
           command="SetLocalizationFinalLossScale"
           default_values="0.05"
           number_of_elements="1"
           panel_visibility="advanced">
+        <Documentation>
+          Arctan loss scale used for the last optimization iteration.
+          The Arctan loss of residual *r* using scale *s* is :
+
+            *L = s · atan(r / s)*
+
+          The scale of loss function at current iteration is linearly
+          interpolated between Init and Final loss scale parameters.
+        </Documentation>
       </DoubleVectorProperty>
 
-      <PropertyGroup label="Localization ICP Matching And Optimization Parameters">
-        <Property name="Lev-Mardt Maximum Iteration" />
-        <Property name="ICP Maximum Iteration" />
-        <Property name="Nb Edges Neighbors Minimum After Ransac" />
-        <Property name="Nb Edge Neighbors" />
-        <Property name="Nb Plane Neighbors" />
-        <Property name="Linearity Factor" />
-        <Property name="Planarity Factor 1" />
-        <Property name="Planarity Factor 2" />
-        <Property name="Maximum Inlier Distance Ransac Line Fitting" />
-        <Property name="Max Edge-Neighbors Distance To Fitted Line" />
-        <Property name="Max Plane-Neighbors Distance To Fitted Plane" />
-        <Property name="Init Loss Scale" />
-        <Property name="Final Loss Scale" />
+      <PropertyGroup label="Localization ICP matching and optimization parameters">
+        <Property name="ICP-Optimization iterations" />
+        <Property name="Lev-Mardt max iterations" />
+        <Property name="Nb edges neighbors minimum after Ransac" />
+        <Property name="Nb edge neighbors" />
+        <Property name="Nb plane neighbors" />
+        <Property name="Linearity factor" />
+        <Property name="Planarity factor 1" />
+        <Property name="Planarity factor 2" />
+        <Property name="Maximum inlier distance Ransac line fitting" />
+        <Property name="Max edge neighbors distance to fitted line" />
+        <Property name="Max plane neighbors distance to fitted plane" />
+        <Property name="Init loss scale" />
+        <Property name="Final loss scale" />
       </PropertyGroup>
 
       <!-- ==================== Map Parameters ==================== -->
 
       <DoubleVectorProperty
-          name="Map Edges Voxel Grid Leaf Size"
+          name="Edges map resolution"
           command="SetVoxelGridLeafSizeEdges"
           default_values="0.3"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-            Size of the leaf when downsampling the environment map using
-            a voxel grid filter. It should not be too big or some high
-            frequency geometric information will be lost. It should not
-            be too low or the geometric information will be too local
-          </Documentation>
+          Minimum size of a leaf when downsampling the edges map using
+          a voxel grid filter. It should not be too big or some high
+          frequency geometric information will be lost. It should not
+          be too low or the geometric information will be too local and
+          computation time may increase.
+        </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Map Planes Voxel Grid Leaf Size"
+          name="Planes map resolution"
           command="SetVoxelGridLeafSizePlanes"
           default_values="0.6"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-            Size of the leaf when downsampling the environment map using
-            a voxel grid filter. It should not be too big or some high
-            frequency geometric information will be lost. It should not
-            be too low or the geometric information will be too local
-          </Documentation>
+          Minimum size of a leaf when downsampling the planes map using
+          a voxel grid filter. It should not be too big or some high
+          frequency geometric information will be lost. It should not
+          be too low or the geometric information will be too local and
+          computation time may increase.
+        </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Map Blobs Voxel Grid Leaf Size"
+          name="Blobs map resolution"
           command="SetVoxelGridLeafSizeBlobs"
           default_values="0.3"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-            Size of the leaf when downsampling the environment map using
-            a voxel grid filter. It should not be too big or some high
-            frequency geometric information will be lost. It should not
-            be too low or the geometric information will be too local
-          </Documentation>
+          Minimum size of a leaf when downsampling the blobs map using
+          a voxel grid filter. It should not be too big or some high
+          frequency geometric information will be lost. It should not
+          be too low or the geometric information will be too local and
+          computation time may increase.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator"
+                                   mode="visibility"
+                                   property="Fast Slam"
+                                   value="0" />
+        </Hints>
       </DoubleVectorProperty>
 
       <IntVectorProperty
-          name="Map Voxel Grid Size"
+          name="Rolling grid dimension"
           command="SetVoxelGridSize"
           default_values="50"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-            Size of the map used to store the keypoints (number of voxels
-            in each direction). The map needs to have a size sufficient to
-            store at least one frame.
-          </Documentation>
+          Number of voxels in each direction of the rolling grid. It should be
+          large enough to store a local map around current pose, but a too high
+          value largely increase memory consumption.
+
+          Each map is a *Rolling Grid*, storing points in a local outer cube of
+          size *number of voxels x voxel resolution* meters. When a point should
+          be added in the map but lies outside this outer cube, the whole map is
+          rolled towards this point in order to save it, forgetting previous
+          voxels in the opposite direction.
+        </Documentation>
       </IntVectorProperty>
 
       <DoubleVectorProperty
-          name="Map Voxel Grid Resolution"
+          name="Rolling grid resolution"
           command="SetVoxelGridResolution"
           default_values="10."
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-            Resolution of the map (meters per voxel). It should not be too big
-            or too much points will be considered when trying to match the frame at
-            the current position. This do not impact accuracy but only speed.
-          </Documentation>
+          Resolution of a voxel of the rolling grid (meters per voxel).
+          It should not be too big or too much points will be considered when
+          trying to match the frame at the current position.
+          This does not impact accuracy but only speed.
+        </Documentation>
       </DoubleVectorProperty>
 
-      <PropertyGroup label="Map Parameters">
-        <Property name="Map Edges Voxel Grid Leaf Size" />
-        <Property name="Map Planes Voxel Grid Leaf Size" />
-        <Property name="Map Blobs Voxel Grid Leaf Size" />
-        <Property name="Map Voxel Grid Size" />
-        <Property name="Map Voxel Grid Resolution" />
+      <PropertyGroup label="Map parameters">
+        <Property name="Edges map resolution" />
+        <Property name="Planes map resolution" />
+        <Property name="Blobs map resolution" />
+        <Property name="Rolling grid dimension" />
+        <Property name="Rolling grid resolution" />
       </PropertyGroup>
 
     </SourceProxy>
@@ -753,119 +833,135 @@
 
   <!-- Begin Offline Slam -->
   <ProxyGroup name="filters">
-    <SourceProxy
-      name="Slam (Offline)"
-      class="vtkSlamManager"
-      label="Slam (Offline)"
-      base_proxygroup="filters"
-      base_proxyname="Slam (Online)">
+    <SourceProxy name="SlamOffline"
+                 class="vtkSlamManager"
+                 label="SLAM (offline)"
+                 base_proxygroup="filters"
+                 base_proxyname="SlamOnline">
+
       <Documentation
-        short_help="Performs SLAM algorithm on the Lidar sensor's point cloud"
-        long_help="Performs SLAM algorithm on the Lidar sensor's point cloud.
-                   The SLAM algorithm is composed of three sequential steps:
-                   - Sampling strategy: extract keypoints that provide strong geometric information
-                   - Ego Motion: Sensor motion estimation between two frames
-                   - Localization: Map the frame in a environment map">
-        Filter which performs slam on point cloud data.
+        short_help="Performs offline processing SLAM on the Lidar sensor's pointclouds."
+        long_help="Performs offline processing SLAM on the Lidar sensor's pointclouds.">
+        The SLAM filter uses LiDAR sensor pointclouds to compute sensor's
+        trajectory and build a map of the environment.
+
+        The SLAM algorithm is composed of four sequential steps:
+
+          - Sampling strategy: extract keypoints that provide strong geometric information
+
+          - Ego-Motion: estimate sensor motion since last frame
+
+          - Localization: compute current frame pose in map using estimated Ego-Motion
+
+          - Map update : add current registered points in map
+
+        This filter performs offline processing of all input frames without live display.
       </Documentation>
 
       <IntVectorProperty
-          name="All Frames"
+          name="All frames"
           command="SetAllFrames"
           default_values="1"
           number_of_elements="1">
-          <BooleanDomain name="bool" />
+        <BooleanDomain name="bool" />
         <Documentation>
-          Process all frames
+          Process all frames of the recording.
         </Documentation>
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="First Frame"
+          name="First frame"
           command="SetFirstFrame"
           default_values="0"
           number_of_elements="1">
-          <Hints>
-            <PropertyWidgetDecorator type="EnableWidgetDecorator">
-              <Property name="All Frames" function="boolean_invert" />
-            </PropertyWidgetDecorator>
-          </Hints>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="All frames" value="0" />
+        </Hints>
         <Documentation>
-          Set the first frame to process
+          The first frame to process.
         </Documentation>
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="Last Frame"
+          name="Last frame"
           command="SetLastFrame"
           default_values="0"
           number_of_elements="1">
-          <Hints>
-            <PropertyWidgetDecorator type="EnableWidgetDecorator">
-              <Property name="All Frames" function="boolean_invert" />
-            </PropertyWidgetDecorator>
-          </Hints>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="All frames" value="0" />
+        </Hints>
         <Documentation>
-          Set the last frame to process
+          The last frame to process.
         </Documentation>
       </IntVectorProperty>
 
       <IntVectorProperty
-          name="StepSize"
+          name="Step size"
           command="SetStepSize"
           default_values="1"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Process one frame every StepSize frames
-          (example: every (1) frame, every 2 frames, every 3 frames, and so on).
-          A StepSize of 1 (the default value) means that all frames between the
-          first and the last (included) will be used. This property can be
-          useful to trade robustness (StepSize equal to 1) and accuracy for
-          speed (StepSize bigger than 1).
+          Process one frame every StepSize frames (e.g. every (1) frame, every
+          2 frames, every 3 frames, and so on).
+          A step size of 1 means that all frames between the first and the last
+          (included) will be used. This property can be useful to trade
+          robustness (step size equal to 1) and accuracy for speed (step size
+          greater than 1).
         </Documentation>
       </IntVectorProperty>
+
+      <PropertyGroup label="Offline SLAM manager parameters">
+        <Property name="All frames" />
+        <Property name="First frame" />
+        <Property name="Last frame" />
+        <Property name="Step size" />
+      </PropertyGroup>
 
     </SourceProxy>
   </ProxyGroup>
   <!-- End Offline Slam -->
 
   <!-- Begin KeyPointsExtractor -->
-  <ProxyGroup name="KeyPointsExtractor">
-    <Proxy
-      name="SpinningSensorKeypointExtractor"
-      class="vtkSpinningSensorKeypointExtractor"
-      label="SpinningSensorKeypointExtractor">
+  <ProxyGroup name="KeyPointsExtractors">
+    <Proxy name="SpinningSensorKeypointExtractor"
+           class="vtkSpinningSensorKeypointExtractor"
+           label="Spinning Sensor Keypoint Extractor">
+
+      <Documentation
+        short_help="Extract keypoints from a spinning LiDAR sensor pointcloud."
+        long_help="Extract edges, planes and blobs keypoints from a spinning LiDAR sensor pointcloud.">
+        Extract edges, planes and blobs keypoints from a spinning LiDAR sensor pointcloud.
+      </Documentation>
 
       <IntVectorProperty
-          name="Neighbor Width"
+          name="Neighborhood width"
           command="SetNeighborWidth"
           default_values="4"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Number of neighbors on both sides of current point used to estimate
-          the keypoints scores (curvature, angles, depth gap, ...) in each scan
-          line
+          Number of neighbors to use on each side of current point to estimate
+          the keypoints scores (curvature, planarity, depth gap, ...) in each
+          scan line.
         </Documentation>
       </IntVectorProperty>
 
       <DoubleVectorProperty
-          name="Minimum Distance To Sensor"
+          name="Min distance to sensor"
           command="SetMinDistanceToSensor"
           default_values="3"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Minimum distance (in meters) between a point and the sensor to be
-          processed for the keypoint extraction. In other words,
-          all points too close from the sensor are automatically
-          rejected.
+          Minimum distance between a point and the sensor to be processed for
+          the keypoint extraction. In other words, all points too close from the
+          sensor are automatically rejected.
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Maximum Sinus To Be Considered As Planar"
+          name="Plane max sinus angle"
           command="SetPlaneSinAngleThreshold"
           default_values="0.5"
           number_of_elements="1"
@@ -879,7 +975,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Minimum Sinus To Be Considered As Edge"
+          name="Edge min sinus angle"
           command="SetEdgeSinAngleThreshold"
           default_values="0.86"
           number_of_elements="1"
@@ -893,20 +989,20 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Minimum Saliency Distance To Be Considered As Edge"
+          name="Edge min saliency distance"
           command="SetEdgeSaliencyThreshold"
           default_values="1.5"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
-          the depth gap between the point and its far background neighborhhod.
+          the depth gap between the point and its far background neighborhood.
           If the gap is big enough, we consider the point as an edge keypoint.
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Minimum Intensity Gap To Be Considered As Edge"
+          name="Edge min intensity gap"
           command="SetEdgeIntensityGapThreshold"
           default_values="50."
           number_of_elements="1"
@@ -919,22 +1015,22 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Minimum Depth Gap To Be Considered As Edge"
+          name="Edge min depth gap"
           command="SetEdgeDepthGapThreshold"
           default_values="0.15"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
-          the gap between the point and its neighborhood. Its left and right
-          neighborhoods are fitted with a line and then we compute the gap as
-          being the distance between the point and the fitted lines. If the gap
-          is big enough, we consider the point as an edge keypoint
+          the gap between the point and its neighborhood, fitted by a line. Then
+          we compute the distance between the point and the fitted lines. If the
+          gap is big enough on at least one side, we consider the point as an
+          edge keypoint.
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Angle Resolution Between Two Firings"
+          name="Sensor's azimutal angle resolution"
           command="SetAngleResolution"
           default_values="0.00698"
           number_of_elements="1"
@@ -943,23 +1039,23 @@
           Azimutal angle resolution of the Lidar sensor (radians). This angle
           resolution is used to compute an expected distance between two
           consecutives firings. From this expected distance, we can detect
-          if a point is a potential gap and launch more investigation
+          if a point is a potential gap and start additional investigation.
         </Documentation>
       </DoubleVectorProperty>
 
-      <PropertyGroup label="Spinning Sensor Keypoints Extractor Parameters">
-        <Property name="Neighbor Width" />
-        <Property name="Minimum Distance To Sensor" />
-        <Property name="Maximum Sinus To Be Considered As Planar" />
-        <Property name="Minimum Sinus To Be Considered As Edge" />
-        <Property name="Minimum Saliency Distance To Be Considered As Edge" />
-        <Property name="Minimum Intensity Gap To Be Considered As Edge" />
-        <Property name="Minimum Depth Gap To Be Considered As Edge" />
-        <Property name="Angle Resolution Between Two Firings" />
+      <PropertyGroup label="Spinning Sensor Keypoints Extractor parameters">
+        <Property name="Neighborhood width" />
+        <Property name="Min distance to sensor" />
+        <Property name="Plane max sinus angle" />
+        <Property name="Edge min sinus angle" />
+        <Property name="Edge min saliency distance" />
+        <Property name="Edge min intensity gap" />
+        <Property name="Edge min depth gap" />
+        <Property name="Sensor's azimutal angle resolution" />
       </PropertyGroup>
 
     </Proxy>
   </ProxyGroup>
-  <!-- End KeyPointsExtractor -->
+  <!-- End KeyPointsExtractors -->
 
 </ServerManagerConfiguration>

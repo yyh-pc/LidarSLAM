@@ -94,8 +94,8 @@ The default SLAM parameters are a good compromise to run the SLAM in outdoor urb
    - **Fast SLAM** : SLAM uses by default only edges and planes keypoints. However, if scene presents a poor geometric environment, results could be badly impacted. In this case, consider disabling *Fast Slam* option to allow the use of blobs keypoints.
 
 + ***Maps parameters***
-  - **Voxel grid leaf resolution** : SLAM maps are voxelized to reduce memory consumption and problem dimensionality to keep at most one point in each cube of a given size. Default resolution (30 cm for edges or blobs keypoints, 60 cm for planes) is good for outdoor structured environments, but a more precise resolution may help in indoor or short-range scenes.
+  - **Edges/Planes/Blobs map resolution** : SLAM maps are voxelized to reduce memory consumption and problem dimensionality to keep at most one point in each cube of a given size. Default resolution (30 cm for edges or blobs keypoints, 60 cm for planes) is good for outdoor structured environments, but a more precise resolution may help in indoor or short-range scenes.
 
 + ***Spinning sensor keypoints extractor parameters***
-  - **Neighbor Width** : it can be useful to lower [increase] this number if you want more high level [local] features. Typically, a higher value may benefit to a high azimuthal resolution sensor (remember also to set **Angle Resolution** according to your sensor specifications).
-  - **Minimum Distance To Sensor** : points closer to the sensor than this distance are ignored. In an indoor scene or with a man-held LiDAR, this parameter may typically need a smaller value.
+  - **Neighborhood width** : it can be useful to lower [increase] this number if you want more high level [local] features. Typically, a higher value may benefit to a high azimuthal resolution sensor (remember also to set **Azimutal angle resolution** according to your sensor specifications).
+  - **Minimum distance to sensor** : points closer to the sensor than this distance are ignored. In an indoor scene or with a man-held LiDAR, this parameter may typically need a smaller value.
