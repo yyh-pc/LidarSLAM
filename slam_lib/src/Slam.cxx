@@ -279,7 +279,7 @@ void Slam::Reset(bool resetLog)
 //-----------------------------------------------------------------------------
 void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping)
 {
-  IF_VERBOSE(1, InitTime("SLAM frame processing"));
+  InitTime("SLAM frame processing");
 
   // Skip frame if empty
   if (pc->empty())
