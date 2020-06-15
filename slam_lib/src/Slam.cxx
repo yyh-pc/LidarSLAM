@@ -878,7 +878,7 @@ void Slam::ComputeEgoMotion()
   // At each step of this loop an ICP matching is performed. Once the keypoints
   // are matched, we estimate the the 6-DOF parameters by minimizing the
   // non-linear least square cost function using Levenberg-Marquardt algorithm.
-  for (unsigned int icpCount = 0; icpCount < this->EgoMotionICPMaxIter; ++icpCount)
+  for (unsigned int icpIter = 0; icpIter < this->EgoMotionICPMaxIter; ++icpIter)
   {
     IF_VERBOSE(3, InitTime("  Ego-Motion : ICP"));
 
@@ -936,10 +936,9 @@ void Slam::ComputeEgoMotion()
     IF_VERBOSE(3, InitTime("  Ego-Motion : build ceres problem"));
 
     // Arctan loss scale factor to saturate costs according to their distance
-    double lossScale = this->EgoMotionInitLossScale + static_cast<double>(icpCount) * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
+    double lossScale = this->EgoMotionInitLossScale + icpIter * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
 
-    // Convert to raw data
-    // TODO : update Ceres cost function to take as arg the Isometry3d data
+    // Convert Isometry to 6 DoF state vector (rX, rY, rZ, X, Y, Z)
     Eigen::Matrix<double, 6, 1> TrelativeArray;
     TrelativeArray << GetRPY(this->Trelative.linear()), this->Trelative.translation();
 
@@ -1050,7 +1049,7 @@ void Slam::Localization()
   // At each step of this loop an ICP matching is performed. Once the keypoints
   // are matched, we estimate the the 6-DOF parameters by minimizing the
   // non-linear least square cost function using Levenberg-Marquardt algorithm.
-  for (unsigned int icpCount = 0; icpCount < this->LocalizationICPMaxIter; ++icpCount)
+  for (unsigned int icpIter = 0; icpIter < this->LocalizationICPMaxIter; ++icpIter)
   {
     IF_VERBOSE(3, InitTime("  Localization : ICP"));
 
@@ -1118,7 +1117,7 @@ void Slam::Localization()
     IF_VERBOSE(3, InitTime("  Localization : build ceres problem"));
 
     // Arctan loss scale factor to saturate costs according to their distance
-    double lossScale = this->LocalizationInitLossScale + static_cast<double>(icpCount) * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / (1.0 * this->LocalizationICPMaxIter);
+    double lossScale = this->LocalizationInitLossScale + icpIter * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / this->LocalizationICPMaxIter;
 
     // Convert isometries to 6D state vectors : rX, rY, rZ, X, Y, Z
     Eigen::Matrix<double, 6, 1> TworldArray = IsometryToArray(this->Tworld);  // pose at the end of frame
@@ -1187,7 +1186,7 @@ void Slam::Localization()
     // that we reached a local minimum for the ICP-LM algorithm.
     // We evaluate the quality of the Tworld optimization using an approximate
     // computation of the variance covariance matrix.
-    if ((summary.num_successful_steps == 1) || (icpCount == this->LocalizationICPMaxIter - 1))
+    if ((summary.num_successful_steps == 1) || (icpIter == this->LocalizationICPMaxIter - 1))
     {
       // Covariance computation options
       ceres::Covariance::Options covOptions;
