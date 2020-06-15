@@ -18,8 +18,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef SpinningSensorKeypointExtractor_H
-#define SpinningSensorKeypointExtractor_H
+#ifndef SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H
+#define SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H
 
 #include "LidarSlam/LidarPoint.h"
 
@@ -186,4 +186,4 @@ private:
   std::vector<PointCloud::Ptr> pclCurrentFrameByScan;
 };
 
-#endif // SpinningSensorKeypointExtractor_H
+#endif // SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H

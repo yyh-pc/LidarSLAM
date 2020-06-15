@@ -17,8 +17,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef VTKSpinningSensorKeypointExtractor_H
-#define VTKSpinningSensorKeypointExtractor_H
+#ifndef VTK_SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H
+#define VTK_SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H
 
 #include <LidarSlam/SpinningSensorKeypointExtractor.h>
 #include <vtkObject.h>
@@ -78,4 +78,4 @@ private:
   void operator=(const vtkSpinningSensorKeypointExtractor&) = delete;
 };
 
-#endif // VTKSpinningSensorKeypointExtractor_H
+#endif // VTK_SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H

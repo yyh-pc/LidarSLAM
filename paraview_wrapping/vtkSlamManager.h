@@ -16,8 +16,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef VTKSLAMMANAGER_H
-#define VTKSLAMMANAGER_H
+#ifndef VTK_SLAM_MANAGER_H
+#define VTK_SLAM_MANAGER_H
 
 #include "vtkSlam.h"
 #include <vtkSetGet.h>
@@ -100,4 +100,4 @@ private:
   std::vector<vtkSmartPointer<vtkPolyData>> Cache;
 };
 
-#endif // VTKSLAMMANAGER_H
+#endif // VTK_SLAM_MANAGER_H
