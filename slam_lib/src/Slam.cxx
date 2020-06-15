@@ -574,7 +574,7 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
 //-----------------------------------------------------------------------------
 Transform Slam::GetWorldTransform() const
 {
-  return this->LogTrajectory.back();
+  return this->LogTrajectory.empty() ? Transform::Identity() : this->LogTrajectory.back();
 }
 
 //-----------------------------------------------------------------------------
