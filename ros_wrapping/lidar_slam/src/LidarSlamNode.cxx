@@ -574,7 +574,6 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
 
   // General
   SetSlamParam(bool,   "slam/fast_slam", FastSlam)
-  SetSlamParam(bool,   "slam/ego_motion_registration", EgoMotionRegistration)
   SetSlamParam(int,    "slam/verbosity", Verbosity)
   SetSlamParam(int,    "slam/n_threads", NbThreads)
   SetSlamParam(double, "slam/logging_timeout", LoggingTimeout)
