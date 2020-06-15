@@ -225,7 +225,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud)
 {
   if (pointcloud->empty())
   {
-    std::cerr << "[WARNING] Pointcloud is empty, voxel grid not updated." << std::endl;
+    std::cerr << "[WARNING] Pointcloud is empty, voxel grid not updated.\n";
     return;
   }
 

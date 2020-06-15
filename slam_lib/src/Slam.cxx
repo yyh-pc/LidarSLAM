@@ -284,7 +284,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   // Skip frame if empty
   if (pc->empty())
   {
-    std::cerr << "[ERROR] SLAM entry is an empty pointcloud : frame ignored." << std::endl;
+    std::cerr << "[ERROR] SLAM entry is an empty pointcloud : frame ignored.\n";
     return;
   }
 
@@ -296,9 +296,9 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     return;
   }
 
-  PRINT_VERBOSE(2, std::endl << "#########################################################");
+  PRINT_VERBOSE(2, "\n#########################################################");
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
-  PRINT_VERBOSE(2, "#########################################################" << std::endl);
+  PRINT_VERBOSE(2, "#########################################################\n");
 
   // Update current frame (check frame dropping, correct time field) and
   // estimate new state (extrapolate new pose with a constant velocity model)
@@ -375,21 +375,21 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 
   if (this->Verbosity >= 5)
   {
-    std::cout << "========== Memory usage ==========" << std::endl;
+    std::cout << "========== Memory usage ==========\n";
     // SLAM maps
-    PointCloud::Ptr edgesMap = this->GetEdgesMap(),
+    PointCloud::Ptr edgesMap   = this->GetEdgesMap(),
                     planarsMap = this->GetPlanarsMap(),
-                    blobsMap = this->GetBlobsMap();
-    std::cout << "Edges map   : " << edgesMap->size()   << " points, " << PointCloudMemorySize(*edgesMap)   * 1e-6 << " MB" << std::endl;
-    std::cout << "Planars map : " << planarsMap->size() << " points, " << PointCloudMemorySize(*planarsMap) * 1e-6 << " MB" << std::endl;
-    std::cout << "Blobs map   : " << blobsMap->size()   << " points, " << PointCloudMemorySize(*blobsMap)   * 1e-6 << " MB" << std::endl;
+                    blobsMap   = this->GetBlobsMap();
+    std::cout << "Edges map   : " << edgesMap->size()   << " points, " << PointCloudMemorySize(*edgesMap)   * 1e-6 << " MB\n";
+    std::cout << "Planars map : " << planarsMap->size() << " points, " << PointCloudMemorySize(*planarsMap) * 1e-6 << " MB\n";
+    std::cout << "Blobs map   : " << blobsMap->size()   << " points, " << PointCloudMemorySize(*blobsMap)   * 1e-6 << " MB\n";
 
     // Logged keypoints
     size_t memory, points;
     LoggedKeypointsSize(this->LogEdgesPoints, memory, points);
-    std::cout << "Edges log   : " << this->LogEdgesPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+    std::cout << "Edges log   : " << this->LogEdgesPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
     LoggedKeypointsSize(this->LogPlanarsPoints, memory, points);
-    std::cout << "Planars log : " << this->LogPlanarsPoints.size() << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+    std::cout << "Planars log : " << this->LogPlanarsPoints.size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
     LoggedKeypointsSize(this->LogBlobsPoints, memory, points);
     std::cout << "Blobs log   : " << this->LogBlobsPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
   }
@@ -418,7 +418,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   {
     std::cerr << "[WARNING] SLAM logging is not enabled : covariances will be "
                  "arbitrarly set and maps will not be optimized during pose "
-                 "graph optimization." << std::endl;
+                 "graph optimization.\n";
 
     // Set all poses covariances equal to twice the last one if we did not log it
     std::array<double, 36> fakeSlamCovariance = FlipAndConvertCovariance(this->TworldCovariance * 2);
@@ -441,7 +441,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                      slamCovariances, gpsCovariances,
                                      optimizedSlamPoses))
   {
-    std::cerr << "[ERROR] Pose graph optimization failed." << std::endl;
+    std::cerr << "[ERROR] Pose graph optimization failed.\n";
     return;
   }
 
@@ -507,7 +507,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   #else
   #define UNUSED(var) (void)(var)
   UNUSED(gpsPositions); UNUSED(gpsCovariances); UNUSED(gpsToSensorOffset); UNUSED(g2oFileName);
-  std::cerr << "[ERROR] SLAM PoseGraphOptimization requires G2O, but it was not found." << std::endl;
+  std::cerr << "[ERROR] SLAM PoseGraphOptimization requires G2O, but it was not found.\n";
   #endif  // USE_G2O
 }
 
@@ -598,13 +598,13 @@ Transform Slam::GetLatencyCompensatedWorldTransform() const
   // If timestamps are not defined or too close, extrapolation is impossible.
   if (std::abs(current.time - previous.time) < 1e-6)
   {
-    std::cerr << "[WARNING] Unable to compute latency-compensated transform : timestamps undefined or too close." << std::endl;
+    std::cerr << "[WARNING] Unable to compute latency-compensated transform : timestamps undefined or too close.\n";
     return current;
   }
   // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
   if (std::abs(this->Latency / (current.time - previous.time)) > MAX_EXTRAPOLATION_RATIO)
   {
-    std::cerr << "[WARNING] Unable to compute latency-compensated transform : extrapolation time is too far." << std::endl;
+    std::cerr << "[WARNING] Unable to compute latency-compensated transform : extrapolation time is too far.\n";
     return current;
   }
 
@@ -826,7 +826,7 @@ void Slam::ExtractKeypoints(const std::vector<size_t>& laserIdMapping)
   // Set keypoints bounds in rolling grids to reduce map searching radius during localization step
   this->SetFrameMinMaxKeypoints();
 
-  PRINT_VERBOSE(2, "========== Keypoints extraction ==========" << std::endl <<
+  PRINT_VERBOSE(2, "========== Keypoints extraction ==========\n"
                    "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
                                            << this->CurrentPlanarsPoints->size() << " planes, "
                                            << this->CurrentBlobsPoints->size()   << " blobs.");

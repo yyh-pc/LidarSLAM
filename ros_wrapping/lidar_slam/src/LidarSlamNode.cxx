@@ -312,8 +312,8 @@ void LidarSlamNode::GpsSlamCalibration()
   {
     if (this->LidarSlam.GetVerbosity() >= 2)
     {
-      std::cout << "Transforming LiDAR pose aquired by SLAM to GPS antenna pose using LIDAR to GPS antenna offset :"
-                << std::endl << this->BaseToGpsOffset.matrix() << std::endl;
+      std::cout << "Transforming LiDAR pose acquired by SLAM to GPS antenna pose using LIDAR to GPS antenna offset :\n"
+                << this->BaseToGpsOffset.matrix() << std::endl;
     }
     for (Transform& odomToGpsPose : odomToBasePoses)
     {
