@@ -7,6 +7,7 @@ if (g2o_FOUND)
 endif(g2o_FOUND)
 
 set(LidarSlam_PUBLIC_HEADERS
+  include/LidarSlam/Utilities.h
   include/LidarSlam/LidarPoint.h
   include/LidarSlam/Transform.h
   include/LidarSlam/RollingGrid.h

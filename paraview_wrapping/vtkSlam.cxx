@@ -73,12 +73,6 @@ vtkSmartPointer<T> createArray(const std::string& Name, int NumberOfComponents =
 }
 
 //-----------------------------------------------------------------------------
-inline double Rad2Deg(double val)
-{
-  return val / vtkMath::Pi() * 180.;
-}
-
-//-----------------------------------------------------------------------------
 void PointCloudToPolyData(pcl::PointCloud<Slam::Point>::Ptr pc, vtkPolyData* poly)
 {
   const unsigned int nbPoints = pc->size();
@@ -136,20 +130,6 @@ void PolyDataToPointCloud(vtkPolyData* poly, pcl::PointCloud<Slam::Point>::Ptr p
     p.laserId = arrayLaserId->GetTuple1(i);
     p.intensity = arrayIntensity->GetTuple1(i);
   }
-}
-
-//-----------------------------------------------------------------------------
-template<typename T>
-std::vector<size_t> sortIdx(const std::vector<T>& v)
-{
-  // initialize original index locations
-  std::vector<size_t> idx(v.size());
-  std::iota(idx.begin(), idx.end(), 0);
-
-  // sort indexes based on comparing values in v
-  std::sort(idx.begin(), idx.end(), [&v](size_t i1, size_t i2) { return v[i1] > v[i2]; });
-
-  return idx;
 }
 } // end of anonymous namespace
 
@@ -380,7 +360,7 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
     {
       verticalCorrection[i] = array->GetTuple1(i);
     }
-    laserIdMapping = sortIdx(verticalCorrection);
+    laserIdMapping = SortIdx(verticalCorrection);
   }
   else
   {
@@ -520,9 +500,8 @@ void vtkSlam::SetUndistortion(int mode)
 //-----------------------------------------------------------------------------
 void vtkSlam::SetBaseToLidarTranslation(double x, double y, double z)
 {
-  Eigen::Translation3d trans(x, y, z);
-  Eigen::Quaterniond quat(this->SlamAlgo->GetBaseToLidarOffset().linear());
-  Eigen::Isometry3d baseToLidar(trans * quat);
+  Eigen::Isometry3d baseToLidar = this->SlamAlgo->GetBaseToLidarOffset();
+  baseToLidar.translation() = Eigen::Vector3d(x, y, z);
   this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
   this->ParametersModificationTime.Modified();
 }
@@ -530,9 +509,8 @@ void vtkSlam::SetBaseToLidarTranslation(double x, double y, double z)
 //-----------------------------------------------------------------------------
 void vtkSlam::SetBaseToLidarRotation(double rx, double ry, double rz)
 {
-  Eigen::Vector3d trans = this->SlamAlgo->GetBaseToLidarOffset().translation();
-  Eigen::Vector3d rpy(rx, ry, rz);
-  Eigen::Isometry3d baseToLidar = Transform(trans, rpy * vtkMath::Pi() / 180.).GetIsometry();
+  Eigen::Isometry3d baseToLidar = this->SlamAlgo->GetBaseToLidarOffset();
+  baseToLidar.linear() = RPYtoRotationMatrix(Deg2Rad(rx), Deg2Rad(ry), Deg2Rad(rz));
   this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
   this->ParametersModificationTime.Modified();
 }

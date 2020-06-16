@@ -74,6 +74,7 @@
 #ifndef SLAM_H
 #define SLAM_H
 
+#include "LidarSlam/Utilities.h"
 #include "LidarSlam/Transform.h"
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/SpinningSensorKeypointExtractor.h"
@@ -446,7 +447,7 @@ private:
   // Variance-Covariance matrix that estimates the
   // estimation error about the 6-DoF parameters
   // (DoF order : rX, rY, rZ, X, Y, Z)
-  Eigen::Matrix<double, 6, 6> TworldCovariance;
+  Eigen::Matrix6d TworldCovariance;
 
   // [s] SLAM computation duration of last processed frame (~Tworld delay)
   // used to compute latency compensated pose

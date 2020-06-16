@@ -42,7 +42,7 @@ public:
   Transform(double x, double y, double z, double rx, double ry, double rz, double t = 0., const std::string& frame = "");
 
   //! Uses (X, Y, Z, rX, rY, rZ) as input. Uses Euler angles ZYX convention to build isometry (= non fixed axis YPR convention).
-  Transform(const Eigen::Matrix<double, 6, 1>& data, double t = 0., const std::string& frame = "");
+  Transform(const Eigen::Matrix<double, 6, 1>& xyzrpy, double t = 0., const std::string& frame = "");
 
   //! Uses roll/pitch/yaw Euler angles ZYX convention to build isometry (= non fixed axis YPR convention).
   Transform(const Eigen::Vector3d& trans, const Eigen::Vector3d& rpy, double t = 0., const std::string& frame = "");
