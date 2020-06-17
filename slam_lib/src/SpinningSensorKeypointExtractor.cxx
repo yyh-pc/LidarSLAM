@@ -61,9 +61,6 @@ struct LineFitting
   //! in a more global neighborhood
   bool FitPCAAndCheckConsistency(std::vector<Eigen::Vector3d> const& points);
 
-  //! Poor but fast fitting using extremities of the distribution
-  void FitFast(std::vector<Eigen::Vector3d> const& points);
-
   //! Compute the squared distance of a point to the fitted line
   inline double SquaredDistanceToPoint(Eigen::Vector3d const& point) const;
 
@@ -132,21 +129,6 @@ bool LineFitting::FitPCAAndCheckConsistency(std::vector<Eigen::Vector3d> const& 
 
   // Then fit with PCA (only if isLineFittingAccurate is true)
   return isLineFittingAccurate && this->FitPCA(points);
-}
-
-//-----------------------------------------------------------------------------
-void LineFitting::FitFast(std::vector<Eigen::Vector3d> const& points)
-{
-  // Take the two extrem points of the neighborhood
-  // i.e the farest and the closest to the current point
-  const Eigen::Vector3d& U = points.front();
-  const Eigen::Vector3d& V = points.back();
-
-  // direction
-  this->Direction = (V - U).normalized();
-
-  // position
-  this->Position = (U + V) * 0.5;
 }
 
 //-----------------------------------------------------------------------------

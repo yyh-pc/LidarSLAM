@@ -32,8 +32,7 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
   if ((nbInitPoses < 2) || (nbFinalPoses < 2))
   {
     std::cerr << "[ERROR] Init and Final trajectories must have at least 2 points "
-              << "(Got " << nbInitPoses << " Init points and " << nbFinalPoses << " Final points)."
-              << std::endl;
+              << "(Got " << nbInitPoses << " Init points and " << nbFinalPoses << " Final points).\n";
     return false;
   }
 
@@ -93,11 +92,11 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
   // Print estimated transforms
   if (this->Verbose)
   {
-    std::cout << "ICP has converged: " << icp.hasConverged() << std::endl
-              << "ICP loss: " << icp.getFitnessScore() << std::endl
-              << "Rough transform:" << std::endl << initToRough.matrix() << std::endl
-              << "ICP transform:" << std::endl << (initToRough.inverse() * initToFinal).matrix() << std::endl
-              << "Final transform:" << std::endl << initToFinal.matrix() << std::endl;
+    std::cout << "ICP has converged : "  << icp.hasConverged()
+              << "\nICP loss : "         << icp.getFitnessScore()
+              << "\nRough transform :\n" << initToRough.matrix()
+              << "\nICP transform :\n"   << (initToRough.inverse() * initToFinal).matrix()
+              << "\nFinal transform :\n" << initToFinal.matrix() << std::endl;
   }
 
   return icp.hasConverged();

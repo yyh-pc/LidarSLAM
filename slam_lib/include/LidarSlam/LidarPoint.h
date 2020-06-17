@@ -16,8 +16,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDARPOINT_H
-#define LIDARPOINT_H
+#ifndef LIDAR_POINT_H
+#define LIDAR_POINT_H
 
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
@@ -26,8 +26,8 @@ struct EIGEN_ALIGN16 _PointXYZTIId
 {
   PCL_ADD_POINT4D // This adds the members x,y,z which can also be accessed using the point (which is float[4])
   double time;
-  uint8_t intensity;
-  uint8_t laserId;
+  std::uint8_t intensity;
+  std::uint8_t laserId;
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 } EIGEN_ALIGN16;
 
@@ -68,7 +68,7 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZTIId,
                                    (float, y, y)
                                    (float, z, z)
                                    (double, time, time)
-                                   (uint8_t, intensity, intensity)
-                                   (uint8_t, laserId, laserId)
+                                   (std::uint8_t, intensity, intensity)
+                                   (std::uint8_t, laserId, laserId)
 )
-#endif // LIDARPOINT_H
+#endif // LIDAR_POINT_H

@@ -52,7 +52,7 @@
 // Since the function f(R, T) is a non-linear mean square error function
 // we decided to use the Levenberg-Marquardt algorithm to recover its argmin.
 //
-// - Mapping: This step consists of refining the motion recovered in the Ego-Motion
+// - Localization: This step consists of refining the motion recovered in the Ego-Motion
 // step and to add the new frame in the environment map. Thanks to the ego-motion
 // recovered at the previous step it is now possible to estimate the new position of
 // the sensor in the map. We use this estimation as an initial point (R0, T0) and we
@@ -166,7 +166,7 @@ public:
   Transform GetWorldTransform() const;
   // Get the computed world transform so far, but compensating SLAM computation duration latency.
   Transform GetLatencyCompensatedWorldTransform() const;
-  // Get the covariance of the last mapping step (mapping the current frame to the last map)
+  // Get the covariance of the last localization step (registering the current frame to the last map)
   // DoF order : X, Y, Z, rX, rY, rZ
   std::array<double, 36> GetTransformCovariance() const;
 
@@ -301,45 +301,45 @@ public:
   GetMacro(EgoMotionFinalLossScale, double)
   SetMacro(EgoMotionFinalLossScale, double)
 
-  // Get/Set Mapping
-  GetMacro(MappingLMMaxIter, unsigned int)
-  SetMacro(MappingLMMaxIter, unsigned int)
+  // Get/Set Localization
+  GetMacro(LocalizationLMMaxIter, unsigned int)
+  SetMacro(LocalizationLMMaxIter, unsigned int)
 
-  GetMacro(MappingICPMaxIter, unsigned int)
-  SetMacro(MappingICPMaxIter, unsigned int)
+  GetMacro(LocalizationICPMaxIter, unsigned int)
+  SetMacro(LocalizationICPMaxIter, unsigned int)
 
-  GetMacro(MappingLineDistanceNbrNeighbors, unsigned int)
-  SetMacro(MappingLineDistanceNbrNeighbors, unsigned int)
+  GetMacro(LocalizationLineDistanceNbrNeighbors, unsigned int)
+  SetMacro(LocalizationLineDistanceNbrNeighbors, unsigned int)
 
-  GetMacro(MappingMinimumLineNeighborRejection, unsigned int)
-  SetMacro(MappingMinimumLineNeighborRejection, unsigned int)
+  GetMacro(LocalizationMinimumLineNeighborRejection, unsigned int)
+  SetMacro(LocalizationMinimumLineNeighborRejection, unsigned int)
 
-  GetMacro(MappingLineDistancefactor, double)
-  SetMacro(MappingLineDistancefactor, double)
+  GetMacro(LocalizationLineDistancefactor, double)
+  SetMacro(LocalizationLineDistancefactor, double)
 
-  GetMacro(MappingPlaneDistanceNbrNeighbors, unsigned int)
-  SetMacro(MappingPlaneDistanceNbrNeighbors, unsigned int)
+  GetMacro(LocalizationPlaneDistanceNbrNeighbors, unsigned int)
+  SetMacro(LocalizationPlaneDistanceNbrNeighbors, unsigned int)
 
-  GetMacro(MappingPlaneDistancefactor1, double)
-  SetMacro(MappingPlaneDistancefactor1, double)
+  GetMacro(LocalizationPlaneDistancefactor1, double)
+  SetMacro(LocalizationPlaneDistancefactor1, double)
 
-  GetMacro(MappingPlaneDistancefactor2, double)
-  SetMacro(MappingPlaneDistancefactor2, double)
+  GetMacro(LocalizationPlaneDistancefactor2, double)
+  SetMacro(LocalizationPlaneDistancefactor2, double)
 
-  GetMacro(MappingMaxLineDistance, double)
-  SetMacro(MappingMaxLineDistance, double)
+  GetMacro(LocalizationMaxLineDistance, double)
+  SetMacro(LocalizationMaxLineDistance, double)
 
-  GetMacro(MappingMaxPlaneDistance, double)
-  SetMacro(MappingMaxPlaneDistance, double)
+  GetMacro(LocalizationMaxPlaneDistance, double)
+  SetMacro(LocalizationMaxPlaneDistance, double)
 
-  GetMacro(MappingLineMaxDistInlier, double)
-  SetMacro(MappingLineMaxDistInlier, double)
+  GetMacro(LocalizationLineMaxDistInlier, double)
+  SetMacro(LocalizationLineMaxDistInlier, double)
 
-  GetMacro(MappingInitLossScale, double)
-  SetMacro(MappingInitLossScale, double)
+  GetMacro(LocalizationInitLossScale, double)
+  SetMacro(LocalizationInitLossScale, double)
 
-  GetMacro(MappingFinalLossScale, double)
-  SetMacro(MappingFinalLossScale, double)
+  GetMacro(LocalizationFinalLossScale, double)
+  SetMacro(LocalizationFinalLossScale, double)
 
   // ---------------------------------------------------------------------------
   //   Rolling grid parameters and Keypoints extractor
@@ -365,10 +365,10 @@ private:
   // Max number of threads to use for parallel processing
   int NbThreads = 1;
 
-  // If set to true the mapping planars keypoints used
-  // will be the same than the EgoMotion one. If set to false
+  // If set to true the "Localization" step planars keypoints used
+  // will be the same than the "EgoMotion" step ones. If set to false
   // all points that are not set to invalid will be used
-  // as mapping planars points.
+  // as "Localization" step planars points.
   bool FastSlam = true;
 
   // How to estimate Ego-Motion (approximate relative motion since last frame).
@@ -385,13 +385,13 @@ private:
   // Indicate verbosity level to display more or less information :
   // 0: print errors, warnings or one time info
   // 1: 0 + frame number, total frame processing time
-  // 2: 1 + extracted features, used keypoints, mapping variance, ego-motion and localization summary
+  // 2: 1 + extracted features, used keypoints, localization variance, ego-motion and localization summary
   // 3: 2 + sub-problems processing duration
   // 4: 3 + ceres optimization summary
   // 5: 4 + logging/maps memory usage
   int Verbosity = 0;
 
-  // Optional log of computed pose, mapping covariance and keypoints of each
+  // Optional log of computed pose, localization covariance and keypoints of each
   // processed frame.
   // - A value of 0. will disable logging.
   // - A negative value will log all incoming data, without any timeout.
@@ -510,10 +510,10 @@ private:
   // ICP matching summary (used for debug only)
   unsigned int EgoMotionEdgesPointsUsed;
   unsigned int EgoMotionPlanesPointsUsed;
-  unsigned int MappingEdgesPointsUsed;
-  unsigned int MappingPlanesPointsUsed;
-  unsigned int MappingBlobsPointsUsed;
-  double MappingVarianceError;
+  unsigned int LocalizationEdgesPointsUsed;
+  unsigned int LocalizationPlanesPointsUsed;
+  unsigned int LocalizationBlobsPointsUsed;
+  double LocalizationVarianceError;
 
   //! Result of the keypoint matching, explaining rejection cause of matching failure.
   enum MatchingResult : uint8_t
@@ -532,9 +532,9 @@ private:
   // (used for debug only)
   std::vector<MatchingResult> EdgePointRejectionEgoMotion;
   std::vector<MatchingResult> PlanarPointRejectionEgoMotion;
-  std::vector<MatchingResult> EdgePointRejectionMapping;
-  std::vector<MatchingResult> PlanarPointRejectionMapping;
-  std::vector<MatchingResult> BlobPointRejectionMapping;
+  std::vector<MatchingResult> EdgePointRejectionLocalization;
+  std::vector<MatchingResult> PlanarPointRejectionLocalization;
+  std::vector<MatchingResult> BlobPointRejectionLocalization;
 
   // Histogram of the ICP matching rejection causes
   // (used mainly for debug)
@@ -576,8 +576,8 @@ private:
   unsigned int EgoMotionLMMaxIter = 15;
 
   // Maximum number of iteration
-  // in the mapping optimization step
-  unsigned int MappingLMMaxIter = 15;
+  // in the localization optimization step
+  unsigned int LocalizationLMMaxIter = 15;
 
   // During the Levenberg-Marquardt algoritm
   // keypoints will have to be match with planes
@@ -585,7 +585,7 @@ private:
   // indicates how many times we want to do the
   // the ICP matching
   unsigned int EgoMotionICPMaxIter = 4;
-  unsigned int MappingICPMaxIter = 3;
+  unsigned int LocalizationICPMaxIter = 3;
 
   // When computing the point<->line and point<->plane distance
   // in the ICP, the kNearest edges/planes points of the current
@@ -594,19 +594,19 @@ private:
   // is rejected. We also make a filter upon the ratio of the eigen
   // values of the variance-covariance matrix of the neighborhood
   // to check if the points are distributed upon a line or a plane
-  unsigned int MappingLineDistanceNbrNeighbors = 10;
-  unsigned int MappingMinimumLineNeighborRejection = 4;
-  double MappingLineDistancefactor = 5.0;
+  unsigned int LocalizationLineDistanceNbrNeighbors = 10;
+  unsigned int LocalizationMinimumLineNeighborRejection = 4;
+  double LocalizationLineDistancefactor = 5.0;
 
-  unsigned int MappingPlaneDistanceNbrNeighbors = 5;
-  double MappingPlaneDistancefactor1 = 35.0;
-  double MappingPlaneDistancefactor2 = 8.0;
+  unsigned int LocalizationPlaneDistanceNbrNeighbors = 5;
+  double LocalizationPlaneDistancefactor1 = 35.0;
+  double LocalizationPlaneDistancefactor2 = 8.0;
 
-  double MappingMaxPlaneDistance = 0.2;
-  double MappingMaxLineDistance = 0.2;
-  double MappingLineMaxDistInlier = 0.2;
+  double LocalizationMaxPlaneDistance = 0.2;
+  double LocalizationMaxLineDistance = 0.2;
+  double LocalizationLineMaxDistInlier = 0.2;
 
-  unsigned int MappingBlobDistanceNbrNeighbors = 25.;  // TODO : set from user interface
+  unsigned int LocalizationBlobDistanceNbrNeighbors = 25.;  // TODO : set from user interface
 
   unsigned int EgoMotionLineDistanceNbrNeighbors = 8;
   unsigned int EgoMotionMinimumLineNeighborRejection = 3;
@@ -627,8 +627,8 @@ private:
   // TODO : simplify parameters setting
   double EgoMotionInitLossScale = 2.0 ;  // Saturation around 5 meters
   double EgoMotionFinalLossScale = 0.2 ; // Saturation around 1.5 meters
-  double MappingInitLossScale = 0.7;     // Saturation around 2.5 meters
-  double MappingFinalLossScale = 0.05;   // Saturation around 0.4 meters
+  double LocalizationInitLossScale = 0.7;     // Saturation around 2.5 meters
+  double LocalizationFinalLossScale = 0.05;   // Saturation around 0.4 meters
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods
@@ -642,13 +642,13 @@ private:
   // and transform them from LIDAR to BASE coordinate system.
   void ExtractKeypoints(const std::vector<size_t>& laserIdMapping);
 
-  // Estimate the ego motion since last frame by registering current frame
-  // keypoints on previous frame keypoints between
+  // Estimate the ego motion since last frame by globally registering current
+  // frame keypoints on previous frame keypoints
   void ComputeEgoMotion();
 
   // Compute the pose of the current frame in world referential by registering
   // current frame keypoints on keypoints from maps
-  void Mapping();
+  void Localization();
 
   // Update the maps by adding to the rolling grids the current keypoints
   // expressed in the world reference frame coordinate system
@@ -676,7 +676,7 @@ private:
   enum class MatchingMode
   {
     EGO_MOTION = 0,
-    MAPPING = 1
+    LOCALIZATION = 1
   };
 
   void ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal);
@@ -696,9 +696,9 @@ private:
   void GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist,
                                       unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const double pos[3]) const;
 
-  // Instead of taking the k-nearest neighbors in the mapping
+  // Instead of taking the k-nearest neighbors in the localization
   // step we will take specific neighbor using a sample consensus  model
-  void GetMappingLineSpecificNeigbbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
+  void GetLocalizationLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
                                       unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const double pos[3]) const;
 
   void ResetDistanceParameters();

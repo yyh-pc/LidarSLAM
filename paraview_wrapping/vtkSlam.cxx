@@ -280,7 +280,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
       slamTrajectory->GetPointData()->GetArray(it.first.c_str())->InsertNextTuple1(it.second);
     }
 
-    // ICP keypoints matching results for ego-motion or mapping steps
+    // ICP keypoints matching results for ego-motion registration or localization steps
     // Info added as PointData array of output5-7
     if (this->OutputCurrentKeypoints)
     {
@@ -288,9 +288,9 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
       auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
       std::unordered_map<std::string, vtkPolyData*> outputMap;
       outputMap["EgoMotion: edges matches"] = edgePoints;
-      outputMap["Mapping: edges matches"] = edgePoints;
+      outputMap["Localization: edges matches"] = edgePoints;
       outputMap["EgoMotion: planes matches"] = planarPoints;
-      outputMap["Mapping: planes matches"] = planarPoints;
+      outputMap["Localization: planes matches"] = planarPoints;
       auto debugArray = this->SlamAlgo->GetDebugArray();
       for (const auto& it : outputMap)
       {
@@ -333,19 +333,19 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   PrintParameter(EgoMotionInitLossScale)
   PrintParameter(EgoMotionFinalLossScale)
 
-  PrintParameter(MappingLMMaxIter)
-  PrintParameter(MappingICPMaxIter)
-  PrintParameter(MappingLineDistanceNbrNeighbors)
-  PrintParameter(MappingMinimumLineNeighborRejection)
-  PrintParameter(MappingMaxLineDistance)
-  PrintParameter(MappingLineMaxDistInlier)
-  PrintParameter(MappingLineDistancefactor)
-  PrintParameter(MappingPlaneDistanceNbrNeighbors)
-  PrintParameter(MappingPlaneDistancefactor1)
-  PrintParameter(MappingPlaneDistancefactor2)
-  PrintParameter(MappingMaxPlaneDistance)
-  PrintParameter(MappingInitLossScale)
-  PrintParameter(MappingFinalLossScale)
+  PrintParameter(LocalizationLMMaxIter)
+  PrintParameter(LocalizationICPMaxIter)
+  PrintParameter(LocalizationLineDistanceNbrNeighbors)
+  PrintParameter(LocalizationMinimumLineNeighborRejection)
+  PrintParameter(LocalizationMaxLineDistance)
+  PrintParameter(LocalizationLineMaxDistInlier)
+  PrintParameter(LocalizationLineDistancefactor)
+  PrintParameter(LocalizationPlaneDistanceNbrNeighbors)
+  PrintParameter(LocalizationPlaneDistancefactor1)
+  PrintParameter(LocalizationPlaneDistancefactor2)
+  PrintParameter(LocalizationMaxPlaneDistance)
+  PrintParameter(LocalizationInitLossScale)
+  PrintParameter(LocalizationFinalLossScale)
 
   this->GetKeyPointsExtractor()->PrintSelf(os, indent);
 }
