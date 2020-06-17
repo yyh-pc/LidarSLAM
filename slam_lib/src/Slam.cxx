@@ -73,6 +73,7 @@
 
 // LOCAL
 #include "LidarSlam/Slam.h"
+#include "LidarSlam/Utilities.h"
 #include "LidarSlam/CeresCostFunctions.h"
 #ifdef USE_G2O
 #include "LidarSlam/PoseGraphOptimization.h"
@@ -84,11 +85,6 @@
 #include <pcl/io/pcd_io.h>
 // EIGEN
 #include <Eigen/Dense>
-// STD
-#include <sstream>
-#include <algorithm>
-#include <cmath>
-#include <chrono>
 
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
@@ -96,38 +92,7 @@
 namespace
 {
 //-----------------------------------------------------------------------------
-Eigen::Vector3d GetRPY(const Eigen::Matrix3d& rot)
-{
-  // Get euler angles according to ZYX convention.
-  Eigen::Vector3d rpy;
-  rpy.x() = std::atan2(rot(2, 1), rot(2, 2));
-  rpy.y() = -std::asin(rot(2, 0));
-  rpy.z() = std::atan2(rot(1, 0), rot(0, 0));
-  return rpy;
-}
-
-//-----------------------------------------------------------------------------
-Eigen::Matrix<double, 6, 1> IsometryToArray(const Eigen::Isometry3d& pose)
-{
-  Eigen::Matrix<double, 6, 1> data;
-  data << GetRPY(pose.linear()), pose.translation();
-  return data;
-}
-
-//-----------------------------------------------------------------------------
-Eigen::Isometry3d ArrayToIsometry(const Eigen::Matrix<double, 6, 1>& data)
-{
-  // Build translation part.
-  Eigen::Translation3d trans(data(3), data(4), data(5));
-  // Build rotation part from euler angles (ZYX convention).
-  Eigen::Quaterniond rot(Eigen::AngleAxisd(data(2), Eigen::Vector3d::UnitZ()) *
-                         Eigen::AngleAxisd(data(1), Eigen::Vector3d::UnitY()) *
-                         Eigen::AngleAxisd(data(0), Eigen::Vector3d::UnitX()));
-  return trans * rot;
-}
-
-//-----------------------------------------------------------------------------
-std::array<double, 36> FlipAndConvertCovariance(const Eigen::Matrix<double, 6, 6>& covar)
+std::array<double, 36> FlipAndConvertCovariance(const Eigen::Matrix6d& covar)
 {
   // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
   const double* c = covar.data();
@@ -142,56 +107,10 @@ std::array<double, 36> FlipAndConvertCovariance(const Eigen::Matrix<double, 6, 6
 }
 
 //-----------------------------------------------------------------------------
-inline void TransformPoint(Slam::Point& p, const Eigen::Isometry3d& transform)
-{
-  p.getVector4fMap() = (transform * p.getVector4fMap().cast<double>()).cast<float>();
-}
-
-inline Slam::Point TransformPoint(const Slam::Point& p, const Eigen::Isometry3d& transform)
-{
-  Slam::Point out(p);
-  TransformPoint(out, transform);
-  return out;
-}
-
-//-----------------------------------------------------------------------------
-std::unordered_map<std::string, std::chrono::steady_clock::time_point> startTimes;
-std::unordered_map<std::string, double> totalDurations;
-std::unordered_map<std::string, unsigned int> totalCalls;
-
-inline void InitTime(const std::string& functionName)
-{
-  startTimes[functionName] = std::chrono::steady_clock::now();
-}
-
-inline double GetTime(const std::string& functionName)
-{
-  std::chrono::duration<double> chrono_ms = std::chrono::steady_clock::now() - startTimes[functionName];
-  return chrono_ms.count();
-}
-
-void StopTimeAndDisplay(const std::string& functionName)
-{
-  std::chrono::duration<double> chrono_ms = std::chrono::steady_clock::now() - startTimes[functionName];
-  totalDurations[functionName] += chrono_ms.count();
-  totalCalls[functionName]++;
-  double currentDuration = chrono_ms.count() * 1000.;
-  double meanDuration = totalDurations[functionName] * 1000. / totalCalls[functionName];
-  std::cout << "  -> " << functionName << " took : " << currentDuration << " ms (average : " << meanDuration << " ms)" << std::endl;
-}
-
-//-----------------------------------------------------------------------------
-template<typename T>
-inline T Rad2Deg(const T& val)
-{
-  return val / M_PI * 180;
-}
-
-//-----------------------------------------------------------------------------
 //! Approximate pointcloud memory size
 inline size_t PointCloudMemorySize(const Slam::PointCloud& cloud)
 {
-  return (sizeof(cloud) + (sizeof(cloud.points[0]) * cloud.size()));
+  return (sizeof(cloud) + (sizeof(Slam::PointCloud::PointType) * cloud.size()));
 }
 
 //-----------------------------------------------------------------------------
@@ -246,7 +165,7 @@ void Slam::Reset(bool resetLog)
   this->Trelative = Eigen::Isometry3d::Identity();
   this->TworldFrameStart = Eigen::Isometry3d::Identity();
   this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
-  this->TworldCovariance = Eigen::Matrix<double, 6, 6>::Identity();
+  this->TworldCovariance = Eigen::Matrix6d::Identity();
 
   // Reset point clouds
   this->CurrentFrame.reset(new PointCloud);
@@ -351,7 +270,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, InitTime("Logging"));
-  this->LogCurrentFrameState(this->CurrentFrame->header.stamp * 1e-6, this->WorldFrameId);
+  this->LogCurrentFrameState(PclStampToSec(this->CurrentFrame->header.stamp), this->WorldFrameId);
   IF_VERBOSE(3, StopTimeAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
@@ -359,18 +278,18 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   {
     std::cout << "========== SLAM results ==========\n"
                  "Ego-Motion:\n"
-                 " translation = [" << this->Trelative.translation().transpose()             << "]\n"
-                 " rotation    = [" << Rad2Deg(GetRPY(this->Trelative.linear())).transpose() << "]\n";
+                 " translation = [" << this->Trelative.translation().transpose()                          << "]\n"
+                 " rotation    = [" << Rad2Deg(RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]\n";
     if (this->Undistortion)
     {
       Eigen::Isometry3d motion = this->TworldFrameStart.inverse() * this->Tworld;
       std::cout << "Within frame motion:\n"
-                   " translation = [" << motion.translation().transpose()                << "]\n"
-                   " rotation    = [" << Rad2Deg(GetRPY(motion.linear())).transpose()    << "]\n";
+                   " translation = [" << motion.translation().transpose()                          << "]\n"
+                   " rotation    = [" << Rad2Deg(RotationMatrixToRPY(motion.linear())).transpose() << "]\n";
     }
     std::cout << "Localization:\n"
-                 " position    = [" << this->Tworld.translation().transpose()                << "]\n"
-                 " orientation = [" << Rad2Deg(GetRPY(this->Tworld.linear())).transpose()    << "]" << std::endl;
+                 " position    = [" << this->Tworld.translation().transpose()                          << "]\n"
+                 " orientation = [" << Rad2Deg(RotationMatrixToRPY(this->Tworld.linear())).transpose() << "]" << std::endl;
   }
 
   if (this->Verbosity >= 5)
@@ -694,7 +613,7 @@ Slam::PointCloud::Ptr Slam::GetEdgesMap() const
 {
   PointCloud::Ptr map = this->EdgesPointsLocalMap->Get();
   map->header.frame_id = this->WorldFrameId;
-  map->header.stamp = std::round(this->GetWorldTransform().time * 1e6);
+  map->header.stamp = SecToPclStamp(this->GetWorldTransform().time);
   return map;
 }
 
@@ -703,7 +622,7 @@ Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
 {
   PointCloud::Ptr map = this->PlanarPointsLocalMap->Get();
   map->header.frame_id = this->WorldFrameId;
-  map->header.stamp = std::round(this->GetWorldTransform().time * 1e6);
+  map->header.stamp = SecToPclStamp(this->GetWorldTransform().time);
   return map;
 }
 
@@ -712,7 +631,7 @@ Slam::PointCloud::Ptr Slam::GetBlobsMap() const
 {
   PointCloud::Ptr map = this->BlobsPointsLocalMap->Get();
   map->header.frame_id = this->WorldFrameId;
-  map->header.stamp = std::round(this->GetWorldTransform().time * 1e6);
+  map->header.stamp = SecToPclStamp(this->GetWorldTransform().time);
   return map;
 }
 
@@ -756,7 +675,7 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
        this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION))
   {
     // Estimate new Tworld with a constant velocity model
-    const double t = inputPc->header.stamp * 1e-6;
+    const double t = PclStampToSec(inputPc->header.stamp);
     const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
     const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
     TworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
@@ -767,8 +686,8 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
 
   PRINT_VERBOSE(2, "========== Update SLAM State ==========\n"
                    "Estimated Ego-Motion:\n"
-                   " translation = [" << this->Trelative.translation().transpose()             << "]\n"
-                   " rotation    = [" << Rad2Deg(GetRPY(this->Trelative.linear())).transpose() << "]");
+                   " translation = [" << this->Trelative.translation().transpose()                          << "]\n"
+                   " rotation    = [" << Rad2Deg(RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]");
 
   // Current keypoints become previous ones
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;
@@ -939,8 +858,7 @@ void Slam::ComputeEgoMotion()
     double lossScale = this->EgoMotionInitLossScale + icpIter * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
 
     // Convert Isometry to 6 DoF state vector (rX, rY, rZ, X, Y, Z)
-    Eigen::Matrix<double, 6, 1> TrelativeArray;
-    TrelativeArray << GetRPY(this->Trelative.linear()), this->Trelative.translation();
+    Eigen::Vector6d TrelativeArray = IsometryToRPYXYZ(this->Trelative);
 
     // We want to estimate our 6-DOF parameters using a non linear least square
     // minimization. The non linear part comes from the parametrization of the
@@ -971,7 +889,7 @@ void Slam::ComputeEgoMotion()
     PRINT_VERBOSE(4, summary.BriefReport());
 
     // Unpack Trelative back to isometry
-    this->Trelative = ArrayToIsometry(TrelativeArray);
+    this->Trelative = RPYXYZtoIsometry(TrelativeArray);
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : LM optim"));
 
@@ -1120,8 +1038,8 @@ void Slam::Localization()
     double lossScale = this->LocalizationInitLossScale + icpIter * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / this->LocalizationICPMaxIter;
 
     // Convert isometries to 6D state vectors : rX, rY, rZ, X, Y, Z
-    Eigen::Matrix<double, 6, 1> TworldArray = IsometryToArray(this->Tworld);  // pose at the end of frame
-    Eigen::Matrix<double, 6, 1> TworldStartArray = IsometryToArray(this->TworldFrameStart);  // pose at the beginning of frame
+    Eigen::Vector6d TworldArray = IsometryToRPYXYZ(this->Tworld);  // pose at the end of frame
+    Eigen::Vector6d TworldStartArray = IsometryToRPYXYZ(this->TworldFrameStart);  // pose at the beginning of frame
 
     // We want to estimate our 6-DOF parameters using a non linear least square
     // minimization. The non linear part comes from the parametrization of the
@@ -1167,11 +1085,11 @@ void Slam::Localization()
     PRINT_VERBOSE(4, summary.BriefReport());
 
     // Unpack Tworld and TworldFrameStart
-    this->Tworld = ArrayToIsometry(TworldArray);
+    this->Tworld = RPYXYZtoIsometry(TworldArray);
     this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
     if (this->Undistortion == UndistortionMode::OPTIMIZED)
     {
-      this->TworldFrameStart = ArrayToIsometry(TworldStartArray);
+      this->TworldFrameStart = RPYXYZtoIsometry(TworldStartArray);
       this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
     }
     else if (this->Undistortion == UndistortionMode::APPROXIMATED)
@@ -1206,8 +1124,8 @@ void Slam::Localization()
 
   IF_VERBOSE(3, StopTimeAndDisplay("Localization : whole ICP-LM loop"));
 
-  Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eig(this->TworldCovariance);
-  Eigen::MatrixXd D = eig.eigenvalues();
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix6d> eig(this->TworldCovariance);
+  Eigen::Vector6d D = eig.eigenvalues();
   this->LocalizationVarianceError = D(5);
 
   PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " ("
@@ -1407,13 +1325,11 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
     const Point& pt = previousEdgesPoints[nearestIndex[k]];
     data.row(k) << pt.x, pt.y, pt.z;
   }
-  Eigen::Vector3d mean = data.colwise().mean();
-  Eigen::MatrixXd centered = data.rowwise() - mean.transpose();
-  Eigen::Matrix3d varianceCovariance = centered.transpose() * centered;
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig(varianceCovariance);
+  Eigen::Vector3d mean;
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = ComputePCA(data, mean);
 
   // PCA eigenvalues
-  Eigen::MatrixXd D = eig.eigenvalues();
+  Eigen::Vector3d D = eig.eigenvalues();
 
   // If the first eigen value is significantly higher than the second one,
   // it means that the sourrounding points are distributed on an edge line.
@@ -1549,13 +1465,11 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
     const Point& pt = previousPlanesPoints[nearestIndex[k]];
     data.row(k) << pt.x, pt.y, pt.z;
   }
-  Eigen::Vector3d mean = data.colwise().mean();
-  Eigen::MatrixXd centered = data.rowwise() - mean.transpose();
-  Eigen::Matrix3d varianceCovariance = centered.transpose() * centered;
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig(varianceCovariance);
+  Eigen::Vector3d mean;
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = ComputePCA(data, mean);
 
   // PCA eigenvalues
-  Eigen::VectorXd D = eig.eigenvalues();
+  Eigen::Vector3d D = eig.eigenvalues();
 
   // If the second eigen value is close to the highest one and bigger than the
   // smallest one, it means that the points are distributed along a plane.
@@ -1870,7 +1784,7 @@ Eigen::Isometry3d Slam::InterpolateBeginScanPose()
   if (this->NbrFrameProcessed > 0)
   {
     const double prevFrameEnd = this->LogTrajectory.back().time;
-    const double currFrameEnd = this->CurrentFrame->header.stamp * 1e-6;
+    const double currFrameEnd = PclStampToSec(this->CurrentFrame->header.stamp);
     const double currFrameStart = currFrameEnd - this->FrameDuration;
     return LinearInterpolation(this->PreviousTworld, this->Tworld, currFrameStart, prevFrameEnd, currFrameEnd);
   }

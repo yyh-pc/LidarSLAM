@@ -16,6 +16,7 @@
 // limitations under the License.
 //==============================================================================
 
+#include "LidarSlam/Utilities.h"
 #include "LidarSlam/PoseGraphOptimization.h"
 #include "LidarSlam/GlobalTrajectoriesRegistration.h"
 
@@ -23,11 +24,6 @@
 #include <g2o/core/optimization_algorithm_levenberg.h>
 #include <g2o/solvers/eigen/linear_solver_eigen.h>
 #include <g2o/types/slam3d/types_slam3d.h>
-
-namespace Eigen
-{
-  using Matrix6d = Eigen::Matrix<double, 6, 6>;
-}
 
 namespace
 {
@@ -93,12 +89,7 @@ PoseGraphOptimization::PoseGraphOptimization()
 //------------------------------------------------------------------------------
 void PoseGraphOptimization::SetGpsToSensorCalibration(double x, double y, double z, double rx, double ry, double rz)
 {
-  Eigen::Translation3d trans(x, y, z);
-  Eigen::Quaterniond rot(Eigen::AngleAxisd(rz, Eigen::Vector3d::UnitZ()) *
-                         Eigen::AngleAxisd(ry, Eigen::Vector3d::UnitY()) *
-                         Eigen::AngleAxisd(rx, Eigen::Vector3d::UnitX()));
-  Eigen::Isometry3d transform(trans * rot);
-  this->SetGpsToSensorCalibration(transform);
+  this->SetGpsToSensorCalibration(XYZRPYtoIsometry(x, y, z, rx, ry, rz));
 }
 
 //------------------------------------------------------------------------------

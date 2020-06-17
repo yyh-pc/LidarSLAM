@@ -373,7 +373,7 @@ void LidarSlamNode::GpsSlamCalibration()
   this->StaticTfBroadcaster.sendTransform(tfStamped);
 
   Eigen::Vector3d xyz = worldToOdom.translation();
-  Eigen::Vector3d ypr = worldToOdom.linear().eulerAngles(2, 1, 0);
+  Eigen::Vector3d ypr = RotationMatrixToRPY(worldToOdom.linear());
   ROS_INFO_STREAM(GREEN("Global transform from '" << gpsFrameId << "' to '" << this->OdometryFrameId << "' " <<
                   "successfully estimated to :\n" << worldToOdom.matrix() << "\n" <<
                   "(tf2 static transform : " << xyz.transpose() << " " << ypr.transpose() << " " << gpsFrameId << " " << this->OdometryFrameId << ")"));

@@ -18,39 +18,14 @@
 // limitations under the License.
 //==============================================================================
 
+#include "LidarSlam/Utilities.h"
 #include "LidarSlam/SpinningSensorKeypointExtractor.h"
 
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
-#include <numeric>
-
 namespace
 {
-//-----------------------------------------------------------------------------
-template<typename T>
-std::vector<size_t> sortIdx(const std::vector<T>& v)
-{
-  // initialize original index locations
-  std::vector<size_t> idx(v.size());
-  std::iota(idx.begin(), idx.end(), 0);
-
-  // sort indexes based on comparing values in v
-  std::sort(idx.begin(), idx.end(), [&v](size_t i1, size_t i2) { return v[i1] > v[i2]; });
-
-  return idx;
-}
-
-//-----------------------------------------------------------------------------
-template<typename PointT>
-void copyPointCloudMetadata(const pcl::PointCloud<PointT>& from, pcl::PointCloud<PointT>& to)
-{
-  to.header = from.header;
-  to.is_dense = from.is_dense;
-  to.sensor_orientation_ = from.sensor_orientation_;
-  to.sensor_origin_ = from.sensor_origin_;
-}
-
 //-----------------------------------------------------------------------------
 struct LineFitting
 {
@@ -84,11 +59,8 @@ bool LineFitting::FitPCA(std::vector<Eigen::Vector3d> const& points)
   {
     data.row(k) = points[k];
   }
-  // Position
-  this->Position = data.colwise().mean();
-  Eigen::MatrixXd centered = data.rowwise() - this->Position.transpose();
-  Eigen::Matrix3d varianceCovariance = centered.transpose() * centered;
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig(varianceCovariance);
+  // Solve PCA and save mean point in Position
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = ComputePCA(data, this->Position);
 
   // Direction
   this->Direction = eig.eigenvectors().col(2).normalized();
@@ -158,9 +130,9 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
   this->EdgesPoints.reset(new PointCloud);
   this->PlanarsPoints.reset(new PointCloud);
   this->BlobsPoints.reset(new PointCloud);
-  copyPointCloudMetadata(*this->pclCurrentFrame, *this->EdgesPoints);
-  copyPointCloudMetadata(*this->pclCurrentFrame, *this->PlanarsPoints);
-  copyPointCloudMetadata(*this->pclCurrentFrame, *this->BlobsPoints);
+  CopyPointCloudMetadata(*this->pclCurrentFrame, *this->EdgesPoints);
+  CopyPointCloudMetadata(*this->pclCurrentFrame, *this->PlanarsPoints);
+  CopyPointCloudMetadata(*this->pclCurrentFrame, *this->BlobsPoints);
 
   this->Angles.resize(this->NLasers);
   this->Saliency.resize(this->NLasers);
@@ -515,10 +487,10 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     }
 
     // Sort the curvature score in a decreasing order
-    std::vector<size_t> sortedDepthGapIdx = sortIdx(this->DepthGap[scanLine]);
-    std::vector<size_t> sortedAnglesIdx = sortIdx(this->Angles[scanLine]);
-    std::vector<size_t> sortedSaliencyIdx = sortIdx(this->Saliency[scanLine]);
-    std::vector<size_t> sortedIntensityGap = sortIdx(this->IntensityGap[scanLine]);
+    std::vector<size_t> sortedDepthGapIdx = SortIdx(this->DepthGap[scanLine]);
+    std::vector<size_t> sortedAnglesIdx = SortIdx(this->Angles[scanLine]);
+    std::vector<size_t> sortedSaliencyIdx = SortIdx(this->Saliency[scanLine]);
+    std::vector<size_t> sortedIntensityGap = SortIdx(this->IntensityGap[scanLine]);
 
     // Add edge according to criterion
     auto addEdgesUsingCriterion = [this, scanLine, Npts](const std::vector<size_t>& sortedValuesIdx,
