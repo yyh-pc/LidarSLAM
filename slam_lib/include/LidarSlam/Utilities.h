@@ -22,6 +22,7 @@
 #include <pcl/point_cloud.h>
 
 #include <Eigen/Eigenvalues>
+#include <unsupported/Eigen/EulerAngles>
 
 #include <iostream>
 #include <unordered_map>
@@ -116,9 +117,7 @@ inline constexpr T Deg2Rad(const T& deg)
  */
 inline Eigen::Matrix3d RPYtoRotationMatrix(double roll, double pitch, double yaw)
 {
-   return Eigen::Matrix3d(Eigen::AngleAxisd(yaw,   Eigen::Vector3d::UnitZ()) *
-                          Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
-                          Eigen::AngleAxisd(roll,  Eigen::Vector3d::UnitX()));
+  return Eigen::EulerAnglesZYXd(yaw, pitch, roll).toRotationMatrix();
 }
 
 //------------------------------------------------------------------------------
@@ -129,13 +128,7 @@ inline Eigen::Matrix3d RPYtoRotationMatrix(double roll, double pitch, double yaw
  */
 inline Eigen::Vector3d RotationMatrixToRPY(const Eigen::Matrix3d& rot)
 {
-  // `rpy = rot.eulerAngles(2, 1, 0)` returns angles in range [0:PI]x[-PI:PI]x[-PI:PI].
-  // We prefer to output angles in range [-PI/2:PI/2]x[-PI:PI]x[-PI:PI]
-  Eigen::Vector3d rpy;
-  rpy.x() = std::atan2(rot(2, 1), rot(2, 2));
-  rpy.y() = -std::asin(rot(2, 0));
-  rpy.z() = std::atan2(rot(1, 0), rot(0, 0));
-  return rpy;
+  return Eigen::EulerAnglesZYXd(rot).angles().reverse();
 }
 
 //------------------------------------------------------------------------------
