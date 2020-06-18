@@ -276,6 +276,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   // Motion and localization parameters estimation information display
   if (this->Verbosity >= 2)
   {
+    SET_COUT_FIXED_PRECISION(3);
     std::cout << "========== SLAM results ==========\n"
                  "Ego-Motion:\n"
                  " translation = [" << this->Trelative.translation().transpose()                          << "]\n"
@@ -290,10 +291,12 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     std::cout << "Localization:\n"
                  " position    = [" << this->Tworld.translation().transpose()                          << "]\n"
                  " orientation = [" << Rad2Deg(RotationMatrixToRPY(this->Tworld.linear())).transpose() << "]" << std::endl;
+    RESET_COUT_FIXED_PRECISION;
   }
 
   if (this->Verbosity >= 5)
   {
+    SET_COUT_FIXED_PRECISION(3);
     std::cout << "========== Memory usage ==========\n";
     // SLAM maps
     PointCloud::Ptr edgesMap   = this->GetEdgesMap(),
@@ -311,6 +314,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     std::cout << "Planars log : " << this->LogPlanarsPoints.size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
     LoggedKeypointsSize(this->LogBlobsPoints, memory, points);
     std::cout << "Blobs log   : " << this->LogBlobsPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+    RESET_COUT_FIXED_PRECISION;
   }
 
   // Frame processing duration
@@ -684,10 +688,12 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
   this->Tworld = TworldEstimation;
   this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
 
+  SET_COUT_FIXED_PRECISION(3);
   PRINT_VERBOSE(2, "========== Update SLAM State ==========\n"
                    "Estimated Ego-Motion:\n"
                    " translation = [" << this->Trelative.translation().transpose()                          << "]\n"
                    " rotation    = [" << Rad2Deg(RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]");
+  RESET_COUT_FIXED_PRECISION;
 
   // Current keypoints become previous ones
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;

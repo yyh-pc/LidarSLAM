@@ -25,6 +25,7 @@
 #include <unsupported/Eigen/EulerAngles>
 
 #include <iostream>
+#include <iomanip>
 #include <unordered_map>
 #include <chrono>
 #include <math.h>
@@ -38,6 +39,17 @@
 #ifndef M_PI
   #define M_PI 3.14159265358979323846
 #endif
+
+// Set cout to print floating values with fixed precision of a given number of decimals
+#define SET_COUT_FIXED_PRECISION(decimals)                   \
+  std::streamsize ss = std::cout.precision();                \
+  std::cout << std::fixed << std::setprecision(decimals);
+
+// Reset cout float printing state back to before
+// NOTE : RESET_COUT_FIXED_PRECISION in the same scope as SET_COUT_FIXED_PRECISION
+#define RESET_COUT_FIXED_PRECISION                           \
+  std::cout << std::setprecision(ss);                        \
+  std::cout.unsetf(std::ios::fixed | std::ios_base::floatfield);
 
 namespace Eigen
 {
@@ -343,7 +355,9 @@ inline void StopTimeAndDisplay(const std::string& timer)
   totalDurations[timer] += currentDuration;
   totalCalls[timer]++;
   double meanDurationMs = totalDurations[timer] * 1000. / totalCalls[timer];
+  SET_COUT_FIXED_PRECISION(3);
   std::cout << "  -> " << timer << " took : " << currentDuration * 1000. << " ms (average : " << meanDurationMs << " ms)" << std::endl;
+  RESET_COUT_FIXED_PRECISION;
 }
 
 }  // end of anonymous namespace
