@@ -22,7 +22,6 @@
 #include <pcl/point_cloud.h>
 
 #include <Eigen/Eigenvalues>
-#include <unsupported/Eigen/EulerAngles>
 
 #include <iostream>
 #include <unordered_map>
@@ -117,7 +116,9 @@ inline constexpr T Deg2Rad(const T& deg)
  */
 inline Eigen::Matrix3d RPYtoRotationMatrix(double roll, double pitch, double yaw)
 {
-  return Eigen::EulerAnglesZYXd(yaw, pitch, roll).toRotationMatrix();
+  return Eigen::Matrix3d(Eigen::AngleAxisd(yaw,   Eigen::Vector3d::UnitZ()) *
+                         Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
+                         Eigen::AngleAxisd(roll,  Eigen::Vector3d::UnitX()));
 }
 
 //------------------------------------------------------------------------------
@@ -128,7 +129,22 @@ inline Eigen::Matrix3d RPYtoRotationMatrix(double roll, double pitch, double yaw
  */
 inline Eigen::Vector3d RotationMatrixToRPY(const Eigen::Matrix3d& rot)
 {
-  return Eigen::EulerAnglesZYXd(rot).angles().reverse();
+  // `rpy = rot.eulerAngles(2, 1, 0).reverse()`             returns angles in range [-PI:PI]x[-PI:PI]x[0:PI].
+  // `rpy = Eigen::EulerAnglesZYXd(rot).angles().reverse()` returns angles in range [-PI:PI]x[-PI:PI]x[-PI:PI].
+  // But these are bad. For first range, yaw angle cannot be negative : this
+  // leads to un-necessary non trivial RPY decomposition, and to unstable
+  // optimization result as we are not optimizing around 0.
+  // For second ranges, there exist several RPY decomposition for the same
+  // rotation (one of them being non-trivial too). Therefore the optimization
+  // may also be unstable by oscillating between them.
+  // We prefer to output angles in range [-PI:PI]x[-PI/2:PI/2]x[-PI:PI] : we
+  // allow negative values to avoid oscillation artefacts, and minimize the
+  // pitch angle to fix representation.
+  Eigen::Vector3d rpy;
+  rpy.x() = std::atan2(rot(2, 1), rot(2, 2));
+  rpy.y() = -std::asin(rot(2, 0));
+  rpy.z() = std::atan2(rot(1, 0), rot(0, 0));
+  return rpy;
 }
 
 //------------------------------------------------------------------------------
