@@ -21,6 +21,7 @@ set(ServerManagerXML
 ADD_PARAVIEW_PLUGIN(LidarSlamPlugin "1.1"
   SERVER_MANAGER_XML ${ServerManagerXML}
   SERVER_MANAGER_SOURCES ${ServerManagerSources}
+  DOCUMENTATION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doc/"
 )
 
 target_link_libraries(LidarSlamPlugin PUBLIC LidarSlam ${VTK_LIBRARIES})
