@@ -177,6 +177,9 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
                          vtkInformationVector** inputVector,
                          vtkInformationVector* outputVector)
 {
+  if (this->SlamAlgo->GetVerbosity() > 0)
+    InitTime("vtkSlam");
+
   // Get the input
   vtkPolyData* input = vtkPolyData::GetData(inputVector[LIDAR_FRAME_INPUT_PORT], 0);
   vtkTable* calib = vtkTable::GetData(inputVector[CALIBRATION_INPUT_PORT], 0);
@@ -281,6 +284,9 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
       }
     }
   }
+
+  if (this->SlamAlgo->GetVerbosity() > 0)
+    StopTimeAndDisplay("vtkSlam");
 
   return 1;
 }
