@@ -73,42 +73,46 @@ vtkSmartPointer<T> createArray(const std::string& Name, int NumberOfComponents =
 }
 
 //-----------------------------------------------------------------------------
-void PointCloudToPolyData(pcl::PointCloud<Slam::Point>::Ptr pc, vtkPolyData* poly)
+void PointCloudToPolyData(Slam::PointCloud::Ptr pc, vtkPolyData* poly)
 {
-  const unsigned int nbPoints = pc->size();
+  const vtkIdType nbPoints = pc->size();
 
-  // Set points
-  auto pts = vtkSmartPointer<vtkPoints>::New();
+  // Init points
+  vtkNew<vtkPoints> pts;
   pts->SetNumberOfPoints(nbPoints);
   auto intensityArray = createArray<vtkDoubleArray>("intensity", 1, nbPoints);
+
+  // Init cells
+  vtkNew<vtkIdTypeArray> cells;
+  cells->SetNumberOfValues(nbPoints * 2);
+
   for (vtkIdType i = 0; i < nbPoints; ++i)
   {
+    // Set point
     const Slam::Point& p = pc->points[i];
     pts->SetPoint(i, p.x, p.y, p.z);
     intensityArray->SetTuple1(i, p.intensity);
     // TODO : add other fields (time, laserId)?
+
+    // Set cell
+    cells->SetValue(i * 2,     1);
+    cells->SetValue(i * 2 + 1, i);
   }
+
+  // Register points
   poly->SetPoints(pts);
   poly->GetPointData()->AddArray(intensityArray);
 
-  // Set cells
-  vtkNew<vtkIdTypeArray> cells;
-  cells->SetNumberOfValues(nbPoints * 2);
-  vtkIdType* ids = cells->GetPointer(0);
-  for (unsigned int i = 0; i < nbPoints; ++i)
-  {
-    ids[i * 2] = 1;
-    ids[i * 2 + 1] = static_cast<vtkIdType>(i);
-  }
-  auto cellArray = vtkSmartPointer<vtkCellArray>::New();
-  cellArray->SetCells(nbPoints, cells.GetPointer());
+  // Register cells
+  vtkNew<vtkCellArray> cellArray;
+  cellArray->SetCells(nbPoints, cells);
   poly->SetVerts(cellArray);
 }
 
 //-----------------------------------------------------------------------------
-void PolyDataToPointCloud(vtkPolyData* poly, pcl::PointCloud<Slam::Point>::Ptr pc)
+void PolyDataToPointCloud(vtkPolyData* poly, Slam::PointCloud::Ptr pc)
 {
-  const unsigned int nbPoints = poly->GetNumberOfPoints();
+  const vtkIdType nbPoints = poly->GetNumberOfPoints();
 
   // Get pointers to arrays
   auto arrayTime = poly->GetPointData()->GetArray("adjustedtime");
@@ -186,7 +190,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   std::vector<size_t> laserMapping = GetLaserIdMapping(calib);
 
   // Conversion vtkPolyData -> PCL pointcloud
-  pcl::PointCloud<Slam::Point>::Ptr pc(new pcl::PointCloud<Slam::Point>);
+  Slam::PointCloud::Ptr pc(new Slam::PointCloud);
   PolyDataToPointCloud(input, pc);
 
   // Run SLAM
@@ -244,7 +248,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   if (this->AdvancedReturnMode)
   {
     // Keypoints extraction debug array (curvatures, depth gap, intensity gap...)
-    // Info added as PointData array of output0
+    // Arrays added to WORLD transformed frame output
     auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
     auto keypointsExtractionDebugArray = this->SlamAlgo->GetKeyPointsExtractor()->GetDebugArray();
     for (const auto& it : keypointsExtractionDebugArray)
@@ -256,7 +260,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     }
 
     // General SLAM info (number of keypoints used in ICP and optimization, max variance, ...)
-    // Info added as PointData array of output1
+    // Arrays added to trajectory output
     auto debugInfo = this->SlamAlgo->GetDebugInformation();
     for (const auto& it : debugInfo)
     {
@@ -264,7 +268,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     }
 
     // ICP keypoints matching results for ego-motion registration or localization steps
-    // Info added as PointData array of output5-7
+    // Arrays added to keypoints extracted from current frame outputs
     if (this->OutputCurrentKeypoints)
     {
       auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
@@ -362,7 +366,7 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
   if (array)
   {
     std::vector<double> verticalCorrection(array->GetNumberOfTuples());
-    for (int i = 0; i < array->GetNumberOfTuples(); ++i)
+    for (vtkIdType i = 0; i < array->GetNumberOfTuples(); ++i)
     {
       verticalCorrection[i] = array->GetTuple1(i);
     }
