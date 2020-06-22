@@ -27,12 +27,12 @@
 // LOCAL
 #include <LidarSlam/Slam.h>
 
-// This custom macro is needed to make the SlamManager time agnostic
-// The SlamManager need to know when RequestData is call, if it's due
-// to a new timestep been requested or due to Slam parameters been changed.
-// By keeping track of the last time the parameters been modified there is
-// no ambiguty anymore. This mecanimsm is similar to the one usedby the paraview filter
-// PlotDataOverTime
+// This custom macro is needed to make the SlamManager time agnostic.
+// The SlamManager needs to know when RequestData is called, if it's due
+// to a new timestep being requested or due to SLAM parameters being changed.
+// By keeping track of the last time the parameters have been modified there is
+// no ambiguity anymore. This mecanimsm is similar to the one used by the
+// paraview filter PlotDataOverTime.
 #define vtkCustomSetMacro(name, type)                                                            \
 virtual void Set##name(type _arg)                                                                \
 {                                                                                                \
@@ -43,6 +43,14 @@ virtual void Set##name(type _arg)                                               
     this->Modified();                                                                            \
     this->ParametersModificationTime.Modified();                                                 \
   }                                                                                              \
+}
+#define vtkCustomSetMacroNoCheck(name, type)                                                     \
+virtual void Set##name(type _arg)                                                                \
+{                                                                                                \
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting " #name " to " << _arg);  \
+  this->SlamAlgo->Set##name(_arg);                                                               \
+  this->Modified();                                                                              \
+  this->ParametersModificationTime.Modified();                                                   \
 }
 
 #define vtkCustomGetMacro(name, type)                                                            \
@@ -90,19 +98,19 @@ public:
   vtkCustomGetMacro(NbThreads, int)
   vtkCustomSetMacro(NbThreads, int)
 
-  int GetEgoMotion();
-  void SetEgoMotion(int mode);
+  virtual int GetEgoMotion();
+  virtual void SetEgoMotion(int mode);
 
-  int GetUndistortion();
-  void SetUndistortion(int mode);
+  virtual int GetUndistortion();
+  virtual void SetUndistortion(int mode);
 
   // ---------------------------------------------------------------------------
   //   BASE to LIDAR transform
   // ---------------------------------------------------------------------------
 
-  void SetBaseToLidarTranslation(double x, double y, double z);
+  virtual void SetBaseToLidarTranslation(double x, double y, double z);
 
-  void SetBaseToLidarRotation(double rx, double ry, double rz);
+  virtual void SetBaseToLidarRotation(double rx, double ry, double rz);
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -197,11 +205,11 @@ public:
   virtual void SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor*);
 
   // Set RollingGrid Parameters
-  void SetVoxelGridLeafSizeEdges(double size);
-  void SetVoxelGridLeafSizePlanes(double size);
-  void SetVoxelGridLeafSizeBlobs(double size);
-  void SetVoxelGridSize(int size);
-  void SetVoxelGridResolution(double resolution);
+  vtkCustomSetMacroNoCheck(VoxelGridLeafSizeEdges, double)
+  vtkCustomSetMacroNoCheck(VoxelGridLeafSizePlanes, double)
+  vtkCustomSetMacroNoCheck(VoxelGridLeafSizeBlobs, double)
+  vtkCustomSetMacroNoCheck(VoxelGridSize, int)
+  vtkCustomSetMacroNoCheck(VoxelGridResolution, double)
 
 protected:
   vtkSlam();
@@ -209,24 +217,34 @@ protected:
   int FillInputPortInformation(int port, vtkInformation* info) override;
   int RequestData(vtkInformation*, vtkInformationVector**, vtkInformationVector*) override;
 
+private:
+  vtkSlam(const vtkSlam&) = delete;
+  void operator=(const vtkSlam&) = delete;
+
+  // Convert LiDAR calibration to laser id mapping
+  std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
+
+  // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
+  void AddCurrentPoseToTrajectory();
+
+  // ---------------------------------------------------------------------------
+  //   Member attributes
+  // ---------------------------------------------------------------------------
+
+protected:
+
   // Keeps track of the time the parameters have been modified
   // This will enable the SlamManager to be time-agnostic
   // MTime is a much more general mecanism so we can't rely on it
   vtkTimeStamp ParametersModificationTime;
 
-  std::shared_ptr<Slam> SlamAlgo;
+  std::unique_ptr<Slam> SlamAlgo;
   vtkSpinningSensorKeypointExtractor* KeyPointsExtractor = nullptr;
 
 private:
-  vtkSlam(const vtkSlam&) = delete;
-  void operator=(const vtkSlam&) = delete;
 
-  // Polydata which represents the trajectory computed
+  // Polydata which represents the computed trajectory
   vtkSmartPointer<vtkPolyData> Trajectory;
-  std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
-
-  // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
-  void AddCurrentPoseToTrajectory();
 
   // If enabled, advanced return mode will add arrays to outputs showing some
   // additional results or info of the SLAM algorithm such as :

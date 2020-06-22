@@ -441,6 +441,7 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
 
     this->AdvancedReturnMode = _arg;
     this->Modified();
+    this->ParametersModificationTime.Modified();
   }
 }
 
@@ -503,6 +504,7 @@ void vtkSlam::SetBaseToLidarTranslation(double x, double y, double z)
   Eigen::Isometry3d baseToLidar = this->SlamAlgo->GetBaseToLidarOffset();
   baseToLidar.translation() = Eigen::Vector3d(x, y, z);
   this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
+  this->Modified();
   this->ParametersModificationTime.Modified();
 }
 
@@ -512,6 +514,7 @@ void vtkSlam::SetBaseToLidarRotation(double rx, double ry, double rz)
   Eigen::Isometry3d baseToLidar = this->SlamAlgo->GetBaseToLidarOffset();
   baseToLidar.linear() = RPYtoRotationMatrix(Deg2Rad(rx), Deg2Rad(ry), Deg2Rad(rz));
   this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
+  this->Modified();
   this->ParametersModificationTime.Modified();
 }
 
@@ -520,39 +523,5 @@ void vtkSlam::SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor* _arg)
 {
   vtkSetObjectBodyMacro(KeyPointsExtractor, vtkSpinningSensorKeypointExtractor, _arg);
   this->SlamAlgo->SetKeyPointsExtractor(this->KeyPointsExtractor->GetExtractor());
-}
-
-//-----------------------------------------------------------------------------
-void vtkSlam::SetVoxelGridLeafSizeEdges(double size)
-{
-  this->SlamAlgo->SetVoxelGridLeafSizeEdges(size);
-  this->ParametersModificationTime.Modified();
-}
-
-//-----------------------------------------------------------------------------
-void vtkSlam::SetVoxelGridLeafSizePlanes(double size)
-{
-  this->SlamAlgo->SetVoxelGridLeafSizePlanes(size);
-  this->ParametersModificationTime.Modified();
-}
-
-//-----------------------------------------------------------------------------
-void vtkSlam::SetVoxelGridLeafSizeBlobs(double size)
-{
-  this->SlamAlgo->SetVoxelGridLeafSizeBlobs(size);
-  this->ParametersModificationTime.Modified();
-}
-
-//-----------------------------------------------------------------------------
-void vtkSlam::SetVoxelGridSize(int size)
-{
-  this->SlamAlgo->SetVoxelGridSize(size);
-  this->ParametersModificationTime.Modified();
-}
-
-//-----------------------------------------------------------------------------
-void vtkSlam::SetVoxelGridResolution(double resolution)
-{
-  this->SlamAlgo->SetVoxelGridResolution(resolution);
   this->ParametersModificationTime.Modified();
 }
