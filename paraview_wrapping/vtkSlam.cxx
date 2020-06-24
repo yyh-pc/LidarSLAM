@@ -88,7 +88,7 @@ void PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr pc, vtkPolyData* poly
   // Init points
   vtkNew<vtkPoints> pts;
   pts->SetNumberOfPoints(nbPoints);
-  auto intensityArray = Utils::CreateArray<vtkDoubleArray>("intensity", 1, nbPoints);
+  auto intensityArray = Utils::CreateArray<vtkDoubleArray>("Signal Photons", 1, nbPoints);
 
   // Init cells
   vtkNew<vtkIdTypeArray> cells;
@@ -124,14 +124,14 @@ void PolyDataToPointCloud(vtkPolyData* poly, LidarSlam::Slam::PointCloud::Ptr pc
   const bool useLaserIdMapping = !laserIdMapping.empty();
 
   // Get pointers to arrays
-  auto arrayTime = poly->GetPointData()->GetArray("adjustedtime");
-  auto arrayLaserId = poly->GetPointData()->GetArray("laser_id");
-  auto arrayIntensity = poly->GetPointData()->GetArray("intensity");
+  auto arrayTime = poly->GetPointData()->GetArray("Raw Timestamp");
+  auto arrayLaserId = poly->GetPointData()->GetArray("Channel");
+  auto arrayIntensity = poly->GetPointData()->GetArray("Signal Photons");
 
   // Loop over points data
   pc->resize(nbPoints);
   double frameEndTime = arrayTime->GetRange()[1];
-  pc->header.stamp = frameEndTime; // max time in microseconds
+  pc->header.stamp = frameEndTime * 1e-3; // max time in microseconds
   for (vtkIdType i = 0; i < nbPoints; i++)
   {
     auto& p = pc->points[i];
@@ -140,7 +140,7 @@ void PolyDataToPointCloud(vtkPolyData* poly, LidarSlam::Slam::PointCloud::Ptr pc
     p.x = pos[0];
     p.y = pos[1];
     p.z = pos[2];
-    p.time = (arrayTime->GetTuple1(i) - frameEndTime) * 1e-6; // time offset to header timestamp in seconds
+    p.time = (arrayTime->GetTuple1(i) - frameEndTime) * 1e-9; // time offset to header timestamp in seconds
     p.laser_id = useLaserIdMapping ? laserIdMapping[arrayLaserId->GetTuple1(i)] : arrayLaserId->GetTuple1(i);
     p.intensity = arrayIntensity->GetTuple1(i);
   }
@@ -412,10 +412,6 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
       verticalCorrection[i] = array->GetTuple1(i);
     }
     laserIdMapping = Utils::SortIdx(verticalCorrection);
-  }
-  else
-  {
-    vtkErrorMacro(<< "The calibration data has no column named 'verticalCorrection'");
   }
   return laserIdMapping;
 }
