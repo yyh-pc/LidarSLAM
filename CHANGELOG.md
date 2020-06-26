@@ -1,5 +1,47 @@
 # SLAM changes history
 
+## *v1.2 (2020/06/26)*
+
+This new release brings important improvements (in terms of processing speed as well as precision) such as *undistortion* or *motion extrapolation*. It also greatly improves user interface for easier parameters settings.
+
+Major changes are reported below.
+
+### Core lib
+
+New features:
+* Run SLAM in intermediary BASE coordinates system : user can set a rigid transform between BASE and LIDAR coordinates systems, in order to compensate lidar sensor's position and orientation relatively to the moving base plateform. Outputs are expressed in BASE frame, defaulting to LIDAR frame.
+* Estimate realtive motion since last frame using previous motion extrapolation, and set Ego-Motion step as optional. This greatly improves processing speed, as well as stability for smooth movements (e.g. vehicles).
+* Enable undistortion to correct rolling shutter distortion. 2 modes are available. This greatly improves precision.
+
+Major bug fixes or improvements:
+* Major acceleration of Ceres cost functions
+* Remove undistortion in Ego-Motion step : this step is only used as an initialization for Localization step, and thus just need to be fast and approximate.
+* Simplify `Slam` class by deleting unused attributes or refactoring them.
+* Fix compilation warnings
+
+Other noticeable changes changes:
+* Updated copyright and Apache 2.0 license
+* Rename Mapping step to Localization
+* Add `Utilities.h` file to centralize all helper functions
+
+ROS and ParaView wrappings have been adapted to support these previously mentionned changes.
+
+### ROS wrapping
+
+* Use *tf2* for sensors calibrations.
+* Refactor output publishers and set TF publication as optional : user can now choose which outputs he wants to be published.
+* Enable output of extracted keypoints from current frame.
+
+### ParaView wrapping
+
+* SLAM filters can now be applied on the selected input `vtkPolyData` frame, and not anymore on the `vtkTable` calibration. This is a more intuitive behavior.
+* Filters proxies display bugs are fixed (duplicated titles or lines, parameters orders, hide unavailable parameters, ...).
+* Update filters/parameters names and documentation.
+* Add *How to SLAM with LidarView* tutorial.
+* Maps and keypoints become optional outputs to avoid unecessary conversions and save time.
+* Orientation is also saved as `AxisAngle` representation.
+* Rename *DisplayMode* to *AdvancedReturnMode* and disable it by default.
+
 ## *v1.1 (2020/04/09)*
 
 Add several functionalities to **v1.0**, such as compressed pointclouds logging, latency compensation, multi-threading or ParaView/LidarView plugin.
@@ -59,7 +101,6 @@ As this is the first 'official' version, most changes are not reported since **v
 * Major acceleration of `RollingGrid`
 * Add documentation for dependencies and installation
 
-
 ### ROS wrapping
 
 * First version of ROS package `lidar_slam`, supporting all core SLAM lib functionalities
@@ -68,7 +109,6 @@ As this is the first 'official' version, most changes are not reported since **v
 * Add ROS package `gps_conversions` to manage conversions to standard `gps_common::GPSFix` message and process UTM/WGS84 transformations
 * Compute GPS heading from movement when it is not available.
 * Add documentation for usage
-
 
 ## *v0.0 (2019/11/11)*
 
