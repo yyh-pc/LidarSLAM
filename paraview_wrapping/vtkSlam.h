@@ -40,7 +40,6 @@ virtual void Set##name(type _arg)                                               
   if (this->SlamAlgo->Get##name() != _arg)                                                       \
   {                                                                                              \
     this->SlamAlgo->Set##name(_arg);                                                             \
-    this->Modified();                                                                            \
     this->ParametersModificationTime.Modified();                                                 \
   }                                                                                              \
 }
@@ -49,7 +48,6 @@ virtual void Set##name(type _arg)                                               
 {                                                                                                \
   vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting " #name " to " << _arg);  \
   this->SlamAlgo->Set##name(_arg);                                                               \
-  this->Modified();                                                                              \
   this->ParametersModificationTime.Modified();                                                   \
 }
 
@@ -70,6 +68,8 @@ public:
   static vtkSlam* New();
   vtkTypeMacro(vtkSlam, vtkPolyDataAlgorithm)
   void PrintSelf(ostream& os, vtkIndent indent);
+
+  virtual vtkMTimeType GetMTime();
 
   // ---------------------------------------------------------------------------
   //   General stuff and flags

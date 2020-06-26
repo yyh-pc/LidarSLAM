@@ -36,7 +36,6 @@ virtual void Set##name(type _arg)                                               
   if (this->name != _arg)                                                                        \
   {                                                                                              \
     this->name = _arg;                                                                           \
-    this->Modified();                                                                            \
     this->ParametersModificationTime.Modified();                                                 \
   }                                                                                              \
 }
