@@ -172,7 +172,7 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
   this->ConvertAndSortScanLines();
   // Initialize the vectors with the correct length
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
-  for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
+  for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
   {
     size_t nbPoint = this->pclCurrentFrameByScan[scanLine]->size();
     this->IsPointValid[scanLine].assign(nbPoint, KeypointFlags().set());  // set all flags to 1
@@ -203,7 +203,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
   // loop over scans lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) \
           firstprivate(squaredDistToLineThreshold, squaredDepthDistCoeff, minDepthGapDist)
-  for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
+  for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
   {
     // We will compute the line that fits the neighbors located before the current point.
     // We will do the same for the neighbors located after the current point.
@@ -365,7 +365,7 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
 
   // loop over scan lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) firstprivate(expectedCoeff)
-  for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
+  for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
   {
     const int Npts = this->pclCurrentFrameByScan[scanLine]->size();
 
@@ -476,7 +476,7 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   // loop over the scan lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) \
           firstprivate(squaredEdgeSaliencythreshold, squaredEdgeDepthGapThreshold)
-  for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
+  for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
   {
     const int Npts = this->pclCurrentFrameByScan[scanLine]->size();
 
