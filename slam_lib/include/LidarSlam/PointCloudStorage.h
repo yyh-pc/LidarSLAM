@@ -25,8 +25,6 @@
 #define PCL_NO_PRECOMPILE
 #endif
 #include <pcl/io/pcd_io.h>
-#include <pcl/compression/octree_pointcloud_compression.h>
-#include <pcl/io/impl/octree_pointcloud_compression.hpp>  // seems to be missing in otree_pointcloud_compression.h
 #include <boost/filesystem.hpp>
 
 //! PCD file data format.
@@ -124,6 +122,20 @@ struct PCLPointCloud final : public PointCloudData<PointT>
 };
 
 //------------------------------------------------------------------------------
+// PCL Octree compression does not compile properly on Windows with MSVC 2015
+// and below. Therefore, we cannot compile OctreeCompressedPointCloud.
+// If we use this code with MSVC 2015 and below, OctreeCompressedPointCloud
+// becomes just an alias for basic PCLPointCloud.
+#if defined(_MSC_VER) && _MSC_VER < 1910
+#pragma message("PCL Octree PointCloud Compression is not supported by MSVC 2015 and below.")
+//------------------------------------------------------------------------------
+template<typename PointT>
+using OctreeCompressedPointCloud = PCLPointCloud<PointT>;
+#else
+
+#include <pcl/compression/octree_pointcloud_compression.h>
+#include <pcl/io/impl/octree_pointcloud_compression.hpp>  // seems to be missing in otree_pointcloud_compression.h
+
 // This workaround is only available on Linux, as sigaction is only supported on UNIX systems.
 #ifdef __linux__
   #include <signal.h>
@@ -136,6 +148,7 @@ struct PCLPointCloud final : public PointCloudData<PointT>
   }
 #endif
 
+//------------------------------------------------------------------------------
 /*!
  * @brief Compress (with small loss) pointcloud with octree, and store pointcloud as binary data in RAM.
  */
@@ -213,6 +226,7 @@ struct OctreeCompressedPointCloud final : public PointCloudData<PointT>
   private:
     std::stringstream CompressedData;  ///< Binary compressed pointcloud data.
 };
+#endif
 
 //------------------------------------------------------------------------------
 /*!
