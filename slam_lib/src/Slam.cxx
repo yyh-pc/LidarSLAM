@@ -81,6 +81,7 @@
 // CERES
 #include <ceres/ceres.h>
 // PCL
+#include <pcl/common/common.h>
 #include <pcl/common/transforms.h>
 #include <pcl/io/pcd_io.h>
 // EIGEN
@@ -814,7 +815,7 @@ void Slam::ComputeEgoMotion()
     if (!this->CurrentEdgesPoints->empty() && this->PreviousEdgesPoints->size() > this->EgoMotionLineDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (unsigned int edgeIndex = 0; edgeIndex < this->CurrentEdgesPoints->size(); ++edgeIndex)
+      for (int edgeIndex = 0; edgeIndex < static_cast<int>(this->CurrentEdgesPoints->size()); ++edgeIndex)
       {
         // Find the closest correspondence edge line of the current edge point
         // Compute the parameters of the point - line distance
@@ -832,7 +833,7 @@ void Slam::ComputeEgoMotion()
     if (!this->CurrentPlanarsPoints->empty() && this->PreviousPlanarsPoints->size() > this->EgoMotionPlaneDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (unsigned int planarIndex = 0; planarIndex < this->CurrentPlanarsPoints->size(); ++planarIndex)
+      for (int planarIndex = 0; planarIndex < static_cast<int>(this->CurrentPlanarsPoints->size()); ++planarIndex)
       {
         // Find the closest correspondence plane of the current planar point
         // Compute the parameters of the point - plane distance
@@ -984,7 +985,7 @@ void Slam::Localization()
     if (!this->CurrentEdgesPoints->empty() && subEdgesPointsLocalMap->size() > this->LocalizationLineDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (unsigned int edgeIndex = 0; edgeIndex < this->CurrentEdgesPoints->size(); ++edgeIndex)
+      for (int edgeIndex = 0; edgeIndex < static_cast<int>(this->CurrentEdgesPoints->size()); ++edgeIndex)
       {
         // Find the closest correspondence edge line of the current edge point
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
@@ -999,7 +1000,7 @@ void Slam::Localization()
     if (!this->CurrentPlanarsPoints->empty() && subPlanarPointsLocalMap->size() > this->LocalizationPlaneDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (unsigned int planarIndex = 0; planarIndex < this->CurrentPlanarsPoints->size(); ++planarIndex)
+      for (int planarIndex = 0; planarIndex < static_cast<int>(this->CurrentPlanarsPoints->size()); ++planarIndex)
       {
         // Find the closest correspondence plane of the current planar point
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
@@ -1014,7 +1015,7 @@ void Slam::Localization()
     if (!this->FastSlam && !this->CurrentBlobsPoints->empty()  && subBlobPointsLocalMap->size() > this->LocalizationBlobDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (unsigned int blobIndex = 0; blobIndex < this->CurrentBlobsPoints->size(); ++blobIndex)
+      for (int blobIndex = 0; blobIndex < static_cast<int>(this->CurrentBlobsPoints->size()); ++blobIndex)
       {
         // Find the closest correspondence plane of the current blob point
         const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];

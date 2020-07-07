@@ -18,9 +18,8 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # Install parameters
-set(SLAM_INSTALL_RUNTIME_DIR "bin" CACHE STRING "Directory where to install binaries, relatively to CMAKE_INSTALL_PREFIX")
-set(SLAM_INSTALL_LIBRARY_DIR "lib" CACHE STRING "Directory where to install libraries, relatively to CMAKE_INSTALL_PREFIX")
-set(SLAM_INSTALL_INCLUDE_DIR "include" CACHE STRING "Directory where to install header files, relatively to CMAKE_INSTALL_PREFIX")
+set(SLAM_INSTALL_LIBRARY_DIR "lib"     CACHE STRING "Directory where to install LidarSlam libraries")
+set(SLAM_INSTALL_INCLUDE_DIR "include" CACHE STRING "Directory where to install LidarSlam header files")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_DIR}")
 
@@ -80,6 +79,7 @@ add_subdirectory(slam_lib)
 # Build optional ParaView plugin
 option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
 if (SLAM_PARAVIEW_PLUGIN)
+  set(SLAM_INSTALL_PARAVIEW_PLUGIN_DIR ${SLAM_INSTALL_LIBRARY_DIR} CACHE STRING "Directory where to install Paraview LidarSlamPlugin")
   add_subdirectory(paraview_wrapping)
 endif(SLAM_PARAVIEW_PLUGIN)
 

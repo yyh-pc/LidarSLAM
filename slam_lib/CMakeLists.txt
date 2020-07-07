@@ -20,6 +20,9 @@ set(LidarSlam_PUBLIC_HEADERS
   ${SLAM_g2o_headers}
   )
 
+# Generate export symbols on Windows to use this lib
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 add_library(LidarSlam SHARED
   src/Transform.cxx
   src/RollingGrid.cxx
@@ -47,7 +50,7 @@ set_target_properties(LidarSlam PROPERTIES PUBLIC_HEADER "${LidarSlam_PUBLIC_HEA
 target_include_directories(LidarSlam PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 install(TARGETS LidarSlam
-        RUNTIME DESTINATION ${SLAM_INSTALL_RUNTIME_DIR}
+        RUNTIME DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
         LIBRARY DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
         PUBLIC_HEADER DESTINATION ${SLAM_INSTALL_INCLUDE_DIR}/LidarSlam
         COMPONENT Runtime)
