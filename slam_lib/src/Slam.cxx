@@ -81,6 +81,7 @@
 // CERES
 #include <ceres/ceres.h>
 // PCL
+#include <pcl/common/common.h>
 #include <pcl/common/transforms.h>
 #include <pcl/io/pcd_io.h>
 // EIGEN

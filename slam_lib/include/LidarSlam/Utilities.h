@@ -320,7 +320,7 @@ inline constexpr double PclStampToSec(uint64_t pclStampMs)
  * @param seconds Timestamp, in seconds
  * @return PCL timestamp in microseconds, rounded up to closer integer microsecond
  */
-inline constexpr uint64_t SecToPclStamp(double seconds)
+inline uint64_t SecToPclStamp(double seconds)
 {
   return std::round(seconds * 1e6);
 }
