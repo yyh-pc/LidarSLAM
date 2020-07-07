@@ -20,6 +20,9 @@ set(LidarSlam_PUBLIC_HEADERS
   ${SLAM_g2o_headers}
   )
 
+# Generate export symbols on Windows to use this lib
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 add_library(LidarSlam SHARED
   src/Transform.cxx
   src/RollingGrid.cxx
