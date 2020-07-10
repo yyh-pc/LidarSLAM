@@ -1,3 +1,7 @@
+![SLAM in LidarView](doc/paraview_plugin.png)
+
+![SLAM in ROS](doc/ros_node.png)
+
 # LiDAR SLAM
 
 - [Introduction and contents](#introduction-and-contents)
@@ -11,6 +15,7 @@
 - [ParaView wrapping](#paraview-wrapping)
   - [Dependencies](#dependencies-2)
   - [Installation](#installation-2)
+  - [Download LidarView pre-built binaries with SLAM](#download-lidarview-pre-built-binaries-with-slam)
   - [Usage](#usage-1)
 
 ## Introduction and contents
@@ -105,6 +110,10 @@ cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSLAM_PARAVIEW_PLUGIN:BOOL=ON
 make
 make install
 ```
+
+### Download LidarView pre-built binaries with SLAM
+
+Pre-build binaries of LidarView with this SLAM plugin are also available for download [here](https://drive.google.com/drive/folders/1etSkoaR_863MYyRNXgv6PFTiUcggBAcx?usp=sharing).
 
 ### Usage
 
