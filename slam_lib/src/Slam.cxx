@@ -1439,12 +1439,12 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(const KDTreePCLAdaptor
     throw "ComputeLineDistanceParameters function got invalide step parameter";
   }
 
-  std::vector<int> nearestIndex(requiredNearest, -1);
-  std::vector<double> nearestDist(requiredNearest, -1.0);
-  kdtreePreviousPlanes.query(pFinal.data(), requiredNearest, nearestIndex.data(), nearestDist.data());
+  std::vector<int> nearestIndex(requiredNearest);
+  std::vector<double> nearestDist(requiredNearest);
+  unsigned int neighborhoodSize = kdtreePreviousPlanes.knnSearch(pFinal.data(), requiredNearest, nearestIndex.data(), nearestDist.data());
 
   // It means that there is not enough keypoints in the neighborhood
-  if (nearestIndex.back() == -1)
+  if (neighborhoodSize < requiredNearest)
   {
     return MatchingResult::NOT_ENOUGH_NEIGHBORS;
   }
@@ -1552,12 +1552,12 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(const KDTreePCLAdaptor
   double maxDist = this->MaxDistanceForICPMatching;  //< maximum distance between keypoints and its neighbors
   float maxDiameter = 4.;
 
-  std::vector<int> nearestIndex(requiredNearest, -1);
-  std::vector<double> nearestDist(requiredNearest, -1.0);
-  kdtreePreviousBlobs.query(pFinal.data(), requiredNearest, nearestIndex.data(), nearestDist.data());
+  std::vector<int> nearestIndex(requiredNearest);
+  std::vector<double> nearestDist(requiredNearest);
+  unsigned int neighborhoodSize = kdtreePreviousBlobs.knnSearch(pFinal.data(), requiredNearest, nearestIndex.data(), nearestDist.data());
 
   // It means that there is not enough keypoints in the neighborhood
-  if (nearestIndex.back() == -1)
+  if (neighborhoodSize < requiredNearest)
   {
     return MatchingResult::NOT_ENOUGH_NEIGHBORS;
   }
@@ -1660,16 +1660,9 @@ void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std:
   nearestValidDist.clear();
 
   // Get nearest neighbors of the query point
-  std::vector<int> nearestIndex(nearestSearch, -1);
-  std::vector<double> nearestDist(nearestSearch, -1.0);
-  kdtreePreviousEdges.query(pos, nearestSearch, nearestIndex.data(), nearestDist.data());
-
-  // Check neighborhood validity
-  unsigned int neighborhoodSize = nearestIndex.size();
-  while (nearestIndex[neighborhoodSize - 1] == -1 && neighborhoodSize > 1)
-  {
-    --neighborhoodSize;
-  }
+  std::vector<int> nearestIndex; nearestIndex.reserve(nearestSearch);
+  std::vector<double> nearestDist; nearestDist.reserve(nearestSearch);
+  unsigned int neighborhoodSize = kdtreePreviousEdges.knnSearch(pos, nearestSearch, nearestIndex.data(), nearestDist.data());
 
   // Shortcut to keypoints cloud
   const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.getInputCloud();
@@ -1712,16 +1705,9 @@ void Slam::GetLocalizationLineSpecificNeighbor(std::vector<int>& nearestValid, s
   nearestValidDist.clear();
 
   // Get nearest neighbors of the query point
-  std::vector<int> nearestIndex(nearestSearch, -1);
-  std::vector<double> nearestDist(nearestSearch, -1.0);
-  kdtreePreviousEdges.query(pos, nearestSearch, nearestIndex.data(), nearestDist.data());
-
-  // Check neighborhood validity
-  unsigned int neighborhoodSize = nearestIndex.size();
-  while (nearestIndex[neighborhoodSize - 1] == -1 && neighborhoodSize > 1)
-  {
-    --neighborhoodSize;
-  }
+  std::vector<int> nearestIndex; nearestIndex.reserve(nearestSearch);
+  std::vector<double> nearestDist; nearestDist.reserve(nearestSearch);
+  unsigned int neighborhoodSize = kdtreePreviousEdges.knnSearch(pos, nearestSearch, nearestIndex.data(), nearestDist.data());
 
   // Shortcut to keypoints cloud
   const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.getInputCloud();

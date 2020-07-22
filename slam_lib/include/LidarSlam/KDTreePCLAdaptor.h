@@ -1,6 +1,7 @@
 //==============================================================================
 // Copyright 2019-2020 Kitware, Inc., Kitware SAS
 // Author: Guilbert Pierre (Kitware SAS)
+//         Nicolas Cadart (Kitware SAS)
 // Creation date: 2018-04-19
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -52,23 +53,29 @@ public:
     Index->buildIndex();
   }
 
-  /** Query for the \a num_closest closest points to a given point (entered as query_point[0:dim-1]).
-    *  Note that this is a short-cut method for index->findNeighbors().
-    *  The user can also call index->... methods as desired.
+  /**
+    * Find the \a knearest closest neighbors points to the \a query_point[0:dim-1].
+    * Their indices are stored inside the result object.
+    * \sa radiusSearch, findNeighbors
+    *
+    * \return Number `N` of valid points in the result set.
+    * Only the first `N` entries in `out_indices` and `out_distances_sq` will be valid.
+    * Return may be less than `num_closest` only if the number of elements in
+    * the tree is less than `num_closest`.
+    *
     * \note nChecks_IGNORED is ignored but kept for compatibility with the original FLANN interface.
+    *
+    * \note Note that this is a short-cut method for index->findNeighbors().
+    * The user can also call index->... methods as desired.
     */
-  inline void query(const Point& query_point, int knearest, int* out_indices, double* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  inline size_t knnSearch(const Point& query_point, int knearest, int* out_indices, double* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
   {
     double pt[3] = {query_point.x, query_point.y, query_point.z};
-    nanoflann::KNNResultSet<double, int> resultSet(knearest);
-    resultSet.init(out_indices, out_distances_sq);
-    this->Index->findNeighbors(resultSet, pt, nanoflann::SearchParams());
+    return this->Index->knnSearch(pt, knearest, out_indices, out_distances_sq);
   }
-  inline void query(const double query_point[3], int knearest, int* out_indices, double* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  inline size_t knnSearch(const double query_point[3], int knearest, int* out_indices, double* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
   {
-    nanoflann::KNNResultSet<double, int> resultSet(knearest);
-    resultSet.init(out_indices, out_distances_sq);
-    this->Index->findNeighbors(resultSet, query_point, nanoflann::SearchParams());
+    return this->Index->knnSearch(query_point, knearest, out_indices, out_distances_sq);
   }
 
   inline const KDTreePCLAdaptor& derived() const
@@ -90,12 +97,7 @@ public:
   // Returns the dim'th component of the idx'th point in the class:
   inline double kdtree_get_pt(const int idx, const int dim) const
   {
-    if (dim == 0)
-      return this->Cloud->points[idx].x;
-    else if (dim == 1)
-      return this->Cloud->points[idx].y;
-    else
-      return this->Cloud->points[idx].z;
+    return this->Cloud->points[idx].data[dim];
   }
 
   inline PointCloudPtr getInputCloud() const
