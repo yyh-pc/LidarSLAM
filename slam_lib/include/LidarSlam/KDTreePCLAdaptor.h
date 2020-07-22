@@ -30,7 +30,7 @@ class KDTreePCLAdaptor
   using PointCloud = pcl::PointCloud<Point>;
   using PointCloudPtr = typename PointCloud::Ptr;
 
-  using metric_t = typename nanoflann::metric_L2::template traits<double, KDTreePCLAdaptor<Point>>::distance_t;
+  using metric_t = typename nanoflann::metric_L2_Simple::template traits<double, KDTreePCLAdaptor<Point>>::distance_t;
   using index_t = nanoflann::KDTreeSingleIndexAdaptor<metric_t, KDTreePCLAdaptor<Point>, 3, int>;
 
 public:
