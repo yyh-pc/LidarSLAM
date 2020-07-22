@@ -19,32 +19,29 @@
 #ifndef KDTREE_PCL_ADAPTOR_H
 #define KDTREE_PCL_ADAPTOR_H
 
-// LOCAL
-#include "LidarSlam/LidarPoint.h"
-// NANOFLANN
 #include <nanoflann.hpp>
-// PCL
 #include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-// BOOST
-#include <boost/shared_ptr.hpp>
 
+template<typename PointT>
 class KDTreePCLAdaptor
 {
-  using Point = PointXYZTIId;
-  typedef typename nanoflann::metric_L2::template traits<double, KDTreePCLAdaptor>::distance_t metric_t;
-  typedef nanoflann::KDTreeSingleIndexAdaptor<metric_t, KDTreePCLAdaptor, 3, int> index_t;
+  using Point = PointT;
+  using PointCloud = pcl::PointCloud<Point>;
+  using PointCloudPtr = typename PointCloud::Ptr;
+
+  using metric_t = typename nanoflann::metric_L2::template traits<double, KDTreePCLAdaptor<Point>>::distance_t;
+  using index_t = nanoflann::KDTreeSingleIndexAdaptor<metric_t, KDTreePCLAdaptor<Point>, 3, int>;
 
 public:
 
   KDTreePCLAdaptor() = default;
 
-  KDTreePCLAdaptor(pcl::PointCloud<Point>::Ptr cloud)
+  KDTreePCLAdaptor(PointCloudPtr cloud)
   {
     this->Reset(cloud);
   }
 
-  void Reset(pcl::PointCloud<Point>::Ptr cloud)
+  void Reset(PointCloudPtr cloud)
   {
     // copy the input cloud
     this->Cloud = cloud;
@@ -101,7 +98,7 @@ public:
       return this->Cloud->points[idx].z;
   }
 
-  inline pcl::PointCloud<Point>::Ptr getInputCloud() const
+  inline PointCloudPtr getInputCloud() const
   {
     return this->Cloud;
   }
@@ -120,8 +117,8 @@ protected:
   //! The kd-tree index for the user to call its methods as usual with any other FLANN index.
   std::unique_ptr<index_t> Index;
 
-  //! the inputed data
-  pcl::PointCloud<Point>::Ptr Cloud;
+  //! The input data
+  PointCloudPtr Cloud;
 };
 
 #endif // KDTREE_PCL_ADAPTOR_H

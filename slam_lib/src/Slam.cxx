@@ -771,7 +771,7 @@ void Slam::ComputeEgoMotion()
   //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
   // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
   IF_VERBOSE(3, InitTime("EgoMotion : build KD tree"));
-  KDTreePCLAdaptor kdtreePreviousEdges, kdtreePreviousPlanes;
+  KDTreePCLAdaptor<Point> kdtreePreviousEdges, kdtreePreviousPlanes;
   #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
   {
     #pragma omp section
@@ -921,9 +921,9 @@ void Slam::Localization()
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, InitTime("Localization : keypoints extraction"));
   PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
-  KDTreePCLAdaptor kdtreeEdges, kdtreePlanes, kdtreeBlobs;
+  KDTreePCLAdaptor<Point> kdtreeEdges, kdtreePlanes, kdtreeBlobs;
 
-  auto extractMapKeypointsAndBuildKdTree = [this](const RollingGrid& map, PointCloud::Ptr& keypoints, KDTreePCLAdaptor& kdTree)
+  auto extractMapKeypointsAndBuildKdTree = [this](const RollingGrid& map, PointCloud::Ptr& keypoints, KDTreePCLAdaptor<Point>& kdTree)
   {
     keypoints = map.Get(this->Tworld.translation());
     kdTree.Reset(keypoints);
@@ -1262,7 +1262,7 @@ void Slam::ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& 
 }
 
 //-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtreePreviousEdges, const Point& p, MatchingMode matchingMode)
+Slam::MatchingResult Slam::ComputeLineDistanceParameters(const KDTreePCLAdaptor<Point>& kdtreePreviousEdges, const Point& p, MatchingMode matchingMode)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -1403,7 +1403,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(KDTreePCLAdaptor& kdtre
 }
 
 //-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode)
+Slam::MatchingResult Slam::ComputePlaneDistanceParameters(const KDTreePCLAdaptor<Point>& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -1535,7 +1535,7 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(KDTreePCLAdaptor& kdtr
 }
 
 //-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtreePreviousBlobs, const Point& p, MatchingMode matchingMode)
+Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(const KDTreePCLAdaptor<Point>& kdtreePreviousBlobs, const Point& p, MatchingMode matchingMode)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -1652,8 +1652,8 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(KDTreePCLAdaptor& kdtr
 }
 
 //-----------------------------------------------------------------------------
-void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist,
-                                            unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const double pos[3]) const
+void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, unsigned int nearestSearch,
+                                            const KDTreePCLAdaptor<Point>& kdtreePreviousEdges, const double pos[3]) const
 {
   // Clear vector
   nearestValid.clear();
@@ -1704,8 +1704,8 @@ void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std:
 }
 
 //-----------------------------------------------------------------------------
-void Slam::GetLocalizationLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier,
-                                               unsigned int nearestSearch, KDTreePCLAdaptor& kdtreePreviousEdges, const double pos[3]) const
+void Slam::GetLocalizationLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier, unsigned int nearestSearch,
+                                               const KDTreePCLAdaptor<Point>& kdtreePreviousEdges, const double pos[3]) const
 {
   // reset vectors
   nearestValid.clear();
