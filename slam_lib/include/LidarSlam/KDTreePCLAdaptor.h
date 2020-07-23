@@ -37,18 +37,17 @@ public:
 
   KDTreePCLAdaptor() = default;
 
-  KDTreePCLAdaptor(PointCloudPtr cloud)
+  KDTreePCLAdaptor(PointCloudPtr cloud, int leafMaxSize = 16)
   {
-    this->Reset(cloud);
+    this->Reset(cloud, leafMaxSize);
   }
 
-  void Reset(PointCloudPtr cloud)
+  void Reset(PointCloudPtr cloud, int leafMaxSize = 16)
   {
     // copy the input cloud
     this->Cloud = cloud;
 
     // Build KD-tree
-    int leafMaxSize = 25;
     Index = std::make_unique<index_t>(3, *this, nanoflann::KDTreeSingleIndexAdaptorParams(leafMaxSize));
     Index->buildIndex();
   }
