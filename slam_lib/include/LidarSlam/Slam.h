@@ -694,12 +694,12 @@ private:
 
   // Instead of taking the k-nearest neigbors in the odometry step we will take
   // specific neighbor using the particularities of the lidar sensor
-  void GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, unsigned int nearestSearch,
+  void GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<float>& nearestValidDist, unsigned int nearestSearch,
                                         const KDTreePCLAdaptor<Point>& kdtreePreviousEdges, const double pos[3]) const;
 
   // Instead of taking the k-nearest neighbors in the localization
   // step we will take specific neighbor using a sample consensus  model
-  void GetLocalizationLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<double>& nearestValidDist, double maxDistInlier, unsigned int nearestSearch,
+  void GetLocalizationLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<float>& nearestValidDist, double maxDistInlier, unsigned int nearestSearch,
                                            const KDTreePCLAdaptor<Point>& kdtreePreviousEdges, const double pos[3]) const;
 
   void ResetDistanceParameters();

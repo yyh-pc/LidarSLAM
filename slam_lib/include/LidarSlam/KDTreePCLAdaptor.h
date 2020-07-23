@@ -30,7 +30,7 @@ class KDTreePCLAdaptor
   using PointCloud = pcl::PointCloud<Point>;
   using PointCloudPtr = typename PointCloud::Ptr;
 
-  using metric_t = typename nanoflann::metric_L2_Simple::template traits<double, KDTreePCLAdaptor<Point>>::distance_t;
+  using metric_t = typename nanoflann::metric_L2_Simple::template traits<float, KDTreePCLAdaptor<Point>>::distance_t;
   using index_t = nanoflann::KDTreeSingleIndexAdaptor<metric_t, KDTreePCLAdaptor<Point>, 3, int>;
 
 public:
@@ -67,14 +67,19 @@ public:
     * \note Note that this is a short-cut method for index->findNeighbors().
     * The user can also call index->... methods as desired.
     */
-  inline size_t knnSearch(const Point& query_point, int knearest, int* out_indices, double* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  inline size_t knnSearch(const Point& query_point, int knearest, int* out_indices, float* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
   {
-    double pt[3] = {query_point.x, query_point.y, query_point.z};
-    return this->Index->knnSearch(pt, knearest, out_indices, out_distances_sq);
+    return this->Index->knnSearch(query_point.data, knearest, out_indices, out_distances_sq);
   }
-  inline size_t knnSearch(const double query_point[3], int knearest, int* out_indices, double* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  inline size_t knnSearch(const float query_point[3], int knearest, int* out_indices, float* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
   {
     return this->Index->knnSearch(query_point, knearest, out_indices, out_distances_sq);
+  }
+  inline size_t knnSearch(const double query_point[3], int knearest, int* out_indices, float* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  {
+    float pt[3];
+    std::copy(query_point, query_point + 3, pt);
+    return this->Index->knnSearch(pt, knearest, out_indices, out_distances_sq);
   }
 
   inline const KDTreePCLAdaptor& derived() const
@@ -94,7 +99,7 @@ public:
   }
 
   // Returns the dim'th component of the idx'th point in the class:
-  inline double kdtree_get_pt(const int idx, const int dim) const
+  inline float kdtree_get_pt(const int idx, const int dim) const
   {
     return this->Cloud->points[idx].data[dim];
   }
