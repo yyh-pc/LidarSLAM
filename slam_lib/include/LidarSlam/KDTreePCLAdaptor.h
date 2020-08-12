@@ -67,19 +67,32 @@ public:
     * \note Note that this is a short-cut method for index->findNeighbors().
     * The user can also call index->... methods as desired.
     */
-  inline size_t knnSearch(const Point& query_point, int knearest, int* out_indices, float* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
-  {
-    return this->Index->knnSearch(query_point.data, knearest, out_indices, out_distances_sq);
-  }
   inline size_t knnSearch(const float query_point[3], int knearest, int* out_indices, float* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
   {
     return this->Index->knnSearch(query_point, knearest, out_indices, out_distances_sq);
   }
-  inline size_t knnSearch(const double query_point[3], int knearest, int* out_indices, float* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  inline size_t knnSearch(const float query_point[3], int knearest, std::vector<int>& out_indices, std::vector<float>& out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  {
+    // Init result to have large enough buffers that will be filled by knnSearch
+    out_indices.resize(knearest);
+    out_distances_sq.resize(knearest);
+    // Find nearest neighbors
+    size_t kneighbors = this->knnSearch(query_point, knearest, out_indices.data(), out_distances_sq.data());
+    // If less than 'knearest' NN have been found, the last neighbors values are
+    // wrong, therefore we need to ignore them
+    out_indices.resize(kneighbors);
+    out_distances_sq.resize(kneighbors);
+    return kneighbors;
+  }
+  inline size_t knnSearch(const double query_point[3], int knearest, std::vector<int>& out_indices, std::vector<float>& out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
   {
     float pt[3];
     std::copy(query_point, query_point + 3, pt);
-    return this->Index->knnSearch(pt, knearest, out_indices, out_distances_sq);
+    return this->knnSearch(pt, knearest, out_indices, out_distances_sq);
+  }
+  inline size_t knnSearch(const Point& query_point, int knearest, std::vector<int>& out_indices, std::vector<float>& out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  {
+    return this->knnSearch(query_point.data, knearest, out_indices, out_distances_sq);
   }
 
   inline const KDTreePCLAdaptor& derived() const
