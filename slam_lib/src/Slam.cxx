@@ -1303,11 +1303,11 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(const KDTree& kdtreePre
   }
 
   // If not enough neighbors, abort
-  if (knnIndices.size() < minNeighbors)
+  unsigned int neighborhoodSize = knnIndices.size();
+  if (neighborhoodSize < minNeighbors)
   {
     return MatchingResult::NOT_ENOUGH_NEIGHBORS;
   }
-  requiredNearest = nearestIndex.size();
 
   // If the nearest edges are too far from the current edge keypoint,
   // we skip this point.
@@ -1323,11 +1323,11 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(const KDTree& kdtreePre
   // Check if neighborhood is a good line candidate with PCA
 
   // Compute PCA to determine best line approximation
-  // of the requiredNearest nearest edges points extracted.
+  // of the neighborhoodSize nearest edges points extracted.
   // Thanks to the PCA we will check the shape of the neighborhood
   // and keep it if it is well distributed along a line.
-  Eigen::MatrixXd data(requiredNearest, 3);
-  for (unsigned int k = 0; k < requiredNearest; k++)
+  Eigen::MatrixXd data(neighborhoodSize, 3);
+  for (unsigned int k = 0; k < neighborhoodSize; k++)
   {
     const Point& pt = previousEdgesPoints[knnIndices[k]];
     data.row(k) << pt.x, pt.y, pt.z;
@@ -1382,7 +1382,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(const KDTree& kdtreePre
     }
     meanSquaredDist += squaredDist;
   }
-  meanSquaredDist /= static_cast<double>(requiredNearest);
+  meanSquaredDist /= static_cast<double>(neighborhoodSize);
 
   // ===========================================
   // Add valid parameters for later optimization
@@ -1463,11 +1463,11 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(const KDTree& kdtreePr
   // Check if neighborhood is a good plane candidate with PCA
 
   // Compute PCA to determine best plane approximation
-  // of the requiredNearest nearest edges points extracted.
+  // of the neighborhoodSize nearest edges points extracted.
   // Thanks to the PCA we will check the shape of the neighborhood
   // and keep it if it is well distributed along a plane.
-  Eigen::MatrixXd data(requiredNearest, 3);
-  for (unsigned int k = 0; k < requiredNearest; k++)
+  Eigen::MatrixXd data(neighborhoodSize, 3);
+  for (unsigned int k = 0; k < neighborhoodSize; k++)
   {
     const Point& pt = previousPlanesPoints[knnIndices[k]];
     data.row(k) << pt.x, pt.y, pt.z;
@@ -1514,7 +1514,7 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(const KDTree& kdtreePr
     }
     meanSquaredDist += squaredDist;
   }
-  meanSquaredDist /= static_cast<double>(requiredNearest);
+  meanSquaredDist /= static_cast<double>(neighborhoodSize);
 
   // ===========================================
   // Add valid parameters for later optimization
@@ -1598,11 +1598,11 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(const KDTree& kdtreePr
   // Compute point-to-blob optimization parameters with PCA
 
   // Compute PCA to determine best ellipsoid approximation
-  // of the requiredNearest nearest blobs points extracted.
+  // of the neighborhoodSize nearest blobs points extracted.
   // Thanks to the PCA we will check the shape of the neighborhood and
   // tune a distance function adapted to the distribution (Mahalanobis distance)
-  Eigen::MatrixXd data(requiredNearest, 3);
-  for (unsigned int k = 0; k < requiredNearest; k++)
+  Eigen::MatrixXd data(neighborhoodSize, 3);
+  for (unsigned int k = 0; k < neighborhoodSize; k++)
   {
     const Point& pt = previousBlobsPoints[knnIndices[k]];
     data.row(k) << pt.x, pt.y, pt.z;
