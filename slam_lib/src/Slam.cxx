@@ -1317,7 +1317,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(const KDTreePCLAdaptor<
   }
 
   // Shortcut to keypoints cloud
-  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.getInputCloud();
+  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.GetInputCloud();
 
   // =======================================================
   // Check if neighborhood is a good line candidate with PCA
@@ -1441,7 +1441,7 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(const KDTreePCLAdaptor
 
   std::vector<int> nearestIndex;
   std::vector<float> nearestDist;
-  unsigned int neighborhoodSize = kdtreePreviousPlanes.knnSearch(pFinal.data(), requiredNearest, nearestIndex, nearestDist);
+  unsigned int neighborhoodSize = kdtreePreviousPlanes.KnnSearch(pFinal.data(), requiredNearest, nearestIndex, nearestDist);
 
   // It means that there is not enough keypoints in the neighborhood
   if (neighborhoodSize < requiredNearest)
@@ -1457,7 +1457,7 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(const KDTreePCLAdaptor
   }
 
   // Shortcut to keypoints cloud
-  const PointCloud& previousPlanesPoints = *kdtreePreviousPlanes.getInputCloud();
+  const PointCloud& previousPlanesPoints = *kdtreePreviousPlanes.GetInputCloud();
 
   // ========================================================
   // Check if neighborhood is a good plane candidate with PCA
@@ -1554,7 +1554,7 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(const KDTreePCLAdaptor
 
   std::vector<int> nearestIndex;
   std::vector<float> nearestDist;
-  unsigned int neighborhoodSize = kdtreePreviousBlobs.knnSearch(pFinal.data(), requiredNearest, nearestIndex, nearestDist);
+  unsigned int neighborhoodSize = kdtreePreviousBlobs.KnnSearch(pFinal.data(), requiredNearest, nearestIndex, nearestDist);
 
   // It means that there is not enough keypoints in the neighborhood
   if (neighborhoodSize < requiredNearest)
@@ -1570,7 +1570,7 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(const KDTreePCLAdaptor
   }
 
   // Shortcut to keypoints cloud
-  const PointCloud& previousBlobsPoints = *kdtreePreviousBlobs.getInputCloud();
+  const PointCloud& previousBlobsPoints = *kdtreePreviousBlobs.GetInputCloud();
 
   // ======================================
   // Check the diameter of the neighborhood
@@ -1662,10 +1662,10 @@ void Slam::GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std:
   // Get nearest neighbors of the query point
   std::vector<int> nearestIndex;
   std::vector<float> nearestDist;
-  unsigned int neighborhoodSize = kdtreePreviousEdges.knnSearch(pos, nearestSearch, nearestIndex, nearestDist);
+  unsigned int neighborhoodSize = kdtreePreviousEdges.KnnSearch(pos, nearestSearch, nearestIndex, nearestDist);
 
   // Shortcut to keypoints cloud
-  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.getInputCloud();
+  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.GetInputCloud();
 
   // Take the closest point
   const Point& closest = previousEdgesPoints[nearestIndex[0]];
@@ -1707,10 +1707,10 @@ void Slam::GetLocalizationLineSpecificNeighbor(std::vector<int>& nearestValid, s
   // Get nearest neighbors of the query point
   std::vector<int> nearestIndex;
   std::vector<float> nearestDist;
-  unsigned int neighborhoodSize = kdtreePreviousEdges.knnSearch(pos, nearestSearch, nearestIndex, nearestDist);
+  unsigned int neighborhoodSize = kdtreePreviousEdges.KnnSearch(pos, nearestSearch, nearestIndex, nearestDist);
 
   // Shortcut to keypoints cloud
-  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.getInputCloud();
+  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.GetInputCloud();
 
   // to avoid square root when performing comparison
   const float squaredMaxDistInlier = maxDistInlier * maxDistInlier;

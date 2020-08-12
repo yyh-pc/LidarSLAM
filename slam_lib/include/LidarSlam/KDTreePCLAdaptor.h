@@ -30,70 +30,92 @@ class KDTreePCLAdaptor
   using PointCloud = pcl::PointCloud<Point>;
   using PointCloudPtr = typename PointCloud::Ptr;
 
-  using metric_t = typename nanoflann::metric_L2_Simple::template traits<float, KDTreePCLAdaptor<Point>>::distance_t;
+  using metric_t = typename nanoflann::metric_L2_Simple::traits<float, KDTreePCLAdaptor<Point>>::distance_t;
   using index_t = nanoflann::KDTreeSingleIndexAdaptor<metric_t, KDTreePCLAdaptor<Point>, 3, int>;
 
 public:
 
   KDTreePCLAdaptor() = default;
 
+  /**
+    * \brief Build a Kd-tree from a given pointcloud.
+    * \param cloud The pointcloud to encode in the kd-tree.
+    * \param leafMaxSize The maximum size of a leaf of the tree (refer to
+    * https://github.com/jlblancoc/nanoflann#21-kdtreesingleindexadaptorparamsleaf_max_size)
+    */
   KDTreePCLAdaptor(PointCloudPtr cloud, int leafMaxSize = 16)
   {
     this->Reset(cloud, leafMaxSize);
   }
 
+  /**
+    * \brief Init the Kd-tree from a given pointcloud.
+    * \param cloud The pointcloud to encode in the kd-tree.
+    * \param leafMaxSize The maximum size of a leaf of the tree (refer to
+    * https://github.com/jlblancoc/nanoflann#21-kdtreesingleindexadaptorparamsleaf_max_size)
+    */
   void Reset(PointCloudPtr cloud, int leafMaxSize = 16)
   {
-    // copy the input cloud
+    // Copy the input cloud
     this->Cloud = cloud;
 
     // Build KD-tree
-    Index = std::make_unique<index_t>(3, *this, nanoflann::KDTreeSingleIndexAdaptorParams(leafMaxSize));
-    Index->buildIndex();
+    this->Index = std::make_unique<index_t>(3, *this, nanoflann::KDTreeSingleIndexAdaptorParams(leafMaxSize));
+    this->Index->buildIndex();
   }
 
   /**
-    * Find the \a knearest closest neighbors points to the \a query_point[0:dim-1].
-    * Their indices are stored inside the result object.
-    * \sa radiusSearch, findNeighbors
+    * \brief Finds the `K` nearest neighbors points in the KD-tree to a given query point.
+    * \param[in] queryPoint Input point to look closest neighbors to.
+    * \param[in] knearest Number of nearest neighbors to find.
+    * \param[out] knnIndices Indices of the NN.
+    * \param[out] knnSqDistances Squared distances of the NN to the query point.
+    * \return Number `N` of neighbors found.
     *
-    * \return Number `N` of valid points in the result set.
-    * Only the first `N` entries in `out_indices` and `out_distances_sq` will be valid.
-    * Return may be less than `num_closest` only if the number of elements in
-    * the tree is less than `num_closest`.
-    *
-    * \note nChecks_IGNORED is ignored but kept for compatibility with the original FLANN interface.
-    *
-    * \note Note that this is a short-cut method for index->findNeighbors().
-    * The user can also call index->... methods as desired.
+    * \note Only the first `N` entries in `knnIndices` and `knnSqDistances` will
+    * be valid. Return may be less than `knearest` only if the number of
+    * elements in the tree is less than `knearest`.
     */
-  inline size_t knnSearch(const float query_point[3], int knearest, int* out_indices, float* out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  inline size_t KnnSearch(const float queryPoint[3], int knearest, int* knnIndices, float* knnSqDistances) const
   {
-    return this->Index->knnSearch(query_point, knearest, out_indices, out_distances_sq);
+    return this->Index->knnSearch(queryPoint, knearest, knnIndices, knnSqDistances);
   }
-  inline size_t knnSearch(const float query_point[3], int knearest, std::vector<int>& out_indices, std::vector<float>& out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  inline size_t KnnSearch(const float queryPoint[3], int knearest, std::vector<int>& knnIndices, std::vector<float>& knnSqDistances) const
   {
     // Init result to have large enough buffers that will be filled by knnSearch
-    out_indices.resize(knearest);
-    out_distances_sq.resize(knearest);
+    knnIndices.resize(knearest);
+    knnSqDistances.resize(knearest);
     // Find nearest neighbors
-    size_t kneighbors = this->knnSearch(query_point, knearest, out_indices.data(), out_distances_sq.data());
+    size_t kneighbors = this->KnnSearch(queryPoint, knearest, knnIndices.data(), knnSqDistances.data());
     // If less than 'knearest' NN have been found, the last neighbors values are
     // wrong, therefore we need to ignore them
-    out_indices.resize(kneighbors);
-    out_distances_sq.resize(kneighbors);
+    knnIndices.resize(kneighbors);
+    knnSqDistances.resize(kneighbors);
     return kneighbors;
   }
-  inline size_t knnSearch(const double query_point[3], int knearest, std::vector<int>& out_indices, std::vector<float>& out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  inline size_t KnnSearch(const double queryPoint[3], int knearest, std::vector<int>& knnIndices, std::vector<float>& knnSqDistances) const
   {
     float pt[3];
-    std::copy(query_point, query_point + 3, pt);
-    return this->knnSearch(pt, knearest, out_indices, out_distances_sq);
+    std::copy(queryPoint, queryPoint + 3, pt);
+    return this->KnnSearch(pt, knearest, knnIndices, knnSqDistances);
   }
-  inline size_t knnSearch(const Point& query_point, int knearest, std::vector<int>& out_indices, std::vector<float>& out_distances_sq/*, const int nChecks_IGNORED = 10*/) const
+  inline size_t KnnSearch(const Point& queryPoint, int knearest, std::vector<int>& knnIndices, std::vector<float>& knnSqDistances) const
   {
-    return this->knnSearch(query_point.data, knearest, out_indices, out_distances_sq);
+    return this->KnnSearch(queryPoint.data, knearest, knnIndices, knnSqDistances);
   }
+
+  /**
+    * \brief Get the input pointcloud.
+    * \return The input pointcloud used to build KD-tree.
+    */
+  inline PointCloudPtr GetInputCloud() const
+  {
+    return this->Cloud;
+  }
+
+  // ---------------------------------------------------------------------------
+  //   Methods required by nanoflann adaptor design
+  // ---------------------------------------------------------------------------
 
   inline const KDTreePCLAdaptor& derived() const
   {
@@ -105,26 +127,36 @@ public:
     return *this;
   }
 
-  // Must return the number of data points
-  inline int kdtree_get_point_count() const
+  /**
+    * \brief Returns the number of points in the input pointcloud.
+    * \note This method is required by nanoflann design, and should not be used
+    * by user.
+    */
+  inline size_t kdtree_get_point_count() const
   {
     return this->Cloud->size();
   }
 
-  // Returns the dim'th component of the idx'th point in the class:
+  /**
+    * \brief Returns the dim'th component of the idx'th point of the pointcloud.
+    * \note `dim` should only be in range [0-3].
+    * \note This method is required by nanoflann design, and should not be used
+    * by user.
+    */
   inline float kdtree_get_pt(const int idx, const int dim) const
   {
     return this->Cloud->points[idx].data[dim];
   }
 
-  inline PointCloudPtr getInputCloud() const
-  {
-    return this->Cloud;
-  }
-
-  // Optional bounding-box computation: return false to default to a standard bbox computation loop.
-  //   Return true if the BBOX was already computed by the class and returned in "bb" so it can be avoided to redo it again.
-  //   Look at bb.size() to find out the expected dimensionality (e.g. 2 or 3 for point clouds)
+  /**
+    * Optional bounding-box computation.
+    * Return false to default to a standard bbox computation loop.
+    * Return true if the BBOX was already computed by the class and returned in
+    * "bb" so it can be avoided to redo it again.
+    * Look at bb.size() to find out the expected dimensionality.
+    * \note This method is required by nanoflann design, and should not be used
+    * by user.
+    */
   template <class BBOX>
   inline bool kdtree_get_bbox(BBOX& /*bb*/) const
   {
