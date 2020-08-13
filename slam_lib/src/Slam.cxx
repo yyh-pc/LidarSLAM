@@ -1311,7 +1311,7 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(const KDTree& kdtreePre
 
   // If the nearest edges are too far from the current edge keypoint,
   // we skip this point.
-  if (knnSqDist.back() > this->MaxDistanceForICPMatching)
+  if (knnSqDist.back() > this->MaxDistanceForICPMatching * this->MaxDistanceForICPMatching)
   {
     return MatchingResult::NEIGHBORS_TOO_FAR;
   }
@@ -1451,7 +1451,7 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(const KDTree& kdtreePr
 
   // If the nearest planar points are too far from the current keypoint,
   // we skip this point.
-  if (knnSqDist.back() > this->MaxDistanceForICPMatching)
+  if (knnSqDist.back() > this->MaxDistanceForICPMatching * this->MaxDistanceForICPMatching)
   {
     return MatchingResult::NEIGHBORS_TOO_FAR;
   }
@@ -1549,7 +1549,7 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(const KDTree& kdtreePr
   // Get neighboring points in previous set of keypoints
 
   unsigned int requiredNearest = 25;  //< number of blob neighbors required to approximate the corresponding ellipsoid
-  double maxDist = this->MaxDistanceForICPMatching;  //< maximum distance between keypoints and its neighbors
+  // double maxDist = this->MaxDistanceForICPMatching;  //< maximum distance between keypoints and its neighbors
   float maxDiameter = 4.;
 
   std::vector<int> knnIndices;
@@ -1564,7 +1564,7 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(const KDTree& kdtreePr
 
   // If the nearest blob points are too far from the current keypoint,
   // we skip this point.
-  if (knnSqDist.back() > maxDist)
+  if (knnSqDist.back() > this->MaxDistanceForICPMatching * this->MaxDistanceForICPMatching)
   {
     return MatchingResult::NEIGHBORS_TOO_FAR;
   }
@@ -1684,8 +1684,8 @@ void Slam::GetEgoMotionLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, c
   validKnnSqDist.clear();
   for (unsigned int k = 0; k < neighborhoodSize; ++k)
   {
-    unsigned int scanLine = previousEdgesPoints[knnIndices[k]].laserId;
-    if (!idAlreadyTook[scanLine] && knnSqDist[k] < this->MaxDistanceForICPMatching)
+    const auto& scanLine = previousEdgesPoints[knnIndices[k]].laserId;
+    if (!idAlreadyTook[scanLine])
     {
       idAlreadyTook[scanLine] = 1;
       validKnnIndices.push_back(knnIndices[k]);

@@ -566,12 +566,10 @@ private:
   //   Optimization parameters
   // ---------------------------------------------------------------------------
 
-  // The max distance allowed between two frames
-  // If the distance is over this limit, the ICP
-  // matching will not match point and the odometry
-  // will fail. It has to be setted according to the
-  // maximum speed of the vehicule used
-  double MaxDistanceForICPMatching = 20.0;
+  // The max distance allowed between a keypoint from the current frame and its
+  // neighborhood from the map (or previous frame) to build an ICP match.
+  // If the distance is over this limit, no match residual will be built.
+  double MaxDistanceForICPMatching = 5.;
 
   // Maximum number of iteration
   // in the ego motion optimization step
