@@ -1660,6 +1660,12 @@ void Slam::GetEgoMotionLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, c
   std::vector<float> knnSqDist;
   unsigned int neighborhoodSize = kdtreePreviousEdges.KnnSearch(pos, knearest, knnIndices, knnSqDist);
 
+  // If empty neighborhood, return
+  if (neighborhoodSize == 0)
+  {
+    return;
+  }
+
   // Shortcut to keypoints cloud
   const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.GetInputCloud();
 
@@ -1717,6 +1723,7 @@ void Slam::GetLocalizationLineSpecificNeighbor(const KDTree& kdtreePreviousEdges
   // between closest point and current point and compute the number of inliers
   // that fit this line.
   std::vector<std::vector<unsigned int>> inliersList;
+  inliersList.reserve(neighborhoodSize - 1);
   for (unsigned int ptIndex = 1; ptIndex < neighborhoodSize; ++ptIndex)
   {
     // Fit line that links P1 and P2
@@ -1752,8 +1759,8 @@ void Slam::GetLocalizationLineSpecificNeighbor(const KDTree& kdtreePreviousEdges
   }
 
   // fill vectors
-  validKnnIndices.clear();
-  validKnnSqDist.clear();
+  validKnnIndices.clear(); validKnnIndices.reserve(inliersList[indexMaxInliers].size());
+  validKnnSqDist.clear(); validKnnSqDist.reserve(inliersList[indexMaxInliers].size());
   validKnnIndices.push_back(knnIndices[0]);
   validKnnSqDist.push_back(knnSqDist[0]);
   for (unsigned int inlier: inliersList[indexMaxInliers])
