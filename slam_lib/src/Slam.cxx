@@ -440,13 +440,16 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
 //-----------------------------------------------------------------------------
 void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
 {
-  // Reset previous frame keypoints because Ego-Motion is not valid since we imposed a discontinuity
-  this->PreviousEdgesPoints->clear();
-  this->PreviousPlanarsPoints->clear();
-
   // Set current pose
   this->Tworld = poseGuess.GetIsometry();
   // TODO update motionParameters
+
+  // Ego-Motion estimation is not valid anymore since we imposed a discontinuity.
+  // We reset previous pose so that previous ego-motion extrapolation results in Identity matrix.
+  // We reset current frame keypoints so that ego-motion registration will be skipped for next frame.
+  this->PreviousTworld = this->Tworld;
+  this->CurrentEdgesPoints.reset(new PointCloud);
+  this->CurrentPlanarsPoints.reset(new PointCloud);
 }
 
 //-----------------------------------------------------------------------------

@@ -217,8 +217,8 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       this->PoseGraphOptimization();
       break;
 
-    // Request to set SLAM pose from next GPS pose
-    // NOTE : This function should only be called after PGO has been triggered.
+    // Set SLAM pose from last received GPS pose
+    // NOTE : This function should only be called after PGO or SLAM/GPS calib have been triggered.
     case lidar_slam::SlamCommand::SET_SLAM_POSE_FROM_GPS:
     {
       if (!this->UseGps)
@@ -232,10 +232,12 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
         ROS_ERROR_STREAM("Cannot set SLAM pose from GPS as no GPS pose has been received yet.");
         return;
       }
-      Transform& gpsPose = this->GpsPoses.back();
-      Transform lidarPose = Transform(this->BaseToGpsOffset * gpsPose.GetIsometry(), gpsPose.time, gpsPose.frameid);
-      this->LidarSlam.SetWorldTransformFromGuess(lidarPose);
-      ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << gpsPose.GetMatrix());
+      Transform& mapToGps = this->GpsPoses.back();
+      Eigen::Isometry3d mapToOdom;
+      Tf2LookupTransform(mapToOdom, this->TfBuffer, mapToGps.frameid, this->OdometryFrameId, ros::Time(mapToGps.time));
+      Eigen::Isometry3d odomToBase = mapToOdom.inverse() * mapToGps.GetIsometry() * this->BaseToGpsOffset.inverse();
+      this->LidarSlam.SetWorldTransformFromGuess(Transform(odomToBase, mapToGps.time, mapToGps.frameid));
+      ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << odomToBase.matrix());
       break;
     }
 
