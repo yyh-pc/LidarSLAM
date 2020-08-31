@@ -338,6 +338,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
   std::vector<std::array<double, 36>> slamCovariances(this->LogCovariances.begin(), this->LogCovariances.end());
 
+  const unsigned int nbSlamPoses = slamPoses.size();
+
   if (this->LoggingTimeout == 0.)
   {
     std::cerr << "[WARNING] SLAM logging is not enabled : covariances will be "
@@ -346,7 +348,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
 
     // Set all poses covariances equal to twice the last one if we did not log it
     std::array<double, 36> fakeSlamCovariance = FlipAndConvertCovariance(this->TworldCovariance * 2);
-    for (unsigned int i = 0; i < slamPoses.size(); i++)
+    for (unsigned int i = 0; i < nbSlamPoses; i++)
       slamCovariances.emplace_back(fakeSlamCovariance);
   }
 
@@ -383,7 +385,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   PointCloud::Ptr aggregatedEdgesMap(new PointCloud),
                   aggregatedPlanarsMap(new PointCloud),
                   aggregatedBlobsMap(new PointCloud);
-  for (unsigned int i = 0; i < optimizedSlamPoses.size(); i++)
+  for (unsigned int i = 0; i < nbSlamPoses; i++)
   {
     // Update SLAM pose
     this->LogTrajectory[i].SetIsometry(gpsToSensorOffset.inverse() * optimizedSlamPoses[i].GetIsometry());
@@ -409,8 +411,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   IF_VERBOSE(3, InitTime("PGO : final SLAM map update"));
 
   // Set final pose
-  Transform& finalPose = this->LogTrajectory.back();
-  this->Tworld = finalPose.GetIsometry();
+  this->Tworld         = this->LogTrajectory[nbSlamPoses - 1].GetIsometry();
+  this->PreviousTworld = this->LogTrajectory[nbSlamPoses - 2].GetIsometry();
 
   // TODO : Deal with undistortion case (update motionParameters)
 
