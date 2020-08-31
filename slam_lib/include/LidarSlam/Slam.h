@@ -100,6 +100,7 @@ public:
   // Usefull types
   using Point = PointXYZTIId;
   using PointCloud = pcl::PointCloud<Point>;
+  using KDTree = KDTreePCLAdaptor<Point>;
 
   // How to estimate Ego-Motion (approximate relative motion since last frame)
   enum class EgoMotionMode
@@ -565,12 +566,10 @@ private:
   //   Optimization parameters
   // ---------------------------------------------------------------------------
 
-  // The max distance allowed between two frames
-  // If the distance is over this limit, the ICP
-  // matching will not match point and the odometry
-  // will fail. It has to be setted according to the
-  // maximum speed of the vehicule used
-  double MaxDistanceForICPMatching = 20.0;
+  // The max distance allowed between a keypoint from the current frame and its
+  // neighborhood from the map (or previous frame) to build an ICP match.
+  // If the distance is over this limit, no match residual will be built.
+  double MaxDistanceForICPMatching = 5.;
 
   // Maximum number of iteration
   // in the ego motion optimization step
@@ -688,19 +687,19 @@ private:
   // (R * X + T - P).t * A * (R * X + T - P)
   // Where P is the mean point of the neighborhood and A is the symmetric
   // variance-covariance matrix encoding the shape of the neighborhood
-  MatchingResult ComputeLineDistanceParameters(const KDTreePCLAdaptor<Point>& kdtreePreviousEdges,   const Point& p, MatchingMode matchingMode);
-  MatchingResult ComputePlaneDistanceParameters(const KDTreePCLAdaptor<Point>& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode);
-  MatchingResult ComputeBlobsDistanceParameters(const KDTreePCLAdaptor<Point>& kdtreePreviousBlobs,  const Point& p, MatchingMode matchingMode);
+  MatchingResult ComputeLineDistanceParameters(const KDTree& kdtreePreviousEdges,   const Point& p, MatchingMode matchingMode);
+  MatchingResult ComputePlaneDistanceParameters(const KDTree& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode);
+  MatchingResult ComputeBlobsDistanceParameters(const KDTree& kdtreePreviousBlobs,  const Point& p, MatchingMode matchingMode);
 
   // Instead of taking the k-nearest neigbors in the odometry step we will take
   // specific neighbor using the particularities of the lidar sensor
-  void GetEgoMotionLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<float>& nearestValidDist, unsigned int nearestSearch,
-                                        const KDTreePCLAdaptor<Point>& kdtreePreviousEdges, const double pos[3]) const;
+  void GetEgoMotionLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest,
+                                        std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const;
 
   // Instead of taking the k-nearest neighbors in the localization
   // step we will take specific neighbor using a sample consensus  model
-  void GetLocalizationLineSpecificNeighbor(std::vector<int>& nearestValid, std::vector<float>& nearestValidDist, double maxDistInlier, unsigned int nearestSearch,
-                                           const KDTreePCLAdaptor<Point>& kdtreePreviousEdges, const double pos[3]) const;
+  void GetLocalizationLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest, double maxDistInlier,
+                                           std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const;
 
   void ResetDistanceParameters();
 

@@ -129,7 +129,7 @@ slam:
   #  4) Binary compressed format PCD file (on disk, ~1.5x compression, ~0.8 ms overhead)
   logging_storage: 0
 
-  max_distance_for_ICP_matching: 20.            # [m] Max distance allowed between two keypoints during ICP matching.
+  max_distance_for_ICP_matching: 5.     # [m] Max distance between a keypoint from the current frame and its neighborhood from the map to build an ICP match.
 
   # ICP and LM parameters for Ego-Motion registrayion step (used only if ego_motion is 2 or 3)
   ego_motion_registration:
