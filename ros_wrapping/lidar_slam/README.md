@@ -42,7 +42,7 @@ rosbag play --clock <my_bag_file>  # in 2nd shell
 roslaunch lidar_slam slam.launch use_sim_time:=false
 ```
 
-This launch file will start a *lidar_slam_node*, a pre-configured RViz session, and GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
+This launch file will start a *lidar_slam_node*, a pre-configured RViz session, and, if `gps` arg is enabled, GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
 
 Input pointcloud must be a *sensor_msgs/PointCloud2* message (of points `velodyne_pointcloud::PointXYZIR`) published on topic '*velodyne_points*'.
 Optional input GPS (see [Optional GPS use](#optional-gps-use) section) fix must be a *gps_common/GPSFix* message published on topic '*gps_fix*'.
@@ -52,7 +52,7 @@ SLAM outputs can also be configured out to publish :
 - extracted keypoints from current frame as *sensor_msgs/PointCloud2* on topics '*keypoints/{edges,planes,blobs}*';
 - keypoints maps as *sensor_msgs/PointCloud2* on topics '*maps/{edges,planes,blobs}*';
 
-UTM/GPS conversion node can output SLAM pose as a *sensor_msgs/NavSatFix* message on topic '*slam_fix*'.
+UTM/GPS conversion node can output SLAM pose as a *gps_common/GPSFix* message on topic '*slam_fix*'.
 
 **NOTE** : It is possible to track any *tracking_frame* in *odometry_frame*, using a pointcloud expressed in an *lidar_frame*. However, please ensure that a valid TF tree is beeing published to link *lidar_frame* to *tracking_frame*.
 

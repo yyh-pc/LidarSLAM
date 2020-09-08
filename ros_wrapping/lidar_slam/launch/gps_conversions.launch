@@ -16,7 +16,7 @@
     <param name="time_offset" value="0."/>
   </node>
 
-  <!-- SLAM to WGS84 conversion : UTM X/Y to GPS Lat/Lon -->
+  <!-- SLAM to WGS84 conversion : UTM X/Y to GPS Lat/Lon, from nav_msgs/Odometry to gps_common/GPSFix -->
   <node name="slam_to_gps" pkg="gps_conversions" type="odom_to_gps" output="screen">
     <param name="utm_frame_id" value="utm"/>
     <remap from="odom" to="slam_odom"/>
