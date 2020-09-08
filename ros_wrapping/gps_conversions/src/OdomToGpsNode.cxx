@@ -18,8 +18,17 @@
 
 #include "OdomToGpsNode.h"
 #include <geodesy/utm.h>
-#include <sensor_msgs/NavSatFix.h>
+#include <gps_common/GPSFix.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+
+namespace
+{
+  //! @brief Convert degrees angle to radians.
+  inline double Rad2Deg(double rad) { return rad * 180. / M_PI; }
+
+  //! @brief Convert variance to RMS error at 95% confidence.
+  inline double VarToRms95(double var) { return std::sqrt(var) * 2.; }
+}
 
 //------------------------------------------------------------------------------
 OdomToGpsNode::OdomToGpsNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
@@ -31,7 +40,7 @@ OdomToGpsNode::OdomToGpsNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   priv_nh.getParamCached("/utm_band", this->UtmBandLetter);
 
   // Init ROS publishers & subscribers
-  this->GpsFixPub = nh.advertise<sensor_msgs::NavSatFix>("fix", 10);
+  this->GpsFixPub = nh.advertise<gps_common::GPSFix>("fix", 10);
   this->OdomSub = nh.subscribe("odom", 10, &OdomToGpsNode::OdometryCallback, this);
 
   ROS_INFO_STREAM("\033[1;32mOdom to GPS converter is ready !\033[0m");
@@ -42,7 +51,7 @@ void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
 {
   // Transform pose to UTM X/Y/Z coordinates
   geometry_msgs::TransformStamped tfStamped;
-  geometry_msgs::Pose gpsPose;
+  geometry_msgs::PoseWithCovariance gpsPose;
   try
   {
     tfStamped = this->TfBuffer.lookupTransform(this->UtmFrameId, msg.header.frame_id,
@@ -53,7 +62,10 @@ void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
     ROS_WARN("%s", ex.what());
     return;
   }
-  tf2::doTransform(msg.pose.pose, gpsPose, tfStamped);
+  tf2::doTransform(msg.pose.pose, gpsPose.pose, tfStamped);
+  tf2::Transform t;
+  tf2::fromMsg(tfStamped.transform, t);
+  gpsPose.covariance = tf2::transformCovariance(msg.pose.covariance, t);
 
   // Get UTM zone/band
   // TODO Maybe refresh zone/band only if a big gap is detected in odometry pose
@@ -65,27 +77,62 @@ void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
   }
 
   // Convert to GPS Lat/Lon/Alt WGS84 format
-  geodesy::UTMPoint utmPoint(gpsPose.position.x,
-                             gpsPose.position.y,
-                             gpsPose.position.z,
+  geodesy::UTMPoint utmPoint(gpsPose.pose.position.x,
+                             gpsPose.pose.position.y,
+                             gpsPose.pose.position.z,
                              (uint8_t) this->UtmZoneNumber,
                              this->UtmBandLetter[0]);
   geographic_msgs::GeoPoint gpsPoint = geodesy::toMsg(utmPoint);
 
-  // Fill and send NavSatFix msg
-  sensor_msgs::NavSatFix navSatFix;
-  navSatFix.header = msg.header;
-  navSatFix.header.frame_id = msg.child_frame_id;
-  navSatFix.altitude = gpsPoint.altitude;
-  navSatFix.longitude = gpsPoint.longitude;
-  navSatFix.latitude = gpsPoint.latitude;
-  navSatFix.status.status = navSatFix.status.STATUS_FIX;  // STATUS_NO_FIX ?
-  navSatFix.position_covariance_type = navSatFix.COVARIANCE_TYPE_APPROXIMATED;  // COVARIANCE_TYPE_KNOWN ?
-  const boost::array<double, 36>& c = msg.pose.covariance;
-  navSatFix.position_covariance = {c[ 0], c[ 1], c[ 2],
-                                   c[ 6], c[ 7], c[ 8],
-                                   c[12], c[13], c[14]};
-  this->GpsFixPub.publish(navSatFix);
+  // Fill and send gps_common::GPSFix msg
+
+  // Header and status
+  gps_common::GPSFix gpsFix;
+  gpsFix.header.stamp = msg.header.stamp;
+  gpsFix.header.frame_id = msg.child_frame_id;
+  gpsFix.status.status = gpsFix.status.STATUS_FIX;
+
+  // Position (degrees, degrees, meters)
+  gpsFix.altitude  = gpsPoint.altitude;
+  gpsFix.longitude = gpsPoint.longitude;
+  gpsFix.latitude  = gpsPoint.latitude;
+
+  // Orientation in ENU frame (in degrees)
+  tf2::Quaternion quatENU;
+  tf2::fromMsg(gpsPose.pose.orientation, quatENU);
+  double roll, pitch, yaw;
+  tf2::Matrix3x3(quatENU).getRPY(roll, pitch, yaw);
+  gpsFix.roll  = Rad2Deg(roll);
+  gpsFix.pitch = Rad2Deg(pitch);
+  gpsFix.dip   = Rad2Deg(yaw);     // ENU heading angle (counter-clockwise, 0 = east)
+  gpsFix.track = 90 - gpsFix.dip;  // True bearing angle (clockwise, 0 = north)
+
+  // Position covariance
+  const boost::array<double, 36>& c = gpsPose.covariance;
+  gpsFix.position_covariance = {c[ 0], c[ 1], c[ 2],
+                                c[ 6], c[ 7], c[ 8],
+                                c[12], c[13], c[14]};
+  gpsFix.position_covariance_type = gpsFix.COVARIANCE_TYPE_APPROXIMATED;  // COVARIANCE_TYPE_KNOWN ?
+
+  // Position error in meters (95% uncertainty)
+  gpsFix.err      = VarToRms95(c[0] + c[7] + c[14]);
+  gpsFix.err_horz = VarToRms95(c[0] + c[7]);
+  gpsFix.err_vert = VarToRms95(c[14]);
+
+  // Orientation error in degrees (95% uncertainty)
+  gpsFix.err_pitch = Rad2Deg(VarToRms95(c[21]));
+  gpsFix.err_roll  = Rad2Deg(VarToRms95(c[28]));
+  gpsFix.err_dip   = Rad2Deg(VarToRms95(c[35]));
+  gpsFix.err_track = gpsFix.err_dip;
+
+  // Dilution Of Precision (not available)
+  gpsFix.hdop = -1;
+  gpsFix.gdop = -1;
+  gpsFix.pdop = -1;
+  gpsFix.vdop = -1;
+  gpsFix.tdop = -1;
+
+  this->GpsFixPub.publish(gpsFix);
 }
 
 //------------------------------------------------------------------------------
