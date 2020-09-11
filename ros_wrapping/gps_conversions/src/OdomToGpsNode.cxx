@@ -49,9 +49,8 @@ OdomToGpsNode::OdomToGpsNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 //------------------------------------------------------------------------------
 void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
 {
-  // Transform pose to UTM X/Y/Z coordinates
+  // Get transform between local odom frame and UTM frame
   geometry_msgs::TransformStamped tfStamped;
-  geometry_msgs::PoseWithCovariance gpsPose;
   try
   {
     tfStamped = this->TfBuffer.lookupTransform(this->UtmFrameId, msg.header.frame_id,
@@ -62,10 +61,15 @@ void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
     ROS_WARN("%s", ex.what());
     return;
   }
-  tf2::doTransform(msg.pose.pose, gpsPose.pose, tfStamped);
+
+  // Transform local pose to UTM X/Y/Z coordinates
+  geometry_msgs::PoseWithCovarianceStamped gpsPose;
+  gpsPose.header = msg.header;
+  gpsPose.header.frame_id = this->UtmFrameId;
+  tf2::doTransform(msg.pose.pose, gpsPose.pose.pose, tfStamped);
   tf2::Transform t;
   tf2::fromMsg(tfStamped.transform, t);
-  gpsPose.covariance = tf2::transformCovariance(msg.pose.covariance, t);
+  gpsPose.pose.covariance = tf2::transformCovariance(msg.pose.covariance, t);
 
   // Get UTM zone/band
   // TODO Maybe refresh zone/band only if a big gap is detected in odometry pose
@@ -77,9 +81,9 @@ void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
   }
 
   // Convert to GPS Lat/Lon/Alt WGS84 format
-  geodesy::UTMPoint utmPoint(gpsPose.pose.position.x,
-                             gpsPose.pose.position.y,
-                             gpsPose.pose.position.z,
+  geodesy::UTMPoint utmPoint(gpsPose.pose.pose.position.x,
+                             gpsPose.pose.pose.position.y,
+                             gpsPose.pose.pose.position.z,
                              (uint8_t) this->UtmZoneNumber,
                              this->UtmBandLetter[0]);
   geographic_msgs::GeoPoint gpsPoint = geodesy::toMsg(utmPoint);
@@ -90,6 +94,7 @@ void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
   gps_common::GPSFix gpsFix;
   gpsFix.header.stamp = msg.header.stamp;
   gpsFix.header.frame_id = msg.child_frame_id;
+  gpsFix.status.header = gpsFix.header;
   gpsFix.status.status = gpsFix.status.STATUS_FIX;
 
   // Position (degrees, degrees, meters)
@@ -99,7 +104,7 @@ void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
 
   // Orientation in ENU frame (in degrees)
   tf2::Quaternion quatENU;
-  tf2::fromMsg(gpsPose.pose.orientation, quatENU);
+  tf2::fromMsg(gpsPose.pose.pose.orientation, quatENU);
   double roll, pitch, yaw;
   tf2::Matrix3x3(quatENU).getRPY(roll, pitch, yaw);
   gpsFix.roll  = Rad2Deg(roll);
@@ -108,7 +113,7 @@ void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
   gpsFix.track = 90 - gpsFix.dip;  // True bearing angle (clockwise, 0 = north)
 
   // Position covariance
-  const boost::array<double, 36>& c = gpsPose.covariance;
+  const boost::array<double, 36>& c = gpsPose.pose.covariance;
   gpsFix.position_covariance = {c[ 0], c[ 1], c[ 2],
                                 c[ 6], c[ 7], c[ 8],
                                 c[12], c[13], c[14]};
@@ -125,6 +130,24 @@ void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
   gpsFix.err_dip   = Rad2Deg(VarToRms95(c[35]));
   gpsFix.err_track = gpsFix.err_dip;
 
+  // Set speed info if previous message is available
+  if (this->PreviousGpsPose.header.stamp.toSec() > 0)
+  {
+    // Get useful alias
+    double dt = gpsPose.header.stamp.toSec() - this->PreviousGpsPose.header.stamp.toSec();
+    const auto& currPos = gpsPose.pose.pose.position;
+    const auto& prevPos = this->PreviousGpsPose.pose.pose.position;
+
+    // Estimate current speed
+    gpsFix.speed = std::sqrt(std::pow(currPos.x - prevPos.x, 2) + std::pow(currPos.y - prevPos.y, 2)) / dt;
+    gpsFix.climb = (currPos.z - prevPos.z) / dt;
+
+    // Estimate current speed error
+    // TODO : Use also gpsFix.err_time ? Use also previous position error ?
+    gpsFix.err_speed = gpsFix.err_horz / dt;
+    gpsFix.err_climb = gpsFix.err_vert / dt;
+  }
+
   // Dilution Of Precision (not available)
   gpsFix.hdop = -1;
   gpsFix.gdop = -1;
@@ -133,6 +156,7 @@ void OdomToGpsNode::OdometryCallback(const nav_msgs::Odometry& msg)
   gpsFix.tdop = -1;
 
   this->GpsFixPub.publish(gpsFix);
+  this->PreviousGpsPose = gpsPose;
 }
 
 //------------------------------------------------------------------------------
