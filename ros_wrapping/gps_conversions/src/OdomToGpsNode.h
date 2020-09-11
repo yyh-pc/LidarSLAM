@@ -21,6 +21,7 @@
 
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <tf2_ros/transform_listener.h>
 
 class OdomToGpsNode
@@ -53,6 +54,7 @@ private:
   // Local variables
   std::string UtmBandLetter;  ///< MGRS latitude band letter.
   int UtmZoneNumber;          ///< UTM longitude zone number.
+  geometry_msgs::PoseWithCovarianceStamped PreviousGpsPose;  ///< Previous GPS pose in UTM frame
 
   // Parameters
   std::string UtmFrameId = "utm";  ///< Frame id of fixed to the UTM coordinates.
