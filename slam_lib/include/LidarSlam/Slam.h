@@ -515,7 +515,8 @@ private:
   unsigned int LocalizationEdgesPointsUsed;
   unsigned int LocalizationPlanesPointsUsed;
   unsigned int LocalizationBlobsPointsUsed;
-  double LocalizationVarianceError;
+  double LocalizationPositionError;
+  double LocalizationOrientationError;
 
   //! Result of the keypoint matching, explaining rejection cause of matching failure.
   enum MatchingResult : uint8_t
