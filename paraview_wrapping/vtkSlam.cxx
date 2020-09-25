@@ -226,15 +226,29 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   if (this->OutputKeypointsMaps)
   {
     IF_VERBOSE(3, InitTime("vtkSlam : output keypoints maps"));
+
+    // Cache maps to update them only every MapsUpdateStep frames
+    static vtkPolyData* cacheEdgeMap = vtkPolyData::New();
+    static vtkPolyData* cachePlanarMap = vtkPolyData::New();
+    static vtkPolyData* cacheBlobMap = vtkPolyData::New();
+    if (this->SlamAlgo->GetNbrFrameProcessed() % this->MapsUpdateStep == 0)
+    {
+      PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), cacheEdgeMap);
+      PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), cachePlanarMap);
+      PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), cacheBlobMap);
+    }
+
+    // Fill outputs from cache
     // Output : Edges points map
     auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
-    PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), edgeMap);
+    edgeMap->ShallowCopy(cacheEdgeMap);
     // Output : Planar points map
     auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
-    PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), planarMap);
+    planarMap->ShallowCopy(cachePlanarMap);
     // Output : Blob points map
     auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
-    PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), blobMap);
+    blobMap->ShallowCopy(cacheBlobMap);
+
     IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : output keypoints maps"));
   }
 

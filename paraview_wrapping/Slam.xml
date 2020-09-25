@@ -113,6 +113,23 @@
       </IntVectorProperty>
 
       <IntVectorProperty
+          name="Keypoints maps update step"
+          command="SetMapsUpdateStep"
+          default_values="1"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          SLAM filter will update keypoints maps only 1 frame over *step* to save time.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator"
+                                   mode="enabled_state"
+                                   property="Output keypoints maps"
+                                   value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <IntVectorProperty
           name="Output current keypoints"
           command="SetOutputCurrentKeypoints"
           default_values="1"
@@ -150,6 +167,7 @@
         <Property name="Reset state" />
         <Property name="Advanced return mode" />
         <Property name="Output keypoints maps" />
+        <Property name="Keypoints maps update step" />
         <Property name="Output current keypoints" />
         <Property name="Output keypoints in WORLD coordinates" />
       </PropertyGroup>
