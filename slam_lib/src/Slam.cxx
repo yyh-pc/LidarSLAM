@@ -1042,7 +1042,13 @@ void Slam::Localization()
     // Skip this frame if there is too few geometric keypoints matched
     if ((this->LocalizationEdgesPointsUsed + this->LocalizationPlanesPointsUsed + this->LocalizationBlobsPointsUsed) < this->MinNbrMatchedKeypoints)
     {
-      std::cerr << "[WARNING] Not enough keypoints, Localization skipped for this frame.\n";
+      // Reset state to previous one to avoid instability
+      this->Trelative = Eigen::Isometry3d::Identity();
+      this->Tworld = this->PreviousTworld;
+      this->TworldFrameStart = this->Tworld;
+      this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
+      this->TworldCovariance = Eigen::Matrix6d::Identity();
+      std::cerr << "[ERROR] Not enough keypoints, Localization skipped for this frame.\n";
       break;
     }
 
