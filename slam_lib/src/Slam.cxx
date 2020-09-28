@@ -688,7 +688,10 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
     const double t = PclStampToSec(inputPc->header.stamp);
     const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
     const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
-    TworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
+    if (t0 < t1 && t1 < t)
+      TworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
+    else
+      std::cerr << "[WARNING] Motion extrapolation skipped as time is not strictly increasing.\n";
   }
   this->PreviousTworld = this->Tworld;
   this->Tworld = TworldEstimation;
@@ -1039,7 +1042,13 @@ void Slam::Localization()
     // Skip this frame if there is too few geometric keypoints matched
     if ((this->LocalizationEdgesPointsUsed + this->LocalizationPlanesPointsUsed + this->LocalizationBlobsPointsUsed) < this->MinNbrMatchedKeypoints)
     {
-      std::cerr << "[WARNING] Not enough keypoints, Localization skipped for this frame.\n";
+      // Reset state to previous one to avoid instability
+      this->Trelative = Eigen::Isometry3d::Identity();
+      this->Tworld = this->PreviousTworld;
+      this->TworldFrameStart = this->Tworld;
+      this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
+      this->TworldCovariance = Eigen::Matrix6d::Identity();
+      std::cerr << "[ERROR] Not enough keypoints, Localization skipped for this frame.\n";
       break;
     }
 
@@ -1787,7 +1796,13 @@ Eigen::Isometry3d Slam::InterpolateBeginScanPose()
     const double prevFrameEnd = this->LogTrajectory.back().time;
     const double currFrameEnd = PclStampToSec(this->CurrentFrame->header.stamp);
     const double currFrameStart = currFrameEnd - this->FrameDuration;
-    return LinearInterpolation(this->PreviousTworld, this->Tworld, currFrameStart, prevFrameEnd, currFrameEnd);
+    if (prevFrameEnd < currFrameStart && currFrameStart < currFrameEnd)
+      return LinearInterpolation(this->PreviousTworld, this->Tworld, currFrameStart, prevFrameEnd, currFrameEnd);
+    else
+    {
+      std::cerr << "[WARNING] Motion interpolation skipped as time is not strictly increasing.\n";
+      return this->Tworld;
+    }
   }
   else
     return Eigen::Isometry3d::Identity();
