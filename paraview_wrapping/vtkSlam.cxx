@@ -151,7 +151,7 @@ vtkSlam::vtkSlam()
 //-----------------------------------------------------------------------------
 void vtkSlam::Reset()
 {
-  this->SlamAlgo->Reset();
+  this->SlamAlgo->Reset(true);
 
   // init the output SLAM trajectory
   this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
