@@ -56,6 +56,8 @@
 #define BLOB_KEYPOINTS_OUTPUT_PORT 7   ///< Extracted blob keypoints from current frame
 #define OUTPUT_PORT_COUNT 8
 
+#define IF_VERBOSE(minVerbosityLevel, command) if (this->SlamAlgo->GetVerbosity() >= (minVerbosityLevel)) { command; }
+
 //-----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlam)
 
@@ -149,7 +151,7 @@ vtkSlam::vtkSlam()
 //-----------------------------------------------------------------------------
 void vtkSlam::Reset()
 {
-  this->SlamAlgo->Reset();
+  this->SlamAlgo->Reset(true);
 
   // init the output SLAM trajectory
   this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
@@ -181,8 +183,8 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
                          vtkInformationVector** inputVector,
                          vtkInformationVector* outputVector)
 {
-  if (this->SlamAlgo->GetVerbosity() > 0)
-    InitTime("vtkSlam");
+  IF_VERBOSE(1, InitTime("vtkSlam"));
+  IF_VERBOSE(3, InitTime("vtkSlam : input conversions"));
 
   // Get the input
   vtkPolyData* input = vtkPolyData::GetData(inputVector[LIDAR_FRAME_INPUT_PORT], 0);
@@ -194,7 +196,9 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   PolyDataToPointCloud(input, pc);
 
   // Run SLAM
+  IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : input conversions"));
   this->SlamAlgo->AddFrame(pc, laserMapping);
+  IF_VERBOSE(3, InitTime("vtkSlam : basic output conversions"));
 
   // Update Trajectory with new SLAM pose
   this->AddCurrentPoseToTrajectory();
@@ -216,23 +220,42 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
   slamTrajectory->ShallowCopy(this->Trajectory);
 
+  IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : basic output conversions"));
+
   // ===== Aggregated Keypoints maps =====
   if (this->OutputKeypointsMaps)
   {
+    IF_VERBOSE(3, InitTime("vtkSlam : output keypoints maps"));
+
+    // Cache maps to update them only every MapsUpdateStep frames
+    static vtkPolyData* cacheEdgeMap = vtkPolyData::New();
+    static vtkPolyData* cachePlanarMap = vtkPolyData::New();
+    static vtkPolyData* cacheBlobMap = vtkPolyData::New();
+    if (this->SlamAlgo->GetNbrFrameProcessed() % this->MapsUpdateStep == 0)
+    {
+      PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), cacheEdgeMap);
+      PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), cachePlanarMap);
+      PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), cacheBlobMap);
+    }
+
+    // Fill outputs from cache
     // Output : Edges points map
     auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
-    PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), edgeMap);
+    edgeMap->ShallowCopy(cacheEdgeMap);
     // Output : Planar points map
     auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
-    PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), planarMap);
+    planarMap->ShallowCopy(cachePlanarMap);
     // Output : Blob points map
     auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
-    PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), blobMap);
+    blobMap->ShallowCopy(cacheBlobMap);
+
+    IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : output keypoints maps"));
   }
 
   // ===== Extracted keypoints from current frame =====
   if (this->OutputCurrentKeypoints)
   {
+    IF_VERBOSE(3, InitTime("vtkSlam : output current keypoints"));
     // Output : Current edge keypoints
     auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
     PointCloudToPolyData(this->SlamAlgo->GetEdgesKeypoints(this->OutputKeypointsInWorldCoordinates), edgePoints);
@@ -242,11 +265,14 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     // Output : Current blob keypoints
     auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
     PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(this->OutputKeypointsInWorldCoordinates), blobPoints);
+    IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : output current keypoints"));
   }
 
   // Add debug information if advanced return mode is enabled
   if (this->AdvancedReturnMode)
   {
+    IF_VERBOSE(3, InitTime("vtkSlam : add advanced return arrays"));
+
     // Keypoints extraction debug array (curvatures, depth gap, intensity gap...)
     // Arrays added to WORLD transformed frame output
     auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
@@ -287,10 +313,11 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
         it.second->GetPointData()->AddArray(array);
       }
     }
+
+    IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : add advanced return arrays"));
   }
 
-  if (this->SlamAlgo->GetVerbosity() > 0)
-    StopTimeAndDisplay("vtkSlam");
+  IF_VERBOSE(1, StopTimeAndDisplay("vtkSlam"));
 
   return 1;
 }

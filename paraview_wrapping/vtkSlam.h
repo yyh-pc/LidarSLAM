@@ -86,6 +86,9 @@ public:
   vtkGetMacro(OutputKeypointsMaps, bool)
   vtkSetMacro(OutputKeypointsMaps, bool)
 
+  vtkGetMacro(MapsUpdateStep, unsigned int)
+  vtkSetMacro(MapsUpdateStep, unsigned int)
+
   vtkGetMacro(OutputKeypointsInWorldCoordinates, bool)
   vtkSetMacro(OutputKeypointsInWorldCoordinates, bool)
 
@@ -256,6 +259,9 @@ private:
   // If enabled, SLAM filter will output keypoints maps.
   // Otherwise, these filter outputs are left empty to save time.
   bool OutputKeypointsMaps = true;
+  // Update keypoints maps only each MapsUpdateStep frame
+  // (ex: every frame, every 2 frames, 3 frames, ...)
+  unsigned int MapsUpdateStep = 1;
 
   // If enabled, SLAM filter will output keypoints extracted from current
   // frame. Otherwise, these filter outputs are left empty to save time.
