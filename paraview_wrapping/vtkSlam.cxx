@@ -121,7 +121,7 @@ void PolyDataToPointCloud(vtkPolyData* poly, Slam::PointCloud::Ptr pc)
 
   // Loop over points data
   pc->resize(nbPoints);
-  pc->header.stamp = arrayTime->GetTuple1(nbPoints - 1); // time in microseconds
+  double frameEndTime = 0;
   for (vtkIdType i = 0; i < nbPoints; i++)
   {
     Slam::Point& p = pc->points[i];
@@ -133,7 +133,10 @@ void PolyDataToPointCloud(vtkPolyData* poly, Slam::PointCloud::Ptr pc)
     p.time = arrayTime->GetTuple1(i) * 1e-6; // time in seconds
     p.laserId = arrayLaserId->GetTuple1(i);
     p.intensity = arrayIntensity->GetTuple1(i);
+
+    frameEndTime = std::max(frameEndTime, arrayTime->GetTuple1(i));
   }
+  pc->header.stamp = frameEndTime; // time in microseconds
 }
 } // end of anonymous namespace
 
