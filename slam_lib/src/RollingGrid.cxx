@@ -29,14 +29,23 @@
 //------------------------------------------------------------------------------
 RollingGrid::RollingGrid(const Eigen::Vector3d& position)
 {
+  // Create rolling grid
+  this->Grid.resize(this->GridSize);
+  for (int x = 0; x < this->GridSize; x++)
+  {
+    this->Grid[x].resize(this->GridSize);
+    for (int y = 0; y < this->GridSize; y++)
+      this->Grid[x][y].resize(this->GridSize);
+  }
+
   this->Reset(position);
 }
 
 //------------------------------------------------------------------------------
 void RollingGrid::Reset(const Eigen::Vector3d& position)
 {
-  // Clear/reset empty voxel grid to right size
-  this->SetGridSize(this->GridSize);
+  // Clear/reset empty voxel grid
+  this->Clear();
 
   // Initialize VoxelGrid center position
   // Position is rounded down to be a multiple of resolution
@@ -270,8 +279,10 @@ void RollingGrid::SetMinMaxPoints(const Eigen::Array3d& minPoint, const Eigen::A
 //------------------------------------------------------------------------------
 void RollingGrid::SetGridSize(int size)
 {
-  this->GridSize = size;
+  PointCloud::Ptr prevMap = this->Get();
+
   // Resize voxel grid
+  this->GridSize = size;
   this->Grid.resize(this->GridSize);
   for (int x = 0; x < this->GridSize; x++)
   {
@@ -281,4 +292,21 @@ void RollingGrid::SetGridSize(int size)
   }
   // Clear current voxel grid and allocate new voxels
   this->Clear();
+
+  // Add points back so that they now lie in the right voxel
+  this->Add(prevMap);
+}
+
+//------------------------------------------------------------------------------
+void RollingGrid::SetVoxelResolution(double resolution)
+{
+  this->VoxelResolution = resolution;
+
+  // Round down VoxelGrid center position to be a multiple of resolution
+  this->VoxelGridPosition = (this->VoxelGridPosition / this->VoxelResolution).array().floor().matrix() * this->VoxelResolution;
+
+  // Move points so that they now lie in the right voxel
+  PointCloud::Ptr prevMap = this->Get();
+  this->Clear();
+  this->Add(prevMap);
 }

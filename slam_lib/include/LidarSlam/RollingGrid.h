@@ -68,11 +68,14 @@ public:
   //! Set min and max keypoints bounds of current frame
   void SetMinMaxPoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
 
-  //! Set grid size and clear all points from voxels
+  //! Set grid size (number of voxels in each direction)
+  //! NOTE: this may remove some points from the grid if size is decreased
   void SetGridSize(int size);
   GetMacro(GridSize, int)
 
-  SetMacro(VoxelResolution, double)
+  //! Set voxel resolution (resolution of each voxel, in meters)
+  //! NOTE: this may remove some points from the grid if resolution is decreased
+  void SetVoxelResolution(double resolution);
   GetMacro(VoxelResolution, double)
 
   SetMacro(LeafSize, double)
