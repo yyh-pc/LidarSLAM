@@ -27,31 +27,25 @@
 #include <pcl/filters/voxel_grid.h>
 
 //------------------------------------------------------------------------------
-RollingGrid::RollingGrid()
+RollingGrid::RollingGrid(const Eigen::Vector3d& position)
 {
-  this->Reset();
+  this->Reset(position);
 }
 
 //------------------------------------------------------------------------------
-RollingGrid::RollingGrid(const Eigen::Vector3d& pos)
-{
-  this->Reset();
-
-  // Initialize VoxelGrid center position
-  this->VoxelGridPosition = (pos / this->VoxelResolution).array().floor().cast<int>();
-}
-
-//------------------------------------------------------------------------------
-void RollingGrid::Reset()
+void RollingGrid::Reset(const Eigen::Vector3d& position)
 {
   // Clear/reset empty voxel grid to right size
   this->SetGridSize(this->GridSize);
-  // Reset VoxelGrid center position
-  this->VoxelGridPosition = 0;
+
+  // Initialize VoxelGrid center position
+  // Position is rounded down to be a multiple of resolution
+  this->VoxelGridPosition = (position / this->VoxelResolution).array().floor().matrix() * this->VoxelResolution;
+
   // Reset min and max points of current frame
-  int halfGridSize = std::ceil(this->GridSize / 2);
-  this->MinPoint = -halfGridSize;
-  this->MaxPoint = halfGridSize;
+  double halfGridSize = std::ceil(this->GridSize / 2) * this->VoxelResolution;
+  this->MinPoint = this->VoxelGridPosition.array() - halfGridSize;
+  this->MaxPoint = this->VoxelGridPosition.array() + halfGridSize;
 }
 
 //------------------------------------------------------------------------------
@@ -72,19 +66,15 @@ void RollingGrid::Clear()
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::Roll(const Eigen::Vector3d& T)
+void RollingGrid::Roll(const Eigen::Vector3d& position)
 {
   // Very basic implementation where the grid is not circular.
   // This only moves VoxelGrid so that current frame can entirely fit in rolled map.
 
-  // Compute the position of the new frame center in the grid.
-  Eigen::Array3i frameCenter = (T / this->VoxelResolution).array().floor().cast<int>();
-
-  // Half size of the VoxelGrid, rounded up.
-  int halfGridSize = (this->GridSize + 1) / 2;
+  double halfGridSize = std::ceil(this->GridSize / 2) * this->VoxelResolution;
 
   // Shift the voxel grid to the -X direction.
-  while (frameCenter.x() + this->MinPoint.x() < this->VoxelGridPosition.x() - halfGridSize)
+  while (position.x() + this->MinPoint.x() < this->VoxelGridPosition.x() - halfGridSize)
   {
     for (int y = 0; y < this->GridSize; y++)
     {
@@ -97,11 +87,11 @@ void RollingGrid::Roll(const Eigen::Vector3d& T)
         this->Grid[0][y][z].reset(new PointCloud());
       }
     }
-    this->VoxelGridPosition.x()--;
+    this->VoxelGridPosition.x() -= this->VoxelResolution;
   }
 
   // Shift the voxel grid to the +X direction.
-  while (frameCenter.x() + this->MaxPoint.x() > this->VoxelGridPosition.x() + halfGridSize)
+  while (position.x() + this->MaxPoint.x() > this->VoxelGridPosition.x() + halfGridSize)
   {
     for (int y = 0; y < this->GridSize; y++)
     {
@@ -114,11 +104,11 @@ void RollingGrid::Roll(const Eigen::Vector3d& T)
         this->Grid[this->GridSize - 1][y][z].reset(new PointCloud());
       }
     }
-    this->VoxelGridPosition.x()++;
+    this->VoxelGridPosition.x() += this->VoxelResolution;
   }
 
   // Shift the voxel grid to the -Y direction.
-  while (frameCenter.y() + this->MinPoint.y() < this->VoxelGridPosition.y() - halfGridSize)
+  while (position.y() + this->MinPoint.y() < this->VoxelGridPosition.y() - halfGridSize)
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -131,11 +121,11 @@ void RollingGrid::Roll(const Eigen::Vector3d& T)
         this->Grid[x][0][z].reset(new PointCloud());
       }
     }
-    this->VoxelGridPosition.y()--;
+    this->VoxelGridPosition.y() -= this->VoxelResolution;
   }
 
   // Shift the voxel grid to the +Y direction.
-  while (frameCenter.y() + this->MaxPoint.y() > this->VoxelGridPosition.y() + halfGridSize)
+  while (position.y() + this->MaxPoint.y() > this->VoxelGridPosition.y() + halfGridSize)
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -148,11 +138,11 @@ void RollingGrid::Roll(const Eigen::Vector3d& T)
         this->Grid[x][this->GridSize - 1][z].reset(new PointCloud());
       }
     }
-    this->VoxelGridPosition.y()++;
+    this->VoxelGridPosition.y() += this->VoxelResolution;
   }
 
   // Shift the voxel grid to the -Z direction.
-  while (frameCenter.z() + this->MinPoint.z() < this->VoxelGridPosition.z() - halfGridSize)
+  while (position.z() + this->MinPoint.z() < this->VoxelGridPosition.z() - halfGridSize)
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -165,11 +155,11 @@ void RollingGrid::Roll(const Eigen::Vector3d& T)
         this->Grid[x][y][0].reset(new PointCloud());
       }
     }
-    this->VoxelGridPosition.z()--;
+    this->VoxelGridPosition.z() -= this->VoxelResolution;
   }
 
   // Shift the voxel grid to the +Z direction.
-  while (frameCenter.z() + this->MaxPoint.z() > this->VoxelGridPosition.z() + halfGridSize)
+  while (position.z() + this->MaxPoint.z() > this->VoxelGridPosition.z() + halfGridSize)
   {
     for (int x = 0; x < this->GridSize; x++)
     {
@@ -182,20 +172,19 @@ void RollingGrid::Roll(const Eigen::Vector3d& T)
         this->Grid[x][y][this->GridSize - 1].reset(new PointCloud());
       }
     }
-    this->VoxelGridPosition.z()++;
+    this->VoxelGridPosition.z() += this->VoxelResolution;
   }
 }
 
 //------------------------------------------------------------------------------
-RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Vector3d& T) const
+RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Vector3d& position) const
 {
   // Compute the position of the new frame center in the grid
-  Eigen::Array3i frameCenter = (T / this->VoxelResolution).array().floor().cast<int>()
-                                - (this->VoxelGridPosition - this->GridSize / 2);
+  Eigen::Array3i frameCenter = this->PositionToVoxel(position) - this->PositionToVoxel(this->VoxelGridPosition) + this->GridSize / 2;
 
   // Get sub-VoxelGrid bounds
-  Eigen::Array3i intersectionMin = (frameCenter + this->MinPoint).max(0);
-  Eigen::Array3i intersectionMax = (frameCenter + this->MaxPoint).min(this->GridSize - 1);
+  Eigen::Array3i intersectionMin = (frameCenter + this->PositionToVoxel(this->MinPoint)).max(0);
+  Eigen::Array3i intersectionMax = (frameCenter + this->PositionToVoxel(this->MaxPoint)).min(this->GridSize - 1);
 
   // Get all voxel in intersection
   PointCloud::Ptr intersection(new PointCloud);
@@ -233,14 +222,14 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud)
   std::vector<std::vector<std::vector<uint8_t>>> voxelToFilter(
     this->GridSize, std::vector<std::vector<uint8_t>>(this->GridSize, std::vector<uint8_t>(this->GridSize, 0)));
 
-  // Compute the position of the origin of the VoxelGrid
-  Eigen::Array3i voxelGridOrigin = this->VoxelGridPosition - this->GridSize / 2;
+  // Compute the "position" of the lowest cell of the VoxelGrid in voxels dimensions
+  Eigen::Array3i voxelGridOrigin = this->PositionToVoxel(this->VoxelGridPosition) - this->GridSize / 2;
 
   // Add points in the rolling grid
   for (const Point& point : *pointcloud)
   {
     // Find the voxel containing this point
-    Eigen::Array3i cubeIdx = (point.getArray3fMap() / this->VoxelResolution).floor().cast<int>() - voxelGridOrigin;
+    Eigen::Array3i cubeIdx = this->PositionToVoxel(point.getArray3fMap()) - voxelGridOrigin;
 
     // Add point to grid if it is indeed within bounds
     if (((0 <= cubeIdx) && (cubeIdx < this->GridSize)).all())
@@ -274,8 +263,8 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud)
 //------------------------------------------------------------------------------
 void RollingGrid::SetMinMaxPoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint)
 {
-  this->MinPoint = (minPoint / this->VoxelResolution).floor().cast<int>();
-  this->MaxPoint = (maxPoint / this->VoxelResolution).ceil().cast<int>();
+  this->MinPoint = minPoint;
+  this->MaxPoint = maxPoint;
 }
 
 //------------------------------------------------------------------------------
