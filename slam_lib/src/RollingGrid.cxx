@@ -26,17 +26,23 @@
 #endif
 #include <pcl/filters/voxel_grid.h>
 
+namespace
+{
+  template<typename T>
+  RollingGrid::Grid3D<T> InitGrid3D(unsigned int size, T defaultValue = T())
+  {
+    return RollingGrid::Grid3D<T>(size,
+                                  std::vector<std::vector<T>>(size,
+                                                              std::vector<T>(size,
+                                                                             defaultValue)));
+  }
+}
+
 //------------------------------------------------------------------------------
 RollingGrid::RollingGrid(const Eigen::Vector3d& position)
 {
   // Create rolling grid
-  this->Grid.resize(this->GridSize);
-  for (int x = 0; x < this->GridSize; x++)
-  {
-    this->Grid[x].resize(this->GridSize);
-    for (int y = 0; y < this->GridSize; y++)
-      this->Grid[x][y].resize(this->GridSize);
-  }
+  this->Grid = InitGrid3D<PointCloud::Ptr>(this->GridSize);
 
   this->Reset(position);
 }
@@ -228,8 +234,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud)
   }
 
   // Voxels to filter because new points were added
-  std::vector<std::vector<std::vector<uint8_t>>> voxelToFilter(
-    this->GridSize, std::vector<std::vector<uint8_t>>(this->GridSize, std::vector<uint8_t>(this->GridSize, 0)));
+  Grid3D<uint8_t> voxelToFilter = InitGrid3D<uint8_t>(this->GridSize, 0);
 
   // Compute the "position" of the lowest cell of the VoxelGrid in voxels dimensions
   Eigen::Array3i voxelGridOrigin = this->PositionToVoxel(this->VoxelGridPosition) - this->GridSize / 2;
@@ -259,7 +264,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud)
       {
         if (voxelToFilter[x][y][z])
         {
-          PointCloud::Ptr tmp(new PointCloud());
+          PointCloud::Ptr tmp(new PointCloud);
           downSizeFilter.setInputCloud(this->Grid[x][y][z]);
           downSizeFilter.filter(*tmp);
           this->Grid[x][y][z] = tmp;
@@ -283,13 +288,7 @@ void RollingGrid::SetGridSize(int size)
 
   // Resize voxel grid
   this->GridSize = size;
-  this->Grid.resize(this->GridSize);
-  for (int x = 0; x < this->GridSize; x++)
-  {
-    this->Grid[x].resize(this->GridSize);
-    for (int y = 0; y < this->GridSize; y++)
-      this->Grid[x][y].resize(this->GridSize);
-  }
+  this->Grid = InitGrid3D<PointCloud::Ptr>(this->GridSize);
   // Clear current voxel grid and allocate new voxels
   this->Clear();
 

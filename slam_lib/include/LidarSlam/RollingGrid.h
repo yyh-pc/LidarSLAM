@@ -44,6 +44,11 @@ public:
   using Point = PointXYZTIId;
   using PointCloud = pcl::PointCloud<Point>;
 
+  template<typename T>
+  using Grid3D = std::vector<std::vector<std::vector<T>>>;
+
+  //----------------------------------------------------------------------------
+
   //! Init a Rolling grid centered near a given position
   RollingGrid(const Eigen::Vector3d& position = Eigen::Vector3d::Zero());
 
@@ -93,7 +98,7 @@ private:
   double LeafSize = 0.2;
 
   //! VoxelGrid of pointcloud
-  std::vector<std::vector<std::vector<PointCloud::Ptr>>> Grid;
+  Grid3D<PointCloud::Ptr> Grid;
 
   //! [m, m, m] Current position of the center of the VoxelGrid
   Eigen::Vector3d VoxelGridPosition;
