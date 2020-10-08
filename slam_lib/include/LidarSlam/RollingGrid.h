@@ -47,7 +47,9 @@ public:
   template<typename T>
   using Grid3D = std::vector<std::vector<std::vector<T>>>;
 
-  //----------------------------------------------------------------------------
+  //============================================================================
+  //   Initialization and parameters setters
+  //============================================================================
 
   //! Init a Rolling grid centered near a given position
   RollingGrid(const Eigen::Vector3d& position = Eigen::Vector3d::Zero());
@@ -55,23 +57,8 @@ public:
   //! Reset map (clear voxels, reset position, ...)
   void Reset(const Eigen::Vector3d& position = Eigen::Vector3d::Zero());
 
-  //! Roll the grid to enable adding new point cloud
-  void Roll(const Eigen::Vector3d& position);
-
-  //! Get points near position
-  PointCloud::Ptr Get(const Eigen::Vector3d& position) const;
-
-  //! Get all points
-  PointCloud::Ptr Get() const;
-
-  //! Add some points to the grid
-  void Add(const PointCloud::Ptr& pointcloud);
-
   //! Remove all points from all voxels
   void Clear();
-
-  //! Set min and max keypoints bounds of current frame
-  void SetMinMaxPoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
 
   //! Set grid size (number of voxels in each direction)
   //! NOTE: this may remove some points from the grid if size is decreased
@@ -85,6 +72,29 @@ public:
 
   SetMacro(LeafSize, double)
   GetMacro(LeafSize, double)
+
+  //============================================================================
+  //   Main use
+  //============================================================================
+
+  //! Set min and max keypoints bounds of current frame (relative bounds)
+  void SetMinMaxPoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
+
+  //! Get points near position (absolute position), within current Min and Max bounds
+  PointCloud::Ptr Get(const Eigen::Vector3d& position) const;
+
+  //! Get all points
+  PointCloud::Ptr Get() const;
+
+  //! Roll the grid to enable adding new point cloud
+  void Roll(const Eigen::Vector3d& position);
+
+  //! Add some points to the grid
+  void Add(const PointCloud::Ptr& pointcloud);
+
+  //============================================================================
+  //   Attributes and helper methods
+  //============================================================================
 
 private:
 
