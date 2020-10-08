@@ -101,7 +101,7 @@ private:
   Grid3D<PointCloud::Ptr> Grid;
 
   //! [m, m, m] Current position of the center of the VoxelGrid
-  Eigen::Vector3d VoxelGridPosition;
+  Eigen::Array3d VoxelGridPosition;
 
   //! [m] Minimum and maximum keypoints coordinates in voxel grid
   Eigen::Array3d MinPoint, MaxPoint;
@@ -110,7 +110,7 @@ private:
 
   //! Compute the voxel coordinates in which fits a point
   template<typename T>
-  Eigen::Array3i PositionToVoxel(const T& position) const
+  inline Eigen::Array3i PositionToVoxel(const T& position) const
   {
     return (position / this->VoxelResolution).array().floor().template cast<int>();
   }
