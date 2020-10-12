@@ -183,7 +183,8 @@ void Slam::Reset(bool resetLog)
   this->LocalizationEdgesPointsUsed = 0;
   this->LocalizationPlanesPointsUsed = 0;
   this->LocalizationBlobsPointsUsed = 0;
-  this->LocalizationVarianceError = 0.;
+  this->LocalizationPositionError = 0.;
+  this->LocalizationOrientationError = 0.;
 
   // Reset log history
   if (resetLog)
@@ -568,12 +569,13 @@ std::vector<std::array<double, 36>> Slam::GetCovariances() const
 std::unordered_map<std::string, double> Slam::GetDebugInformation() const
 {
   std::unordered_map<std::string, double> map;
-  map["EgoMotion: edges used"]   = this->EgoMotionEdgesPointsUsed;
-  map["EgoMotion: planes used"]  = this->EgoMotionPlanesPointsUsed;
-  map["Localization: edges used"]     = this->LocalizationEdgesPointsUsed;
-  map["Localization: planes used"]    = this->LocalizationPlanesPointsUsed;
-  map["Localization: blobs used"]     = this->LocalizationBlobsPointsUsed;
-  map["Localization: variance error"] = this->LocalizationVarianceError;
+  map["EgoMotion: edges used"]           = this->EgoMotionEdgesPointsUsed;
+  map["EgoMotion: planes used"]          = this->EgoMotionPlanesPointsUsed;
+  map["Localization: edges used"]        = this->LocalizationEdgesPointsUsed;
+  map["Localization: planes used"]       = this->LocalizationPlanesPointsUsed;
+  map["Localization: blobs used"]        = this->LocalizationBlobsPointsUsed;
+  map["Localization: position error"]    = this->LocalizationPositionError;
+  map["Localization: orientation error"] = this->LocalizationOrientationError;
   return map;
 }
 
@@ -1145,17 +1147,23 @@ void Slam::Localization()
 
   IF_VERBOSE(3, StopTimeAndDisplay("Localization : whole ICP-LM loop"));
 
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix6d> eig(this->TworldCovariance);
-  Eigen::Vector6d D = eig.eigenvalues();
-  this->LocalizationVarianceError = D(5);
+  // Estimate worst position and orientation errors from estimated covariance
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigOrientation(this->TworldCovariance.topLeftCorner<3, 3>());
+  this->LocalizationOrientationError = Rad2Deg(std::sqrt(eigOrientation.eigenvalues()(2)));
+  const Eigen::Vector3d& orientationErrorAxis = eigOrientation.eigenvectors().col(2);
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigPosition(this->TworldCovariance.bottomRightCorner<3, 3>());
+  this->LocalizationPositionError = std::sqrt(eigPosition.eigenvalues()(2));
+  const Eigen::Vector3d& positionErrorAxis = eigPosition.eigenvectors().col(2);
 
+  // Optionally print localization optimization summary
+  SET_COUT_FIXED_PRECISION(3);
   PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " ("
                    << this->LocalizationEdgesPointsUsed  << " edges, "
                    << this->LocalizationPlanesPointsUsed << " planes, "
                    << this->LocalizationBlobsPointsUsed  << " blobs)."
-                   "\nCovariance eigen values: " << D.transpose() <<
-                   "\nMaximum variance eigen vector: " << eig.eigenvectors().col(5).transpose() <<
-                   "\nMaximum variance: " << D(5));
+                   "\nPosition uncertainty    = " << this->LocalizationPositionError    << " m (along [" << positionErrorAxis.transpose()    << "])"
+                   "\nOrientation uncertainty = " << this->LocalizationOrientationError << " ° (along [" << orientationErrorAxis.transpose() << "])");
+  RESET_COUT_FIXED_PRECISION;
 }
 
 //-----------------------------------------------------------------------------
