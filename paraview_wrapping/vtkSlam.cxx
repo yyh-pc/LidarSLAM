@@ -234,7 +234,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     static vtkPolyData* cacheEdgeMap = vtkPolyData::New();
     static vtkPolyData* cachePlanarMap = vtkPolyData::New();
     static vtkPolyData* cacheBlobMap = vtkPolyData::New();
-    if (this->SlamAlgo->GetNbrFrameProcessed() % this->MapsUpdateStep == 0)
+    if ((this->SlamAlgo->GetNbrFrameProcessed() - 1) % this->MapsUpdateStep == 0)
     {
       PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), cacheEdgeMap);
       PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), cachePlanarMap);

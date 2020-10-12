@@ -44,40 +44,57 @@ public:
   using Point = PointXYZTIId;
   using PointCloud = pcl::PointCloud<Point>;
 
-  RollingGrid();
+  template<typename T>
+  using Grid3D = std::vector<std::vector<std::vector<T>>>;
 
-  RollingGrid(const Eigen::Vector3d& pos);
+  //============================================================================
+  //   Initialization and parameters setters
+  //============================================================================
 
-  //! Roll the grid to enable adding new point cloud
-  void Roll(const Eigen::Vector3d& T);
+  //! Init a Rolling grid centered near a given position
+  RollingGrid(const Eigen::Vector3d& position = Eigen::Vector3d::Zero());
 
-  //! Get points near T
-  PointCloud::Ptr Get(const Eigen::Vector3d& T) const;
-
-  //! Get all points
-  PointCloud::Ptr Get() const;
-
-  //! Add some points to the grid
-  void Add(const PointCloud::Ptr& pointcloud);
+  //! Reset map (clear voxels, reset position, ...)
+  void Reset(const Eigen::Vector3d& position = Eigen::Vector3d::Zero());
 
   //! Remove all points from all voxels
   void Clear();
 
-  //! Reset map (clear voxels, reset position, ...)
-  void Reset();
-
-  //! Set min and max keypoints bounds of current frame
-  void SetMinMaxPoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
-
-  //! Set grid size and clear all points from voxels
+  //! Set grid size (number of voxels in each direction)
+  //! NOTE: this may remove some points from the grid if size is decreased
   void SetGridSize(int size);
   GetMacro(GridSize, int)
 
-  SetMacro(VoxelResolution, double)
+  //! Set voxel resolution (resolution of each voxel, in meters)
+  //! NOTE: this may remove some points from the grid if resolution is decreased
+  void SetVoxelResolution(double resolution);
   GetMacro(VoxelResolution, double)
 
   SetMacro(LeafSize, double)
   GetMacro(LeafSize, double)
+
+  //============================================================================
+  //   Main use
+  //============================================================================
+
+  //! Set min and max keypoints bounds of current frame (relative bounds)
+  void SetMinMaxPoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
+
+  //! Get points near position (absolute position), within current Min and Max bounds
+  PointCloud::Ptr Get(const Eigen::Vector3d& position) const;
+
+  //! Get all points
+  PointCloud::Ptr Get() const;
+
+  //! Roll the grid to enable adding new point cloud
+  void Roll(const Eigen::Vector3d& position);
+
+  //! Add some points to the grid
+  void Add(const PointCloud::Ptr& pointcloud);
+
+  //============================================================================
+  //   Attributes and helper methods
+  //============================================================================
 
 private:
 
@@ -91,13 +108,22 @@ private:
   double LeafSize = 0.2;
 
   //! VoxelGrid of pointcloud
-  std::vector<std::vector<std::vector<PointCloud::Ptr>>> Grid;
+  Grid3D<PointCloud::Ptr> Grid;
 
-  //! [voxel, voxel, voxel] Current position of the center of the VoxelGrid
-  Eigen::Array3i VoxelGridPosition;
+  //! [m, m, m] Current position of the center of the VoxelGrid
+  Eigen::Array3d VoxelGridPosition;
 
-  //! [voxels] Minimum and maximum keypoints coordinates in voxel grid
-  Eigen::Array3i MinPoint, MaxPoint;
+  //! [m] Minimum and maximum keypoints coordinates in voxel grid
+  Eigen::Array3d MinPoint, MaxPoint;
+
+private:
+
+  //! Compute the voxel coordinates in which fits a point
+  template<typename T>
+  inline Eigen::Array3i PositionToVoxel(const T& position) const
+  {
+    return (position / this->VoxelResolution).array().floor().template cast<int>();
+  }
 };
 
 #endif  // ROLLING_GRID_H
