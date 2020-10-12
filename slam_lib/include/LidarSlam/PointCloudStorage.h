@@ -210,16 +210,16 @@ struct OctreeCompressedPointCloud final : public PointCloudData<PointT>
       compression.decodePointCloud(this->CompressedData, cloud);
     #endif
     // Set back compressed data read position to beginning (missing in OctreePointCloudCompression::decodePointCloud())
-    this->CompressedData.seekg(0, ios::beg);
+    this->CompressedData.seekg(0, std::ios::beg);
     return cloud;
   }
 
   size_t GetMemorySize() override
   {
     std::streampos current = this->CompressedData.tellp();
-    this->CompressedData.seekp(0, ios::end);
+    this->CompressedData.seekp(0, std::ios::end);
     size_t size = this->CompressedData.tellp();
-    this->CompressedData.seekp(current, ios::beg);
+    this->CompressedData.seekp(current, std::ios::beg);
     return size;
   }
 
