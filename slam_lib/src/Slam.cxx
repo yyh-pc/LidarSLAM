@@ -1804,11 +1804,13 @@ Eigen::Isometry3d Slam::InterpolateBeginScanPose()
     const double prevFrameEnd = this->LogTrajectory.back().time;
     const double currFrameEnd = PclStampToSec(this->CurrentFrame->header.stamp);
     const double currFrameStart = currFrameEnd - this->FrameDuration;
-    if (prevFrameEnd < currFrameStart && currFrameStart < currFrameEnd)
+    // Check that time is roughly increasing and that there is no time jump
+    // during current frame (which would lead to huge FrameDuration)
+    if (prevFrameEnd < currFrameEnd && this->FrameDuration < 2 * (currFrameEnd - prevFrameEnd))
       return LinearInterpolation(this->PreviousTworld, this->Tworld, currFrameStart, prevFrameEnd, currFrameEnd);
     else
     {
-      std::cerr << "[WARNING] Motion interpolation skipped as time is not strictly increasing.\n";
+      std::cerr << "[WARNING] Motion interpolation skipped as time is not increasing.\n";
       return this->Tworld;
     }
   }
