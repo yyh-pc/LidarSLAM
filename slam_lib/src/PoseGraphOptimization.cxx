@@ -99,7 +99,7 @@ void PoseGraphOptimization::SetGpsToSensorCalibration(const Eigen::Isometry3d& g
   if (sensorToGpsCalibration)
     sensorToGpsCalibration->setOffset(gpsToSensor.inverse());
   else
-    std::cerr << "[ERROR] The first g2o parameter is not an SO3 Offset" << std::endl;
+    PRINT_ERROR("The first g2o parameter is not an SO3 Offset");
 }
 
 //------------------------------------------------------------------------------
@@ -115,9 +115,8 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   // Check input vector sizes (at least 2 elements)
   if ((nbSlamPoses < 2) || (nbGpsPoses < 2))
   {
-    std::cerr << "[ERROR] SLAM and GPS trajectories must have at least 2 points "
-              << "(Got " << nbSlamPoses << " SLAM poses and " << nbGpsPoses << " GPS positions)."
-              << std::endl;
+    PRINT_ERROR("SLAM and GPS trajectories must have at least 2 points "
+                "(Got " << nbSlamPoses << " SLAM poses and " << nbGpsPoses << " GPS positions).");
     return false;
   }
 
@@ -130,10 +129,10 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   if (!checkInterval(gpsInitTime, slamInitTime, slamEndTime) &&
       !checkInterval(slamInitTime, gpsInitTime, gpsEndTime))
   {
-    std::cerr << "[ERROR] Slam time and GPS time do not match. "
-              << "GPS = ("<< gpsInitTime << ", " << gpsEndTime << "); "
-              << "SLAM = ("<< slamInitTime << ", " << slamEndTime << "). "
-              << "Please indicate the time offset." << std::endl;
+    PRINT_ERROR("Slam time and GPS time do not match. "
+                "GPS = ("<< gpsInitTime << ", " << gpsEndTime << "); "
+                "SLAM = ("<< slamInitTime << ", " << slamEndTime << "). "
+                "Please indicate the time offset.");
     return false;
   }
 
@@ -161,7 +160,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
     if (!G2OFileName.empty())
       this->GraphOptimizer.save(G2OFileName.c_str());
     else
-      std::cerr << "[WARNING] Could not save the g2o graph. Please specify a filename." << std::endl;
+      PRINT_WARNING("Could not save the g2o graph. Please specify a filename.");
   }
 
   // Print debug info
@@ -177,7 +176,7 @@ bool PoseGraphOptimization::Process(const std::vector<Transform>& slamPoses,
   // Optimize the graph
   if (!this->GraphOptimizer.initializeOptimization())
   {
-    std::cerr << "[ERROR] Pose graph initialization failed !" << std::endl;
+    PRINT_ERROR("Pose graph initialization failed !");
     return false;
   }
   int iterations = this->GraphOptimizer.optimize(this->NbIteration);

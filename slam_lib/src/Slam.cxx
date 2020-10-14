@@ -205,15 +205,14 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   // Skip frame if empty
   if (pc->empty())
   {
-    std::cerr << "[ERROR] SLAM entry is an empty pointcloud : frame ignored.\n";
+    PRINT_ERROR("SLAM entry is an empty pointcloud : frame ignored.");
     return;
   }
 
   // Skip frame if it has the same timestamp as previous one (will induce problems in extrapolation)
   if (pc->header.stamp == this->CurrentFrame->header.stamp)
   {
-    std::cerr << "[ERROR] SLAM entry has the same timestamp (" << pc->header.stamp 
-              << ") as previous pointcloud : frame ignored." << std::endl;
+    PRINT_ERROR("SLAM entry has the same timestamp (" << pc->header.stamp << ") as previous pointcloud : frame ignored.");
     return;
   }
 
@@ -343,9 +342,9 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
 
   if (this->LoggingTimeout == 0.)
   {
-    std::cerr << "[WARNING] SLAM logging is not enabled : covariances will be "
-                 "arbitrarly set and maps will not be optimized during pose "
-                 "graph optimization.\n";
+    PRINT_WARNING("SLAM logging is not enabled : covariances will be "
+                  "arbitrarly set and maps will not be optimized during pose "
+                  "graph optimization.");
 
     // Set all poses covariances equal to twice the last one if we did not log it
     std::array<double, 36> fakeSlamCovariance = FlipAndConvertCovariance(this->TworldCovariance * 2);
@@ -368,7 +367,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                      slamCovariances, gpsCovariances,
                                      optimizedSlamPoses))
   {
-    std::cerr << "[ERROR] Pose graph optimization failed.\n";
+    PRINT_ERROR("Pose graph optimization failed.");
     return;
   }
 
@@ -434,7 +433,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   #else
   #define UNUSED(var) (void)(var)
   UNUSED(gpsPositions); UNUSED(gpsCovariances); UNUSED(gpsToSensorOffset); UNUSED(g2oFileName);
-  std::cerr << "[ERROR] SLAM PoseGraphOptimization requires G2O, but it was not found.\n";
+  PRINT_ERROR("SLAM PoseGraphOptimization requires G2O, but it was not found.");
   #endif  // USE_G2O
 }
 
@@ -528,13 +527,13 @@ Transform Slam::GetLatencyCompensatedWorldTransform() const
   // If timestamps are not defined or too close, extrapolation is impossible.
   if (std::abs(current.time - previous.time) < 1e-6)
   {
-    std::cerr << "[WARNING] Unable to compute latency-compensated transform : timestamps undefined or too close.\n";
+    PRINT_WARNING("Unable to compute latency-compensated transform : timestamps undefined or too close.");
     return current;
   }
   // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
   if (std::abs(this->Latency / (current.time - previous.time)) > MAX_EXTRAPOLATION_RATIO)
   {
-    std::cerr << "[WARNING] Unable to compute latency-compensated transform : extrapolation time is too far.\n";
+    PRINT_WARNING("Unable to compute latency-compensated transform : extrapolation time is too far.");
     return current;
   }
 
@@ -675,7 +674,7 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
   // Check frame dropping
   unsigned int droppedFrames = inputPc->header.seq - this->PreviousFrameSeq - 1;
   if ((this->PreviousFrameSeq > 0) && (droppedFrames > 0))
-    std::cerr << "[WARNING] SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s" : "") << ".\n\n";
+    PRINT_WARNING("SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s" : "") << ".\n");
   this->PreviousFrameSeq = inputPc->header.seq;
 
   // Estimate world pose at current time
@@ -693,7 +692,7 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
     if (t0 < t1 && t1 < t)
       TworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
     else
-      std::cerr << "[WARNING] Motion extrapolation skipped as time is not strictly increasing.\n";
+      PRINT_WARNING("Motion extrapolation skipped as time is not strictly increasing.");
   }
   this->PreviousTworld = this->Tworld;
   this->Tworld = TworldEstimation;
@@ -864,7 +863,7 @@ void Slam::ComputeEgoMotion()
     // Skip this frame if there are too few geometric keypoints matched
     if ((this->EgoMotionEdgesPointsUsed + this->EgoMotionPlanesPointsUsed) < this->MinNbrMatchedKeypoints)
     {
-      std::cerr << "[WARNING] Not enough keypoints, EgoMotion skipped for this frame.\n";
+      PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
       break;
     }
 
@@ -1050,7 +1049,7 @@ void Slam::Localization()
       this->TworldFrameStart = this->Tworld;
       this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
       this->TworldCovariance = Eigen::Matrix6d::Identity();
-      std::cerr << "[ERROR] Not enough keypoints, Localization skipped for this frame.\n";
+      PRINT_ERROR("Not enough keypoints, Localization skipped for this frame.");
       break;
     }
 
@@ -1810,7 +1809,7 @@ Eigen::Isometry3d Slam::InterpolateBeginScanPose()
       return LinearInterpolation(this->PreviousTworld, this->Tworld, currFrameStart, prevFrameEnd, currFrameEnd);
     else
     {
-      std::cerr << "[WARNING] Motion interpolation skipped as time is not increasing.\n";
+      PRINT_WARNING("Motion interpolation skipped as time is not increasing.");
       return this->Tworld;
     }
   }

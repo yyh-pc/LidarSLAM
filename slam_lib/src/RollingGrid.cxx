@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include "LidarSlam/RollingGrid.h"
+#include "LidarSlam/Utilities.h"
 
 // A new PCL Point is added so we need to recompile PCL to be able to use
 // filters (pcl::VoxelGrid) with this new type
@@ -284,7 +285,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud)
 {
   if (pointcloud->empty())
   {
-    std::cerr << "[WARNING] Pointcloud is empty, voxel grid not updated.\n";
+    PRINT_WARNING("Pointcloud is empty, voxel grid not updated.");
     return;
   }
 
