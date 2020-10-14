@@ -24,7 +24,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/Path.h>
 
-#define GREEN(s) "\033[1;32m" << s << "\033[0m"
+#define BOLD_GREEN(s) "\033[1;32m" << s << "\033[0m"
 
 enum Output
 {
@@ -129,7 +129,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   if (this->UseGps)
     this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
 
-  ROS_INFO_STREAM(GREEN("LiDAR SLAM is ready !"));
+  ROS_INFO_STREAM(BOLD_GREEN("LiDAR SLAM is ready !"));
 }
 
 //------------------------------------------------------------------------------
@@ -376,7 +376,7 @@ void LidarSlamNode::GpsSlamCalibration()
 
   Eigen::Vector3d xyz = worldToOdom.translation();
   Eigen::Vector3d ypr = RotationMatrixToRPY(worldToOdom.linear());
-  ROS_INFO_STREAM(GREEN("Global transform from '" << gpsFrameId << "' to '" << this->OdometryFrameId << "' " <<
+  ROS_INFO_STREAM(BOLD_GREEN("Global transform from '" << gpsFrameId << "' to '" << this->OdometryFrameId << "' " <<
                   "successfully estimated to :\n" << worldToOdom.matrix() << "\n" <<
                   "(tf2 static transform : " << xyz.transpose() << " " << ypr.transpose() << " " << gpsFrameId << " " << this->OdometryFrameId << ")"));
 }
