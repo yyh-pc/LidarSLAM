@@ -50,38 +50,19 @@
   std::cout << std::setprecision(ss);                        \
   std::cout.unsetf(std::ios::fixed | std::ios_base::floatfield);
 
-// Print with colors
-#ifdef __unix__
-  #define DEFAULT "\033[0m"
-  #define RED     "\033[31m"
-  #define GREEN   "\033[32m"
-  #define YELLOW  "\033[33m"
-  #define BLUE    "\033[34m"
-  #define MAGENTA "\033[35m"
-  #define CYAN    "\033[36m"
-  #define GRAY    "\033[37m"
-
-  #define SET_COUT_COLOR(color) std::cout << color;
-  #define SET_CERR_COLOR(color) std::cerr << color;
-
-#elif defined(_WIN32)
-  #include <windows.h>
-  #define DEFAULT 7
-  #define RED     4
-  #define GREEN   2
-  #define YELLOW  6
-  #define BLUE    1
-  #define MAGENTA 5
-  #define CYAN    3
-  #define GRAY    8
-
-  #define SET_COUT_COLOR(color) SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
-  #define SET_CERR_COLOR(color) SetConsoleTextAttribute(GetStdHandle(STD_ERROR_HANDLE), color);
-#endif
-
-#define PRINT_COLOR(color, s) {SET_COUT_COLOR(color); std::cout << s << std::endl; SET_COUT_COLOR(DEFAULT)};
-#define PRINT_WARNING(s) {SET_CERR_COLOR(YELLOW); std::cerr << "[WARNING] " << s << std::endl; SET_CERR_COLOR(DEFAULT)};
-#define PRINT_ERROR(s)   {SET_CERR_COLOR(RED);    std::cerr << "[ERROR] "   << s << std::endl; SET_CERR_COLOR(DEFAULT)};
+// Print with colors on terminals that support ANSI color codes
+// (Supported by UNIX systems and from Windows 10)
+#define DEFAULT "\033[0m"
+#define RED     "\033[31m"
+#define GREEN   "\033[32m"
+#define YELLOW  "\033[33m"
+#define BLUE    "\033[34m"
+#define MAGENTA "\033[35m"
+#define CYAN    "\033[36m"
+#define GRAY    "\033[37m"
+#define PRINT_COLOR(color, s) std::cout << color << s << DEFAULT << std::endl;
+#define PRINT_WARNING(s) std::cerr << YELLOW << "[WARNING] " << s << DEFAULT << std::endl;
+#define PRINT_ERROR(s)   std::cerr << RED    << "[ERROR] "   << s << DEFAULT << std::endl;
 
 namespace Eigen
 {
