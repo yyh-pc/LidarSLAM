@@ -97,7 +97,8 @@ void RollingGrid::SetGridSize(int size)
   this->Clear();
 
   // Add points back so that they now lie in the right voxel
-  this->Add(prevMap);
+  if (!prevMap->empty())
+    this->Add(prevMap);
 }
 
 //------------------------------------------------------------------------------
@@ -111,7 +112,8 @@ void RollingGrid::SetVoxelResolution(double resolution)
   // Move points so that they now lie in the right voxel
   PointCloud::Ptr prevMap = this->Get();
   this->Clear();
-  this->Add(prevMap);
+  if (!prevMap->empty())
+    this->Add(prevMap);
 }
 
 //==============================================================================
