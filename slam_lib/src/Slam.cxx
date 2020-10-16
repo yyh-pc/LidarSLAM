@@ -128,6 +128,66 @@ void LoggedKeypointsSize(const std::deque<PointCloudStorage<Slam::Point>>& log, 
 }
 }
 
+struct Slam::OptimizationProblem
+{
+  // The problem to build and optimize
+  ceres::Problem Problem;
+  double LossScale;
+
+  // The Ceres residuals to use depending on undistortion mode
+  using RigidResidual = CostFunctions::MahalanobisDistanceAffineIsometryResidual;
+  using UndistortionResidual = CostFunctions::MahalanobisDistanceInterpolatedMotionResidual;
+  UndistortionMode Undistortion;
+
+  // DoF to optimize
+  Eigen::Vector6d EndPoseArray;    ///< Pose at the end of frame (RPYXYZ)
+  Eigen::Vector6d StartPoseArray;  ///< Pose at the beginning of frame (RPYXYZ), only used if undistortion is enabled
+
+  //----------------------------------------------------------------------------
+  // Add an ICP match residual.
+  // To recover the motion, we have to minimize the function
+  //   f(R, T) = sum(d(point, line)^2) + sum(d(point, plane)^2) + sum(d(point, blob)^2)
+  // In all cases, the distance between the point and the line/plane/blob can be written :
+  //    (R * X + T - P).t * A * (R * X + T - P)
+  // Where :
+  // - X is the key point
+  // - P is a point of the line/plane/blob
+  // - A is the distance operator, A = (n*n.t) for a plane with n being the normal
+  //   and A = (I - n*n.t)^2 for a line with n being a director vector of the line.
+  // - time store the time acquisition (used only if undistortion is enabled)
+  // - weight will attenuate the distance function for outliers
+  void AddIcpResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double time, double weight)
+  {
+    if (this->Undistortion == UndistortionMode::OPTIMIZED)
+    {
+      ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<OptimizationProblem::UndistortionResidual, 1, 6, 6>(
+                                            new OptimizationProblem::UndistortionResidual(A, P, X, time, weight));
+      this->Problem.AddResidualBlock(cost_function,
+                                     new ceres::ScaledLoss(new ceres::ArctanLoss(this->LossScale), weight, ceres::TAKE_OWNERSHIP),
+                                     this->StartPoseArray.data(), this->EndPoseArray.data());
+    }
+    else
+    {
+      ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<OptimizationProblem::RigidResidual, 1, 6>(
+                                            new OptimizationProblem::RigidResidual(A, P, X, weight));
+      this->Problem.AddResidualBlock(cost_function,
+                                     new ceres::ScaledLoss(new ceres::ArctanLoss(this->LossScale), weight, ceres::TAKE_OWNERSHIP),
+                                     this->EndPoseArray.data());
+    }
+  }
+
+  //----------------------------------------------------------------------------
+  void Solve(ceres::Solver::Summary& summary, unsigned int maxIter, int nbThreads)
+  {
+    ceres::Solver::Options options;
+    options.max_num_iterations = maxIter;
+    options.linear_solver_type = ceres::DENSE_QR;  // TODO : try also DENSE_NORMAL_CHOLESKY or SPARSE_NORMAL_CHOLESKY
+    options.minimizer_progress_to_stdout = false;
+    options.num_threads = nbThreads;
+    ceres::Solve(options, &(this->Problem), &summary);
+  }
+};
+
 //==============================================================================
 //   Main SLAM use
 //==============================================================================
@@ -802,13 +862,7 @@ void Slam::ComputeEgoMotion()
   IF_VERBOSE(3, StopTimeAndDisplay("EgoMotion : build KD tree"));
 
   // Reset ICP results
-  const unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
-                                   + this->CurrentPlanarsPoints->size();
-  this->Xvalues.reserve(nbKeypoints);
-  this->Avalues.reserve(nbKeypoints);
-  this->Pvalues.reserve(nbKeypoints);
-  this->TimeValues.reserve(nbKeypoints);
-  this->residualCoefficient.reserve(nbKeypoints);
+  unsigned int totalMatchedKeypoints = 0;
   this->EdgePointRejectionEgoMotion.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
   this->PlanarPointRejectionEgoMotion.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
 
@@ -825,6 +879,19 @@ void Slam::ComputeEgoMotion()
     // clear all keypoints matching data
     this->ResetDistanceParameters();
 
+    // We want to estimate our 6-DOF parameters using a non linear least square
+    // minimization. The non linear part comes from the parametrization of the
+    // rotation endomorphism SO(3).
+    // First, we need to build the point-to-line, point-to-plane and
+    // point-to-blob ICP matches that will be optimized.
+    // Then, we use CERES Levenberg-Marquardt optimization to minimize the problem.
+    OptimizationProblem problem;
+    // Arctan loss scale factor to saturate costs according to their distance
+    problem.LossScale = this->EgoMotionInitLossScale + icpIter * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
+    // Convert pose to 6D state vector : rX, rY, rZ, X, Y, Z
+    problem.EndPoseArray = IsometryToRPYXYZ(this->Trelative);
+    problem.Undistortion = UndistortionMode::NONE;
+
     // loop over edges if there is enough previous edge keypoints
     if (!this->CurrentEdgesPoints->empty() && this->PreviousEdgesPoints->size() > this->EgoMotionLineDistanceNbrNeighbors)
     {
@@ -836,7 +903,7 @@ void Slam::ComputeEgoMotion()
         // i.e A = (I - n*n.t)^2 with n being the director vector
         // and P a point of the line
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreePreviousEdges, currentPoint, MatchingMode::EGO_MOTION);
+        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(problem, kdtreePreviousEdges, currentPoint, MatchingMode::EGO_MOTION);
         this->EdgePointRejectionEgoMotion[edgeIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramLine[rejectionIndex]++;
@@ -854,7 +921,7 @@ void Slam::ComputeEgoMotion()
         // i.e A = n * n.t with n being a normal of the plane
         // and is a point of the plane
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePreviousPlanes, currentPoint, MatchingMode::EGO_MOTION);
+        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(problem, kdtreePreviousPlanes, currentPoint, MatchingMode::EGO_MOTION);
         this->PlanarPointRejectionEgoMotion[planarIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramPlane[rejectionIndex]++;
@@ -864,53 +931,25 @@ void Slam::ComputeEgoMotion()
     // ICP matching summary
     this->EgoMotionEdgesPointsUsed = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
     this->EgoMotionPlanesPointsUsed = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
+    totalMatchedKeypoints = this->EgoMotionEdgesPointsUsed + this->EgoMotionPlanesPointsUsed;
 
     // Skip this frame if there are too few geometric keypoints matched
-    if ((this->EgoMotionEdgesPointsUsed + this->EgoMotionPlanesPointsUsed) < this->MinNbrMatchedKeypoints)
+    if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
     {
       PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
       break;
     }
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : ICP"));
-    IF_VERBOSE(3, InitTime("  Ego-Motion : build ceres problem"));
-
-    // Arctan loss scale factor to saturate costs according to their distance
-    double lossScale = this->EgoMotionInitLossScale + icpIter * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
-
-    // Convert Isometry to 6 DoF state vector (rX, rY, rZ, X, Y, Z)
-    Eigen::Vector6d TrelativeArray = IsometryToRPYXYZ(this->Trelative);
-
-    // We want to estimate our 6-DOF parameters using a non linear least square
-    // minimization. The non linear part comes from the parametrization of the
-    // rotation endomorphism SO(3). To minimize it, we use CERES to perform
-    // Levenberg-Marquardt algorithm.
-    ceres::Problem problem;
-    for (unsigned int k = 0; k < Xvalues.size(); ++k)
-    {
-      ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceAffineIsometryResidual, 1, 6>(
-                                            new CostFunctions::MahalanobisDistanceAffineIsometryResidual(this->Avalues[k], this->Pvalues[k],
-                                                                                                         this->Xvalues[k], this->residualCoefficient[k]));
-      problem.AddResidualBlock(cost_function,
-                               new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
-                               TrelativeArray.data());
-    }
-
-    IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : build ceres problem"));
     IF_VERBOSE(3, InitTime("  Ego-Motion : LM optim"));
 
-    ceres::Solver::Options options;
-    options.max_num_iterations = this->EgoMotionLMMaxIter;
-    options.linear_solver_type = ceres::DENSE_QR;  // TODO : try also DENSE_NORMAL_CHOLESKY or SPARSE_NORMAL_CHOLESKY
-    options.minimizer_progress_to_stdout = false;
-    options.num_threads = this->NbThreads;
-
+    // Run LM optimization
     ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
+    problem.Solve(summary, this->EgoMotionLMMaxIter, this->NbThreads);
     PRINT_VERBOSE(4, summary.BriefReport());
 
     // Unpack Trelative back to isometry
-    this->Trelative = RPYXYZtoIsometry(TrelativeArray);
+    this->Trelative = RPYXYZtoIsometry(problem.EndPoseArray);
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : LM optim"));
 
@@ -924,7 +963,7 @@ void Slam::ComputeEgoMotion()
 
   IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : whole ICP-LM loop"));
 
-  PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " ("
+  PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
                     << this->EgoMotionEdgesPointsUsed << " edges, "
                     << this->EgoMotionPlanesPointsUsed << " planes).");
 }
@@ -977,14 +1016,7 @@ void Slam::Localization()
   IF_VERBOSE(3, StopTimeAndDisplay("Localization : keypoints extraction"));
 
   // Reset ICP results
-  const unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
-                                   + this->CurrentPlanarsPoints->size()
-                                   + this->CurrentBlobsPoints->size();
-  this->Xvalues.reserve(nbKeypoints);
-  this->Avalues.reserve(nbKeypoints);
-  this->Pvalues.reserve(nbKeypoints);
-  this->TimeValues.reserve(nbKeypoints);
-  this->residualCoefficient.reserve(nbKeypoints);
+  unsigned int totalMatchedKeypoints = 0;
   this->EdgePointRejectionLocalization.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
   this->PlanarPointRejectionLocalization.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
   this->BlobPointRejectionLocalization.assign(this->CurrentBlobsPoints->size(), MatchingResult::UNKOWN);
@@ -1002,6 +1034,20 @@ void Slam::Localization()
     // clear all keypoints matching data
     this->ResetDistanceParameters();
 
+    // We want to estimate our 6-DOF parameters using a non linear least square
+    // minimization. The non linear part comes from the parametrization of the
+    // rotation endomorphism SO(3).
+    // First, we need to build the point-to-line, point-to-plane and
+    // point-to-blob ICP matches that will be optimized.
+    // Then, we use CERES Levenberg-Marquardt optimization to minimize problem.
+    OptimizationProblem problem;
+    // Arctan loss scale factor to saturate costs according to their distance
+    problem.LossScale = this->LocalizationInitLossScale + icpIter * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / this->LocalizationICPMaxIter;
+    // Convert isometries to 6D state vectors : rX, rY, rZ, X, Y, Z
+    problem.EndPoseArray   = IsometryToRPYXYZ(this->Tworld);  // pose at the end of frame
+    problem.StartPoseArray = IsometryToRPYXYZ(this->TworldFrameStart);  // pose at the beginning of frame
+    problem.Undistortion = this->Undistortion;
+
     // loop over edges
     if (!this->CurrentEdgesPoints->empty() && subEdgesPointsLocalMap->size() > this->LocalizationLineDistanceNbrNeighbors)
     {
@@ -1010,7 +1056,7 @@ void Slam::Localization()
       {
         // Find the closest correspondence edge line of the current edge point
         const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, currentPoint, MatchingMode::LOCALIZATION);
+        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(problem, kdtreeEdges, currentPoint, MatchingMode::LOCALIZATION);
         this->EdgePointRejectionLocalization[edgeIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramLine[rejectionIndex]++;
@@ -1025,7 +1071,7 @@ void Slam::Localization()
       {
         // Find the closest correspondence plane of the current planar point
         const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, currentPoint, MatchingMode::LOCALIZATION);
+        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(problem, kdtreePlanes, currentPoint, MatchingMode::LOCALIZATION);
         this->PlanarPointRejectionLocalization[planarIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramPlane[rejectionIndex]++;
@@ -1033,14 +1079,14 @@ void Slam::Localization()
     }
 
     // loop over blobs
-    if (!this->FastSlam && !this->CurrentBlobsPoints->empty()  && subBlobPointsLocalMap->size() > this->LocalizationBlobDistanceNbrNeighbors)
+    if (!this->CurrentBlobsPoints->empty()  && subBlobPointsLocalMap->size() > this->LocalizationBlobDistanceNbrNeighbors)
     {
       #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
       for (int blobIndex = 0; blobIndex < static_cast<int>(this->CurrentBlobsPoints->size()); ++blobIndex)
       {
         // Find the closest correspondence plane of the current blob point
         const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];
-        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, currentPoint, MatchingMode::LOCALIZATION);
+        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(problem, kdtreeBlobs, currentPoint, MatchingMode::LOCALIZATION);
         this->BlobPointRejectionLocalization[blobIndex] = rejectionIndex;
         #pragma omp atomic
         this->MatchRejectionHistogramBlob[rejectionIndex]++;
@@ -1051,9 +1097,10 @@ void Slam::Localization()
     this->LocalizationEdgesPointsUsed  = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
     this->LocalizationPlanesPointsUsed = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
     this->LocalizationBlobsPointsUsed  = this->MatchRejectionHistogramBlob[MatchingResult::SUCCESS];
+    totalMatchedKeypoints = this->LocalizationEdgesPointsUsed + this->LocalizationPlanesPointsUsed + this->LocalizationBlobsPointsUsed;
 
     // Skip this frame if there is too few geometric keypoints matched
-    if ((this->LocalizationEdgesPointsUsed + this->LocalizationPlanesPointsUsed + this->LocalizationBlobsPointsUsed) < this->MinNbrMatchedKeypoints)
+    if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
     {
       // Reset state to previous one to avoid instability
       this->Trelative = Eigen::Isometry3d::Identity();
@@ -1066,64 +1113,19 @@ void Slam::Localization()
     }
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Localization : ICP"));
-    IF_VERBOSE(3, InitTime("  Localization : build ceres problem"));
-
-    // Arctan loss scale factor to saturate costs according to their distance
-    double lossScale = this->LocalizationInitLossScale + icpIter * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / this->LocalizationICPMaxIter;
-
-    // Convert isometries to 6D state vectors : rX, rY, rZ, X, Y, Z
-    Eigen::Vector6d TworldArray = IsometryToRPYXYZ(this->Tworld);  // pose at the end of frame
-    Eigen::Vector6d TworldStartArray = IsometryToRPYXYZ(this->TworldFrameStart);  // pose at the beginning of frame
-
-    // We want to estimate our 6-DOF parameters using a non linear least square
-    // minimization. The non linear part comes from the parametrization of the
-    // rotation endomorphism SO(3). To minimize it, we use CERES to perform
-    // Levenberg-Marquardt algorithm.
-    ceres::Problem problem;
-    if (this->Undistortion == UndistortionMode::OPTIMIZED)
-    {
-      for (unsigned int k = 0; k < Xvalues.size(); ++k)
-      {
-        ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceInterpolatedMotionResidual, 1, 6, 6>(
-                                                new CostFunctions::MahalanobisDistanceInterpolatedMotionResidual(
-                                                  this->Avalues[k], this->Pvalues[k], this->Xvalues[k], this->TimeValues[k], this->residualCoefficient[k]));
-        problem.AddResidualBlock(cost_function, 
-                                 new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
-                                 TworldStartArray.data(), TworldArray.data());
-      }
-    }
-    else
-    {
-      for (unsigned int k = 0; k < Xvalues.size(); ++k)
-      {
-        ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceAffineIsometryResidual, 1, 6>(
-                                                new CostFunctions::MahalanobisDistanceAffineIsometryResidual(
-                                                  this->Avalues[k], this->Pvalues[k], this->Xvalues[k], this->residualCoefficient[k]));
-        problem.AddResidualBlock(cost_function,
-                                 new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
-                                 TworldArray.data());
-      }
-    }
-
-    IF_VERBOSE(3, StopTimeAndDisplay("  Localization : build ceres problem"));
     IF_VERBOSE(3, InitTime("  Localization : LM optim"));
 
-    ceres::Solver::Options options;
-    options.max_num_iterations = this->LocalizationLMMaxIter;
-    options.linear_solver_type = ceres::DENSE_QR;  // TODO test other optimizer
-    options.minimizer_progress_to_stdout = false;
-    options.num_threads = this->NbThreads;
-
+    // Run LM optimization
     ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
+    problem.Solve(summary, this->LocalizationLMMaxIter, this->NbThreads);
     PRINT_VERBOSE(4, summary.BriefReport());
 
     // Unpack Tworld and TworldFrameStart
-    this->Tworld = RPYXYZtoIsometry(TworldArray);
+    this->Tworld = RPYXYZtoIsometry(problem.EndPoseArray);
     this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
     if (this->Undistortion == UndistortionMode::OPTIMIZED)
     {
-      this->TworldFrameStart = RPYXYZtoIsometry(TworldStartArray);
+      this->TworldFrameStart = RPYXYZtoIsometry(problem.StartPoseArray);
       this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
     }
     else if (this->Undistortion == UndistortionMode::APPROXIMATED)
@@ -1148,9 +1150,9 @@ void Slam::Localization()
       // Computation of the variance-covariance matrix
       ceres::Covariance covariance(covOptions);
       std::vector<std::pair<const double*, const double*>> covariance_blocks;
-      const double* paramBlock = TworldArray.data();
+      const double* paramBlock = problem.EndPoseArray.data();
       covariance_blocks.push_back(std::make_pair(paramBlock, paramBlock));
-      covariance.Compute(covariance_blocks, &problem);
+      covariance.Compute(covariance_blocks, &problem.Problem);
       covariance.GetCovarianceBlock(paramBlock, paramBlock, this->TworldCovariance.data());
       break;
     }
@@ -1168,7 +1170,7 @@ void Slam::Localization()
 
   // Optionally print localization optimization summary
   SET_COUT_FIXED_PRECISION(3);
-  PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " ("
+  PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
                    << this->LocalizationEdgesPointsUsed  << " edges, "
                    << this->LocalizationPlanesPointsUsed << " planes, "
                    << this->LocalizationBlobsPointsUsed  << " blobs)."
@@ -1258,11 +1260,6 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
 //-----------------------------------------------------------------------------
 void Slam::ResetDistanceParameters()
 {
-  this->Xvalues.clear();
-  this->Avalues.clear();
-  this->Pvalues.clear();
-  this->TimeValues.clear();
-  this->residualCoefficient.clear();
   this->MatchRejectionHistogramLine.fill(0);
   this->MatchRejectionHistogramPlane.fill(0);
   this->MatchRejectionHistogramBlob.fill(0);
@@ -1294,7 +1291,7 @@ void Slam::ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& 
 }
 
 //-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputeLineDistanceParameters(const KDTree& kdtreePreviousEdges, const Point& p, MatchingMode matchingMode)
+Slam::MatchingResult Slam::ComputeLineDistanceParameters(OptimizationProblem& problem, const KDTree& kdtreePreviousEdges, const Point& p, MatchingMode matchingMode)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -1424,18 +1421,13 @@ Slam::MatchingResult Slam::ComputeLineDistanceParameters(const KDTree& kdtreePre
 
   // Store the distance parameters values
   #pragma omp critical(addIcpMatch)
-  {
-    this->Avalues.emplace_back(A);
-    this->Pvalues.emplace_back(mean);
-    this->Xvalues.emplace_back(pInit);
-    this->TimeValues.emplace_back(p.time);
-    this->residualCoefficient.emplace_back(fitQualityCoeff);
-  }
+  problem.AddIcpResidual(A, mean, pInit, p.time, fitQualityCoeff);
+
   return MatchingResult::SUCCESS;
 }
 
 //-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputePlaneDistanceParameters(const KDTree& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode)
+Slam::MatchingResult Slam::ComputePlaneDistanceParameters(OptimizationProblem& problem, const KDTree& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -1556,18 +1548,13 @@ Slam::MatchingResult Slam::ComputePlaneDistanceParameters(const KDTree& kdtreePr
 
   // Store the distance parameters values
   #pragma omp critical(addIcpMatch)
-  {
-    this->Avalues.emplace_back(A);
-    this->Pvalues.emplace_back(mean);
-    this->Xvalues.emplace_back(pInit);
-    this->TimeValues.emplace_back(p.time);
-    this->residualCoefficient.emplace_back(fitQualityCoeff);
-  }
+  problem.AddIcpResidual(A, mean, pInit, p.time, fitQualityCoeff);
+
   return MatchingResult::SUCCESS;
 }
 
 //-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(const KDTree& kdtreePreviousBlobs, const Point& p, MatchingMode matchingMode)
+Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(OptimizationProblem& problem, const KDTree& kdtreePreviousBlobs, const Point& p, MatchingMode matchingMode)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -1673,13 +1660,8 @@ Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(const KDTree& kdtreePr
 
   // store the distance parameters values
   #pragma omp critical(addIcpMatch)
-  {
-    this->Avalues.emplace_back(A);
-    this->Pvalues.emplace_back(mean);
-    this->Xvalues.emplace_back(pInit);
-    this->TimeValues.emplace_back(p.time);
-    this->residualCoefficient.emplace_back(fitQualityCoeff);
-  }
+  problem.AddIcpResidual(A, mean, pInit, p.time, fitQualityCoeff);
+
   return MatchingResult::SUCCESS;
 }
 

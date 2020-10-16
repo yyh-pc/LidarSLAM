@@ -545,24 +545,6 @@ private:
   std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramPlane;
   std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramBlob;
 
-  // To recover the ego-motion we have to minimize the function
-  // f(R, T) = sum(d(point, line)^2) + sum(d(point, plane)^2). In both
-  // case the distance between the point and the line / plane can be
-  // writen (R*X+T - P).t * A * (R*X+T - P). Where X is the key point
-  // P is a point on the line / plane. A = (n*n.t) for a plane with n
-  // being the normal and A = (I - n*n.t)^2 for a line with n being
-  // a director vector of the line
-  // - Avalues will store the A matrix
-  // - Pvalues will store the P points
-  // - Xvalues will store the W points
-  // - residualCoefficient will attenuate the distance function for outliers
-  // - TimeValues store the time acquisition
-  std::vector<Eigen::Matrix3d> Avalues;
-  std::vector<Eigen::Vector3d> Pvalues;
-  std::vector<Eigen::Vector3d> Xvalues;
-  std::vector<double> residualCoefficient;
-  std::vector<double> TimeValues;
-
   // ---------------------------------------------------------------------------
   //   Optimization parameters
   // ---------------------------------------------------------------------------
@@ -674,6 +656,9 @@ private:
   //   Features associations and optimization
   // ---------------------------------------------------------------------------
 
+  // Helper struct to store, build and solve optimization problem
+  struct OptimizationProblem;
+
   enum class MatchingMode
   {
     EGO_MOTION = 0,
@@ -688,9 +673,9 @@ private:
   // (R * X + T - P).t * A * (R * X + T - P)
   // Where P is the mean point of the neighborhood and A is the symmetric
   // variance-covariance matrix encoding the shape of the neighborhood
-  MatchingResult ComputeLineDistanceParameters(const KDTree& kdtreePreviousEdges,   const Point& p, MatchingMode matchingMode);
-  MatchingResult ComputePlaneDistanceParameters(const KDTree& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode);
-  MatchingResult ComputeBlobsDistanceParameters(const KDTree& kdtreePreviousBlobs,  const Point& p, MatchingMode matchingMode);
+  MatchingResult ComputeLineDistanceParameters(OptimizationProblem& problem,  const KDTree& kdtreePreviousEdges,  const Point& p, MatchingMode matchingMode);
+  MatchingResult ComputePlaneDistanceParameters(OptimizationProblem& problem, const KDTree& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode);
+  MatchingResult ComputeBlobsDistanceParameters(OptimizationProblem& problem, const KDTree& kdtreePreviousBlobs,  const Point& p, MatchingMode matchingMode);
 
   // Instead of taking the k-nearest neigbors in the odometry step we will take
   // specific neighbor using the particularities of the lidar sensor
