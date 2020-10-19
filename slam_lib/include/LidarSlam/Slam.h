@@ -509,15 +509,6 @@ private:
   //   Optimization data
   // ---------------------------------------------------------------------------
 
-  // ICP matching summary (used for debug only)
-  unsigned int EgoMotionEdgesPointsUsed;
-  unsigned int EgoMotionPlanesPointsUsed;
-  unsigned int LocalizationEdgesPointsUsed;
-  unsigned int LocalizationPlanesPointsUsed;
-  unsigned int LocalizationBlobsPointsUsed;
-  double LocalizationPositionError;
-  double LocalizationOrientationError;
-
   //! Result of the keypoint matching, explaining rejection cause of matching failure.
   enum MatchingResult : uint8_t
   {
@@ -531,19 +522,24 @@ private:
     nRejectionCauses = 7
   };
 
-  // ICP matching results of keypoints extracted from the current input frame
-  // (used for debug only)
-  std::vector<MatchingResult> EdgePointRejectionEgoMotion;
-  std::vector<MatchingResult> PlanarPointRejectionEgoMotion;
-  std::vector<MatchingResult> EdgePointRejectionLocalization;
-  std::vector<MatchingResult> PlanarPointRejectionLocalization;
-  std::vector<MatchingResult> BlobPointRejectionLocalization;
+  //! Result of matching for one set of keypoints
+  struct KeypointsMatchingResults
+  {
+    // Number of successful matches
+    unsigned int NbMatches;
+    // Matching results of keypoints extracted from the current frame
+    std::vector<MatchingResult> Rejections;
+    // Histogram of the matching rejection causes
+    std::array<int, MatchingResult::nRejectionCauses> RejectionsHistogram;
+  };
 
-  // Histogram of the ICP matching rejection causes
-  // (used mainly for debug)
-  std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramLine;
-  std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramPlane;
-  std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramBlob;
+  //! Matching results
+  std::map<Keypoint, KeypointsMatchingResults> EgoMotionMatchingResults;
+  std::map<Keypoint, KeypointsMatchingResults> LocalizationMatchingResults;
+
+  // Optimization results
+  double LocalizationPositionError;
+  double LocalizationOrientationError;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -686,8 +682,6 @@ private:
   // step we will take specific neighbor using a sample consensus  model
   void GetLocalizationLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest, double maxDistInlier,
                                            std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const;
-
-  void ResetDistanceParameters();
 };
 
 #endif // SLAM_H
