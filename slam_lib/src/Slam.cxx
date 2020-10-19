@@ -861,13 +861,10 @@ void Slam::ComputeEgoMotion()
                    << this->PreviousPlanarsPoints->size() << " planes");
 
   IF_VERBOSE(3, StopTimeAndDisplay("EgoMotion : build KD tree"));
+  IF_VERBOSE(3, InitTime("Ego-Motion : whole ICP-LM loop"));
 
   // Reset ICP results
   unsigned int totalMatchedKeypoints = 0;
-  this->EgoMotionMatchingResults[EDGE].Rejections.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
-  this->EgoMotionMatchingResults[PLANE].Rejections.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
-
-  IF_VERBOSE(3, InitTime("Ego-Motion : whole ICP-LM loop"));
 
   // ICP - Levenberg-Marquardt loop
   // At each step of this loop an ICP matching is performed. Once the keypoints
@@ -890,47 +887,13 @@ void Slam::ComputeEgoMotion()
     problem.EndPoseArray = IsometryToRPYXYZ(this->Trelative);
     problem.Undistortion = UndistortionMode::NONE;
 
-    // loop over edges if there is enough previous edge keypoints
-    if (!this->CurrentEdgesPoints->empty() && this->PreviousEdgesPoints->size() > this->EgoMotionLineDistanceNbrNeighbors)
-    {
-      this->EgoMotionMatchingResults[EDGE].RejectionsHistogram.fill(0);
-      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (int edgeIndex = 0; edgeIndex < static_cast<int>(this->CurrentEdgesPoints->size()); ++edgeIndex)
-      {
-        // Find the closest correspondence edge line of the current edge point
-        // Compute the parameters of the point - line distance
-        // i.e A = (I - n*n.t)^2 with n being the director vector
-        // and P a point of the line
-        const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(problem, kdtreePreviousEdges, currentPoint, MatchingMode::EGO_MOTION);
-        this->EgoMotionMatchingResults[EDGE].Rejections[edgeIndex] = rejectionIndex;
-        #pragma omp atomic
-        this->EgoMotionMatchingResults[EDGE].RejectionsHistogram[rejectionIndex]++;
-      }
-    }
+    // Loop over edges to build the point to line residuals
+    this->BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreePreviousEdges, Keypoint::EDGE, MatchingMode::EGO_MOTION, problem, this->EgoMotionMatchingResults[EDGE]);
 
-    // loop over planars if there is enough previous planar keypoints
-    if (!this->CurrentPlanarsPoints->empty() && this->PreviousPlanarsPoints->size() > this->EgoMotionPlaneDistanceNbrNeighbors)
-    {
-      this->EgoMotionMatchingResults[PLANE].RejectionsHistogram.fill(0);
-      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (int planarIndex = 0; planarIndex < static_cast<int>(this->CurrentPlanarsPoints->size()); ++planarIndex)
-      {
-        // Find the closest correspondence plane of the current planar point
-        // Compute the parameters of the point - plane distance
-        // i.e A = n * n.t with n being a normal of the plane
-        // and is a point of the plane
-        const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(problem, kdtreePreviousPlanes, currentPoint, MatchingMode::EGO_MOTION);
-        this->EgoMotionMatchingResults[PLANE].Rejections[planarIndex] = rejectionIndex;
-        #pragma omp atomic
-        this->EgoMotionMatchingResults[PLANE].RejectionsHistogram[rejectionIndex]++;
-      }
-    }
+    // Loop over surfaces to build the point to plane residuals
+    this->BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePreviousPlanes, Keypoint::PLANE, MatchingMode::EGO_MOTION, problem, this->EgoMotionMatchingResults[PLANE]);
 
     // ICP matching summary
-    this->EgoMotionMatchingResults[EDGE].NbMatches  = this->EgoMotionMatchingResults[EDGE].RejectionsHistogram[MatchingResult::SUCCESS];
-    this->EgoMotionMatchingResults[PLANE].NbMatches = this->EgoMotionMatchingResults[PLANE].RejectionsHistogram[MatchingResult::SUCCESS];
     totalMatchedKeypoints = this->EgoMotionMatchingResults[EDGE].NbMatches + this->EgoMotionMatchingResults[PLANE].NbMatches;
 
     // Skip this frame if there are too few geometric keypoints matched
@@ -1014,14 +977,10 @@ void Slam::Localization()
                    << subBlobPointsLocalMap->size() << " blobs");
 
   IF_VERBOSE(3, StopTimeAndDisplay("Localization : keypoints extraction"));
+  IF_VERBOSE(3, InitTime("Localization : whole ICP-LM loop"));
 
   // Reset ICP results
   unsigned int totalMatchedKeypoints = 0;
-  this->LocalizationMatchingResults[EDGE].Rejections.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
-  this->LocalizationMatchingResults[PLANE].Rejections.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
-  this->LocalizationMatchingResults[BLOB].Rejections.assign(this->CurrentBlobsPoints->size(), MatchingResult::UNKOWN);
-
-  IF_VERBOSE(3, InitTime("Localization : whole ICP-LM loop"));
 
   // ICP - Levenberg-Marquardt loop
   // At each step of this loop an ICP matching is performed. Once the keypoints
@@ -1045,58 +1004,16 @@ void Slam::Localization()
     problem.StartPoseArray = IsometryToRPYXYZ(this->TworldFrameStart);  // pose at the beginning of frame
     problem.Undistortion = this->Undistortion;
 
-    // loop over edges
-    if (!this->CurrentEdgesPoints->empty() && subEdgesPointsLocalMap->size() > this->LocalizationLineDistanceNbrNeighbors)
-    {
-      this->LocalizationMatchingResults[EDGE].RejectionsHistogram.fill(0);
-      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (int edgeIndex = 0; edgeIndex < static_cast<int>(this->CurrentEdgesPoints->size()); ++edgeIndex)
-      {
-        // Find the closest correspondence edge line of the current edge point
-        const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(problem, kdtreeEdges, currentPoint, MatchingMode::LOCALIZATION);
-        this->LocalizationMatchingResults[EDGE].Rejections[edgeIndex] = rejectionIndex;
-        #pragma omp atomic
-        this->LocalizationMatchingResults[EDGE].RejectionsHistogram[rejectionIndex]++;
-      }
-    }
+    // Loop over edges to build the point to line residuals
+    this->BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreeEdges, Keypoint::EDGE, MatchingMode::LOCALIZATION, problem, this->LocalizationMatchingResults[EDGE]);
 
-    // loop over surfaces
-    if (!this->CurrentPlanarsPoints->empty() && subPlanarPointsLocalMap->size() > this->LocalizationPlaneDistanceNbrNeighbors)
-    {
-      this->LocalizationMatchingResults[PLANE].RejectionsHistogram.fill(0);
-      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (int planarIndex = 0; planarIndex < static_cast<int>(this->CurrentPlanarsPoints->size()); ++planarIndex)
-      {
-        // Find the closest correspondence plane of the current planar point
-        const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(problem, kdtreePlanes, currentPoint, MatchingMode::LOCALIZATION);
-        this->LocalizationMatchingResults[PLANE].Rejections[planarIndex] = rejectionIndex;
-        #pragma omp atomic
-        this->LocalizationMatchingResults[PLANE].RejectionsHistogram[rejectionIndex]++;
-      }
-    }
+    // Loop over surfaces to build the point to plane residuals
+    this->BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePlanes, Keypoint::PLANE, MatchingMode::LOCALIZATION, problem, this->LocalizationMatchingResults[PLANE]);
 
-    // loop over blobs
-    if (!this->CurrentBlobsPoints->empty()  && subBlobPointsLocalMap->size() > this->LocalizationBlobDistanceNbrNeighbors)
-    {
-      this->LocalizationMatchingResults[BLOB].RejectionsHistogram.fill(0);
-      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (int blobIndex = 0; blobIndex < static_cast<int>(this->CurrentBlobsPoints->size()); ++blobIndex)
-      {
-        // Find the closest correspondence plane of the current blob point
-        const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];
-        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(problem, kdtreeBlobs, currentPoint, MatchingMode::LOCALIZATION);
-        this->LocalizationMatchingResults[BLOB].Rejections[blobIndex] = rejectionIndex;
-        #pragma omp atomic
-        this->LocalizationMatchingResults[BLOB].RejectionsHistogram[rejectionIndex]++;
-      }
-    }
+    // Loop over blobs to build the point to blob residuals
+    this->BuildAndMatchResiduals(this->CurrentBlobsPoints, kdtreeBlobs, Keypoint::BLOB, MatchingMode::LOCALIZATION, problem, this->LocalizationMatchingResults[BLOB]);
 
     // ICP matching summary
-    this->LocalizationMatchingResults[EDGE].NbMatches  = this->LocalizationMatchingResults[EDGE].RejectionsHistogram[MatchingResult::SUCCESS];
-    this->LocalizationMatchingResults[PLANE].NbMatches = this->LocalizationMatchingResults[PLANE].RejectionsHistogram[MatchingResult::SUCCESS];
-    this->LocalizationMatchingResults[BLOB].NbMatches  = this->LocalizationMatchingResults[BLOB].RejectionsHistogram[MatchingResult::SUCCESS];
     totalMatchedKeypoints =   this->LocalizationMatchingResults[EDGE].NbMatches
                             + this->LocalizationMatchingResults[PLANE].NbMatches
                             + this->LocalizationMatchingResults[BLOB].NbMatches;
@@ -1258,6 +1175,48 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
 //==============================================================================
 //   Features associations and optimization
 //==============================================================================
+
+//-----------------------------------------------------------------------------
+void Slam::BuildAndMatchResiduals(const PointCloud::Ptr& currPoints, const KDTree& prevPoints, Keypoint keypointType, MatchingMode matchingMode,
+                                  OptimizationProblem& problem, KeypointsMatchingResults& matchingResults)
+{
+  // Call the correct point-to-neighborhood method
+  auto BuildAndMatchSingleResidual = [&](const Point& currentPoint)
+  {
+    switch(keypointType)
+    {
+      case Keypoint::EDGE:
+        return this->ComputeLineDistanceParameters(problem, prevPoints, currentPoint, matchingMode);
+      case Keypoint::PLANE:
+        return this->ComputePlaneDistanceParameters(problem, prevPoints, currentPoint, matchingMode);
+      case Keypoint::BLOB:
+        return this->ComputeBlobsDistanceParameters(problem, prevPoints, currentPoint, matchingMode);
+      default:
+        return MatchingResult::UNKOWN;
+    }
+  };
+
+  // Reset matching results
+  matchingResults.Rejections.assign(currPoints->size(), MatchingResult::UNKOWN);
+  matchingResults.RejectionsHistogram.fill(0);
+
+  // Loop over keypoints and try to build residuals
+  if (!currPoints->empty() && !prevPoints.GetInputCloud()->empty())
+  {
+    #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
+    for (int ptIndex = 0; ptIndex < static_cast<int>(currPoints->size()); ++ptIndex)
+    {
+      const Point& currentPoint = currPoints->points[ptIndex];
+      MatchingResult rejectionIndex = BuildAndMatchSingleResidual(currentPoint);
+      matchingResults.Rejections[ptIndex] = rejectionIndex;
+      #pragma omp atomic
+      matchingResults.RejectionsHistogram[rejectionIndex]++;
+    }
+  }
+
+  // Set number of valid successful results
+  matchingResults.NbMatches = matchingResults.RejectionsHistogram[MatchingResult::SUCCESS];
+}
 
 //-----------------------------------------------------------------------------
 void Slam::ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal)

@@ -661,6 +661,10 @@ private:
     LOCALIZATION = 1
   };
 
+  // Build point-to-neighborhood residuals
+  void BuildAndMatchResiduals(const PointCloud::Ptr& currPoints, const KDTree& prevPoints, Keypoint keypointType, MatchingMode matchingMode,
+                              OptimizationProblem& problem, KeypointsMatchingResults& matchingResults);
+
   void ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal);
 
   // Match the current keypoint with its neighborhood in the map / previous
