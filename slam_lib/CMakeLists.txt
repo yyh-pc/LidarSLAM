@@ -17,6 +17,7 @@ set(LidarSlam_PUBLIC_HEADERS
   include/LidarSlam/PointCloudStorage.h
   include/LidarSlam/GlobalTrajectoriesRegistration.h
   include/LidarSlam/KDTreePCLAdaptor.h
+  include/LidarSlam/KeypointsRegistration.h
   ${SLAM_g2o_headers}
   )
 
@@ -30,6 +31,7 @@ add_library(LidarSlam SHARED
   src/SpinningSensorKeypointExtractor.cxx
   src/MotionModel.cxx
   src/GlobalTrajectoriesRegistration.cxx
+  src/KeypointsRegistration.cxx
   ${LidarSlam_PUBLIC_HEADERS}
   ${SLAM_g2o_sources}
   )

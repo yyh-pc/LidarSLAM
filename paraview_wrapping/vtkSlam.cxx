@@ -527,8 +527,8 @@ int vtkSlam::GetUndistortion()
 //-----------------------------------------------------------------------------
 void vtkSlam::SetUndistortion(int mode)
 {
-  Slam::UndistortionMode undistortion = static_cast<Slam::UndistortionMode>(mode);
-  if (undistortion != Slam::NONE && undistortion != Slam::APPROXIMATED && undistortion != Slam::OPTIMIZED)
+  UndistortionMode undistortion = static_cast<UndistortionMode>(mode);
+  if (undistortion != UndistortionMode::NONE && undistortion != UndistortionMode::APPROXIMATED && undistortion != UndistortionMode::OPTIMIZED)
   {
     vtkErrorMacro("Invalid undistortion mode (" << mode << "), ignoring setting.");
     return;

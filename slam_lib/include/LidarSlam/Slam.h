@@ -79,6 +79,7 @@
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/SpinningSensorKeypointExtractor.h"
 #include "LidarSlam/KDTreePCLAdaptor.h"
+#include "LidarSlam/KeypointsRegistration.h"
 #include "LidarSlam/MotionModel.h"
 #include "LidarSlam/RollingGrid.h"
 #include "LidarSlam/PointCloudStorage.h"
@@ -128,26 +129,6 @@ public:
     //! Slower and need textured enough environment, but should be more precise
     //! and rely less on constant motion hypothesis.
     MOTION_EXTRAPOLATION_AND_REGISTRATION = 3
-  };
-
-  // How to deal with undistortion
-  enum UndistortionMode
-  {
-    //! No undistortion is performed :
-    //!  - End scan pose is optimized using rigid registration of raw scan and map.
-    //!  - Raw input scan is added to maps.
-    NONE = 0,
-
-    //! Minimal undistortion is performed :
-    //!  - Begin scan pose is linearly interpolated between previous and current end scan poses.
-    //!  - End scan pose is optimized using rigid registration of undistorted scan and map.
-    //!  - Scan is linearly undistorted between begin and end scan poses.
-    APPROXIMATED = 1,
-
-    //! Ceres-optimized undistortion is performed :
-    //!  - Both begin and end scan poses are optimized using registration of undistorted scan and map.
-    //!  - Scan is linearly undistorted between begin and end scan poses.
-    OPTIMIZED = 2
   };
 
   // Initialization
@@ -509,35 +490,12 @@ private:
   //   Optimization data
   // ---------------------------------------------------------------------------
 
-  //! Result of the keypoint matching, explaining rejection cause of matching failure.
-  enum MatchingResult : uint8_t
-  {
-    SUCCESS = 0,               // keypoint has been successfully matched
-    NOT_ENOUGH_NEIGHBORS = 1,  // not enough neighbors to match keypoint
-    NEIGHBORS_TOO_FAR = 2,     // neighbors are too far to match keypoint
-    BAD_PCA_STRUCTURE = 3,     // PCA eigenvalues analysis discards neighborhood fit to model
-    INVALID_NUMERICAL = 4,     // optimization parameter computation has numerical invalidity
-    MSE_TOO_LARGE = 5,         // mean squared error to model is too important to accept fitted model
-    UNKOWN = 6,                // unkown status (matching not performed yet)
-    nRejectionCauses = 7
-  };
-
-  //! Result of matching for one set of keypoints
-  struct KeypointsMatchingResults
-  {
-    // Number of successful matches
-    unsigned int NbMatches;
-    // Matching results of keypoints extracted from the current frame
-    std::vector<MatchingResult> Rejections;
-    // Histogram of the matching rejection causes
-    std::array<int, MatchingResult::nRejectionCauses> RejectionsHistogram;
-  };
-
   //! Matching results
-  std::map<Keypoint, KeypointsMatchingResults> EgoMotionMatchingResults;
-  std::map<Keypoint, KeypointsMatchingResults> LocalizationMatchingResults;
+  std::map<Keypoint, KeypointsRegistration::MatchingResults> EgoMotionMatchingResults;
+  std::map<Keypoint, KeypointsRegistration::MatchingResults> LocalizationMatchingResults;
 
   // Optimization results
+  // TODO : use struct to store optimization results
   double LocalizationPositionError;
   double LocalizationOrientationError;
 
@@ -637,7 +595,7 @@ private:
   void LogCurrentFrameState(double time, const std::string& frameId);
 
   // ---------------------------------------------------------------------------
-  //   Geometrical transformations
+  //   Helpers
   // ---------------------------------------------------------------------------
 
   // All points of the current frame have been acquired at a different timestamp.
@@ -647,45 +605,6 @@ private:
 
   // Interpolate scan begin pose from PreviousTworld and Tworld.
   Eigen::Isometry3d InterpolateBeginScanPose();
-
-  // ---------------------------------------------------------------------------
-  //   Features associations and optimization
-  // ---------------------------------------------------------------------------
-
-  // Helper struct to store, build and solve optimization problem
-  struct OptimizationProblem;
-
-  enum class MatchingMode
-  {
-    EGO_MOTION = 0,
-    LOCALIZATION = 1
-  };
-
-  // Build point-to-neighborhood residuals
-  void BuildAndMatchResiduals(const PointCloud::Ptr& currPoints, const KDTree& prevPoints, Keypoint keypointType, MatchingMode matchingMode,
-                              OptimizationProblem& problem, KeypointsMatchingResults& matchingResults);
-
-  void ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal);
-
-  // Match the current keypoint with its neighborhood in the map / previous
-  // frames. From this match we compute the point-to-neighborhood distance
-  // function:
-  // (R * X + T - P).t * A * (R * X + T - P)
-  // Where P is the mean point of the neighborhood and A is the symmetric
-  // variance-covariance matrix encoding the shape of the neighborhood
-  MatchingResult ComputeLineDistanceParameters(OptimizationProblem& problem,  const KDTree& kdtreePreviousEdges,  const Point& p, MatchingMode matchingMode);
-  MatchingResult ComputePlaneDistanceParameters(OptimizationProblem& problem, const KDTree& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode);
-  MatchingResult ComputeBlobsDistanceParameters(OptimizationProblem& problem, const KDTree& kdtreePreviousBlobs,  const Point& p, MatchingMode matchingMode);
-
-  // Instead of taking the k-nearest neigbors in the odometry step we will take
-  // specific neighbor using the particularities of the lidar sensor
-  void GetEgoMotionLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest,
-                                        std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const;
-
-  // Instead of taking the k-nearest neighbors in the localization
-  // step we will take specific neighbor using a sample consensus  model
-  void GetLocalizationLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest, double maxDistInlier,
-                                           std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const;
 };
 
 #endif // SLAM_H
