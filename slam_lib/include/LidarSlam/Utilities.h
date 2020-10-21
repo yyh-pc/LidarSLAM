@@ -50,6 +50,20 @@
   std::cout << std::setprecision(ss);                        \
   std::cout.unsetf(std::ios::fixed | std::ios_base::floatfield);
 
+// Print with colors on terminals that support ANSI color codes
+// (Supported by UNIX systems and from Windows 10)
+#define DEFAULT "\033[0m"
+#define RED     "\033[31m"
+#define GREEN   "\033[32m"
+#define YELLOW  "\033[33m"
+#define BLUE    "\033[34m"
+#define MAGENTA "\033[35m"
+#define CYAN    "\033[36m"
+#define GRAY    "\033[37m"
+#define PRINT_COLOR(color, s) std::cout << color << s << DEFAULT << std::endl;
+#define PRINT_WARNING(s) std::cerr << YELLOW << "[WARNING] " << s << DEFAULT << std::endl;
+#define PRINT_ERROR(s)   std::cerr << RED    << "[ERROR] "   << s << DEFAULT << std::endl;
+
 namespace Eigen
 {
   ///! @brief 6x6 matrix of double
@@ -372,7 +386,7 @@ inline void StopTimeAndDisplay(const std::string& timer)
   totalCalls[timer]++;
   double meanDurationMs = totalDurations[timer] * 1000. / totalCalls[timer];
   SET_COUT_FIXED_PRECISION(3);
-  std::cout << "  -> " << timer << " took : " << currentDuration * 1000. << " ms (average : " << meanDurationMs << " ms)" << std::endl;
+  PRINT_COLOR(CYAN, "  -> " << timer << " took : " << currentDuration * 1000. << " ms (average : " << meanDurationMs << " ms)");
   RESET_COUT_FIXED_PRECISION;
 }
 

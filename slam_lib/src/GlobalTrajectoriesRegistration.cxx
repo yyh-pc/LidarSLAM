@@ -17,6 +17,7 @@
 //==============================================================================
 
 #include "LidarSlam/GlobalTrajectoriesRegistration.h"
+#include "LidarSlam/Utilities.h"
 
 //------------------------------------------------------------------------------
 bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Transform>& initPoses,
@@ -31,8 +32,8 @@ bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Tr
   // Check input vector sizes (at least 2 elements)
   if ((nbInitPoses < 2) || (nbFinalPoses < 2))
   {
-    std::cerr << "[ERROR] Init and Final trajectories must have at least 2 points "
-              << "(Got " << nbInitPoses << " Init points and " << nbFinalPoses << " Final points).\n";
+    PRINT_ERROR("Init and Final trajectories must have at least 2 points "
+                "(Got " << nbInitPoses << " Init points and " << nbFinalPoses << " Final points).");
     return false;
   }
 

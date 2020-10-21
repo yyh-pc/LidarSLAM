@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include "LidarSlam/RollingGrid.h"
+#include "LidarSlam/Utilities.h"
 
 // A new PCL Point is added so we need to recompile PCL to be able to use
 // filters (pcl::VoxelGrid) with this new type
@@ -96,7 +97,8 @@ void RollingGrid::SetGridSize(int size)
   this->Clear();
 
   // Add points back so that they now lie in the right voxel
-  this->Add(prevMap);
+  if (!prevMap->empty())
+    this->Add(prevMap);
 }
 
 //------------------------------------------------------------------------------
@@ -110,7 +112,8 @@ void RollingGrid::SetVoxelResolution(double resolution)
   // Move points so that they now lie in the right voxel
   PointCloud::Ptr prevMap = this->Get();
   this->Clear();
-  this->Add(prevMap);
+  if (!prevMap->empty())
+    this->Add(prevMap);
 }
 
 //==============================================================================
@@ -284,7 +287,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud)
 {
   if (pointcloud->empty())
   {
-    std::cerr << "[WARNING] Pointcloud is empty, voxel grid not updated.\n";
+    PRINT_WARNING("Pointcloud is empty, voxel grid not updated.");
     return;
   }
 

@@ -27,6 +27,8 @@
 #include <pcl/io/pcd_io.h>
 #include <boost/filesystem.hpp>
 
+#include "LidarSlam/Utilities.h"
+
 //! PCD file data format.
 enum PCDFormat
 {
@@ -80,7 +82,7 @@ int savePointCloudToPCD(std::string const& path,
       return pcl::io::savePCDFileBinaryCompressed<PointT>(path, cloud);
 
     default:
-      std::cerr << "[ERROR] Unknown PCDFormat value (" << pcdDataFormat << "). Unable to save pointcloud." << std::endl;
+      PRINT_ERROR("Unknown PCDFormat value (" << pcdDataFormat << "). Unable to save pointcloud.");
       return -4;
   }
 }
@@ -204,7 +206,7 @@ struct OctreeCompressedPointCloud final : public PointCloudData<PointT>
       }
       catch (std::logic_error e)
       {
-        std::cerr << "[ERROR] Decompression failed. Returning empty pointcloud." << std::endl;
+        PRINT_ERROR("Decompression failed. Returning empty pointcloud.");
       }
     #else
       compression.decodePointCloud(this->CompressedData, cloud);
@@ -256,21 +258,21 @@ struct PCDFilePointCloud final : public PointCloudData<PointT>
   ~PCDFilePointCloud() override
   {
     if (std::remove(this->PCDFilePath.c_str()) != 0)
-      std::cerr << "[WARNING] Unable to delete PCD file at " << this->PCDFilePath << std::endl;
+      PRINT_WARNING("Unable to delete PCD file at " << this->PCDFilePath);
     // No need to decrement PCDFileIndex, it will be clearer for debug like that.
   }
 
   void SetCloud(CloudTPtr const& cloud) override
   {
     if (savePointCloudToPCD(this->PCDFilePath, *cloud, pcdFormat) != 0)
-      std::cerr << "[ERROR] Failed to write binary PCD file to " << this->PCDFilePath << std::endl;
+      PRINT_ERROR("Failed to write binary PCD file to " << this->PCDFilePath);
   }
 
   CloudTPtr GetCloud() override
   {
     CloudTPtr cloud(new CloudT);
     if (pcl::io::loadPCDFile(this->PCDFilePath, *cloud) != 0)
-      std::cerr << "[ERROR] PCD file loading failed. Returning empty pointcloud." << std::endl;
+      PRINT_ERROR("PCD file loading failed. Returning empty pointcloud.");
     return cloud;
   }
 
@@ -325,7 +327,7 @@ struct PointCloudStorage
       case PCD_BINARY:            this->Data.reset(new BinaryPCDFilePointCloud<PointT>(cloud));           break;
       case PCD_BINARY_COMPRESSED: this->Data.reset(new BinaryCompressedPCDFilePointCloud<PointT>(cloud)); break;
       default:
-        std::cerr << "[ERROR] Unkown PointCloudStorageType (" << storage << ").\n"; break;
+        PRINT_ERROR("Unkown PointCloudStorageType (" << storage << ")."); break;
     }
   }
 
