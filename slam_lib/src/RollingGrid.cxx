@@ -61,11 +61,6 @@ void RollingGrid::Reset(const Eigen::Vector3d& position)
   // Initialize VoxelGrid center position
   // Position is rounded down to be a multiple of resolution
   this->VoxelGridPosition = (position.array() / this->VoxelResolution).floor() * this->VoxelResolution;
-
-  // Reset min and max points of current frame
-  double halfGridSize = std::ceil(this->GridSize / 2) * this->VoxelResolution;
-  this->MinPoint = this->VoxelGridPosition - halfGridSize;
-  this->MaxPoint = this->VoxelGridPosition + halfGridSize;
 }
 
 //------------------------------------------------------------------------------
@@ -121,21 +116,14 @@ void RollingGrid::SetVoxelResolution(double resolution)
 //==============================================================================
 
 //------------------------------------------------------------------------------
-void RollingGrid::SetMinMaxPoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint)
-{
-  this->MinPoint = minPoint;
-  this->MaxPoint = maxPoint;
-}
-
-//------------------------------------------------------------------------------
-RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Vector3d& position) const
+RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint) const
 {
   // Compute the position of the new frame center in the grid
-  Eigen::Array3i frameCenter = this->PositionToVoxel(position.array()) - this->PositionToVoxel(this->VoxelGridPosition) + this->GridSize / 2;
+  Eigen::Array3i frameCenter = this->PositionToVoxel(this->VoxelGridPosition) + this->GridSize / 2;
 
   // Get sub-VoxelGrid bounds
-  Eigen::Array3i intersectionMin = (frameCenter + this->PositionToVoxel(this->MinPoint)).max(0);
-  Eigen::Array3i intersectionMax = (frameCenter + this->PositionToVoxel(this->MaxPoint)).min(this->GridSize - 1);
+  Eigen::Array3i intersectionMin = (frameCenter + this->PositionToVoxel(minPoint)).max(0);
+  Eigen::Array3i intersectionMax = (frameCenter + this->PositionToVoxel(maxPoint)).min(this->GridSize - 1);
 
   // Get all voxel in intersection
   PointCloud::Ptr intersection(new PointCloud);
@@ -161,15 +149,15 @@ RollingGrid::PointCloud::Ptr RollingGrid::Get() const
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::Roll(const Eigen::Vector3d& position)
+void RollingGrid::Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint)
 {
   // Very basic implementation where the grid is not circular.
-  // This only moves VoxelGrid so that current frame can entirely fit in rolled map.
+  // This only moves VoxelGrid so that the given bounding box can entirely fit in rolled map.
 
   // Compute how much the new frame does not fit in current grid
   double halfGridSize = static_cast<double>(this->GridSize) / 2 * this->VoxelResolution;
-  Eigen::Array3d downOffset = (position.array() + MinPoint) - (VoxelGridPosition - halfGridSize);
-  Eigen::Array3d upOffset   = (position.array() + MaxPoint) - (VoxelGridPosition + halfGridSize);
+  Eigen::Array3d downOffset = minPoint - (VoxelGridPosition - halfGridSize);
+  Eigen::Array3d upOffset   = maxPoint - (VoxelGridPosition + halfGridSize);
   Eigen::Array3d offset = (upOffset + downOffset) / 2;
 
   // Clamp the rolling movement so that it only moves what is really necessary
@@ -283,12 +271,20 @@ void RollingGrid::Roll(const Eigen::Vector3d& position)
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::Add(const PointCloud::Ptr& pointcloud)
+void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
 {
   if (pointcloud->empty())
   {
     PRINT_WARNING("Pointcloud is empty, voxel grid not updated.");
     return;
+  }
+
+  // Optionally roll the map so that all new points can fit in rolled map
+  if (roll)
+  {
+    Eigen::Vector4f minPoint, maxPoint;
+    pcl::getMinMax3D(*pointcloud, minPoint, maxPoint);
+    this->Roll(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
   }
 
   // Voxels to filter because new points were added

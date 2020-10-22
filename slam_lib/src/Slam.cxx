@@ -417,15 +417,23 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   // TODO : Deal with undistortion case (update motionParameters)
 
   // Update SLAM maps
-  this->EdgesPointsLocalMap->Roll(this->Tworld.translation());
-  this->EdgesPointsLocalMap->Add(aggregatedEdgesMap);
-  this->PlanarPointsLocalMap->Roll(this->Tworld.translation());
-  this->PlanarPointsLocalMap->Add(aggregatedPlanarsMap);
-  if (!this->FastSlam)
+  auto updateMap = [&](RollingGrid& map, const PointCloud& lastPoints, const PointCloud::Ptr& aggregatedPoints)
   {
-    this->BlobsPointsLocalMap->Roll(this->Tworld.translation());
-    this->BlobsPointsLocalMap->Add(aggregatedBlobsMap);
-  }
+    // We do not do map.Add(aggregatedPoints) as this would try to roll the map
+    // so that the entire aggregatedPoints can best fit into map. But if this
+    // entire point cloud does not fit into map, the rolling grid will be
+    // centered on the aggregatedPoints bounding box center.
+    // Instead, we prefer to roll so that the last frame keypoints can fit,
+    // ensuring that next frame will be matched efficiently to rolled map.
+    Eigen::Vector4f minPoint, maxPoint;
+    pcl::getMinMax3D(lastPoints, minPoint, maxPoint);
+    map.Roll(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+    map.Add(aggregatedPoints, false);
+  };
+  updateMap(*this->EdgesPointsLocalMap, edgesKeypoints, aggregatedEdgesMap);
+  updateMap(*this->PlanarPointsLocalMap, planarsKeypoints, aggregatedPlanarsMap);
+  if (!this->FastSlam)
+    updateMap(*this->BlobsPointsLocalMap, blobsKeypoints, aggregatedBlobsMap);
 
   // Processing duration
   IF_VERBOSE(3, StopTimeAndDisplay("PGO : final SLAM map update"));
@@ -758,9 +766,6 @@ void Slam::ExtractKeypoints(const std::vector<size_t>& laserIdMapping)
   this->CurrentPlanarsPoints = transformToBase(this->KeyPointsExtractor->GetPlanarPoints());
   this->CurrentBlobsPoints   = transformToBase(this->KeyPointsExtractor->GetBlobPoints());
 
-  // Set keypoints bounds in rolling grids to reduce map searching radius during localization step
-  this->SetFrameMinMaxKeypoints();
-
   PRINT_VERBOSE(2, "========== Keypoints extraction ==========\n"
                    "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
                                            << this->CurrentPlanarsPoints->size() << " planes, "
@@ -932,10 +937,17 @@ void Slam::Localization()
   PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
   KDTree kdtreeEdges, kdtreePlanes, kdtreeBlobs;
 
-  auto extractMapKeypointsAndBuildKdTree = [this](const RollingGrid& map, PointCloud::Ptr& keypoints, KDTree& kdTree)
+  auto extractMapKeypointsAndBuildKdTree = [this](const PointCloud::Ptr& currKeypoints, RollingGrid& map, PointCloud::Ptr& prevKeypoints, KDTree& kdTree)
   {
-    keypoints = map.Get(this->Tworld.translation());
-    kdTree.Reset(keypoints);
+    // Estimate current keypoints bounding box
+    PointCloud currWordKeypoints;
+    pcl::transformPointCloud(*currKeypoints, currWordKeypoints, this->Tworld.matrix());
+    Eigen::Vector4f minPoint, maxPoint;
+    pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
+
+    // Extract all points in maps lying in this bounding box
+    prevKeypoints = map.Get(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+    kdTree.Reset(prevKeypoints);
   };
 
   // CHECK : This step behaves strangely much slower when using OpenMP.
@@ -948,12 +960,12 @@ void Slam::Localization()
   #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
   {
     #pragma omp section
-    extractMapKeypointsAndBuildKdTree(*this->EdgesPointsLocalMap, subEdgesPointsLocalMap, kdtreeEdges);
+    extractMapKeypointsAndBuildKdTree(this->CurrentEdgesPoints, *this->EdgesPointsLocalMap, subEdgesPointsLocalMap, kdtreeEdges);
     #pragma omp section
-    extractMapKeypointsAndBuildKdTree(*this->PlanarPointsLocalMap, subPlanarPointsLocalMap, kdtreePlanes);
+    extractMapKeypointsAndBuildKdTree(this->CurrentPlanarsPoints, *this->PlanarPointsLocalMap, subPlanarPointsLocalMap, kdtreePlanes);
     #pragma omp section
     if (!this->FastSlam)
-      extractMapKeypointsAndBuildKdTree(*this->BlobsPointsLocalMap, subBlobPointsLocalMap, kdtreeBlobs);
+      extractMapKeypointsAndBuildKdTree(this->CurrentBlobsPoints, *this->BlobsPointsLocalMap, subBlobPointsLocalMap, kdtreeBlobs);
   }
 
   PRINT_VERBOSE(2, "========== Localization ==========\n"
@@ -1182,8 +1194,7 @@ void Slam::UpdateMapsUsingTworld()
     else
       for (const Point& p : *baseFrame)
         worldFrame->push_back(TransformPoint(p, this->Tworld));
-    // Roll grid to current position, and add new keypoints
-    map->Roll(this->Tworld.translation());
+    // Add new keypoints to rolling grid
     map->Add(worldFrame);
   };
 
@@ -1861,20 +1872,4 @@ void Slam::SetVoxelGridResolution(double resolution)
   this->EdgesPointsLocalMap->SetVoxelResolution(resolution);
   this->PlanarPointsLocalMap->SetVoxelResolution(resolution);
   this->BlobsPointsLocalMap->SetVoxelResolution(resolution);
-}
-
-//-----------------------------------------------------------------------------
-void Slam::SetFrameMinMaxKeypoints()
-{
-  // Get pointcloud bounds and set map search bounds accordingly
-  auto SetMinMax = [](const PointCloud::Ptr& pc, std::shared_ptr<RollingGrid>& map)
-  {
-    Eigen::Vector4f minPoint, maxPoint;
-    pcl::getMinMax3D(*pc, minPoint, maxPoint);
-    map->SetMinMaxPoints(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
-  };
-
-  SetMinMax(this->CurrentEdgesPoints, this->EdgesPointsLocalMap);
-  SetMinMax(this->CurrentPlanarsPoints, this->PlanarPointsLocalMap);
-  SetMinMax(this->CurrentBlobsPoints, this->BlobsPointsLocalMap);
 }
