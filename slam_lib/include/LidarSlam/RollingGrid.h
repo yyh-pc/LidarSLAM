@@ -77,20 +77,18 @@ public:
   //   Main use
   //============================================================================
 
-  //! Set min and max keypoints bounds of current frame (relative bounds)
-  void SetMinMaxPoints(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
-
-  //! Get points near position (absolute position), within current Min and Max bounds
-  PointCloud::Ptr Get(const Eigen::Vector3d& position) const;
+  //! Extract all points in map lying in given bounding box
+  PointCloud::Ptr Get(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint) const;
 
   //! Get all points
   PointCloud::Ptr Get() const;
 
-  //! Roll the grid to enable adding new point cloud
-  void Roll(const Eigen::Vector3d& position);
+  //! Roll the grid so that input bounding box can fit it in rolled map
+  void Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
 
   //! Add some points to the grid
-  void Add(const PointCloud::Ptr& pointcloud);
+  //! If roll is true, the map is rolled first so that all new points to add can fit in rolled map.
+  void Add(const PointCloud::Ptr& pointcloud, bool roll = true);
 
   //============================================================================
   //   Attributes and helper methods
@@ -112,9 +110,6 @@ private:
 
   //! [m, m, m] Current position of the center of the VoxelGrid
   Eigen::Array3d VoxelGridPosition;
-
-  //! [m] Minimum and maximum keypoints coordinates in voxel grid
-  Eigen::Array3d MinPoint, MaxPoint;
 
 private:
 

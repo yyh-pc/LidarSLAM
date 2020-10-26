@@ -703,9 +703,6 @@ private:
                                            std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const;
 
   void ResetDistanceParameters();
-
-  // Set the current keypoints frame max and min points
-  void SetFrameMinMaxKeypoints();
 };
 
 #endif // SLAM_H
