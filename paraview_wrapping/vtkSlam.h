@@ -221,11 +221,24 @@ private:
   vtkSlam(const vtkSlam&) = delete;
   void operator=(const vtkSlam&) = delete;
 
+  // ---------------------------------------------------------------------------
+  //   Useful helpers
+  // ---------------------------------------------------------------------------
+
   // Convert LiDAR calibration to laser id mapping
   std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
 
   // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
   void AddCurrentPoseToTrajectory();
+
+  // Convert VTK PolyData to PCL pointcloud
+  void PolyDataToPointCloud(vtkPolyData* poly,
+                            LidarSlam::Slam::PointCloud::Ptr pc,
+                            const std::vector<size_t>& laserIdMapping) const;
+
+  // Convert PCL pointcloud to VTK PolyData
+  void PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr pc,
+                            vtkPolyData* poly) const;
 
   // ---------------------------------------------------------------------------
   //   Member attributes
@@ -269,6 +282,20 @@ private:
   // coordinates, optionally undistorted if undistortion is activated.
   // Only used if OutputCurrentKeypoints = true.
   bool OutputKeypointsInWorldCoordinates = true;
+
+  // // Velodyne
+  // std::string TimeArrayName = "adjustedtime";
+  // std::string IntensityArrayName = "intensity";
+  // std::string LaserIdArrayName = "laser_id";
+  // std::string CalibArrayName = "verticalCorrection";
+  // double TimeToSecondsFactor = 1e-6;
+
+  // Ouster
+  std::string TimeArrayName = "Raw Timestamp";
+  std::string IntensityArrayName = "Signal Photons";
+  std::string LaserIdArrayName = "Channel";
+  std::string VerticalCalibArrayName = "Altitude Angles";
+  double TimeToSecondsFactor = 1e-9;
 };
 
 #endif // VTK_SLAM_H
