@@ -118,12 +118,12 @@ void RollingGrid::SetVoxelResolution(double resolution)
 //------------------------------------------------------------------------------
 RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint) const
 {
-  // Compute the position of the new frame center in the grid
-  Eigen::Array3i frameCenter = this->PositionToVoxel(this->VoxelGridPosition) + this->GridSize / 2;
+  // Compute the position of the origin cell (0, 0, 0) of the grid
+  Eigen::Array3i voxelGridOrigin = this->PositionToVoxel(this->VoxelGridPosition) - this->GridSize / 2;
 
   // Get sub-VoxelGrid bounds
-  Eigen::Array3i intersectionMin = (frameCenter + this->PositionToVoxel(minPoint)).max(0);
-  Eigen::Array3i intersectionMax = (frameCenter + this->PositionToVoxel(maxPoint)).min(this->GridSize - 1);
+  Eigen::Array3i intersectionMin = (this->PositionToVoxel(minPoint) - voxelGridOrigin).max(0);
+  Eigen::Array3i intersectionMax = (this->PositionToVoxel(maxPoint) - voxelGridOrigin).min(this->GridSize - 1);
 
   // Get all voxel in intersection
   PointCloud::Ptr intersection(new PointCloud);
