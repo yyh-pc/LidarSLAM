@@ -583,12 +583,12 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   int egoMotionMode;
   if (priv_nh.getParam("slam/ego_motion", egoMotionMode))
   {
-    Slam::EgoMotionMode egoMotion = static_cast<Slam::EgoMotionMode>(egoMotionMode);
-    if (egoMotion != Slam::EgoMotionMode::NONE         && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION &&
-        egoMotion != Slam::EgoMotionMode::REGISTRATION && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+    EgoMotionMode egoMotion = static_cast<EgoMotionMode>(egoMotionMode);
+    if (egoMotion != EgoMotionMode::NONE         && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION &&
+        egoMotion != EgoMotionMode::REGISTRATION && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
     {
       ROS_ERROR_STREAM("Invalid ego-motion mode (" << egoMotionMode << "). Setting it to 'MOTION_EXTRAPOLATION'.");
-      egoMotion = Slam::EgoMotionMode::MOTION_EXTRAPOLATION;
+      egoMotion = EgoMotionMode::MOTION_EXTRAPOLATION;
     }
     LidarSlam.SetEgoMotion(egoMotion);
   }

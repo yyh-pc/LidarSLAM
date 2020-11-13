@@ -22,32 +22,12 @@
 #include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/MotionModel.h"
-#include "LidarSlam/SpinningSensorKeypointExtractor.h"
 #include "LidarSlam/Utilities.h"
+#include "LidarSlam/Enums.h"
 
 #include <Eigen/Dense>
 #include <ceres/ceres.h>
-#include <pcl/common/common.h>
-
-//! How to deal with undistortion
-enum UndistortionMode
-{
-  //! No undistortion is performed :
-  //!  - End scan pose is optimized using rigid registration of raw scan and map.
-  //!  - Raw input scan is added to maps.
-  NONE = 0,
-
-  //! Minimal undistortion is performed :
-  //!  - Begin scan pose is linearly interpolated between previous and current end scan poses.
-  //!  - End scan pose is optimized using rigid registration of undistorted scan and map.
-  //!  - Scan is linearly undistorted between begin and end scan poses.
-  APPROXIMATED = 1,
-
-  //! Ceres-optimized undistortion is performed :
-  //!  - Both begin and end scan poses are optimized using registration of undistorted scan and map.
-  //!  - Scan is linearly undistorted between begin and end scan poses.
-  OPTIMIZED = 2
-};
+#include <pcl/point_cloud.h>
 
 // Helper class to register one set of edges/planes/blobs keypoints onto
 // another to estimate the 6D transformation between them.

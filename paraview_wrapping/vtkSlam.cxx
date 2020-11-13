@@ -501,9 +501,9 @@ int vtkSlam::GetEgoMotion()
 //-----------------------------------------------------------------------------
 void vtkSlam::SetEgoMotion(int mode)
 {
-  Slam::EgoMotionMode egoMotion = static_cast<Slam::EgoMotionMode>(mode);
-  if (egoMotion != Slam::EgoMotionMode::NONE         && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION &&
-      egoMotion != Slam::EgoMotionMode::REGISTRATION && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+  EgoMotionMode egoMotion = static_cast<EgoMotionMode>(mode);
+  if (egoMotion != EgoMotionMode::NONE         && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION &&
+      egoMotion != EgoMotionMode::REGISTRATION && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
   {
     vtkErrorMacro("Invalid ego-motion mode (" << mode << "), ignoring setting.");
     return;
