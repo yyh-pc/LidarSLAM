@@ -165,7 +165,13 @@ void Slam::Reset(bool resetLog)
   this->Trelative = Eigen::Isometry3d::Identity();
   this->TworldFrameStart = Eigen::Isometry3d::Identity();
   this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
-  this->TworldCovariance = Eigen::Matrix6d::Identity();
+
+  // Pose uncertainty
+  this->LocalizationUncertainty.Covariance = Eigen::Matrix6d::Zero();
+  this->LocalizationUncertainty.PositionError = 0.;
+  this->LocalizationUncertainty.PositionErrorDirection = Eigen::Vector3d::Zero();
+  this->LocalizationUncertainty.OrientationError = 0.;
+  this->LocalizationUncertainty.OrientationErrorDirection = Eigen::Vector3d::Zero();
 
   // Reset point clouds
   this->CurrentFrame.reset(new PointCloud);
@@ -182,8 +188,6 @@ void Slam::Reset(bool resetLog)
   this->LocalizationMatchingResults[EDGE].NbMatches  = 0;
   this->LocalizationMatchingResults[PLANE].NbMatches = 0;
   this->LocalizationMatchingResults[BLOB].NbMatches  = 0;
-  this->LocalizationPositionError = 0.;
-  this->LocalizationOrientationError = 0.;
 
   // Reset log history
   if (resetLog)
@@ -346,7 +350,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                   "graph optimization.");
 
     // Set all poses covariances equal to twice the last one if we did not log it
-    std::array<double, 36> fakeSlamCovariance = FlipAndConvertCovariance(this->TworldCovariance * 2);
+    std::array<double, 36> fakeSlamCovariance = FlipAndConvertCovariance(this->LocalizationUncertainty.Covariance * 2);
     for (unsigned int i = 0; i < nbSlamPoses; i++)
       slamCovariances.emplace_back(fakeSlamCovariance);
   }
@@ -554,7 +558,7 @@ Transform Slam::GetLatencyCompensatedWorldTransform() const
 std::array<double, 36> Slam::GetTransformCovariance() const
 {
   // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
-  return FlipAndConvertCovariance(this->TworldCovariance);
+  return FlipAndConvertCovariance(this->LocalizationUncertainty.Covariance);
 }
 
 //-----------------------------------------------------------------------------
@@ -580,8 +584,8 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation() const
   map["Localization: edges used"]        = this->LocalizationMatchingResults.at(EDGE).NbMatches;
   map["Localization: planes used"]       = this->LocalizationMatchingResults.at(PLANE).NbMatches;
   map["Localization: blobs used"]        = this->LocalizationMatchingResults.at(BLOB).NbMatches;
-  map["Localization: position error"]    = this->LocalizationPositionError;
-  map["Localization: orientation error"] = this->LocalizationOrientationError;
+  map["Localization: position error"]    = this->LocalizationUncertainty.PositionError;
+  map["Localization: orientation error"] = this->LocalizationUncertainty.OrientationError;
   return map;
 }
 
@@ -982,7 +986,6 @@ void Slam::Localization()
       this->Tworld = this->PreviousTworld;
       this->TworldFrameStart = this->Tworld;
       this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
-      this->TworldCovariance = Eigen::Matrix6d::Identity();
       PRINT_ERROR("Not enough keypoints, Localization skipped for this frame.");
       break;
     }
@@ -1016,20 +1019,12 @@ void Slam::Localization()
     // computation of the variance covariance matrix.
     if ((summary.num_successful_steps == 1) || (icpIter == this->LocalizationICPMaxIter - 1))
     {
-      this->TworldCovariance = optim.GetCovariance();
+      this->LocalizationUncertainty = optim.EstimateRegistrationError();
       break;
     }
   }
 
   IF_VERBOSE(3, StopTimeAndDisplay("Localization : whole ICP-LM loop"));
-
-  // Estimate worst position and orientation errors from estimated covariance
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigOrientation(this->TworldCovariance.topLeftCorner<3, 3>());
-  this->LocalizationOrientationError = Rad2Deg(std::sqrt(eigOrientation.eigenvalues()(2)));
-  const Eigen::Vector3d& orientationErrorAxis = eigOrientation.eigenvectors().col(2);
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigPosition(this->TworldCovariance.bottomRightCorner<3, 3>());
-  this->LocalizationPositionError = std::sqrt(eigPosition.eigenvalues()(2));
-  const Eigen::Vector3d& positionErrorAxis = eigPosition.eigenvectors().col(2);
 
   // Optionally print localization optimization summary
   SET_COUT_FIXED_PRECISION(3);
@@ -1037,8 +1032,10 @@ void Slam::Localization()
                    << this->LocalizationMatchingResults[EDGE].NbMatches  << " edges, "
                    << this->LocalizationMatchingResults[PLANE].NbMatches << " planes, "
                    << this->LocalizationMatchingResults[BLOB].NbMatches  << " blobs)."
-                   "\nPosition uncertainty    = " << this->LocalizationPositionError    << " m (along [" << positionErrorAxis.transpose()    << "])"
-                   "\nOrientation uncertainty = " << this->LocalizationOrientationError << " ° (along [" << orientationErrorAxis.transpose() << "])");
+                   "\nPosition uncertainty    = " << this->LocalizationUncertainty.PositionError    << " m"
+                   " (along [" << this->LocalizationUncertainty.PositionErrorDirection.transpose()    << "])"
+                   "\nOrientation uncertainty = " << this->LocalizationUncertainty.OrientationError << " °"
+                   " (along [" << this->LocalizationUncertainty.OrientationErrorDirection.transpose() << "])");
   RESET_COUT_FIXED_PRECISION;
 }
 
@@ -1084,7 +1081,7 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
   {
     // Save current frame data to buffer
     this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
-    this->LogCovariances.emplace_back(FlipAndConvertCovariance(this->TworldCovariance));
+    this->LogCovariances.emplace_back(FlipAndConvertCovariance(this->LocalizationUncertainty.Covariance));
     this->LogEdgesPoints.emplace_back(this->CurrentEdgesPoints, this->LoggingStorage);
     this->LogPlanarsPoints.emplace_back(this->CurrentPlanarsPoints, this->LoggingStorage);
     if (!this->FastSlam)

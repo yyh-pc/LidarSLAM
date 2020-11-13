@@ -114,6 +114,24 @@ public:
     std::array<int, MatchStatus::nStatus> RejectionsHistogram;
   };
 
+  //! Estimation of registration error
+  struct RegistrationError
+  {
+    // Estimation of the maximum position error
+    double PositionError;
+    // Direction of the maximum position error
+    Eigen::Vector3d PositionErrorDirection;
+
+    // Estimation of the maximum orientation error (in radians)
+    double OrientationError;
+    // Direction of the maximum orientation error
+    Eigen::Vector3d OrientationErrorDirection;
+
+    // Covariance matrix encoding the estimation of the pose's errors about the 6-DoF parameters
+    // (DoF order : rX, rY, rZ, X, Y, Z)
+    Eigen::Matrix6d Covariance;
+  };
+
   //----------------------------------------------------------------------------
 
   KeypointsRegistration(const Parameters& params,
@@ -132,7 +150,9 @@ public:
   // Get optimization results
   Eigen::Isometry3d GetOptimizedEndPose() const { return RPYXYZtoIsometry(this->EndPoseArray); }
   Eigen::Isometry3d GetOptimizedStartPose() const { return RPYXYZtoIsometry(this->StartPoseArray); }
-  Eigen::Matrix6d GetCovariance();
+
+  // Estimate registration error
+  RegistrationError EstimateRegistrationError();
 
   //----------------------------------------------------------------------------
 

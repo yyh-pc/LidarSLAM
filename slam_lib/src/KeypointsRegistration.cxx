@@ -95,8 +95,10 @@ ceres::Solver::Summary KeypointsRegistration::Solve()
 }
 
 //----------------------------------------------------------------------------
-Eigen::Matrix6d KeypointsRegistration::GetCovariance()
+KeypointsRegistration::RegistrationError KeypointsRegistration::EstimateRegistrationError()
 {
+  RegistrationError err;
+
   // Covariance computation options
   ceres::Covariance::Options covOptions;
   covOptions.apply_loss_function = true;
@@ -105,14 +107,22 @@ Eigen::Matrix6d KeypointsRegistration::GetCovariance()
   covOptions.num_threads = this->Params.NbThreads;
 
   // Computation of the variance-covariance matrix
-  Eigen::Matrix6d covarianceMatrix;
   ceres::Covariance covarianceSolver(covOptions);
   std::vector<std::pair<const double*, const double*>> covarianceBlocks;
   const double* paramBlock = this->EndPoseArray.data();
   covarianceBlocks.emplace_back(paramBlock, paramBlock);
   covarianceSolver.Compute(covarianceBlocks, &this->Problem);
-  covarianceSolver.GetCovarianceBlock(paramBlock, paramBlock, covarianceMatrix.data());
-  return covarianceMatrix;
+  covarianceSolver.GetCovarianceBlock(paramBlock, paramBlock, err.Covariance.data());
+
+  // Estimate max position/orientation errors and directions from covariance
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigPosition(err.Covariance.bottomRightCorner<3, 3>());
+  err.PositionError = std::sqrt(eigPosition.eigenvalues()(2));
+  err.PositionErrorDirection = eigPosition.eigenvectors().col(2);
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigOrientation(err.Covariance.topLeftCorner<3, 3>());
+  err.OrientationError = Rad2Deg(std::sqrt(eigOrientation.eigenvalues()(2)));
+  err.OrientationErrorDirection = eigOrientation.eigenvectors().col(2);
+
+  return err;
 }
 
 //----------------------------------------------------------------------------

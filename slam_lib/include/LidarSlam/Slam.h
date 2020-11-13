@@ -399,11 +399,6 @@ private:
   Eigen::Isometry3d Tworld;
   Eigen::Isometry3d PreviousTworld;
 
-  // Variance-Covariance matrix that estimates the
-  // estimation error about the 6-DoF parameters
-  // (DoF order : rX, rY, rZ, X, Y, Z)
-  Eigen::Matrix6d TworldCovariance;
-
   // [s] SLAM computation duration of last processed frame (~Tworld delay)
   // used to compute latency compensated pose
   double Latency;
@@ -468,9 +463,7 @@ private:
   std::map<Keypoint, KeypointsRegistration::MatchingResults> LocalizationMatchingResults;
 
   // Optimization results
-  // TODO : use struct to store optimization results
-  double LocalizationPositionError;
-  double LocalizationOrientationError;
+  KeypointsRegistration::RegistrationError LocalizationUncertainty;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
