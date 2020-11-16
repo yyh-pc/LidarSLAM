@@ -92,17 +92,10 @@
 namespace
 {
 //-----------------------------------------------------------------------------
-std::array<double, 36> FlipAndConvertCovariance(const Eigen::Matrix6d& covar)
+std::array<double, 36> Matrix6dToStdArray36(const Eigen::Matrix6d& covar)
 {
-  // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
-  const double* c = covar.data();
-  std::array<double, 36> cov = {c[21], c[22], c[23],   c[18], c[19], c[20],
-                                c[27], c[28], c[29],   c[24], c[25], c[26],
-                                c[33], c[34], c[35],   c[30], c[31], c[32],
-
-                                c[ 3], c[ 4], c[ 5],   c[ 0], c[ 1], c[ 2],
-                                c[ 9], c[10], c[11],   c[ 6], c[ 7], c[ 8],
-                                c[15], c[16], c[17],   c[12], c[13], c[14]};
+  std::array<double, 36> cov;
+  std::copy_n(covar.data(), 36, cov.begin());
   return cov;
 }
 
@@ -350,7 +343,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                   "graph optimization.");
 
     // Set all poses covariances equal to twice the last one if we did not log it
-    std::array<double, 36> fakeSlamCovariance = FlipAndConvertCovariance(this->LocalizationUncertainty.Covariance * 2);
+    std::array<double, 36> fakeSlamCovariance = Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance * 2);
     for (unsigned int i = 0; i < nbSlamPoses; i++)
       slamCovariances.emplace_back(fakeSlamCovariance);
   }
@@ -557,8 +550,7 @@ Transform Slam::GetLatencyCompensatedWorldTransform() const
 //-----------------------------------------------------------------------------
 std::array<double, 36> Slam::GetTransformCovariance() const
 {
-  // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
-  return FlipAndConvertCovariance(this->LocalizationUncertainty.Covariance);
+  return Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance);
 }
 
 //-----------------------------------------------------------------------------
@@ -1081,7 +1073,7 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
   {
     // Save current frame data to buffer
     this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
-    this->LogCovariances.emplace_back(FlipAndConvertCovariance(this->LocalizationUncertainty.Covariance));
+    this->LogCovariances.emplace_back(Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance));
     this->LogEdgesPoints.emplace_back(this->CurrentEdgesPoints, this->LoggingStorage);
     this->LogPlanarsPoints.emplace_back(this->CurrentPlanarsPoints, this->LoggingStorage);
     if (!this->FastSlam)

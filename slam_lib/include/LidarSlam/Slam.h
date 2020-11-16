@@ -463,6 +463,8 @@ private:
   std::map<Keypoint, KeypointsRegistration::MatchingResults> LocalizationMatchingResults;
 
   // Optimization results
+  // Variance-Covariance matrix that estimates the localization error about the
+  // 6-DoF parameters (DoF order : X, Y, Z, rX, rY, rZ)
   KeypointsRegistration::RegistrationError LocalizationUncertainty;
 
   // ---------------------------------------------------------------------------

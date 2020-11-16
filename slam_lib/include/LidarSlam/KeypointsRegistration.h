@@ -128,7 +128,7 @@ public:
     Eigen::Vector3d OrientationErrorDirection;
 
     // Covariance matrix encoding the estimation of the pose's errors about the 6-DoF parameters
-    // (DoF order : rX, rY, rZ, X, Y, Z)
+    // (DoF order : X, Y, Z, rX, rY, rZ)
     Eigen::Matrix6d Covariance;
   };
 
