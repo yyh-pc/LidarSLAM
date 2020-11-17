@@ -666,18 +666,6 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Maximum inlier distance Ransac line fitting"
-          command="SetLocalizationLineMaxDistInlier"
-          default_values="0.2"
-          number_of_elements="1"
-          panel_visibility="advanced">
-        <Documentation>
-          Reject an edge point if its neighborhood has points that
-          are too far from the fitted line (degenerated ellipsoid).
-        </Documentation>
-      </DoubleVectorProperty>
-
-      <DoubleVectorProperty
           name="Max edge neighbors distance to fitted line"
           command="SetLocalizationMaxLineDistance"
           default_values="0.2"
@@ -744,7 +732,6 @@
         <Property name="Linearity factor" />
         <Property name="Planarity factor 1" />
         <Property name="Planarity factor 2" />
-        <Property name="Maximum inlier distance Ransac line fitting" />
         <Property name="Max edge neighbors distance to fitted line" />
         <Property name="Max plane neighbors distance to fitted plane" />
         <Property name="Init loss scale" />

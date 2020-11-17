@@ -288,9 +288,6 @@ public:
   GetMacro(LocalizationMaxPlaneDistance, double)
   SetMacro(LocalizationMaxPlaneDistance, double)
 
-  GetMacro(LocalizationLineMaxDistInlier, double)
-  SetMacro(LocalizationLineMaxDistInlier, double)
-
   GetMacro(LocalizationInitLossScale, double)
   SetMacro(LocalizationInitLossScale, double)
 
@@ -509,7 +506,6 @@ private:
 
   double LocalizationMaxPlaneDistance = 0.2;
   double LocalizationMaxLineDistance = 0.2;
-  double LocalizationLineMaxDistInlier = 0.2;
 
   unsigned int LocalizationBlobDistanceNbrNeighbors = 25.;  // TODO : set from user interface
 
