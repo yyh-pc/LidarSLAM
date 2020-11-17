@@ -464,8 +464,8 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // ======================================================
   // Compute point-to-blob optimization parameters with PCA
 
-  // Compute PCA to determine best ellipsoid approximation
-  // of the neighborhoodSize nearest blobs points extracted.
+  // Compute PCA to determine best ellipsoid approximation of the
+  // neighborhoodSize nearest blob points extracted.
   // Thanks to the PCA we will check the shape of the neighborhood and
   // tune a distance function adapted to the distribution (Mahalanobis distance)
   Eigen::MatrixXd data(neighborhoodSize, 3);
@@ -502,7 +502,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // ===========================================
   // Add valid parameters for later optimization
 
-  // Weigh using the distance between the point and its matching blob.
+  // Quality score of the point-to-blob match
   // The aim is to prevent wrong matching pulling the pointcloud in a bad direction.
   double fitQualityCoeff = 1.0;//1.0 - knnSqDist.back() / maxDist;
 
