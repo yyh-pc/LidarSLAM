@@ -75,8 +75,6 @@ KeypointsRegistration::MatchingResults KeypointsRegistration::BuildAndMatchResid
     }
   }
 
-  // Set number of valid successful results
-  matchingResults.NbMatches = matchingResults.RejectionsHistogram[MatchingResults::MatchStatus::SUCCESS];
   return matchingResults;
 }
 

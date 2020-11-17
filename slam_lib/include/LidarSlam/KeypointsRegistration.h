@@ -111,30 +111,31 @@ public:
       nStatus = 7
     };
 
-    // Number of successful matches (shortcut to RejectionsHistogram[SUCCESS])
-    unsigned int NbMatches;
     // Matching result of each keypoint
     std::vector<MatchStatus> Rejections;
     // Histogram of the matching rejection causes
-    std::array<int, MatchStatus::nStatus> RejectionsHistogram;
+    std::array<int, MatchStatus::nStatus> RejectionsHistogram = {};
+
+    // Number of successful matches (shortcut to RejectionsHistogram[SUCCESS])
+    unsigned int NbMatches() const { return RejectionsHistogram[SUCCESS]; }
   };
 
   //! Estimation of registration error
   struct RegistrationError
   {
     // Estimation of the maximum position error
-    double PositionError;
+    double PositionError = 0.;
     // Direction of the maximum position error
-    Eigen::Vector3d PositionErrorDirection;
+    Eigen::Vector3d PositionErrorDirection = Eigen::Vector3d::Zero();
 
     // Estimation of the maximum orientation error (in radians)
-    double OrientationError;
+    double OrientationError = 0.;
     // Direction of the maximum orientation error
-    Eigen::Vector3d OrientationErrorDirection;
+    Eigen::Vector3d OrientationErrorDirection = Eigen::Vector3d::Zero();
 
     // Covariance matrix encoding the estimation of the pose's errors about the 6-DoF parameters
     // (DoF order : X, Y, Z, rX, rY, rZ)
-    Eigen::Matrix6d Covariance;
+    Eigen::Matrix6d Covariance = Eigen::Matrix6d::Zero();
   };
 
   //----------------------------------------------------------------------------

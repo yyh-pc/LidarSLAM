@@ -159,12 +159,8 @@ void Slam::Reset(bool resetLog)
   this->TworldFrameStart = Eigen::Isometry3d::Identity();
   this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
 
-  // Pose uncertainty
-  this->LocalizationUncertainty.Covariance = Eigen::Matrix6d::Zero();
-  this->LocalizationUncertainty.PositionError = 0.;
-  this->LocalizationUncertainty.PositionErrorDirection = Eigen::Vector3d::Zero();
-  this->LocalizationUncertainty.OrientationError = 0.;
-  this->LocalizationUncertainty.OrientationErrorDirection = Eigen::Vector3d::Zero();
+  // Reset pose uncertainty
+  this->LocalizationUncertainty = KeypointsRegistration::RegistrationError();
 
   // Reset point clouds
   this->CurrentFrame.reset(new PointCloud);
@@ -175,12 +171,12 @@ void Slam::Reset(bool resetLog)
   this->CurrentWorldPlanarsPoints.reset(new PointCloud);
   this->CurrentWorldBlobsPoints.reset(new PointCloud);
 
-  // Reset debug variables
-  this->EgoMotionMatchingResults[EDGE].NbMatches  = 0;
-  this->EgoMotionMatchingResults[PLANE].NbMatches = 0;
-  this->LocalizationMatchingResults[EDGE].NbMatches  = 0;
-  this->LocalizationMatchingResults[PLANE].NbMatches = 0;
-  this->LocalizationMatchingResults[BLOB].NbMatches  = 0;
+  // Reset keypoints matching results
+  this->EgoMotionMatchingResults[EDGE] = KeypointsRegistration::MatchingResults();
+  this->EgoMotionMatchingResults[PLANE] = KeypointsRegistration::MatchingResults();
+  this->LocalizationMatchingResults[EDGE] = KeypointsRegistration::MatchingResults();
+  this->LocalizationMatchingResults[PLANE] = KeypointsRegistration::MatchingResults();
+  this->LocalizationMatchingResults[BLOB] = KeypointsRegistration::MatchingResults();
 
   // Reset log history
   if (resetLog)
@@ -571,11 +567,11 @@ std::vector<std::array<double, 36>> Slam::GetCovariances() const
 std::unordered_map<std::string, double> Slam::GetDebugInformation() const
 {
   std::unordered_map<std::string, double> map;
-  map["EgoMotion: edges used"]           = this->EgoMotionMatchingResults.at(EDGE).NbMatches;
-  map["EgoMotion: planes used"]          = this->EgoMotionMatchingResults.at(PLANE).NbMatches;
-  map["Localization: edges used"]        = this->LocalizationMatchingResults.at(EDGE).NbMatches;
-  map["Localization: planes used"]       = this->LocalizationMatchingResults.at(PLANE).NbMatches;
-  map["Localization: blobs used"]        = this->LocalizationMatchingResults.at(BLOB).NbMatches;
+  map["EgoMotion: edges used"]           = this->EgoMotionMatchingResults.at(EDGE).NbMatches();
+  map["EgoMotion: planes used"]          = this->EgoMotionMatchingResults.at(PLANE).NbMatches();
+  map["Localization: edges used"]        = this->LocalizationMatchingResults.at(EDGE).NbMatches();
+  map["Localization: planes used"]       = this->LocalizationMatchingResults.at(PLANE).NbMatches();
+  map["Localization: blobs used"]        = this->LocalizationMatchingResults.at(BLOB).NbMatches();
   map["Localization: position error"]    = this->LocalizationUncertainty.PositionError;
   map["Localization: orientation error"] = this->LocalizationUncertainty.OrientationError;
   return map;
@@ -840,7 +836,7 @@ void Slam::ComputeEgoMotion()
     this->EgoMotionMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePreviousPlanes, Keypoint::PLANE);
 
     // Skip this frame if there are too few geometric keypoints matched
-    totalMatchedKeypoints = this->EgoMotionMatchingResults[EDGE].NbMatches + this->EgoMotionMatchingResults[PLANE].NbMatches;
+    totalMatchedKeypoints = this->EgoMotionMatchingResults[EDGE].NbMatches() + this->EgoMotionMatchingResults[PLANE].NbMatches();
     if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
     {
       PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
@@ -870,8 +866,8 @@ void Slam::ComputeEgoMotion()
   IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : whole ICP-LM loop"));
 
   PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
-                    << this->EgoMotionMatchingResults[EDGE].NbMatches  << " edges, "
-                    << this->EgoMotionMatchingResults[PLANE].NbMatches << " planes).");
+                    << this->EgoMotionMatchingResults[EDGE].NbMatches()  << " edges, "
+                    << this->EgoMotionMatchingResults[PLANE].NbMatches() << " planes).");
 }
 
 //-----------------------------------------------------------------------------
@@ -968,9 +964,9 @@ void Slam::Localization()
     this->LocalizationMatchingResults[BLOB] = optim.BuildAndMatchResiduals(this->CurrentBlobsPoints, kdtreeBlobs, Keypoint::BLOB);
 
     // Skip this frame if there is too few geometric keypoints matched
-    totalMatchedKeypoints =   this->LocalizationMatchingResults[EDGE].NbMatches
-                            + this->LocalizationMatchingResults[PLANE].NbMatches
-                            + this->LocalizationMatchingResults[BLOB].NbMatches;
+    totalMatchedKeypoints =   this->LocalizationMatchingResults[EDGE].NbMatches()
+                            + this->LocalizationMatchingResults[PLANE].NbMatches()
+                            + this->LocalizationMatchingResults[BLOB].NbMatches();
     if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
     {
       // Reset state to previous one to avoid instability
@@ -1021,9 +1017,9 @@ void Slam::Localization()
   // Optionally print localization optimization summary
   SET_COUT_FIXED_PRECISION(3);
   PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
-                   << this->LocalizationMatchingResults[EDGE].NbMatches  << " edges, "
-                   << this->LocalizationMatchingResults[PLANE].NbMatches << " planes, "
-                   << this->LocalizationMatchingResults[BLOB].NbMatches  << " blobs)."
+                   << this->LocalizationMatchingResults[EDGE].NbMatches()  << " edges, "
+                   << this->LocalizationMatchingResults[PLANE].NbMatches() << " planes, "
+                   << this->LocalizationMatchingResults[BLOB].NbMatches()  << " blobs)."
                    "\nPosition uncertainty    = " << this->LocalizationUncertainty.PositionError    << " m"
                    " (along [" << this->LocalizationUncertainty.PositionErrorDirection.transpose()    << "])"
                    "\nOrientation uncertainty = " << this->LocalizationUncertainty.OrientationError << " °"
