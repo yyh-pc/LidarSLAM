@@ -350,6 +350,19 @@ std::unordered_map<std::string, unsigned int> totalCalls;
 
 //------------------------------------------------------------------------------
 /*!
+ * @brief Reset timers values.
+ * 
+ * NOTE: This only resets timers declared in a given compilation unit.
+ */
+inline void ResetTimers()
+{
+  startTimestamps.clear();
+  totalDurations.clear();
+  totalCalls.clear();
+}
+
+//------------------------------------------------------------------------------
+/*!
  * @brief Init a timer.
  * @param timer The name of the timer
  */

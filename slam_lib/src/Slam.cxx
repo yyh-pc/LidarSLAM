@@ -187,6 +187,9 @@ void Slam::Reset(bool resetLog)
     this->LogPlanarsPoints.clear();
     this->LogBlobsPoints.clear();
   }
+
+  // Reset processing duration timers
+  ResetTimers();
 }
 
 //-----------------------------------------------------------------------------
