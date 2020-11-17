@@ -190,9 +190,6 @@ public:
   vtkCustomGetMacro(LocalizationMaxPlaneDistance, double)
   vtkCustomSetMacro(LocalizationMaxPlaneDistance, double)
 
-  vtkCustomGetMacro(LocalizationLineMaxDistInlier, double)
-  vtkCustomSetMacro(LocalizationLineMaxDistInlier, double)
-
   vtkCustomGetMacro(LocalizationInitLossScale, double)
   vtkCustomSetMacro(LocalizationInitLossScale, double)
 

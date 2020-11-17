@@ -77,8 +77,10 @@
 #include "LidarSlam/Utilities.h"
 #include "LidarSlam/Transform.h"
 #include "LidarSlam/LidarPoint.h"
+#include "LidarSlam/Enums.h"
 #include "LidarSlam/SpinningSensorKeypointExtractor.h"
 #include "LidarSlam/KDTreePCLAdaptor.h"
+#include "LidarSlam/KeypointsRegistration.h"
 #include "LidarSlam/MotionModel.h"
 #include "LidarSlam/RollingGrid.h"
 #include "LidarSlam/PointCloudStorage.h"
@@ -101,54 +103,6 @@ public:
   using Point = PointXYZTIId;
   using PointCloud = pcl::PointCloud<Point>;
   using KDTree = KDTreePCLAdaptor<Point>;
-
-  // How to estimate Ego-Motion (approximate relative motion since last frame)
-  enum class EgoMotionMode
-  {
-    //! No ego-motion step is performed : relative motion is Identity, new
-    //! estimated Tworld is equal to previous Tworld.
-    //! Fast, but may lead to unstable and imprecise Localization step if motion
-    //! is important.
-    NONE = 0,
-
-    //! Previous motion is linearly extrapolated to estimate new Tworld pose
-    //! from the 2 previous poses.
-    //! Fast and precise if motion is roughly constant and continuous.
-    MOTION_EXTRAPOLATION = 1,
-
-    //! Estimate Trelative (and therefore Tworld) by globally registering new
-    //! frame on previous frame.
-    //! Slower and need textured enough environment, but do not rely on
-    //! constant motion hypothesis.
-    REGISTRATION = 2,
-
-    //! Previous motion is linearly extrapolated to estimate new Tworld pose
-    //! from the 2 previous poses. Then this estimation is refined by globally
-    //! registering new frame on previous frame.
-    //! Slower and need textured enough environment, but should be more precise
-    //! and rely less on constant motion hypothesis.
-    MOTION_EXTRAPOLATION_AND_REGISTRATION = 3
-  };
-
-  // How to deal with undistortion
-  enum UndistortionMode
-  {
-    //! No undistortion is performed :
-    //!  - End scan pose is optimized using rigid registration of raw scan and map.
-    //!  - Raw input scan is added to maps.
-    NONE = 0,
-
-    //! Minimal undistortion is performed :
-    //!  - Begin scan pose is linearly interpolated between previous and current end scan poses.
-    //!  - End scan pose is optimized using rigid registration of undistorted scan and map.
-    //!  - Scan is linearly undistorted between begin and end scan poses.
-    APPROXIMATED = 1,
-
-    //! Ceres-optimized undistortion is performed :
-    //!  - Both begin and end scan poses are optimized using registration of undistorted scan and map.
-    //!  - Scan is linearly undistorted between begin and end scan poses.
-    OPTIMIZED = 2
-  };
 
   // Initialization
   Slam();
@@ -334,9 +288,6 @@ public:
   GetMacro(LocalizationMaxPlaneDistance, double)
   SetMacro(LocalizationMaxPlaneDistance, double)
 
-  GetMacro(LocalizationLineMaxDistInlier, double)
-  SetMacro(LocalizationLineMaxDistInlier, double)
-
   GetMacro(LocalizationInitLossScale, double)
   SetMacro(LocalizationInitLossScale, double)
 
@@ -445,11 +396,6 @@ private:
   Eigen::Isometry3d Tworld;
   Eigen::Isometry3d PreviousTworld;
 
-  // Variance-Covariance matrix that estimates the
-  // estimation error about the 6-DoF parameters
-  // (DoF order : rX, rY, rZ, X, Y, Z)
-  Eigen::Matrix6d TworldCovariance;
-
   // [s] SLAM computation duration of last processed frame (~Tworld delay)
   // used to compute latency compensated pose
   double Latency;
@@ -509,59 +455,14 @@ private:
   //   Optimization data
   // ---------------------------------------------------------------------------
 
-  // ICP matching summary (used for debug only)
-  unsigned int EgoMotionEdgesPointsUsed;
-  unsigned int EgoMotionPlanesPointsUsed;
-  unsigned int LocalizationEdgesPointsUsed;
-  unsigned int LocalizationPlanesPointsUsed;
-  unsigned int LocalizationBlobsPointsUsed;
-  double LocalizationPositionError;
-  double LocalizationOrientationError;
+  //! Matching results
+  std::map<Keypoint, KeypointsRegistration::MatchingResults> EgoMotionMatchingResults;
+  std::map<Keypoint, KeypointsRegistration::MatchingResults> LocalizationMatchingResults;
 
-  //! Result of the keypoint matching, explaining rejection cause of matching failure.
-  enum MatchingResult : uint8_t
-  {
-    SUCCESS = 0,               // keypoint has been successfully matched
-    NOT_ENOUGH_NEIGHBORS = 1,  // not enough neighbors to match keypoint
-    NEIGHBORS_TOO_FAR = 2,     // neighbors are too far to match keypoint
-    BAD_PCA_STRUCTURE = 3,     // PCA eigenvalues analysis discards neighborhood fit to model
-    INVALID_NUMERICAL = 4,     // optimization parameter computation has numerical invalidity
-    MSE_TOO_LARGE = 5,         // mean squared error to model is too important to accept fitted model
-    UNKOWN = 6,                // unkown status (matching not performed yet)
-    nRejectionCauses = 7
-  };
-
-  // ICP matching results of keypoints extracted from the current input frame
-  // (used for debug only)
-  std::vector<MatchingResult> EdgePointRejectionEgoMotion;
-  std::vector<MatchingResult> PlanarPointRejectionEgoMotion;
-  std::vector<MatchingResult> EdgePointRejectionLocalization;
-  std::vector<MatchingResult> PlanarPointRejectionLocalization;
-  std::vector<MatchingResult> BlobPointRejectionLocalization;
-
-  // Histogram of the ICP matching rejection causes
-  // (used mainly for debug)
-  std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramLine;
-  std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramPlane;
-  std::array<int, MatchingResult::nRejectionCauses> MatchRejectionHistogramBlob;
-
-  // To recover the ego-motion we have to minimize the function
-  // f(R, T) = sum(d(point, line)^2) + sum(d(point, plane)^2). In both
-  // case the distance between the point and the line / plane can be
-  // writen (R*X+T - P).t * A * (R*X+T - P). Where X is the key point
-  // P is a point on the line / plane. A = (n*n.t) for a plane with n
-  // being the normal and A = (I - n*n.t)^2 for a line with n being
-  // a director vector of the line
-  // - Avalues will store the A matrix
-  // - Pvalues will store the P points
-  // - Xvalues will store the W points
-  // - residualCoefficient will attenuate the distance function for outliers
-  // - TimeValues store the time acquisition
-  std::vector<Eigen::Matrix3d> Avalues;
-  std::vector<Eigen::Vector3d> Pvalues;
-  std::vector<Eigen::Vector3d> Xvalues;
-  std::vector<double> residualCoefficient;
-  std::vector<double> TimeValues;
+  // Optimization results
+  // Variance-Covariance matrix that estimates the localization error about the
+  // 6-DoF parameters (DoF order : X, Y, Z, rX, rY, rZ)
+  KeypointsRegistration::RegistrationError LocalizationUncertainty;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -605,7 +506,6 @@ private:
 
   double LocalizationMaxPlaneDistance = 0.2;
   double LocalizationMaxLineDistance = 0.2;
-  double LocalizationLineMaxDistInlier = 0.2;
 
   unsigned int LocalizationBlobDistanceNbrNeighbors = 25.;  // TODO : set from user interface
 
@@ -659,7 +559,7 @@ private:
   void LogCurrentFrameState(double time, const std::string& frameId);
 
   // ---------------------------------------------------------------------------
-  //   Geometrical transformations
+  //   Helpers
   // ---------------------------------------------------------------------------
 
   // All points of the current frame have been acquired at a different timestamp.
@@ -669,40 +569,6 @@ private:
 
   // Interpolate scan begin pose from PreviousTworld and Tworld.
   Eigen::Isometry3d InterpolateBeginScanPose();
-
-  // ---------------------------------------------------------------------------
-  //   Features associations and optimization
-  // ---------------------------------------------------------------------------
-
-  enum class MatchingMode
-  {
-    EGO_MOTION = 0,
-    LOCALIZATION = 1
-  };
-
-  void ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal);
-
-  // Match the current keypoint with its neighborhood in the map / previous
-  // frames. From this match we compute the point-to-neighborhood distance
-  // function:
-  // (R * X + T - P).t * A * (R * X + T - P)
-  // Where P is the mean point of the neighborhood and A is the symmetric
-  // variance-covariance matrix encoding the shape of the neighborhood
-  MatchingResult ComputeLineDistanceParameters(const KDTree& kdtreePreviousEdges,   const Point& p, MatchingMode matchingMode);
-  MatchingResult ComputePlaneDistanceParameters(const KDTree& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode);
-  MatchingResult ComputeBlobsDistanceParameters(const KDTree& kdtreePreviousBlobs,  const Point& p, MatchingMode matchingMode);
-
-  // Instead of taking the k-nearest neigbors in the odometry step we will take
-  // specific neighbor using the particularities of the lidar sensor
-  void GetEgoMotionLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest,
-                                        std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const;
-
-  // Instead of taking the k-nearest neighbors in the localization
-  // step we will take specific neighbor using a sample consensus  model
-  void GetLocalizationLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest, double maxDistInlier,
-                                           std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const;
-
-  void ResetDistanceParameters();
 };
 
 #endif // SLAM_H

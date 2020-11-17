@@ -22,6 +22,7 @@
 #define SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H
 
 #include "LidarSlam/LidarPoint.h"
+#include "LidarSlam/Enums.h"
 
 #include <pcl/point_cloud.h>
 
@@ -30,16 +31,6 @@
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
-
-//! Label of a point as a keypoint
-//! We use binary flags as each point can have different keypoint labels.
-using KeypointFlags = std::bitset<3>;
-enum Keypoint
-{
-  EDGE  = 0,   ///< edge keypoint (sharp local structure)
-  PLANE = 1,   ///< plane keypoint (flat local structure)
-  BLOB  = 2    ///< blob keypoint (spherical local structure)
-};
 
 class SpinningSensorKeypointExtractor
 {
@@ -167,6 +158,10 @@ private:
 
   // Number of lasers scan lines composing the pointcloud
   unsigned int NLasers = 0;
+
+  //! Label of a point as a keypoint
+  //! We use binary flags as each point can have different keypoint labels.
+  using KeypointFlags = std::bitset<Keypoint::nKeypointTypes>;
 
   // Curvature and other differential operations (scan by scan, point by point)
   std::vector<std::vector<double>> Angles;

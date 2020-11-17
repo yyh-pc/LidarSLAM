@@ -583,23 +583,23 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   int egoMotionMode;
   if (priv_nh.getParam("slam/ego_motion", egoMotionMode))
   {
-    Slam::EgoMotionMode egoMotion = static_cast<Slam::EgoMotionMode>(egoMotionMode);
-    if (egoMotion != Slam::EgoMotionMode::NONE         && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION &&
-        egoMotion != Slam::EgoMotionMode::REGISTRATION && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+    EgoMotionMode egoMotion = static_cast<EgoMotionMode>(egoMotionMode);
+    if (egoMotion != EgoMotionMode::NONE         && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION &&
+        egoMotion != EgoMotionMode::REGISTRATION && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
     {
       ROS_ERROR_STREAM("Invalid ego-motion mode (" << egoMotionMode << "). Setting it to 'MOTION_EXTRAPOLATION'.");
-      egoMotion = Slam::EgoMotionMode::MOTION_EXTRAPOLATION;
+      egoMotion = EgoMotionMode::MOTION_EXTRAPOLATION;
     }
     LidarSlam.SetEgoMotion(egoMotion);
   }
   int undistortionMode;
   if (priv_nh.getParam("slam/undistortion", undistortionMode))
   {
-    Slam::UndistortionMode undistortion = static_cast<Slam::UndistortionMode>(undistortionMode);
-    if (undistortion != Slam::NONE && undistortion != Slam::APPROXIMATED && undistortion != Slam::OPTIMIZED)
+    UndistortionMode undistortion = static_cast<UndistortionMode>(undistortionMode);
+    if (undistortion != UndistortionMode::NONE && undistortion != UndistortionMode::APPROXIMATED && undistortion != UndistortionMode::OPTIMIZED)
     {
       ROS_ERROR_STREAM("Invalid undistortion mode (" << undistortion << "). Setting it to 'APPROXIMATED'.");
-      undistortion = Slam::UndistortionMode::APPROXIMATED;
+      undistortion = UndistortionMode::APPROXIMATED;
     }
     LidarSlam.SetUndistortion(undistortion);
   }
@@ -643,7 +643,6 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   SetSlamParam(int,    "slam/localization/minimum_line_neighbor_rejection", LocalizationMinimumLineNeighborRejection)
   SetSlamParam(int,    "slam/localization/plane_distance_nbr_neighbors", LocalizationPlaneDistanceNbrNeighbors)
   SetSlamParam(double, "slam/localization/line_distance_factor", LocalizationLineDistancefactor)
-  SetSlamParam(double, "slam/localization/line_max_dist_inlier", LocalizationLineMaxDistInlier)
   SetSlamParam(double, "slam/localization/plane_distance_factor1", LocalizationPlaneDistancefactor1)
   SetSlamParam(double, "slam/localization/plane_distance_factor2", LocalizationPlaneDistancefactor2)
   SetSlamParam(double, "slam/localization/max_line_distance", LocalizationMaxLineDistance)

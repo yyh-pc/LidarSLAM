@@ -158,7 +158,6 @@ slam:
     plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
     max_line_distance: 0.2              # [m] Max distance to line model allowed to keep neighborhood.
     max_plane_distance: 0.2             # [m] Max distance to plane model allowed to keep neighborhood.
-    line_max_dist_inlier: 0.2           # [m] Max distance of current point to tested line model so that it votes for the validity of this model
     init_loss_scale: 0.7                # Initial arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
     final_loss_scale: 0.05              # Final arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
 

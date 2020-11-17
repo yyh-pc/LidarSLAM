@@ -74,12 +74,11 @@
 // LOCAL
 #include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
-#include "LidarSlam/CeresCostFunctions.h"
 #ifdef USE_G2O
 #include "LidarSlam/PoseGraphOptimization.h"
 #endif  // USE_G2O
 // CERES
-#include <ceres/ceres.h>
+#include <ceres/solver.h>
 // PCL
 #include <pcl/common/common.h>
 #include <pcl/common/transforms.h>
@@ -93,17 +92,10 @@
 namespace
 {
 //-----------------------------------------------------------------------------
-std::array<double, 36> FlipAndConvertCovariance(const Eigen::Matrix6d& covar)
+std::array<double, 36> Matrix6dToStdArray36(const Eigen::Matrix6d& covar)
 {
-  // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
-  const double* c = covar.data();
-  std::array<double, 36> cov = {c[21], c[22], c[23],   c[18], c[19], c[20],
-                                c[27], c[28], c[29],   c[24], c[25], c[26],
-                                c[33], c[34], c[35],   c[30], c[31], c[32],
-
-                                c[ 3], c[ 4], c[ 5],   c[ 0], c[ 1], c[ 2],
-                                c[ 9], c[10], c[11],   c[ 6], c[ 7], c[ 8],
-                                c[15], c[16], c[17],   c[12], c[13], c[14]};
+  std::array<double, 36> cov;
+  std::copy_n(covar.data(), 36, cov.begin());
   return cov;
 }
 
@@ -166,7 +158,9 @@ void Slam::Reset(bool resetLog)
   this->Trelative = Eigen::Isometry3d::Identity();
   this->TworldFrameStart = Eigen::Isometry3d::Identity();
   this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
-  this->TworldCovariance = Eigen::Matrix6d::Identity();
+
+  // Reset pose uncertainty
+  this->LocalizationUncertainty = KeypointsRegistration::RegistrationError();
 
   // Reset point clouds
   this->CurrentFrame.reset(new PointCloud);
@@ -177,14 +171,12 @@ void Slam::Reset(bool resetLog)
   this->CurrentWorldPlanarsPoints.reset(new PointCloud);
   this->CurrentWorldBlobsPoints.reset(new PointCloud);
 
-  // Reset debug variables
-  this->EgoMotionEdgesPointsUsed = 0;
-  this->EgoMotionPlanesPointsUsed = 0;
-  this->LocalizationEdgesPointsUsed = 0;
-  this->LocalizationPlanesPointsUsed = 0;
-  this->LocalizationBlobsPointsUsed = 0;
-  this->LocalizationPositionError = 0.;
-  this->LocalizationOrientationError = 0.;
+  // Reset keypoints matching results
+  this->EgoMotionMatchingResults[EDGE] = KeypointsRegistration::MatchingResults();
+  this->EgoMotionMatchingResults[PLANE] = KeypointsRegistration::MatchingResults();
+  this->LocalizationMatchingResults[EDGE] = KeypointsRegistration::MatchingResults();
+  this->LocalizationMatchingResults[PLANE] = KeypointsRegistration::MatchingResults();
+  this->LocalizationMatchingResults[BLOB] = KeypointsRegistration::MatchingResults();
 
   // Reset log history
   if (resetLog)
@@ -347,7 +339,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                   "graph optimization.");
 
     // Set all poses covariances equal to twice the last one if we did not log it
-    std::array<double, 36> fakeSlamCovariance = FlipAndConvertCovariance(this->TworldCovariance * 2);
+    std::array<double, 36> fakeSlamCovariance = Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance * 2);
     for (unsigned int i = 0; i < nbSlamPoses; i++)
       slamCovariances.emplace_back(fakeSlamCovariance);
   }
@@ -554,8 +546,7 @@ Transform Slam::GetLatencyCompensatedWorldTransform() const
 //-----------------------------------------------------------------------------
 std::array<double, 36> Slam::GetTransformCovariance() const
 {
-  // Reshape covariance from DoF order (rX, rY, rZ, X, Y, Z) to (X, Y, Z, rX, rY, rZ)
-  return FlipAndConvertCovariance(this->TworldCovariance);
+  return Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance);
 }
 
 //-----------------------------------------------------------------------------
@@ -576,13 +567,13 @@ std::vector<std::array<double, 36>> Slam::GetCovariances() const
 std::unordered_map<std::string, double> Slam::GetDebugInformation() const
 {
   std::unordered_map<std::string, double> map;
-  map["EgoMotion: edges used"]           = this->EgoMotionEdgesPointsUsed;
-  map["EgoMotion: planes used"]          = this->EgoMotionPlanesPointsUsed;
-  map["Localization: edges used"]        = this->LocalizationEdgesPointsUsed;
-  map["Localization: planes used"]       = this->LocalizationPlanesPointsUsed;
-  map["Localization: blobs used"]        = this->LocalizationBlobsPointsUsed;
-  map["Localization: position error"]    = this->LocalizationPositionError;
-  map["Localization: orientation error"] = this->LocalizationOrientationError;
+  map["EgoMotion: edges used"]           = this->EgoMotionMatchingResults.at(EDGE).NbMatches();
+  map["EgoMotion: planes used"]          = this->EgoMotionMatchingResults.at(PLANE).NbMatches();
+  map["Localization: edges used"]        = this->LocalizationMatchingResults.at(EDGE).NbMatches();
+  map["Localization: planes used"]       = this->LocalizationMatchingResults.at(PLANE).NbMatches();
+  map["Localization: blobs used"]        = this->LocalizationMatchingResults.at(BLOB).NbMatches();
+  map["Localization: position error"]    = this->LocalizationUncertainty.PositionError;
+  map["Localization: orientation error"] = this->LocalizationUncertainty.OrientationError;
   return map;
 }
 
@@ -592,10 +583,11 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
   auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
 
   std::unordered_map<std::string, std::vector<double>> map;
-  map["EgoMotion: edges matches"]  = toDoubleVector(this->EdgePointRejectionEgoMotion);
-  map["EgoMotion: planes matches"] = toDoubleVector(this->PlanarPointRejectionEgoMotion);
-  map["Localization: edges matches"]    = toDoubleVector(this->EdgePointRejectionLocalization);
-  map["Localization: planes matches"]   = toDoubleVector(this->PlanarPointRejectionLocalization);
+  map["EgoMotion: edges matches"]  = toDoubleVector(this->EgoMotionMatchingResults.at(EDGE).Rejections);
+  map["EgoMotion: planes matches"] = toDoubleVector(this->EgoMotionMatchingResults.at(PLANE).Rejections);
+  map["Localization: edges matches"]  = toDoubleVector(this->LocalizationMatchingResults.at(EDGE).Rejections);
+  map["Localization: planes matches"] = toDoubleVector(this->LocalizationMatchingResults.at(PLANE).Rejections);
+  map["Localization: blobs matches"]  = toDoubleVector(this->LocalizationMatchingResults.at(BLOB).Rejections);
   return map;
 }
 
@@ -800,19 +792,10 @@ void Slam::ComputeEgoMotion()
                    << this->PreviousPlanarsPoints->size() << " planes");
 
   IF_VERBOSE(3, StopTimeAndDisplay("EgoMotion : build KD tree"));
+  IF_VERBOSE(3, InitTime("Ego-Motion : whole ICP-LM loop"));
 
   // Reset ICP results
-  const unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
-                                   + this->CurrentPlanarsPoints->size();
-  this->Xvalues.reserve(nbKeypoints);
-  this->Avalues.reserve(nbKeypoints);
-  this->Pvalues.reserve(nbKeypoints);
-  this->TimeValues.reserve(nbKeypoints);
-  this->residualCoefficient.reserve(nbKeypoints);
-  this->EdgePointRejectionEgoMotion.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
-  this->PlanarPointRejectionEgoMotion.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
-
-  IF_VERBOSE(3, InitTime("Ego-Motion : whole ICP-LM loop"));
+  unsigned int totalMatchedKeypoints = 0;
 
   // ICP - Levenberg-Marquardt loop
   // At each step of this loop an ICP matching is performed. Once the keypoints
@@ -822,95 +805,53 @@ void Slam::ComputeEgoMotion()
   {
     IF_VERBOSE(3, InitTime("  Ego-Motion : ICP"));
 
-    // clear all keypoints matching data
-    this->ResetDistanceParameters();
+    // We want to estimate our 6-DOF parameters using a non linear least square
+    // minimization. The non linear part comes from the parametrization of the
+    // rotation endomorphism SO(3).
+    // First, we need to build the point-to-line, point-to-plane and
+    // point-to-blob ICP matches that will be optimized.
+    // Then, we use CERES Levenberg-Marquardt optimization to minimize the problem.
+    KeypointsRegistration::Parameters optimParams;
+    optimParams.NbThreads = this->NbThreads;
+    optimParams.SingleEdgePerRing = true;
+    optimParams.MaxDistanceForICPMatching = this->MaxDistanceForICPMatching;
+    optimParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
+    optimParams.LineDistanceNbrNeighbors = this->EgoMotionLineDistanceNbrNeighbors;
+    optimParams.MinimumLineNeighborRejection = this->EgoMotionMinimumLineNeighborRejection;
+    optimParams.LineDistancefactor = this->EgoMotionLineDistancefactor;
+    optimParams.MaxLineDistance = this->EgoMotionMaxLineDistance;
+    optimParams.PlaneDistanceNbrNeighbors = this->EgoMotionPlaneDistanceNbrNeighbors;
+    optimParams.PlaneDistancefactor1 = this->EgoMotionPlaneDistancefactor1;
+    optimParams.PlaneDistancefactor2 = this->EgoMotionPlaneDistancefactor2;
+    optimParams.MaxPlaneDistance = this->EgoMotionMaxPlaneDistance;
+    optimParams.LMMaxIter = this->EgoMotionLMMaxIter;
+    optimParams.LossScale = this->EgoMotionInitLossScale + icpIter * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
 
-    // loop over edges if there is enough previous edge keypoints
-    if (!this->CurrentEdgesPoints->empty() && this->PreviousEdgesPoints->size() > this->EgoMotionLineDistanceNbrNeighbors)
-    {
-      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (int edgeIndex = 0; edgeIndex < static_cast<int>(this->CurrentEdgesPoints->size()); ++edgeIndex)
-      {
-        // Find the closest correspondence edge line of the current edge point
-        // Compute the parameters of the point - line distance
-        // i.e A = (I - n*n.t)^2 with n being the director vector
-        // and P a point of the line
-        const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreePreviousEdges, currentPoint, MatchingMode::EGO_MOTION);
-        this->EdgePointRejectionEgoMotion[edgeIndex] = rejectionIndex;
-        #pragma omp atomic
-        this->MatchRejectionHistogramLine[rejectionIndex]++;
-      }
-    }
+    KeypointsRegistration optim(optimParams, UndistortionMode::NONE, this->Trelative);
 
-    // loop over planars if there is enough previous planar keypoints
-    if (!this->CurrentPlanarsPoints->empty() && this->PreviousPlanarsPoints->size() > this->EgoMotionPlaneDistanceNbrNeighbors)
-    {
-      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (int planarIndex = 0; planarIndex < static_cast<int>(this->CurrentPlanarsPoints->size()); ++planarIndex)
-      {
-        // Find the closest correspondence plane of the current planar point
-        // Compute the parameters of the point - plane distance
-        // i.e A = n * n.t with n being a normal of the plane
-        // and is a point of the plane
-        const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePreviousPlanes, currentPoint, MatchingMode::EGO_MOTION);
-        this->PlanarPointRejectionEgoMotion[planarIndex] = rejectionIndex;
-        #pragma omp atomic
-        this->MatchRejectionHistogramPlane[rejectionIndex]++;
-      }
-    }
+    // Loop over edges to build the point to line residuals
+    this->EgoMotionMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreePreviousEdges, Keypoint::EDGE);
 
-    // ICP matching summary
-    this->EgoMotionEdgesPointsUsed = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
-    this->EgoMotionPlanesPointsUsed = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
+    // Loop over surfaces to build the point to plane residuals
+    this->EgoMotionMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePreviousPlanes, Keypoint::PLANE);
 
     // Skip this frame if there are too few geometric keypoints matched
-    if ((this->EgoMotionEdgesPointsUsed + this->EgoMotionPlanesPointsUsed) < this->MinNbrMatchedKeypoints)
+    totalMatchedKeypoints = this->EgoMotionMatchingResults[EDGE].NbMatches() + this->EgoMotionMatchingResults[PLANE].NbMatches();
+    if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
     {
       PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
       break;
     }
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : ICP"));
-    IF_VERBOSE(3, InitTime("  Ego-Motion : build ceres problem"));
-
-    // Arctan loss scale factor to saturate costs according to their distance
-    double lossScale = this->EgoMotionInitLossScale + icpIter * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
-
-    // Convert Isometry to 6 DoF state vector (rX, rY, rZ, X, Y, Z)
-    Eigen::Vector6d TrelativeArray = IsometryToRPYXYZ(this->Trelative);
-
-    // We want to estimate our 6-DOF parameters using a non linear least square
-    // minimization. The non linear part comes from the parametrization of the
-    // rotation endomorphism SO(3). To minimize it, we use CERES to perform
-    // Levenberg-Marquardt algorithm.
-    ceres::Problem problem;
-    for (unsigned int k = 0; k < Xvalues.size(); ++k)
-    {
-      ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceAffineIsometryResidual, 1, 6>(
-                                            new CostFunctions::MahalanobisDistanceAffineIsometryResidual(this->Avalues[k], this->Pvalues[k],
-                                                                                                         this->Xvalues[k], this->residualCoefficient[k]));
-      problem.AddResidualBlock(cost_function,
-                               new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
-                               TrelativeArray.data());
-    }
-
-    IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : build ceres problem"));
     IF_VERBOSE(3, InitTime("  Ego-Motion : LM optim"));
 
-    ceres::Solver::Options options;
-    options.max_num_iterations = this->EgoMotionLMMaxIter;
-    options.linear_solver_type = ceres::DENSE_QR;  // TODO : try also DENSE_NORMAL_CHOLESKY or SPARSE_NORMAL_CHOLESKY
-    options.minimizer_progress_to_stdout = false;
-    options.num_threads = this->NbThreads;
-
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
+    // Run LM optimization
+    ceres::Solver::Summary summary = optim.Solve();
     PRINT_VERBOSE(4, summary.BriefReport());
 
-    // Unpack Trelative back to isometry
-    this->Trelative = RPYXYZtoIsometry(TrelativeArray);
+    // Get back optimized Trelative
+    this->Trelative = optim.GetOptimizedEndPose();
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : LM optim"));
 
@@ -924,9 +865,9 @@ void Slam::ComputeEgoMotion()
 
   IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : whole ICP-LM loop"));
 
-  PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " ("
-                    << this->EgoMotionEdgesPointsUsed << " edges, "
-                    << this->EgoMotionPlanesPointsUsed << " planes).");
+  PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
+                    << this->EgoMotionMatchingResults[EDGE].NbMatches()  << " edges, "
+                    << this->EgoMotionMatchingResults[PLANE].NbMatches() << " planes).");
 }
 
 //-----------------------------------------------------------------------------
@@ -975,21 +916,10 @@ void Slam::Localization()
                    << subBlobPointsLocalMap->size() << " blobs");
 
   IF_VERBOSE(3, StopTimeAndDisplay("Localization : keypoints extraction"));
+  IF_VERBOSE(3, InitTime("Localization : whole ICP-LM loop"));
 
   // Reset ICP results
-  const unsigned int nbKeypoints =   this->CurrentEdgesPoints->size()
-                                   + this->CurrentPlanarsPoints->size()
-                                   + this->CurrentBlobsPoints->size();
-  this->Xvalues.reserve(nbKeypoints);
-  this->Avalues.reserve(nbKeypoints);
-  this->Pvalues.reserve(nbKeypoints);
-  this->TimeValues.reserve(nbKeypoints);
-  this->residualCoefficient.reserve(nbKeypoints);
-  this->EdgePointRejectionLocalization.assign(this->CurrentEdgesPoints->size(), MatchingResult::UNKOWN);
-  this->PlanarPointRejectionLocalization.assign(this->CurrentPlanarsPoints->size(), MatchingResult::UNKOWN);
-  this->BlobPointRejectionLocalization.assign(this->CurrentBlobsPoints->size(), MatchingResult::UNKOWN);
-
-  IF_VERBOSE(3, InitTime("Localization : whole ICP-LM loop"));
+  unsigned int totalMatchedKeypoints = 0;
 
   // ICP - Levenberg-Marquardt loop
   // At each step of this loop an ICP matching is performed. Once the keypoints
@@ -999,131 +929,68 @@ void Slam::Localization()
   {
     IF_VERBOSE(3, InitTime("  Localization : ICP"));
 
-    // clear all keypoints matching data
-    this->ResetDistanceParameters();
+    // We want to estimate our 6-DOF parameters using a non linear least square
+    // minimization. The non linear part comes from the parametrization of the
+    // rotation endomorphism SO(3).
+    // First, we need to build the point-to-line, point-to-plane and
+    // point-to-blob ICP matches that will be optimized.
+    // Then, we use CERES Levenberg-Marquardt optimization to minimize problem.
+    KeypointsRegistration::Parameters optimParams;
+    optimParams.NbThreads = this->NbThreads;
+    optimParams.SingleEdgePerRing = false;
+    optimParams.MaxDistanceForICPMatching = this->MaxDistanceForICPMatching;
+    optimParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
+    optimParams.LineDistanceNbrNeighbors = this->LocalizationLineDistanceNbrNeighbors;
+    optimParams.MinimumLineNeighborRejection = this->LocalizationMinimumLineNeighborRejection;
+    optimParams.LineDistancefactor = this->LocalizationLineDistancefactor;
+    optimParams.MaxLineDistance = this->LocalizationMaxLineDistance;
+    optimParams.PlaneDistanceNbrNeighbors = this->LocalizationPlaneDistanceNbrNeighbors;
+    optimParams.PlaneDistancefactor1 = this->LocalizationPlaneDistancefactor1;
+    optimParams.PlaneDistancefactor2 = this->LocalizationPlaneDistancefactor2;
+    optimParams.MaxPlaneDistance = this->LocalizationMaxPlaneDistance;
+    optimParams.BlobDistanceNbrNeighbors = this->LocalizationBlobDistanceNbrNeighbors;
+    optimParams.LMMaxIter = this->LocalizationLMMaxIter;
+    optimParams.LossScale = this->LocalizationInitLossScale + icpIter * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / this->LocalizationICPMaxIter;
 
-    // loop over edges
-    if (!this->CurrentEdgesPoints->empty() && subEdgesPointsLocalMap->size() > this->LocalizationLineDistanceNbrNeighbors)
-    {
-      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (int edgeIndex = 0; edgeIndex < static_cast<int>(this->CurrentEdgesPoints->size()); ++edgeIndex)
-      {
-        // Find the closest correspondence edge line of the current edge point
-        const Point& currentPoint = this->CurrentEdgesPoints->points[edgeIndex];
-        MatchingResult rejectionIndex = this->ComputeLineDistanceParameters(kdtreeEdges, currentPoint, MatchingMode::LOCALIZATION);
-        this->EdgePointRejectionLocalization[edgeIndex] = rejectionIndex;
-        #pragma omp atomic
-        this->MatchRejectionHistogramLine[rejectionIndex]++;
-      }
-    }
+    KeypointsRegistration optim(optimParams, this->Undistortion, this->Tworld, this->TworldFrameStart);
 
-    // loop over surfaces
-    if (!this->CurrentPlanarsPoints->empty() && subPlanarPointsLocalMap->size() > this->LocalizationPlaneDistanceNbrNeighbors)
-    {
-      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (int planarIndex = 0; planarIndex < static_cast<int>(this->CurrentPlanarsPoints->size()); ++planarIndex)
-      {
-        // Find the closest correspondence plane of the current planar point
-        const Point& currentPoint = this->CurrentPlanarsPoints->points[planarIndex];
-        MatchingResult rejectionIndex = this->ComputePlaneDistanceParameters(kdtreePlanes, currentPoint, MatchingMode::LOCALIZATION);
-        this->PlanarPointRejectionLocalization[planarIndex] = rejectionIndex;
-        #pragma omp atomic
-        this->MatchRejectionHistogramPlane[rejectionIndex]++;
-      }
-    }
+    // Loop over edges to build the point to line residuals
+    this->LocalizationMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreeEdges, Keypoint::EDGE);
 
-    // loop over blobs
-    if (!this->FastSlam && !this->CurrentBlobsPoints->empty()  && subBlobPointsLocalMap->size() > this->LocalizationBlobDistanceNbrNeighbors)
-    {
-      #pragma omp parallel for num_threads(this->NbThreads) schedule(guided, 8)
-      for (int blobIndex = 0; blobIndex < static_cast<int>(this->CurrentBlobsPoints->size()); ++blobIndex)
-      {
-        // Find the closest correspondence plane of the current blob point
-        const Point& currentPoint = this->CurrentBlobsPoints->points[blobIndex];
-        MatchingResult rejectionIndex = this->ComputeBlobsDistanceParameters(kdtreeBlobs, currentPoint, MatchingMode::LOCALIZATION);
-        this->BlobPointRejectionLocalization[blobIndex] = rejectionIndex;
-        #pragma omp atomic
-        this->MatchRejectionHistogramBlob[rejectionIndex]++;
-      }
-    }
+    // Loop over surfaces to build the point to plane residuals
+    this->LocalizationMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePlanes, Keypoint::PLANE);
 
-    // ICP matching summary
-    this->LocalizationEdgesPointsUsed  = this->MatchRejectionHistogramLine[MatchingResult::SUCCESS];
-    this->LocalizationPlanesPointsUsed = this->MatchRejectionHistogramPlane[MatchingResult::SUCCESS];
-    this->LocalizationBlobsPointsUsed  = this->MatchRejectionHistogramBlob[MatchingResult::SUCCESS];
+    // Loop over blobs to build the point to blob residuals
+    this->LocalizationMatchingResults[BLOB] = optim.BuildAndMatchResiduals(this->CurrentBlobsPoints, kdtreeBlobs, Keypoint::BLOB);
 
     // Skip this frame if there is too few geometric keypoints matched
-    if ((this->LocalizationEdgesPointsUsed + this->LocalizationPlanesPointsUsed + this->LocalizationBlobsPointsUsed) < this->MinNbrMatchedKeypoints)
+    totalMatchedKeypoints =   this->LocalizationMatchingResults[EDGE].NbMatches()
+                            + this->LocalizationMatchingResults[PLANE].NbMatches()
+                            + this->LocalizationMatchingResults[BLOB].NbMatches();
+    if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
     {
       // Reset state to previous one to avoid instability
       this->Trelative = Eigen::Isometry3d::Identity();
       this->Tworld = this->PreviousTworld;
       this->TworldFrameStart = this->Tworld;
       this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
-      this->TworldCovariance = Eigen::Matrix6d::Identity();
       PRINT_ERROR("Not enough keypoints, Localization skipped for this frame.");
       break;
     }
 
     IF_VERBOSE(3, StopTimeAndDisplay("  Localization : ICP"));
-    IF_VERBOSE(3, InitTime("  Localization : build ceres problem"));
-
-    // Arctan loss scale factor to saturate costs according to their distance
-    double lossScale = this->LocalizationInitLossScale + icpIter * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / this->LocalizationICPMaxIter;
-
-    // Convert isometries to 6D state vectors : rX, rY, rZ, X, Y, Z
-    Eigen::Vector6d TworldArray = IsometryToRPYXYZ(this->Tworld);  // pose at the end of frame
-    Eigen::Vector6d TworldStartArray = IsometryToRPYXYZ(this->TworldFrameStart);  // pose at the beginning of frame
-
-    // We want to estimate our 6-DOF parameters using a non linear least square
-    // minimization. The non linear part comes from the parametrization of the
-    // rotation endomorphism SO(3). To minimize it, we use CERES to perform
-    // Levenberg-Marquardt algorithm.
-    ceres::Problem problem;
-    if (this->Undistortion == UndistortionMode::OPTIMIZED)
-    {
-      for (unsigned int k = 0; k < Xvalues.size(); ++k)
-      {
-        ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceInterpolatedMotionResidual, 1, 6, 6>(
-                                                new CostFunctions::MahalanobisDistanceInterpolatedMotionResidual(
-                                                  this->Avalues[k], this->Pvalues[k], this->Xvalues[k], this->TimeValues[k], this->residualCoefficient[k]));
-        problem.AddResidualBlock(cost_function, 
-                                 new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
-                                 TworldStartArray.data(), TworldArray.data());
-      }
-    }
-    else
-    {
-      for (unsigned int k = 0; k < Xvalues.size(); ++k)
-      {
-        ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<CostFunctions::MahalanobisDistanceAffineIsometryResidual, 1, 6>(
-                                                new CostFunctions::MahalanobisDistanceAffineIsometryResidual(
-                                                  this->Avalues[k], this->Pvalues[k], this->Xvalues[k], this->residualCoefficient[k]));
-        problem.AddResidualBlock(cost_function,
-                                 new ceres::ScaledLoss(new ceres::ArctanLoss(lossScale), this->residualCoefficient[k], ceres::TAKE_OWNERSHIP),
-                                 TworldArray.data());
-      }
-    }
-
-    IF_VERBOSE(3, StopTimeAndDisplay("  Localization : build ceres problem"));
     IF_VERBOSE(3, InitTime("  Localization : LM optim"));
 
-    ceres::Solver::Options options;
-    options.max_num_iterations = this->LocalizationLMMaxIter;
-    options.linear_solver_type = ceres::DENSE_QR;  // TODO test other optimizer
-    options.minimizer_progress_to_stdout = false;
-    options.num_threads = this->NbThreads;
-
-    ceres::Solver::Summary summary;
-    ceres::Solve(options, &problem, &summary);
+    // Run LM optimization
+    ceres::Solver::Summary summary = optim.Solve();
     PRINT_VERBOSE(4, summary.BriefReport());
 
     // Unpack Tworld and TworldFrameStart
-    this->Tworld = RPYXYZtoIsometry(TworldArray);
+    this->Tworld = optim.GetOptimizedEndPose();
     this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
     if (this->Undistortion == UndistortionMode::OPTIMIZED)
     {
-      this->TworldFrameStart = RPYXYZtoIsometry(TworldStartArray);
+      this->TworldFrameStart = optim.GetOptimizedStartPose();
       this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
     }
     else if (this->Undistortion == UndistortionMode::APPROXIMATED)
@@ -1140,40 +1007,23 @@ void Slam::Localization()
     // computation of the variance covariance matrix.
     if ((summary.num_successful_steps == 1) || (icpIter == this->LocalizationICPMaxIter - 1))
     {
-      // Covariance computation options
-      ceres::Covariance::Options covOptions;
-      covOptions.apply_loss_function = true;
-      covOptions.algorithm_type = ceres::CovarianceAlgorithmType::DENSE_SVD;
-
-      // Computation of the variance-covariance matrix
-      ceres::Covariance covariance(covOptions);
-      std::vector<std::pair<const double*, const double*>> covariance_blocks;
-      const double* paramBlock = TworldArray.data();
-      covariance_blocks.push_back(std::make_pair(paramBlock, paramBlock));
-      covariance.Compute(covariance_blocks, &problem);
-      covariance.GetCovarianceBlock(paramBlock, paramBlock, this->TworldCovariance.data());
+      this->LocalizationUncertainty = optim.EstimateRegistrationError();
       break;
     }
   }
 
   IF_VERBOSE(3, StopTimeAndDisplay("Localization : whole ICP-LM loop"));
 
-  // Estimate worst position and orientation errors from estimated covariance
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigOrientation(this->TworldCovariance.topLeftCorner<3, 3>());
-  this->LocalizationOrientationError = Rad2Deg(std::sqrt(eigOrientation.eigenvalues()(2)));
-  const Eigen::Vector3d& orientationErrorAxis = eigOrientation.eigenvectors().col(2);
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigPosition(this->TworldCovariance.bottomRightCorner<3, 3>());
-  this->LocalizationPositionError = std::sqrt(eigPosition.eigenvalues()(2));
-  const Eigen::Vector3d& positionErrorAxis = eigPosition.eigenvectors().col(2);
-
   // Optionally print localization optimization summary
   SET_COUT_FIXED_PRECISION(3);
-  PRINT_VERBOSE(2, "Matched keypoints: " << this->Xvalues.size() << " ("
-                   << this->LocalizationEdgesPointsUsed  << " edges, "
-                   << this->LocalizationPlanesPointsUsed << " planes, "
-                   << this->LocalizationBlobsPointsUsed  << " blobs)."
-                   "\nPosition uncertainty    = " << this->LocalizationPositionError    << " m (along [" << positionErrorAxis.transpose()    << "])"
-                   "\nOrientation uncertainty = " << this->LocalizationOrientationError << " ° (along [" << orientationErrorAxis.transpose() << "])");
+  PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
+                   << this->LocalizationMatchingResults[EDGE].NbMatches()  << " edges, "
+                   << this->LocalizationMatchingResults[PLANE].NbMatches() << " planes, "
+                   << this->LocalizationMatchingResults[BLOB].NbMatches()  << " blobs)."
+                   "\nPosition uncertainty    = " << this->LocalizationUncertainty.PositionError    << " m"
+                   " (along [" << this->LocalizationUncertainty.PositionErrorDirection.transpose()    << "])"
+                   "\nOrientation uncertainty = " << this->LocalizationUncertainty.OrientationError << " °"
+                   " (along [" << this->LocalizationUncertainty.OrientationErrorDirection.transpose() << "])");
   RESET_COUT_FIXED_PRECISION;
 }
 
@@ -1219,7 +1069,7 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
   {
     // Save current frame data to buffer
     this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
-    this->LogCovariances.emplace_back(FlipAndConvertCovariance(this->TworldCovariance));
+    this->LogCovariances.emplace_back(Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance));
     this->LogEdgesPoints.emplace_back(this->CurrentEdgesPoints, this->LoggingStorage);
     this->LogPlanarsPoints.emplace_back(this->CurrentPlanarsPoints, this->LoggingStorage);
     if (!this->FastSlam)
@@ -1252,558 +1102,7 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
 }
 
 //==============================================================================
-//   Features associations and optimization
-//==============================================================================
-
-//-----------------------------------------------------------------------------
-void Slam::ResetDistanceParameters()
-{
-  this->Xvalues.clear();
-  this->Avalues.clear();
-  this->Pvalues.clear();
-  this->TimeValues.clear();
-  this->residualCoefficient.clear();
-  this->MatchRejectionHistogramLine.fill(0);
-  this->MatchRejectionHistogramPlane.fill(0);
-  this->MatchRejectionHistogramBlob.fill(0);
-}
-
-//-----------------------------------------------------------------------------
-void Slam::ComputePointInitAndFinalPose(MatchingMode matchingMode, const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal)
-{
-  // Undistortion can only be done during Localization step
-  const bool isLocalizationStep = matchingMode == MatchingMode::LOCALIZATION;
-  const Eigen::Vector3d pos = p.getVector3fMap().cast<double>();
-
-  if (this->Undistortion == UndistortionMode::OPTIMIZED && isLocalizationStep)
-  {
-    pInit = pos;
-    pFinal = this->WithinFrameMotion(p.time) * pos;
-  }
-  else if (this->Undistortion == UndistortionMode::APPROXIMATED && isLocalizationStep)
-  {
-    pFinal = this->WithinFrameMotion(p.time) * pos;
-    pInit = this->Tworld.inverse() * pFinal;
-  }
-  else
-  {
-    const Eigen::Isometry3d& transform = isLocalizationStep ? this->Tworld : this->Trelative;
-    pInit = pos;
-    pFinal = transform * pos;
-  }
-}
-
-//-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputeLineDistanceParameters(const KDTree& kdtreePreviousEdges, const Point& p, MatchingMode matchingMode)
-{
-  // =====================================================
-  // Transform the point using the current pose estimation
-
-  // Rigid transform or time continuous motion model to take into account the
-  // rolling shutter distortion.
-  Eigen::Vector3d pInit, pFinal;
-  this->ComputePointInitAndFinalPose(matchingMode, p, pInit, pFinal);
-
-  // ===================================================
-  // Get neighboring points in previous set of keypoints
-
-  unsigned int minNeighbors;     //< minimum numbers of neighbors below which neighborhood is rejected
-  unsigned int requiredNearest;  //< number of neighbors required to approximate the corresponding edge line
-  double eigenValuesRatio;       //< min eigen values ratio to conbsider a neighborhood as flat
-  double squaredMaxDist;         //< maximum distance between keypoints and their computed line
-  std::vector<int> knnIndices;
-  std::vector<float> knnSqDist;
-  if (matchingMode == MatchingMode::EGO_MOTION)
-  {
-    requiredNearest = this->EgoMotionLineDistanceNbrNeighbors;
-    eigenValuesRatio = this->EgoMotionLineDistancefactor;
-    squaredMaxDist = this->EgoMotionMaxLineDistance * this->EgoMotionMaxLineDistance;
-    minNeighbors = this->EgoMotionMinimumLineNeighborRejection;
-    GetEgoMotionLineSpecificNeighbor(kdtreePreviousEdges, pFinal.data(), requiredNearest, knnIndices, knnSqDist);
-  }
-  else if (matchingMode == MatchingMode::LOCALIZATION)
-  {
-    requiredNearest = this->LocalizationLineDistanceNbrNeighbors;
-    eigenValuesRatio = this->LocalizationLineDistancefactor;
-    squaredMaxDist = this->LocalizationMaxLineDistance * this->LocalizationMaxLineDistance;
-    minNeighbors = this->LocalizationMinimumLineNeighborRejection;
-    GetLocalizationLineSpecificNeighbor(kdtreePreviousEdges, pFinal.data(), requiredNearest, this->LocalizationLineMaxDistInlier, knnIndices, knnSqDist);
-  }
-  else
-  {
-    throw "ComputeLineDistanceParameters function got invalid step parameter";
-  }
-
-  // If not enough neighbors, abort
-  unsigned int neighborhoodSize = knnIndices.size();
-  if (neighborhoodSize < minNeighbors)
-  {
-    return MatchingResult::NOT_ENOUGH_NEIGHBORS;
-  }
-
-  // If the nearest edges are too far from the current edge keypoint,
-  // we skip this point.
-  if (knnSqDist.back() > this->MaxDistanceForICPMatching * this->MaxDistanceForICPMatching)
-  {
-    return MatchingResult::NEIGHBORS_TOO_FAR;
-  }
-
-  // Shortcut to keypoints cloud
-  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.GetInputCloud();
-
-  // =======================================================
-  // Check if neighborhood is a good line candidate with PCA
-
-  // Compute PCA to determine best line approximation
-  // of the neighborhoodSize nearest edges points extracted.
-  // Thanks to the PCA we will check the shape of the neighborhood
-  // and keep it if it is well distributed along a line.
-  Eigen::MatrixXd data(neighborhoodSize, 3);
-  for (unsigned int k = 0; k < neighborhoodSize; k++)
-  {
-    const Point& pt = previousEdgesPoints[knnIndices[k]];
-    data.row(k) << pt.x, pt.y, pt.z;
-  }
-  Eigen::Vector3d mean;
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = ComputePCA(data, mean);
-
-  // PCA eigenvalues
-  Eigen::Vector3d D = eig.eigenvalues();
-
-  // If the first eigen value is significantly higher than the second one,
-  // it means that the sourrounding points are distributed on an edge line.
-  // Otherwise, discard this bad unstructured neighborhood.
-  if (D(2) < eigenValuesRatio * D(1))
-  {
-    return MatchingResult::BAD_PCA_STRUCTURE;
-  }
-
-  // =============================================
-  // Compute point-to-line optimization parameters
-
-  // n is the director vector of the line
-  Eigen::Vector3d n = eig.eigenvectors().col(2);
-
-  // A = (I-n*n.t).t * (I-n*n.t) = (I - n*n.t)^2
-  // since (I-n*n.t) is a symmetric matrix
-  // Then it comes A (I-n*n.t)^2 = (I-n*n.t) since
-  // A is the matrix of a projection endomorphism
-  Eigen::Matrix3d A = Eigen::Matrix3d::Identity() - n * n.transpose();
-
-  // =========================
-  // Check parameters validity
-
-  // It would be the case if P1 = P2, for instance if the sensor has some dual
-  // returns that hit the same point.
-  if (!std::isfinite(A(0, 0)))
-  {
-    return MatchingResult::INVALID_NUMERICAL;
-  }
-
-  // Evaluate the distance from the fitted line distribution of the neighborhood
-  double meanSquaredDist = 0.;
-  for (unsigned int nearestPointIndex: knnIndices)
-  {
-    const Point& pt = previousEdgesPoints[nearestPointIndex];
-    Eigen::Vector3d Xtemp(pt.x, pt.y, pt.z);
-    double squaredDist = (Xtemp - mean).transpose() * A * (Xtemp - mean);
-    // CHECK invalidate all neighborhood even if only one point is bad?
-    if (squaredDist > squaredMaxDist)
-    {
-      return MatchingResult::MSE_TOO_LARGE;
-    }
-    meanSquaredDist += squaredDist;
-  }
-  meanSquaredDist /= static_cast<double>(neighborhoodSize);
-
-  // ===========================================
-  // Add valid parameters for later optimization
-
-  // Quality score of the point-to-line match
-  double fitQualityCoeff = 1.0 - std::sqrt(meanSquaredDist / squaredMaxDist);
-
-  // Store the distance parameters values
-  #pragma omp critical(addIcpMatch)
-  {
-    this->Avalues.emplace_back(A);
-    this->Pvalues.emplace_back(mean);
-    this->Xvalues.emplace_back(pInit);
-    this->TimeValues.emplace_back(p.time);
-    this->residualCoefficient.emplace_back(fitQualityCoeff);
-  }
-  return MatchingResult::SUCCESS;
-}
-
-//-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputePlaneDistanceParameters(const KDTree& kdtreePreviousPlanes, const Point& p, MatchingMode matchingMode)
-{
-  // =====================================================
-  // Transform the point using the current pose estimation
-
-  // Rigid transform or time continuous motion model to take into account the
-  // rolling shutter distortion.
-  Eigen::Vector3d pInit, pFinal;
-  this->ComputePointInitAndFinalPose(matchingMode, p, pInit, pFinal);
-
-  // ===================================================
-  // Get neighboring points in previous set of keypoints
-
-  unsigned int requiredNearest;  //< number of neighbors planar points required to approximate the corresponding plane
-  double significantlyFactor1;   //< PCA eigenvalues ratio to consider a neighborhood fits a plane model :
-  double significantlyFactor2;   //<     V2 < factor2 * V1  and  V1 > factor1 * V0
-  double squaredMaxDist;         //< maximum distance between keypoints and their computed plane
-  if (matchingMode == MatchingMode::EGO_MOTION)
-  {
-    significantlyFactor1 = this->EgoMotionPlaneDistancefactor1;
-    significantlyFactor2 = this->EgoMotionPlaneDistancefactor2;
-    requiredNearest = this->EgoMotionPlaneDistanceNbrNeighbors;
-    squaredMaxDist = this->EgoMotionMaxPlaneDistance * this->EgoMotionMaxPlaneDistance;
-  }
-  else if (matchingMode == MatchingMode::LOCALIZATION)
-  {
-    significantlyFactor1 = this->LocalizationPlaneDistancefactor1;
-    significantlyFactor2 = this->LocalizationPlaneDistancefactor2;
-    requiredNearest = this->LocalizationPlaneDistanceNbrNeighbors;
-    squaredMaxDist = this->LocalizationMaxPlaneDistance * this->LocalizationMaxPlaneDistance;
-  }
-  else
-  {
-    throw "ComputeLineDistanceParameters function got invalide step parameter";
-  }
-
-  std::vector<int> knnIndices;
-  std::vector<float> knnSqDist;
-  unsigned int neighborhoodSize = kdtreePreviousPlanes.KnnSearch(pFinal.data(), requiredNearest, knnIndices, knnSqDist);
-
-  // It means that there is not enough keypoints in the neighborhood
-  if (neighborhoodSize < requiredNearest)
-  {
-    return MatchingResult::NOT_ENOUGH_NEIGHBORS;
-  }
-
-  // If the nearest planar points are too far from the current keypoint,
-  // we skip this point.
-  if (knnSqDist.back() > this->MaxDistanceForICPMatching * this->MaxDistanceForICPMatching)
-  {
-    return MatchingResult::NEIGHBORS_TOO_FAR;
-  }
-
-  // Shortcut to keypoints cloud
-  const PointCloud& previousPlanesPoints = *kdtreePreviousPlanes.GetInputCloud();
-
-  // ========================================================
-  // Check if neighborhood is a good plane candidate with PCA
-
-  // Compute PCA to determine best plane approximation
-  // of the neighborhoodSize nearest edges points extracted.
-  // Thanks to the PCA we will check the shape of the neighborhood
-  // and keep it if it is well distributed along a plane.
-  Eigen::MatrixXd data(neighborhoodSize, 3);
-  for (unsigned int k = 0; k < neighborhoodSize; k++)
-  {
-    const Point& pt = previousPlanesPoints[knnIndices[k]];
-    data.row(k) << pt.x, pt.y, pt.z;
-  }
-  Eigen::Vector3d mean;
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = ComputePCA(data, mean);
-
-  // PCA eigenvalues
-  Eigen::Vector3d D = eig.eigenvalues();
-
-  // If the second eigen value is close to the highest one and bigger than the
-  // smallest one, it means that the points are distributed along a plane.
-  // Otherwise, discard this bad unstructured neighborhood.
-  if ( significantlyFactor2 * D(1) < D(2) || D(1) < significantlyFactor1 * D(0) )
-  {
-    return MatchingResult::BAD_PCA_STRUCTURE;
-  }
-
-  // ==============================================
-  // Compute point-to-plane optimization parameters
-
-  // n is the normal vector of the plane
-  Eigen::Vector3d n = eig.eigenvectors().col(0);
-  Eigen::Matrix3d A = n * n.transpose();
-
-  // It would be the case if P1 = P2, P1 = P3 or P3 = P2, for instance if the
-  // sensor has some dual returns that hit the same point.
-  if (!std::isfinite(A(0, 0)))
-  {
-    return MatchingResult::INVALID_NUMERICAL;
-  }
-
-  // Evaluate the distance from the fitted plane distribution of the neighborhood
-  double meanSquaredDist = 0.;
-  for (unsigned int nearestPointIndex: knnIndices)
-  {
-    const Point& pt = previousPlanesPoints[nearestPointIndex];
-    Eigen::Vector3d Xtemp(pt.x, pt.y, pt.z);
-    double squaredDist = (Xtemp - mean).transpose() * A * (Xtemp - mean);
-    // CHECK invalidate all neighborhood even if only one point is bad?
-    if (squaredDist > squaredMaxDist)
-    {
-      return MatchingResult::MSE_TOO_LARGE;
-    }
-    meanSquaredDist += squaredDist;
-  }
-  meanSquaredDist /= static_cast<double>(neighborhoodSize);
-
-  // ===========================================
-  // Add valid parameters for later optimization
-
-  // Quality score of the point-to-plane match
-  double fitQualityCoeff = 1.0 - std::sqrt(meanSquaredDist / squaredMaxDist);
-
-  // Store the distance parameters values
-  #pragma omp critical(addIcpMatch)
-  {
-    this->Avalues.emplace_back(A);
-    this->Pvalues.emplace_back(mean);
-    this->Xvalues.emplace_back(pInit);
-    this->TimeValues.emplace_back(p.time);
-    this->residualCoefficient.emplace_back(fitQualityCoeff);
-  }
-  return MatchingResult::SUCCESS;
-}
-
-//-----------------------------------------------------------------------------
-Slam::MatchingResult Slam::ComputeBlobsDistanceParameters(const KDTree& kdtreePreviousBlobs, const Point& p, MatchingMode matchingMode)
-{
-  // =====================================================
-  // Transform the point using the current pose estimation
-
-  // Rigid transform or time continuous motion model to take into account the
-  // rolling shutter distortion.
-  Eigen::Vector3d pInit, pFinal;
-  this->ComputePointInitAndFinalPose(matchingMode, p, pInit, pFinal);
-
-  // ===================================================
-  // Get neighboring points in previous set of keypoints
-
-  unsigned int requiredNearest = 25;  //< number of blob neighbors required to approximate the corresponding ellipsoid
-  // double maxDist = this->MaxDistanceForICPMatching;  //< maximum distance between keypoints and its neighbors
-  float maxDiameter = 4.;
-
-  std::vector<int> knnIndices;
-  std::vector<float> knnSqDist;
-  unsigned int neighborhoodSize = kdtreePreviousBlobs.KnnSearch(pFinal.data(), requiredNearest, knnIndices, knnSqDist);
-
-  // It means that there is not enough keypoints in the neighborhood
-  if (neighborhoodSize < requiredNearest)
-  {
-    return MatchingResult::NOT_ENOUGH_NEIGHBORS;
-  }
-
-  // If the nearest blob points are too far from the current keypoint,
-  // we skip this point.
-  if (knnSqDist.back() > this->MaxDistanceForICPMatching * this->MaxDistanceForICPMatching)
-  {
-    return MatchingResult::NEIGHBORS_TOO_FAR;
-  }
-
-  // Shortcut to keypoints cloud
-  const PointCloud& previousBlobsPoints = *kdtreePreviousBlobs.GetInputCloud();
-
-  // ======================================
-  // Check the diameter of the neighborhood
-
-  // If the diameter is too big, we don't want to keep this blob.
-  // We must do that since the fitted ellipsoid assumes to encode the local
-  // shape of the neighborhood.
-  float squaredDiameter = 0.;
-  for (unsigned int nearestPointIndexI: knnIndices)
-  {
-    const Point& ptI = previousBlobsPoints[nearestPointIndexI];
-    for (unsigned int nearestPointIndexJ: knnIndices)
-    {
-      const Point& ptJ = previousBlobsPoints[nearestPointIndexJ];
-      float squaredDistanceIJ = (ptI.getVector3fMap() - ptJ.getVector3fMap()).squaredNorm();
-      squaredDiameter = std::max(squaredDiameter, squaredDistanceIJ);
-    }
-  }
-  if (squaredDiameter > maxDiameter * maxDiameter)
-  {
-    return MatchingResult::MSE_TOO_LARGE;
-  }
-
-  // ======================================================
-  // Compute point-to-blob optimization parameters with PCA
-
-  // Compute PCA to determine best ellipsoid approximation
-  // of the neighborhoodSize nearest blobs points extracted.
-  // Thanks to the PCA we will check the shape of the neighborhood and
-  // tune a distance function adapted to the distribution (Mahalanobis distance)
-  Eigen::MatrixXd data(neighborhoodSize, 3);
-  for (unsigned int k = 0; k < neighborhoodSize; k++)
-  {
-    const Point& pt = previousBlobsPoints[knnIndices[k]];
-    data.row(k) << pt.x, pt.y, pt.z;
-  }
-  Eigen::Vector3d mean = data.colwise().mean();
-  Eigen::MatrixXd centered = data.rowwise() - mean.transpose();
-  Eigen::Matrix3d varianceCovariance = centered.transpose() * centered;
-
-  // Check that the covariance matrix is inversible
-  if (std::abs(varianceCovariance.determinant()) < 1e-6)
-  {
-    return MatchingResult::BAD_PCA_STRUCTURE;
-  }
-
-  // Sigma is the inverse of the covariance matrix encoding the mahalanobis distance
-  Eigen::Matrix3d sigma = varianceCovariance.inverse();
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig(sigma);
-
-  // Rescale the variance covariance matrix to preserve the shape of the
-  // mahalanobis distance, but removing the variance values scaling.
-  Eigen::Vector3d D = eig.eigenvalues(); D /= D(2);
-  Eigen::Matrix3d U = eig.eigenvectors();
-  Eigen::Matrix3d A = U * D.asDiagonal() * U.transpose();
-
-  if (!std::isfinite(A.determinant()))
-  {
-    return MatchingResult::INVALID_NUMERICAL;
-  }
-
-  // ===========================================
-  // Add valid parameters for later optimization
-
-  // Weigh using the distance between the point and its matching blob.
-  // The aim is to prevent wrong matching pulling the pointcloud in a bad direction.
-  double fitQualityCoeff = 1.0;//1.0 - knnSqDist.back() / maxDist;
-
-  // store the distance parameters values
-  #pragma omp critical(addIcpMatch)
-  {
-    this->Avalues.emplace_back(A);
-    this->Pvalues.emplace_back(mean);
-    this->Xvalues.emplace_back(pInit);
-    this->TimeValues.emplace_back(p.time);
-    this->residualCoefficient.emplace_back(fitQualityCoeff);
-  }
-  return MatchingResult::SUCCESS;
-}
-
-//-----------------------------------------------------------------------------
-void Slam::GetEgoMotionLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest,
-                                            std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const
-{
-  // Get nearest neighbors of the query point
-  std::vector<int> knnIndices;
-  std::vector<float> knnSqDist;
-  unsigned int neighborhoodSize = kdtreePreviousEdges.KnnSearch(pos, knearest, knnIndices, knnSqDist);
-
-  // If empty neighborhood, return
-  if (neighborhoodSize == 0)
-  {
-    return;
-  }
-
-  // Shortcut to keypoints cloud
-  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.GetInputCloud();
-
-  // Take the closest point
-  const Point& closest = previousEdgesPoints[knnIndices[0]];
-
-  // Invalid all points that are on the same scan line than the closest one
-  std::vector<uint8_t> idAlreadyTook(this->KeyPointsExtractor->GetNLasers(), 0);
-  idAlreadyTook[static_cast<int>(closest.laserId)] = 1;
-
-  // Invalid all points from scan lines that are too far from the closest one
-  const int maxScanLineDiff = 4;  // TODO : add parameter to discard too far laser rings
-  for (int scanLine = 0; scanLine < this->KeyPointsExtractor->GetNLasers(); ++scanLine)
-  {
-    if (std::abs(static_cast<int>(closest.laserId) - scanLine) > maxScanLineDiff)
-      idAlreadyTook[scanLine] = 1;
-  }
-
-  // Make a selection among the neighborhood of the query point.
-  // We can only take one edge per scan line.
-  validKnnIndices.clear();
-  validKnnSqDist.clear();
-  for (unsigned int k = 0; k < neighborhoodSize; ++k)
-  {
-    const auto& scanLine = previousEdgesPoints[knnIndices[k]].laserId;
-    if (!idAlreadyTook[scanLine])
-    {
-      idAlreadyTook[scanLine] = 1;
-      validKnnIndices.push_back(knnIndices[k]);
-      validKnnSqDist.push_back(knnSqDist[k]);
-    }
-  }
-}
-
-//-----------------------------------------------------------------------------
-void Slam::GetLocalizationLineSpecificNeighbor(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest, double maxDistInlier,
-                                               std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const
-{
-  // Get nearest neighbors of the query point
-  std::vector<int> knnIndices;
-  std::vector<float> knnSqDist;
-  unsigned int neighborhoodSize = kdtreePreviousEdges.KnnSearch(pos, knearest, knnIndices, knnSqDist);
-
-  // Shortcut to keypoints cloud
-  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.GetInputCloud();
-
-  // to avoid square root when performing comparison
-  const float squaredMaxDistInlier = maxDistInlier * maxDistInlier;
-
-  // take the closest point
-  const Point& closest = previousEdgesPoints[knnIndices[0]];
-  const auto P1 = closest.getVector3fMap();
-
-  // Loop over neighbors of the neighborhood. For each of them, compute the line
-  // between closest point and current point and compute the number of inliers
-  // that fit this line.
-  std::vector<std::vector<unsigned int>> inliersList;
-  inliersList.reserve(neighborhoodSize - 1);
-  for (unsigned int ptIndex = 1; ptIndex < neighborhoodSize; ++ptIndex)
-  {
-    // Fit line that links P1 and P2
-    const auto P2 = previousEdgesPoints[knnIndices[ptIndex]].getVector3fMap();
-    Eigen::Vector3f dir = (P2 - P1).normalized();
-
-    // Compute number of inliers of this model
-    std::vector<unsigned int> inlierIndex;
-    for (unsigned int candidateIndex = 1; candidateIndex < neighborhoodSize; ++candidateIndex)
-    {
-      if (candidateIndex == ptIndex)
-        inlierIndex.push_back(candidateIndex);
-      else
-      {
-        const auto Pcdt = previousEdgesPoints[knnIndices[candidateIndex]].getVector3fMap();
-        if (((Pcdt - P1).cross(dir)).squaredNorm() < squaredMaxDistInlier)
-          inlierIndex.push_back(candidateIndex);
-      }
-    }
-    inliersList.push_back(inlierIndex);
-  }
-
-  // Keep the line and its inliers with the most inliers.
-  std::size_t maxInliers = 0;
-  int indexMaxInliers = -1;
-  for (unsigned int k = 0; k < inliersList.size(); ++k)
-  {
-    if (inliersList[k].size() > maxInliers)
-    {
-      maxInliers = inliersList[k].size();
-      indexMaxInliers = k;
-    }
-  }
-
-  // fill vectors
-  validKnnIndices.clear(); validKnnIndices.reserve(inliersList[indexMaxInliers].size());
-  validKnnSqDist.clear(); validKnnSqDist.reserve(inliersList[indexMaxInliers].size());
-  validKnnIndices.push_back(knnIndices[0]);
-  validKnnSqDist.push_back(knnSqDist[0]);
-  for (unsigned int inlier: inliersList[indexMaxInliers])
-  {
-    validKnnIndices.push_back(knnIndices[inlier]);
-    validKnnSqDist.push_back(knnSqDist[inlier]);
-  }
-}
-
-//==============================================================================
-//   Geometrical transformations
+//   Helpers
 //==============================================================================
 
 //-----------------------------------------------------------------------------

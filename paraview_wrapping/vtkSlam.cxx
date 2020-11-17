@@ -358,7 +358,6 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   PrintParameter(LocalizationLineDistanceNbrNeighbors)
   PrintParameter(LocalizationMinimumLineNeighborRejection)
   PrintParameter(LocalizationMaxLineDistance)
-  PrintParameter(LocalizationLineMaxDistInlier)
   PrintParameter(LocalizationLineDistancefactor)
   PrintParameter(LocalizationPlaneDistanceNbrNeighbors)
   PrintParameter(LocalizationPlaneDistancefactor1)
@@ -501,9 +500,9 @@ int vtkSlam::GetEgoMotion()
 //-----------------------------------------------------------------------------
 void vtkSlam::SetEgoMotion(int mode)
 {
-  Slam::EgoMotionMode egoMotion = static_cast<Slam::EgoMotionMode>(mode);
-  if (egoMotion != Slam::EgoMotionMode::NONE         && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION &&
-      egoMotion != Slam::EgoMotionMode::REGISTRATION && egoMotion != Slam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+  EgoMotionMode egoMotion = static_cast<EgoMotionMode>(mode);
+  if (egoMotion != EgoMotionMode::NONE         && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION &&
+      egoMotion != EgoMotionMode::REGISTRATION && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
   {
     vtkErrorMacro("Invalid ego-motion mode (" << mode << "), ignoring setting.");
     return;
@@ -527,8 +526,8 @@ int vtkSlam::GetUndistortion()
 //-----------------------------------------------------------------------------
 void vtkSlam::SetUndistortion(int mode)
 {
-  Slam::UndistortionMode undistortion = static_cast<Slam::UndistortionMode>(mode);
-  if (undistortion != Slam::NONE && undistortion != Slam::APPROXIMATED && undistortion != Slam::OPTIMIZED)
+  UndistortionMode undistortion = static_cast<UndistortionMode>(mode);
+  if (undistortion != UndistortionMode::NONE && undistortion != UndistortionMode::APPROXIMATED && undistortion != UndistortionMode::OPTIMIZED)
   {
     vtkErrorMacro("Invalid undistortion mode (" << mode << "), ignoring setting.");
     return;

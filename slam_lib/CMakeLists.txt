@@ -7,6 +7,7 @@ if (g2o_FOUND)
 endif(g2o_FOUND)
 
 set(LidarSlam_PUBLIC_HEADERS
+  include/LidarSlam/Enums.h
   include/LidarSlam/Utilities.h
   include/LidarSlam/LidarPoint.h
   include/LidarSlam/Transform.h
@@ -17,6 +18,7 @@ set(LidarSlam_PUBLIC_HEADERS
   include/LidarSlam/PointCloudStorage.h
   include/LidarSlam/GlobalTrajectoriesRegistration.h
   include/LidarSlam/KDTreePCLAdaptor.h
+  include/LidarSlam/KeypointsRegistration.h
   ${SLAM_g2o_headers}
   )
 
@@ -30,6 +32,7 @@ add_library(LidarSlam SHARED
   src/SpinningSensorKeypointExtractor.cxx
   src/MotionModel.cxx
   src/GlobalTrajectoriesRegistration.cxx
+  src/KeypointsRegistration.cxx
   ${LidarSlam_PUBLIC_HEADERS}
   ${SLAM_g2o_sources}
   )
