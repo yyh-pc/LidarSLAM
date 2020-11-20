@@ -1,5 +1,35 @@
 # SLAM changes history
 
+## *v1.3 (2020/11/20)*
+
+This release brings various minor fixes or features to improve stability, performance or code readibility.
+
+Major changes are reported below.
+
+### Core lib
+
+* Fix compilation on Windows with MSVC 2015 (!39)
+* Simplify `KDTreePCLAdaptor` usage and clean its code (!41)
+* Misc bug fixes and code refactoring in ICP functions (!43)
+* Fix ego motion extrapolation when using Pose Graph Optimization (!44)
+* Ignore Ego-Motion extrapolation, approximated undistortion and Localization results if error occurs (!49 and !52)
+* Replace max variance error by max position and orientation errors (!47)
+* Fix rolling grid and maps update (!50, !55, !58)
+* Add missing `std` prefix in `PointCloudStorage` that prevente compilation on some machines (!42)
+* Add colors to verbose display (!53)
+* Major refactoring of ICP and LM optimization parts into separate classes (!54)
+* Reset timers values when resetting SLAM (!63)
+
+### ROS wrapping
+
+* Publish SLAM pose as `gps_common/GPSFix` instead of `sensor_msgs/NavSatFix` (!45)
+* Publish SLAM-estimated speed in GPS-like message (!46)
+
+### ParaView wrapping
+
+* Add verbose timings to check VTK <-> PCL conversions and perform less maps updates (!48)
+* Fix frame stamp to last point measurement time (!49)
+
 ## *v1.2 (2020/06/26)*
 
 This new release brings important improvements (in terms of processing speed as well as precision) such as *undistortion* or *motion extrapolation*. It also greatly improves user interface for easier parameters settings.
