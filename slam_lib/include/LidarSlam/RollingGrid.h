@@ -41,7 +41,7 @@ class RollingGrid
 public:
 
   // Usefull types
-  using Point = PointXYZTIId;
+  using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
 
   template<typename T>

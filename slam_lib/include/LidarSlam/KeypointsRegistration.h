@@ -37,7 +37,7 @@
 class KeypointsRegistration
 {
 public:
-  using Point = PointXYZTIId;
+  using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
   using KDTree = KDTreePCLAdaptor<Point>;
 

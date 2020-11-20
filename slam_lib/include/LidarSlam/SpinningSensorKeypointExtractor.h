@@ -35,7 +35,7 @@
 class SpinningSensorKeypointExtractor
 {
 public:
-  using Point = PointXYZTIId;
+  using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
 
   GetMacro(NbThreads, int)
