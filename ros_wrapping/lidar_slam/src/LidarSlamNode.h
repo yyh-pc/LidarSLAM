@@ -21,7 +21,6 @@
 
 // ROS
 #include <ros/ros.h>
-#include <velodyne_pcl/point_types.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
@@ -36,9 +35,7 @@ class LidarSlamNode
 {
 public:
 
-  using PointV = velodyne_pcl::PointXYZIRT;
-  using CloudV = pcl::PointCloud<PointV>;  ///< Pointcloud published by velodyne driver
-  using PointS = LidarSlam::Slam::Point;
+  using PointS = LidarSlam::Slam::Point;    
   using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM
 
   //----------------------------------------------------------------------------
@@ -52,9 +49,10 @@ public:
   //----------------------------------------------------------------------------
   /*!
    * @brief     New lidar frame callback, running SLAM and publishing TF.
-   * @param[in] cloud New Lidar Frame, published by velodyne_pointcloud/cloud_node.
+   * @param[in] cloud New Lidar Frame, published by conversion node.
+   * Slam pointcloud has fields     : x, y, z, time (double), intensity (float), laser_id (uint16),  device_id (uint8), label (uint8).
    */
-  virtual void ScanCallback(const CloudV& cloud);
+  virtual void ScanCallback(const CloudS::Ptr cloudS_ptr);
 
   //----------------------------------------------------------------------------
   /*!
@@ -72,17 +70,6 @@ public:
   void SlamCommandCallback(const lidar_slam::SlamCommand& msg);
 
 protected:
-
-  //----------------------------------------------------------------------------
-  /*!
-   * @brief     Convert a Velodyne pointcloud to the slam expected pointcloud format.
-   * @param[in] cloudV Velodyne pointcloud, published by velodyne_pointcloud/cloud_node.
-   * @return    The converted slam pointcloud.
-   *
-   * Velodyne pointcloud has fields : x, y, z, intensity (float), ring (uint16).
-   * Slam pointcloud has fields     : x, y, z, time (double), intensity (float), laser_id (uint16),  device_id (uint8), label (uint8).
-   */
-  CloudS::Ptr ConvertToSlamPointCloud(const CloudV& cloudV) const;
 
   //----------------------------------------------------------------------------
   /*!
@@ -131,7 +118,6 @@ protected:
   // SLAM stuff
   LidarSlam::Slam LidarSlam;
   std::vector<size_t> LaserIdMapping;
-  double LidarFreq = 10.;
 
   // ROS node handles, subscribers and publishers
   ros::NodeHandle &Nh, &PrivNh;
