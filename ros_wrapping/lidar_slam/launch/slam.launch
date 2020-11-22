@@ -12,6 +12,10 @@
   <group if="$(arg rviz)">
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find lidar_slam)/params/slam.rviz"/>
   </group>
+  
+  <!-- Conversion -->
+  <node name="Velodyne_to_slam" pkg="lidar_slam" type="Velodyne_to_slam_node" output="screen">
+  </node>
 
   <!-- LiDAR SLAM : compute TF slam_init -> velodyne -->
   <node name="lidar_slam" pkg="lidar_slam" type="lidar_slam_node" output="screen">

@@ -23,7 +23,7 @@
 #include <ros/ros.h>
 #include <velodyne_pcl/point_types.h>
 #include <pcl_ros/point_cloud.h>
-#include <LidarSlam/Slam.h>
+#include <LidarSlam/LidarPoint.h>
 
 class VelodyneToSlamNode
 {
