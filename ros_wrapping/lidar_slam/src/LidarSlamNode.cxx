@@ -33,15 +33,15 @@ enum Output
   POSE_PREDICTION_ODOM,  // Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
   POSE_PREDICTION_TF,    // Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
 
-  EDGES_MAP,             // Publish edges keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/edges'.
-  PLANES_MAP,            // Publish planes keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/planes'.
-  BLOBS_MAP,             // Publish blobs keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/blobs'.
+  EDGES_MAP,             // Publish edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
+  PLANES_MAP,            // Publish planes keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
+  BLOBS_MAP,             // Publish blobs keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
 
   EDGES_KEYPOINTS,       // Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
   PLANES_KEYPOINTS,      // Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
   BLOBS_KEYPOINTS,       // Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
 
-  SLAM_CLOUD,            // Publish SLAM pointcloud as PointXYZTIId PointCloud2 msg to topic 'slam_cloud'.
+  SLAM_CLOUD,            // Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_cloud'.
 
   PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'pgo_slam_path' latched topic.
   ICP_CALIB_SLAM_PATH,   // Publish ICP-aligned SLAM trajectory as Path msg to 'icp_slam_path' latched topic.
@@ -465,8 +465,9 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
     slamPoint.y = velodynePoint.y;
     slamPoint.z = velodynePoint.z;
     slamPoint.intensity = velodynePoint.intensity;
-    slamPoint.laserId = velodynePoint.ring;
+    slamPoint.laser_id = velodynePoint.ring;
     slamPoint.time = frameAdvancement / this->LidarFreq; // time is 0 for first point, and should match LiDAR period for last point for a complete scan.
+    slam_point.device_id = 0;
   }
   return cloudS;
 }

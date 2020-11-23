@@ -146,12 +146,12 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
 {
   // Separate pointcloud into different scan lines
-  // Modify the point so that laserId is corrected with the laserIdMapping
+  // Modify the point so that laser_id is corrected with the laserIdMapping
   for (Point const& oldPoint: *this->pclCurrentFrame)
   {
-    int id = this->LaserIdMapping[oldPoint.laserId];
+    int id = this->LaserIdMapping[oldPoint.laser_id];
     Point newPoint(oldPoint);
-    newPoint.laserId = static_cast<uint8_t>(id);
+    newPoint.laser_id = static_cast<uint16_t>(id);
   
     // add the current point to its corresponding laser scan
     this->pclCurrentFrameByScan[id]->push_back(newPoint);
@@ -598,7 +598,7 @@ std::unordered_map<std::string, std::vector<double>> SpinningSensorKeypointExtra
     std::vector<int> indexByScanLine(this->NLasers, 0);
     for (unsigned int i = 0; i < this->pclCurrentFrame->size(); i++)
     {
-      unsigned int laserId = this->LaserIdMapping[this->pclCurrentFrame->points[i].laserId];
+      unsigned int laserId = this->LaserIdMapping[this->pclCurrentFrame->points[i].laser_id];
       v[i] = vector2d[laserId][indexByScanLine[laserId]];
       indexByScanLine[laserId]++;
     }
@@ -611,7 +611,7 @@ std::unordered_map<std::string, std::vector<double>> SpinningSensorKeypointExtra
     std::vector<int> indexByScanLine(this->NLasers, 0);
     for (unsigned int i = 0; i < this->pclCurrentFrame->size(); i++)
     {
-      unsigned int laserId = this->LaserIdMapping[this->pclCurrentFrame->points[i].laserId];
+      unsigned int laserId = this->LaserIdMapping[this->pclCurrentFrame->points[i].laser_id];
       v[i] = vector2d[laserId][indexByScanLine[laserId]][flag];
       indexByScanLine[laserId]++;
     }

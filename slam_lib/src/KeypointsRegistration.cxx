@@ -534,7 +534,7 @@ void KeypointsRegistration::GetPerRingLineNeighbors(const KDTree& kdtreePrevious
   int laserIdMax = std::numeric_limits<int>::min();
   for (unsigned int k = 0; k < neighborhoodSize; ++k)
   {
-    int scanLine = previousEdgesPoints[knnIndices[k]].laserId;
+    int scanLine = previousEdgesPoints[knnIndices[k]].laser_id;
     laserIdMin = std::min(laserIdMin, scanLine);
     laserIdMax = std::max(laserIdMax, scanLine);
   }
@@ -542,13 +542,13 @@ void KeypointsRegistration::GetPerRingLineNeighbors(const KDTree& kdtreePrevious
 
   // Invalid all points that are on the same scan line than the closest one
   std::vector<uint8_t> idAlreadyTook(nLasers, 0);
-  idAlreadyTook[static_cast<int>(closest.laserId)] = 1;
+  idAlreadyTook[static_cast<int>(closest.laser_id)] = 1;
 
   // Invalid all points from scan lines that are too far from the closest one
   const int maxScanLineDiff = 4;  // TODO : add parameter to discard too far laser rings
   for (int scanLine = 0; scanLine < nLasers; ++scanLine)
   {
-    if (std::abs(static_cast<int>(closest.laserId) - scanLine) > maxScanLineDiff)
+    if (std::abs(static_cast<int>(closest.laser_id) - scanLine) > maxScanLineDiff)
       idAlreadyTook[scanLine] = 1;
   }
 
@@ -558,7 +558,7 @@ void KeypointsRegistration::GetPerRingLineNeighbors(const KDTree& kdtreePrevious
   validKnnSqDist.clear();
   for (unsigned int k = 0; k < neighborhoodSize; ++k)
   {
-    const auto& scanLine = previousEdgesPoints[knnIndices[k]].laserId;
+    const auto& scanLine = previousEdgesPoints[knnIndices[k]].laser_id;
     if (!idAlreadyTook[scanLine])
     {
       idAlreadyTook[scanLine] = 1;

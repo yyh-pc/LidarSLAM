@@ -1,6 +1,7 @@
 //==============================================================================
 // Copyright 2019-2020 Kitware, Inc., Kitware SAS
-// Author: Laurenson Nick (Kitware SAS)
+// Authors: Laurenson Nick (Kitware SAS),
+//			Sanchez Julia (Kitware SAS)
 // Creation date: 2019-05-13
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,53 +23,40 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
-struct EIGEN_ALIGN16 _PointXYZTIId
+/** \brief A point structure representing Euclidean xyz coordinates, time, intensity, laser_id, device_id and label.
+  * \ingroup common
+  */
+struct LidarPoint
 {
+  inline LidarPoint (const LidarPoint &p) : x(p.x), y(p.y), z(p.z), time(p.time), intensity(p.intensity), laser_id(p.laser_id), device_id(p.device_id), label(p.label)
+  {
+    data[3] = 1.0f;
+  }
+  inline LidarPoint () : x(0.0f), y(0.0f), z(0.0f), time(0.0), intensity(0.0f), laser_id(0), device_id(0), label(0)
+  {
+    data[3] = 1.0f;
+  }
+  
   PCL_ADD_POINT4D // This adds the members x,y,z which can also be accessed using the point (which is float[4])
   double time;
-  std::uint8_t intensity;
-  std::uint8_t laserId;
+  float intensity;
+  std::uint16_t laser_id;
+  std::uint8_t device_id;
+  std::uint8_t label;
+  
+  friend std::ostream& operator << (std::ostream& os, const LidarPoint& p);
+  
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 } EIGEN_ALIGN16;
 
-PCL_EXPORTS std::ostream& operator << (std::ostream& os, const _PointXYZTIId& p);
-
-/** \brief A point structure representing Euclidean xyz coordinates, time,  intensity, and laserId.
-  * \ingroup common
-  */
-struct PointXYZTIId : public _PointXYZTIId
-{
-  inline PointXYZTIId (const _PointXYZTIId &p)
-  {
-    x = p.x;
-    y = p.y;
-    z = p.z;
-    data[3] = 1.0f;
-    time = p.time;
-    intensity = p.intensity;
-    laserId = p.laserId;
-  }
-
-  inline PointXYZTIId ()
-  {
-    x = 0.0f;
-    y = 0.0f;
-    z = 0.0f;
-    data[3] = 1.0f;
-    time = 0.0;
-    intensity = 0;
-    laserId = 0;
-  }
-
-  friend std::ostream& operator << (std::ostream& os, const PointXYZTIId& p);
-};
-
-POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZTIId,
+POINT_CLOUD_REGISTER_POINT_STRUCT (LidarPoint,
                                    (float, x, x)
                                    (float, y, y)
                                    (float, z, z)
                                    (double, time, time)
-                                   (std::uint8_t, intensity, intensity)
-                                   (std::uint8_t, laserId, laserId)
+                                   (float, intensity, intensity)
+                                   (std::uint16_t, laser_id, laser_id)
+                                   (std::uint8_t, device_id, device_id)
+                                   (std::uint8_t, label, label)
 )
 #endif // LIDAR_POINT_H

@@ -80,7 +80,7 @@ private:
    * @return    The converted slam pointcloud.
    *
    * Velodyne pointcloud has fields : x, y, z, intensity (float), ring (uint16).
-   * Slam pointcloud has fields     : x, y, z, intensity (uint8), laserId (uint8), time (double).
+   * Slam pointcloud has fields     : x, y, z, time (double), intensity (float), laser_id (uint16),  device_id (uint8), label (uint8).
    */
   CloudS::Ptr ConvertToSlamPointCloud(const CloudV& cloudV) const;
 

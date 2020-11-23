@@ -133,7 +133,7 @@ void PolyDataToPointCloud(vtkPolyData* poly, Slam::PointCloud::Ptr pc)
     p.y = pos[1];
     p.z = pos[2];
     p.time = arrayTime->GetTuple1(i) * 1e-6; // time in seconds
-    p.laserId = arrayLaserId->GetTuple1(i);
+    p.laser_id = arrayLaserId->GetTuple1(i);
     p.intensity = arrayIntensity->GetTuple1(i);
 
     frameEndTime = std::max(frameEndTime, arrayTime->GetTuple1(i));

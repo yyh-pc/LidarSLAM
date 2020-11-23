@@ -100,7 +100,7 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   // Usefull types
-  using Point = PointXYZTIId;
+  using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
   using KDTree = KDTreePCLAdaptor<Point>;
 

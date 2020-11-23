@@ -25,15 +25,15 @@ output:
     predicted_odom: false  # Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
     predicted_tf: false    # Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
   maps:
-    edges: true            # Publish edges keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/edges'.
-    planes: true           # Publish planes keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/planes'.
-    blobs: true            # Publish blobs keypoints map as a PointXYZTIId PointCloud2 msg to topic 'maps/blobs'.
+    edges: true            # Publish edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
+    planes: true           # Publish planes keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
+    blobs: true            # Publish blobs keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
   keypoints:
     edges: false           # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
     planes: false          # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
     blobs: false           # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
   debug:
-    cloud: false           # Publish SLAM pointcloud as PointXYZTIId PointCloud2 msg to topic 'slam_cloud'.
+    cloud: false           # Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_cloud'.
 
 # Pointclouds saving to PCD files.
 # To save keypoints maps, send command SlamCommand::SAVE_KEYPOINTS_MAPS to 'slam_command' topic.
