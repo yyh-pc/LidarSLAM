@@ -467,7 +467,7 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
     slamPoint.intensity = velodynePoint.intensity;
     slamPoint.laser_id = velodynePoint.ring;
     slamPoint.time = frameAdvancement / this->LidarFreq; // time is 0 for first point, and should match LiDAR period for last point for a complete scan.
-    slam_point.device_id = 0;
+    slamPoint.device_id = 0;
   }
   return cloudS;
 }
