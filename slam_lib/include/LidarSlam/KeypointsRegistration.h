@@ -154,8 +154,8 @@ public:
   ceres::Solver::Summary Solve();
 
   // Get optimization results
-  Eigen::Isometry3d GetOptimizedEndPose() const { return RPYXYZtoIsometry(this->EndPoseArray); }
-  Eigen::Isometry3d GetOptimizedStartPose() const { return RPYXYZtoIsometry(this->StartPoseArray); }
+  Eigen::Isometry3d GetOptimizedEndPose() const { return XYZRPYtoIsometry(this->EndPoseArray); }
+  Eigen::Isometry3d GetOptimizedStartPose() const { return XYZRPYtoIsometry(this->StartPoseArray); }
 
   // Estimate registration error
   RegistrationError EstimateRegistrationError();
@@ -232,8 +232,8 @@ private:
   ceres::Problem Problem;
 
   // DoF to optimize (= output)
-  Eigen::Vector6d EndPoseArray;   ///< Pose at the end of frame (RPYXYZ)
-  Eigen::Vector6d StartPoseArray; ///< Pose at the beginning of frame (RPYXYZ), only used if undistortion is enabled
+  Eigen::Vector6d EndPoseArray;   ///< Pose at the end of frame (XYZRPY)
+  Eigen::Vector6d StartPoseArray; ///< Pose at the beginning of frame (XYZRPY), only used if undistortion is enabled
 };
 
 #endif // KEYPOINTS_REGISTRATION_H

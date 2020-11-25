@@ -59,8 +59,8 @@ Eigen::Matrix<T, 3, 3> RotationMatrixFromRPY(const T& rx, const T& ry, const T& 
  *        and the variance covariance matrix A
  *
  * It takes one 6D parameters block :
- *   - 3 first parameters to encode rotation with euler angles : rX, rY, rZ
- *   - 3 last parameters to encode translation : X, Y, Z
+ *   - 3 first parameters to encode translation : X, Y, Z
+ *   - 3 last parameters to encode rotation with euler angles : rX, rY, rZ
  */
 struct MahalanobisDistanceAffineIsometryResidual
 {
@@ -81,17 +81,17 @@ struct MahalanobisDistanceAffineIsometryResidual
     using Vector3T = Eigen::Matrix<T, 3, 1>;
 
     // Get translation part
-    Eigen::Map<const Vector3T> trans(&w[3]);
+    Eigen::Map<const Vector3T> trans(&w[0]);
 
     // Get rotation part, in a static way.
     // The idea is that all residual functions will need to evaluate those
     // sin/cos so we only compute them once each time the parameters change.
     static Matrix3T rot = Matrix3T::Identity();
     static T lastRot[3] = {T(-1.), T(-1.), T(-1.)};
-    if (!std::equal(w, w + 3, lastRot))
+    if (!std::equal(w + 3, w + 6, lastRot))
     {
-      rot = RotationMatrixFromRPY(w[0], w[1], w[2]);
-      std::copy(w, w + 3, lastRot);
+      rot = RotationMatrixFromRPY(w[3], w[4], w[5]);
+      std::copy(w + 3, w + 6, lastRot);
     }
 
     // Compute Y = R(theta) * X + T - C
@@ -128,8 +128,8 @@ private:
  *        variance covariance matrix A.
  *
  * It takes one 6D parameters block :
- *   - 3 first parameters to encode rotation R1 with euler angles : rX, rY, rZ
- *   - 3 last parameters to encode translation T1 : X, Y, Z
+ *   - 3 first parameters to encode translation T1 : X, Y, Z
+ *   - 3 last parameters to encode rotation R1 with euler angles : rX, rY, rZ
  */
 struct MahalanobisDistanceLinearDistortionResidual
 {
@@ -164,8 +164,8 @@ struct MahalanobisDistanceLinearDistortionResidual
     // Update H1 if needed
     if (!std::equal(w, w + 6, lastW))
     {
-      H1.linear() << RotationMatrixFromRPY(w[0], w[1], w[2]);
-      H1.translation() << w[3], w[4], w[5];
+      H1.linear() << RotationMatrixFromRPY(w[3], w[4], w[5]);
+      H1.translation() << w[0], w[1], w[2];
       transformInterpolator.SetH1(H1);
       std::copy(w, w + 6, lastW);
     }
@@ -210,8 +210,8 @@ private:
  *        applies to X acquired at time t minimizes the mahalanobis distance.
  *
  * It takes one 6D parameters block :
- *   - 3 first parameters to encode rotation R1 with euler angles : rX, rY, rZ
- *   - 3 last parameters to encode translation T1 : X, Y, Z
+ *   - 3 first parameters to encode translation T1 : X, Y, Z
+ *   - 3 last parameters to encode rotation R1 with euler angles : rX, rY, rZ
  */
 struct MahalanobisDistanceIsometryAndLinearDistortionResidual
 {
@@ -244,8 +244,8 @@ struct MahalanobisDistanceIsometryAndLinearDistortionResidual
     // Update H1 if needed
     if (!std::equal(w, w + 6, lastW))
     {
-      H1.linear() << RotationMatrixFromRPY(w[0], w[1], w[2]);
-      H1.translation() << w[3], w[4], w[5];
+      H1.linear() << RotationMatrixFromRPY(w[3], w[4], w[5]);
+      H1.translation() << w[0], w[1], w[2];
       transformInterpolator.SetTransforms(H1, H1 * H1);
       std::copy(w, w + 6, lastW);
     }
@@ -279,18 +279,19 @@ private:
 //------------------------------------------------------------------------------
 /**
  * \class MahalanobisDistanceInterpolatedMotionResidual
- * \brief Cost function to optimize the isometries (R0, T0) and  (R1, T1) so that:
+ * \brief Cost function to optimize the isometries H0=(R0, T0) and  H1=(R1, T1) so that:
  *        The linearly interpolated transform:
  *        (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
  *        applies to X acquired at time t minimizes the mahalanobis distance.
  *
  * It takes two 6D parameters blocks :
  *  1) First isometry H0 :
- *   - 3 parameters (0, 1, 2) to encode rotation R0 with euler angles : rX, rY, rZ
- *   - 3 parameters (3, 4, 5) to encode translation T0 : X, Y, Z
+ *   - 3 parameters (0, 1, 2) to encode translation T0 : X, Y, Z
+ *   - 3 parameters (3, 4, 5) to encode rotation R0 with euler angles : rX, rY, rZ
  *  2) Second isometry H1 :
- *   - 3 parameters (6, 7, 8) to encode rotation R1 with euler angles : rX, rY, rZ
- *   - 3 parameters (9, 10, 11) to encode translation T1 : X, Y, Z
+ *   - 3 parameters (6, 7, 8) to encode translation T1 : X, Y, Z
+ *   - 3 parameters (9, 10, 11) to encode rotation R1 with euler angles : rX, rY, rZ
+ *   
  */
 struct MahalanobisDistanceInterpolatedMotionResidual
 {
@@ -324,8 +325,8 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     // Update H0 if needed
     if (!std::equal(w0, w0 + 6, lastW0))
     {
-      H0.linear() << RotationMatrixFromRPY(w0[0], w0[1], w0[2]);
-      H0.translation() << w0[3], w0[4], w0[5];
+      H0.linear() << RotationMatrixFromRPY(w0[3], w0[4], w0[5]);
+      H0.translation() << w0[0], w0[1], w0[2];
       transformInterpolator.SetH0(H0);
       std::copy(w0, w0 + 6, lastW0);
     }
@@ -333,8 +334,8 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     // Update H1 if needed
     if (!std::equal(w1, w1 + 6, lastW1))
     {
-      H1.linear() << RotationMatrixFromRPY(w1[0], w1[1], w1[2]);
-      H1.translation() << w1[3], w1[4], w1[5];
+      H1.linear() << RotationMatrixFromRPY(w1[3], w1[4], w1[5]);
+      H1.translation() << w1[0], w1[1], w1[2];
       transformInterpolator.SetH1(H1);
       std::copy(w1, w1 + 6, lastW1);
     }
@@ -499,8 +500,8 @@ private:
  * R(rx, ry, rz) = Rz(rz) * Ry(ry) * Rx(rx)
  *
  * It takes one 6D parameters block :
- *   - 3 first parameters to encode rotation R with euler angles : rX, rY, rZ
- *   - 3 last parameters to encode translation T : X, Y, Z
+ *   - 3 first parameters to encode translation T : X, Y, Z
+ *   - 3 last parameters to encode rotation R with euler angles : rX, rY, rZ
  */
 struct FrobeniusDistanceRotationAndTranslationCalibrationResidual
 {
@@ -521,17 +522,17 @@ struct FrobeniusDistanceRotationAndTranslationCalibrationResidual
     using Vector3T = Eigen::Matrix<T, 3, 1>;
 
     // Get translation part
-    Eigen::Map<const Vector3T> trans(&w[3]);
+    Eigen::Map<const Vector3T> trans(&w[0]);
 
     // Get rotation part from euler angles, in a static way.
     // The idea is that all residual functions will need to evaluate those
     // sin/cos so we only compute them once each time the parameters change.
     static Matrix3T rot = Matrix3T::Identity();
     static T lastRot[3] = {T(-1.), T(-1.), T(-1.)};
-    if (!std::equal(w, w + 3, lastRot))
+    if (!std::equal(w + 3, w + 6, lastRot))
     {
-      rot = RotationMatrixFromRPY(w[0], w[1], w[2]);
-      std::copy(w, w + 3, lastRot);
+      rot = RotationMatrixFromRPY(w[3], w[4], w[5]);
+      std::copy(w + 3, w + 6, lastRot);
     }
 
     // CHECK : do we need to consider both conditions on R and T ?
@@ -574,8 +575,8 @@ private:
  * R(rx, ry, rz) = Rz(rz) * Ry(ry) * Rx(rx)
  *
  * It takes one 6D parameters block :
- *   - 3 first parameters to encode rotation R with euler angles : rX, rY, rZ
- *   - 3 last parameters to encode translation T : X, Y, Z
+ *   - 3 first parameters to encode translation T : X, Y, Z
+ *   - 3 last parameters to encode rotation R with euler angles : rX, rY, rZ
  */
 struct EuclideanDistanceAffineIsometryResidual
 {
@@ -591,17 +592,17 @@ struct EuclideanDistanceAffineIsometryResidual
     using Vector3T = Eigen::Matrix<T, 3, 1>;
 
     // Get translation part
-    Eigen::Map<const Vector3T> trans(&w[3]);
+    Eigen::Map<const Vector3T> trans(&w[0]);
 
     // Get rotation part from euler angles, in a static way.
     // The idea is that all residual functions will need to evaluate those
     // sin/cos so we only compute them once each time the parameters change.
     static Matrix3T rot = Matrix3T::Identity();
     static T lastRot[3] = {T(-1.), T(-1.), T(-1.)};
-    if (!std::equal(w, w + 3, lastRot))
+    if (!std::equal(w + 3, w + 6, lastRot))
     {
-      rot = RotationMatrixFromRPY(w[0], w[1], w[2]);
-      std::copy(w, w + 3, lastRot);
+      rot = RotationMatrixFromRPY(w[3], w[4], w[5]);
+      std::copy(w + 3, w + 6, lastRot);
     }
 
     const Vector3T L = rot * X + trans - Y;
