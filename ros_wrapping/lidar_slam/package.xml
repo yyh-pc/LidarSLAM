@@ -56,7 +56,7 @@
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>nav_msgs</depend>
-  <depend>velodyne_pointcloud</depend>
+  <depend>velodyne_pcl</depend>
   <exec_depend>message_runtime</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->

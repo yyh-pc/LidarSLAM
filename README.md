@@ -67,12 +67,17 @@ make install
 
 Ensure all *LidarSlam* dependencies are respected. Specific ROS packages dependencies are listed in the table below along with the version used during development and testing.
 
-| Dependency | Tested Version | Install (`sudo apt-get install <pkg>`) |
-|:----------:|:--------------:|:--------------------------------------:|
-| ROS        | melodic        | ros-melodic-desktop-full               |
-| velodyne   | 1.5.2          | ros-melodic-velodyne                   |
-| gps_common | 0.3.0          | ros-melodic-gps-common                 |
-| geodesy    | 0.5.3          | ros-melodic-geodesy                    |
+| Dependency     | Tested Version | Install (`sudo apt-get install <pkg>`)                                           |
+|:--------------:|:--------------:|:--------------------------------------------------------------------------------:|
+| ROS            | melodic        | `ros-melodic-desktop-full` and [tutorial](http://wiki.ros.org/ROS/Installation)  |
+| velodyne_pcl   | 1.6.1          | `ros-noetic-velodyne-pcl` or [git repo](https://github.com/ros-drivers/velodyne) |
+| gps_common     | 0.3.0          | `ros-$ROS_DISTRO-gps-common`                                                     |
+| geodesy        | 0.5.3          | `ros-$ROS_DISTRO-geodesy`                                                        |
+
+Please note that the ROS Velodyne driver with minimum version 1.6 is needed.
+Be careful, this ROS Velodyne driver 1.6 is not backward-compatible with previous versions.
+If you're running on Ubuntu 20 / ROS Noetic, you can install the new Velodyne driver using the command `sudo apt install ros-noetic-velodyne ros-noetic-velodyne-pcl`.
+If running on previous versions of Ubuntu/ROS (18/Melodic and below), you need to compile this driver from source : just clone the [git repo](https://github.com/ros-drivers/velodyne) in your catkin worskpace sources, it will be automatically built with next  `catkin_make`.
 
 ### Installation
 

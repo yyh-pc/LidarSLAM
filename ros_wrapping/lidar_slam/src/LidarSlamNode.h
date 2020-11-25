@@ -21,7 +21,7 @@
 
 // ROS
 #include <ros/ros.h>
-#include <velodyne_pointcloud/point_types.h>
+#include <velodyne_pcl/point_types.h>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_ros/static_transform_broadcaster.h>
@@ -36,7 +36,7 @@ class LidarSlamNode
 {
 public:
 
-  using PointV = velodyne_pointcloud::PointXYZIR;
+  using PointV = velodyne_pcl::PointXYZIRT;
   using CloudV = pcl::PointCloud<PointV>;  ///< Pointcloud published by velodyne driver
   using PointS = Slam::Point;    
   using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM

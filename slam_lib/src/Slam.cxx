@@ -726,9 +726,20 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
   }
   this->FrameDuration = frameEndTime - frameStartTime;
 
-  // Modify the points so that time becomes a relative advancement (between 0 and 1)
-  for (Point& point: *this->CurrentFrame)
-    point.time = (point.time - frameStartTime) / this->FrameDuration;
+  // FrameDuration should be > 0 if the time field is properly set
+  if (this->FrameDuration > 0)
+  {
+    // Modify the points so that time becomes a relative advancement (between 0 and 1)
+    for (Point& point: *this->CurrentFrame)
+      point.time = (point.time - frameStartTime) / this->FrameDuration;
+  }
+  else
+  {
+    // If time field is not usable, set it to 1 to match end frame timestamp
+    PRINT_WARNING("'time' field is not properly set and cannot be used for undistortion.");
+    for (Point& point: *this->CurrentFrame)
+      point.time = 1.;
+  }
 }
 
 //-----------------------------------------------------------------------------
