@@ -441,6 +441,16 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
   cloudS->resize(cloudV.size());
   cloudS->header = cloudV.header;
 
+  // Check if time field looks properly set
+  // If first and last points have same timestamps, this is not normal
+  bool isTimeValid = (cloudV.front().time != cloudV.back().time);
+
+  // Helpers to estimate frameAdvancement in case time field is invalid
+  auto wrapMax = [](double x, double max) {return std::fmod(max + std::fmod(x, max), max);};
+  auto advancement = [](const PointV& velodynePoint) {return (M_PI - std::atan2(velodynePoint.y, velodynePoint.x)) / (2 * M_PI);};
+  const double initAdvancement = advancement(cloudV.front());
+  std::vector<double> previousAdvancementPerRing(this->LaserIdMapping.size(), -1);
+
   // Build SLAM pointcloud
   for(unsigned int i = 0; i < cloudV.size(); i++)
   {
@@ -452,8 +462,27 @@ LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& 
     slamPoint.z = velodynePoint.z;
     slamPoint.intensity = velodynePoint.intensity;
     slamPoint.laser_id = velodynePoint.ring;
-    slamPoint.time = velodynePoint.time; // time is the offset to add to header.stamp to get point-wise timestamp
     slamPoint.device_id = 0;
+
+    // Use time field is available
+    // time is the offset to add to header.stamp to get point-wise timestamp
+    if (isTimeValid)
+      slamPoint.time = velodynePoint.time;
+
+    // Try to build approximate timestamp from azimuth angle
+    // time is 0 for first point, and should match LiDAR period for last point for a complete scan.
+    else
+    {
+      ROS_WARN_STREAM_THROTTLE(1, "Invalid 'time' field, trying to build it from azimuth advancement.");
+      // Get normalized angle (in [0-1]), with angle 0 being first point direction
+      double frameAdvancement = advancement(velodynePoint);
+      frameAdvancement = wrapMax(frameAdvancement - initAdvancement, 1.);
+      // If we detect overflow, correct it
+      if (frameAdvancement < previousAdvancementPerRing[velodynePoint.ring])
+        frameAdvancement += 1;
+      previousAdvancementPerRing[velodynePoint.ring] = frameAdvancement;
+      slamPoint.time = frameAdvancement / this->LidarFreq;
+    }
   }
   return cloudS;
 }
