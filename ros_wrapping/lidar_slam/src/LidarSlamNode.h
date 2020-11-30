@@ -54,7 +54,7 @@ public:
    * @brief     New lidar frame callback, running SLAM and publishing TF.
    * @param[in] cloud New Lidar Frame, published by velodyne_pointcloud/cloud_node.
    */
-  void ScanCallback(const CloudV& cloud);
+  virtual void ScanCallback(const CloudV& cloud);
 
   //----------------------------------------------------------------------------
   /*!
@@ -71,7 +71,7 @@ public:
    */
   void SlamCommandCallback(const lidar_slam::SlamCommand& msg);
 
-private:
+protected:
 
   //----------------------------------------------------------------------------
   /*!
