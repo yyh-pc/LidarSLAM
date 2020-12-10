@@ -521,6 +521,7 @@ void KeypointsRegistration::GetPerRingLineNeighbors(const KDTree& kdtreePrevious
 
   // Take the closest point
   const Point& closest = previousEdgesPoints[knnIndices[0]];
+  int closestLaserId = static_cast<int>(closest.laser_id);
 
   // Get number of scan lines of this neighborhood
   int laserIdMin = std::numeric_limits<int>::max();
@@ -531,18 +532,18 @@ void KeypointsRegistration::GetPerRingLineNeighbors(const KDTree& kdtreePrevious
     laserIdMin = std::min(laserIdMin, scanLine);
     laserIdMax = std::max(laserIdMax, scanLine);
   }
-  int nLasers = laserIdMax - laserIdMin;
+  int nLasers = laserIdMax - laserIdMin + 1;
 
   // Invalid all points that are on the same scan line than the closest one
   std::vector<uint8_t> idAlreadyTook(nLasers, 0);
-  idAlreadyTook[static_cast<int>(closest.laser_id)] = 1;
+  idAlreadyTook[closestLaserId - laserIdMin] = 1;
 
   // Invalid all points from scan lines that are too far from the closest one
   const int maxScanLineDiff = 4;  // TODO : add parameter to discard too far laser rings
-  for (int scanLine = 0; scanLine < nLasers; ++scanLine)
+  for (int laserId = laserIdMin; laserId <= laserIdMax; ++laserId)
   {
-    if (std::abs(static_cast<int>(closest.laser_id) - scanLine) > maxScanLineDiff)
-      idAlreadyTook[scanLine] = 1;
+    if (std::abs(closestLaserId - laserId) > maxScanLineDiff)
+      idAlreadyTook[laserId - laserIdMin] = 1;
   }
 
   // Make a selection among the neighborhood of the query point.
@@ -551,7 +552,7 @@ void KeypointsRegistration::GetPerRingLineNeighbors(const KDTree& kdtreePrevious
   validKnnSqDist.clear();
   for (unsigned int k = 0; k < neighborhoodSize; ++k)
   {
-    const auto& scanLine = previousEdgesPoints[knnIndices[k]].laser_id;
+    int scanLine = previousEdgesPoints[knnIndices[k]].laser_id - laserIdMin;
     if (!idAlreadyTook[scanLine])
     {
       idAlreadyTook[scanLine] = 1;
