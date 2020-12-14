@@ -17,8 +17,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef KDTREE_PCL_ADAPTOR_H
-#define KDTREE_PCL_ADAPTOR_H
+#ifndef LIDAR_SLAM_KDTREE_PCL_ADAPTOR_H
+#define LIDAR_SLAM_KDTREE_PCL_ADAPTOR_H
 
 #include <nanoflann.hpp>
 #include <pcl/point_cloud.h>
@@ -172,4 +172,4 @@ protected:
   PointCloudPtr Cloud;
 };
 
-#endif // KDTREE_PCL_ADAPTOR_H
+#endif // LIDAR_SLAM_KDTREE_PCL_ADAPTOR_H

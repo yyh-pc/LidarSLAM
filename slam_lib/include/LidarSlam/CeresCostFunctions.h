@@ -17,8 +17,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef CERES_COST_FUNCTIONS_H
-#define CERES_COST_FUNCTIONS_H
+#ifndef LIDAR_SLAM_CERES_COST_FUNCTIONS_H
+#define LIDAR_SLAM_CERES_COST_FUNCTIONS_H
 
 // LOCAL
 #include "LidarSlam/MotionModel.h"
@@ -207,4 +207,4 @@ private:
 };
 } // end of namespace CeresCostFunctions
 
-#endif // CERES_COST_FUNCTIONS_H
+#endif // LIDAR_SLAM_CERES_COST_FUNCTIONS_H

@@ -16,8 +16,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef KEYPOINTS_REGISTRATION_H
-#define KEYPOINTS_REGISTRATION_H
+#ifndef LIDAR_SLAM_KEYPOINTS_REGISTRATION_H
+#define LIDAR_SLAM_KEYPOINTS_REGISTRATION_H
 
 #include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/LidarPoint.h"
@@ -236,4 +236,4 @@ private:
   Eigen::Vector6d StartPoseArray; ///< Pose at the beginning of frame (XYZRPY), only used if undistortion is enabled
 };
 
-#endif // KEYPOINTS_REGISTRATION_H
+#endif // LIDAR_SLAM_KEYPOINTS_REGISTRATION_H

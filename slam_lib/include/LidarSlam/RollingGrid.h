@@ -17,8 +17,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef ROLLING_GRID_H
-#define ROLLING_GRID_H
+#ifndef LIDAR_SLAM_ROLLING_GRID_H
+#define LIDAR_SLAM_ROLLING_GRID_H
 
 #include "LidarSlam/LidarPoint.h"
 
@@ -121,4 +121,4 @@ private:
   }
 };
 
-#endif  // ROLLING_GRID_H
+#endif  // LIDAR_SLAM_ROLLING_GRID_H

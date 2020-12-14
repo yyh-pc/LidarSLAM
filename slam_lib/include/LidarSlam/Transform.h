@@ -16,8 +16,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef TRANSFORM_H
-#define TRANSFORM_H
+#ifndef LIDAR_SLAM_TRANSFORM_H
+#define LIDAR_SLAM_TRANSFORM_H
 
 #include <Eigen/Geometry>
 
@@ -75,4 +75,4 @@ public:
   Eigen::Matrix4d GetMatrix() const {return this->transform.matrix();}
 };
 
-#endif // TRANSFORM_H
+#endif // LIDAR_SLAM_TRANSFORM_H

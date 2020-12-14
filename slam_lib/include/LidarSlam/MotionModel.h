@@ -17,8 +17,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef MOTION_MODEL_H
-#define MOTION_MODEL_H
+#ifndef LIDAR_SLAM_MOTION_MODEL_H
+#define LIDAR_SLAM_MOTION_MODEL_H
 
 #include <Eigen/Geometry>
 
@@ -69,4 +69,4 @@ private:
 Eigen::Isometry3d LinearInterpolation(const Eigen::Isometry3d& H0, const Eigen::Isometry3d& H1,
                                       double t, double t0 = 0., double t1 = 1.);
 
-#endif // MOTION_MODEL_H
+#endif // LIDAR_SLAM_MOTION_MODEL_H

@@ -16,8 +16,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef POINT_CLOUD_STORAGE_H
-#define POINT_CLOUD_STORAGE_H
+#ifndef LIDAR_SLAM_POINT_CLOUD_STORAGE_H
+#define LIDAR_SLAM_POINT_CLOUD_STORAGE_H
 
 // A new PCL Point is added so we need to recompile PCL to be able to use
 // filters (pcl::io::OctreePointCloudCompression) with this new type
@@ -339,4 +339,4 @@ struct PointCloudStorage
     std::unique_ptr<PointCloudData<PointT>> Data;  ///< Pointcloud data.
 };
 
-#endif // POINT_CLOUD_STORAGE_H
+#endif // LIDAR_SLAM_POINT_CLOUD_STORAGE_H

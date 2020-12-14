@@ -16,8 +16,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef ENUMS_H
-#define ENUMS_H
+#ifndef LIDAR_SLAM_ENUMS_H
+#define LIDAR_SLAM_ENUMS_H
 
 //------------------------------------------------------------------------------
 //! Type of a keypoint
@@ -79,4 +79,4 @@ enum class EgoMotionMode
   MOTION_EXTRAPOLATION_AND_REGISTRATION = 3
 };
 
-#endif // ENUMS_H
+#endif // LIDAR_SLAM_ENUMS_H

@@ -16,8 +16,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef GLOBAL_TRAJECTORIES_REGISTRATION_H
-#define GLOBAL_TRAJECTORIES_REGISTRATION_H
+#ifndef LIDAR_SLAM_GLOBAL_TRAJECTORIES_REGISTRATION_H
+#define LIDAR_SLAM_GLOBAL_TRAJECTORIES_REGISTRATION_H
 
 #include "LidarSlam/Transform.h"
 #include <pcl/registration/icp.h>
@@ -108,4 +108,4 @@ private:
   bool Verbose = false;  ///< If true, print some debug info.
 };
 
-#endif // GLOBAL_TRAJECTORIES_REGISTRATION_H
+#endif // LIDAR_SLAM_GLOBAL_TRAJECTORIES_REGISTRATION_H

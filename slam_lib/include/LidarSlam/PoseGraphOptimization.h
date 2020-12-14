@@ -16,8 +16,8 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef POSE_GRAPH_OPTIMIZATION_H
-#define POSE_GRAPH_OPTIMIZATION_H
+#ifndef LIDAR_SLAM_POSE_GRAPH_OPTIMIZATION_H
+#define LIDAR_SLAM_POSE_GRAPH_OPTIMIZATION_H
 
 #include "LidarSlam/Transform.h"
 #include <g2o/core/sparse_optimizer.h>
@@ -74,4 +74,4 @@ private:
   double TimeOffset = 0.0;  ///< GPS time = SLAM time + TimeOffset
 };
 
-#endif // POSE_GRAPH_OPTIMIZATION_H
+#endif // LIDAR_SLAM_POSE_GRAPH_OPTIMIZATION_H
