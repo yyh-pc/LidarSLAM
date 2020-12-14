@@ -127,8 +127,8 @@ KeypointsRegistration::RegistrationError KeypointsRegistration::EstimateRegistra
 void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double time, double weight)
 {
   // The Ceres residuals to use depending on undistortion mode
-  using RigidResidual = CostFunctions::MahalanobisDistanceAffineIsometryResidual;
-  using UndistortionResidual = CostFunctions::MahalanobisDistanceInterpolatedMotionResidual;
+  using RigidResidual = CeresCostFunctions::MahalanobisDistanceAffineIsometryResidual;
+  using UndistortionResidual = CeresCostFunctions::MahalanobisDistanceInterpolatedMotionResidual;
 
   // If OPTIMIZED mode, we need to optimize both start and end poses
   if (this->Undistortion == UndistortionMode::OPTIMIZED)

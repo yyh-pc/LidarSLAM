@@ -27,7 +27,7 @@
 // EIGEN
 #include <Eigen/Geometry>
 
-namespace CostFunctions
+namespace CeresCostFunctions
 {
 //------------------------------------------------------------------------------
 /**
@@ -619,6 +619,6 @@ struct EuclideanDistanceAffineIsometryResidual
 private:
   const Eigen::Vector3d X, Y;
 };
-} // end of namepsace CostFunctions
+} // end of namespace CeresCostFunctions
 
 #endif // CERES_COST_FUNCTIONS_H
