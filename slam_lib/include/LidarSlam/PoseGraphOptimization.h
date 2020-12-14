@@ -25,6 +25,9 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
+namespace LidarSlam
+{
+
 /**
  * @brief The PoseGraphOptimization class enable to optimize a trajectory given
  * some GPS anchor points.
@@ -73,5 +76,7 @@ private:
   bool Verbose = false;
   double TimeOffset = 0.0;  ///< GPS time = SLAM time + TimeOffset
 };
+
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_POSE_GRAPH_OPTIMIZATION_H

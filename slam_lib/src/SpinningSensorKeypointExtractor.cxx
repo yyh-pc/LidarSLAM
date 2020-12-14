@@ -24,6 +24,9 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
+namespace LidarSlam
+{
+
 namespace
 {
 //-----------------------------------------------------------------------------
@@ -631,3 +634,5 @@ std::unordered_map<std::string, std::vector<double>> SpinningSensorKeypointExtra
   map["blob_validity"]  = get1DVectorFromFlag(this->IsPointValid, Keypoint::BLOB);
   return map;
 }
+
+} // end of LidarSlam namespace

@@ -26,7 +26,7 @@ vtkStandardNewMacro(vtkSpinningSensorKeypointExtractor)
 
 //-----------------------------------------------------------------------------
 vtkSpinningSensorKeypointExtractor::vtkSpinningSensorKeypointExtractor()
-  : Extractor(std::make_shared<SpinningSensorKeypointExtractor>())
+  : Extractor(std::make_shared<LidarSlam::SpinningSensorKeypointExtractor>())
 {}
 
 void vtkSpinningSensorKeypointExtractor::PrintSelf(std::ostream& os, vtkIndent indent)

@@ -92,6 +92,9 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
+namespace LidarSlam
+{
+
 class Slam
 {
 public:
@@ -570,5 +573,7 @@ private:
   // Interpolate scan begin pose from PreviousTworld and Tworld.
   Eigen::Isometry3d InterpolateBeginScanPose();
 };
+
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_SLAM_H

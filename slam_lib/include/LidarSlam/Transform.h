@@ -21,6 +21,9 @@
 
 #include <Eigen/Geometry>
 
+namespace LidarSlam
+{
+
 struct Transform
 {
 private:
@@ -74,5 +77,7 @@ public:
 
   Eigen::Matrix4d GetMatrix() const {return this->transform.matrix();}
 };
+
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_TRANSFORM_H

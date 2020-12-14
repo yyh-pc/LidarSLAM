@@ -31,7 +31,7 @@ namespace Utils
 
 //------------------------------------------------------------------------------
 //! Fill a TF msg with a Transform object.
-geometry_msgs::Transform TransformToTfMsg(const Transform& transform)
+geometry_msgs::Transform TransformToTfMsg(const LidarSlam::Transform& transform)
 {
   geometry_msgs::Transform tfMsg;
   tfMsg.translation.x = transform.x();
@@ -47,7 +47,7 @@ geometry_msgs::Transform TransformToTfMsg(const Transform& transform)
 
 //------------------------------------------------------------------------------
 //! Fill a Pose msg with a Transform object.
-geometry_msgs::Pose TransformToPoseMsg(const Transform& transform)
+geometry_msgs::Pose TransformToPoseMsg(const LidarSlam::Transform& transform)
 {
   geometry_msgs::Pose PoseMsg;
   PoseMsg.position.x = transform.x();
@@ -63,7 +63,7 @@ geometry_msgs::Pose TransformToPoseMsg(const Transform& transform)
 
 //------------------------------------------------------------------------------
 //! Fill a PoseStamped msg with a Transform object.
-geometry_msgs::PoseStamped TransformToPoseStampedMsg(const Transform& transform)
+geometry_msgs::PoseStamped TransformToPoseStampedMsg(const LidarSlam::Transform& transform)
 {
   geometry_msgs::PoseStamped PoseStampedMsg;
   PoseStampedMsg.header.frame_id = transform.frameid;
@@ -83,7 +83,7 @@ geometry_msgs::PoseStamped TransformToPoseStampedMsg(const Transform& transform)
 
 //------------------------------------------------------------------------------
 //! Build a Transform object from a Pose msg.
-Transform PoseMsgToTransform(const geometry_msgs::Pose& poseMsg, double time = 0., const std::string& frameid = "")
+LidarSlam::Transform PoseMsgToTransform(const geometry_msgs::Pose& poseMsg, double time = 0., const std::string& frameid = "")
 {
   Eigen::Translation3d trans(poseMsg.position.x,
                              poseMsg.position.y,
@@ -92,12 +92,12 @@ Transform PoseMsgToTransform(const geometry_msgs::Pose& poseMsg, double time = 0
                          poseMsg.orientation.x,
                          poseMsg.orientation.y,
                          poseMsg.orientation.z);
-  return Transform(trans, rot, time, frameid);
+  return LidarSlam::Transform(trans, rot, time, frameid);
 }
 
 //------------------------------------------------------------------------------
 //! Build a Transform object from a PoseStamped msg.
-Transform PoseMsgToTransform(const geometry_msgs::PoseStamped& poseStampedMsg)
+LidarSlam::Transform PoseMsgToTransform(const geometry_msgs::PoseStamped& poseStampedMsg)
 {
   double time = poseStampedMsg.header.stamp.toSec();
   Eigen::Translation3d trans(poseStampedMsg.pose.position.x,
@@ -107,7 +107,7 @@ Transform PoseMsgToTransform(const geometry_msgs::PoseStamped& poseStampedMsg)
                          poseStampedMsg.pose.orientation.x,
                          poseStampedMsg.pose.orientation.y,
                          poseStampedMsg.pose.orientation.z);
-  return Transform(trans, rot, time, poseStampedMsg.header.frame_id);
+  return LidarSlam::Transform(trans, rot, time, poseStampedMsg.header.frame_id);
 }
 
 //========================== ROS TF2 -> Eigen Isometry3d =======================

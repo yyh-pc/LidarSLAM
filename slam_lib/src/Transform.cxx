@@ -19,6 +19,9 @@
 #include "LidarSlam/Transform.h"
 #include "LidarSlam/Utilities.h"
 
+namespace LidarSlam
+{
+
 //------------------------------------------------------------------------------
 Transform::Transform(double x, double y, double z, double roll, double pitch, double yaw,
                      double t, const std::string& frame)
@@ -58,3 +61,5 @@ Transform::Transform(const Eigen::Translation3d& trans, const Eigen::Quaterniond
   , time(t)
   , frameid(frame)
 {}
+
+} // end of LidarSlam namespace

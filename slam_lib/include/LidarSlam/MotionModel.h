@@ -22,6 +22,9 @@
 
 #include <Eigen/Geometry>
 
+namespace LidarSlam
+{
+
 /**
  * \struct LinearTransformInterpolator
  * \brief Linear interpolator to estimate an intermediate transform between two isometries.
@@ -68,5 +71,7 @@ private:
  */
 Eigen::Isometry3d LinearInterpolation(const Eigen::Isometry3d& H0, const Eigen::Isometry3d& H1,
                                       double t, double t0 = 0., double t1 = 1.);
+
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_MOTION_MODEL_H

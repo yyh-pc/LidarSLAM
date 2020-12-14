@@ -25,6 +25,9 @@
 #include <g2o/solvers/eigen/linear_solver_eigen.h>
 #include <g2o/types/slam3d/types_slam3d.h>
 
+namespace LidarSlam
+{
+
 namespace Utils
 {
 namespace
@@ -280,3 +283,5 @@ void PoseGraphOptimization::BuildPoseGraph(const std::vector<Transform>& slamPos
     }
   }
 }
+
+} // end of LidarSlam namespace

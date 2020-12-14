@@ -23,6 +23,9 @@
 #include <nanoflann.hpp>
 #include <pcl/point_cloud.h>
 
+namespace LidarSlam
+{
+
 template<typename PointT>
 class KDTreePCLAdaptor
 {
@@ -171,5 +174,7 @@ protected:
   //! The input data
   PointCloudPtr Cloud;
 };
+
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_KDTREE_PCL_ADAPTOR_H

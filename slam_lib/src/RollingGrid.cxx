@@ -27,6 +27,9 @@
 #endif
 #include <pcl/filters/voxel_grid.h>
 
+namespace LidarSlam
+{
+
 namespace Utils
 {
 namespace
@@ -330,3 +333,5 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
     }
   }
 }
+
+} // end of LidarSlam namespace

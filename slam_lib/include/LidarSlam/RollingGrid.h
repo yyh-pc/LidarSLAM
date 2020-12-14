@@ -25,6 +25,9 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
+namespace LidarSlam
+{
+
 /*!
  * @brief Rolling voxel grid to store and access pointclouds of specific areas.
  *
@@ -120,5 +123,7 @@ private:
     return (position / this->VoxelResolution).array().floor().template cast<int>();
   }
 };
+
+} // end of LidarSlam namespace
 
 #endif  // LIDAR_SLAM_ROLLING_GRID_H

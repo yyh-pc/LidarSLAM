@@ -27,6 +27,8 @@
 // EIGEN
 #include <Eigen/Geometry>
 
+namespace LidarSlam
+{
 namespace CeresCostFunctions
 {
 
@@ -212,6 +214,8 @@ private:
   const double Time;
   const double Weight;
 };
+
 } // end of namespace CeresCostFunctions
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_CERES_COST_FUNCTIONS_H

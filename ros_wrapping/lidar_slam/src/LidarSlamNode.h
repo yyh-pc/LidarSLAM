@@ -38,7 +38,7 @@ public:
 
   using PointV = velodyne_pcl::PointXYZIRT;
   using CloudV = pcl::PointCloud<PointV>;  ///< Pointcloud published by velodyne driver
-  using PointS = Slam::Point;    
+  using PointS = LidarSlam::Slam::Point;
   using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM
 
   //----------------------------------------------------------------------------
@@ -129,7 +129,7 @@ protected:
   //----------------------------------------------------------------------------
 
   // SLAM stuff
-  Slam LidarSlam;
+  LidarSlam::Slam LidarSlam;
   std::vector<size_t> LaserIdMapping;
   double LidarFreq = 10.;
 
@@ -150,7 +150,7 @@ protected:
 
   // Optional use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization (PGO).
   bool UseGps = false;                          ///< Enable GPS data logging for Pose Graph Optimization or GPS/SLAM calibration.
-  std::deque<Transform> GpsPoses;               ///< Buffer of last received GPS poses.
+  std::deque<LidarSlam::Transform> GpsPoses;    ///< Buffer of last received GPS poses.
   std::deque<std::array<double, 9>> GpsCovars;  ///< Buffer of last received GPS positions covariances.
   Eigen::Isometry3d BaseToGpsOffset = Eigen::Isometry3d::Identity();  ///< Pose of the GPS antenna in BASE coordinates.
   ros::Subscriber GpsOdomSub;

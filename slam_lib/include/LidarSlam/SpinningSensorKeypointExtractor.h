@@ -32,6 +32,9 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
+namespace LidarSlam
+{
+
 class SpinningSensorKeypointExtractor
 {
 public:
@@ -180,5 +183,7 @@ private:
   PointCloud::Ptr pclCurrentFrame;
   std::vector<PointCloud::Ptr> pclCurrentFrameByScan;
 };
+
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H

@@ -66,12 +66,12 @@ public:
 
   vtkCustomSetMacro(EdgeIntensityGapThreshold, double)
 
-  std::shared_ptr<SpinningSensorKeypointExtractor> GetExtractor() const { return Extractor; }
+  std::shared_ptr<LidarSlam::SpinningSensorKeypointExtractor> GetExtractor() const { return Extractor; }
 
 protected:
   vtkSpinningSensorKeypointExtractor();
 
-  std::shared_ptr<SpinningSensorKeypointExtractor> Extractor;
+  std::shared_ptr<LidarSlam::SpinningSensorKeypointExtractor> Extractor;
 
 private:
   vtkSpinningSensorKeypointExtractor(const vtkSpinningSensorKeypointExtractor&) = delete;

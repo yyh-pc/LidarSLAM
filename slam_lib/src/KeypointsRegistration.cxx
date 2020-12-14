@@ -19,6 +19,9 @@
 #include "LidarSlam/KeypointsRegistration.h"
 #include "LidarSlam/CeresCostFunctions.h"
 
+namespace LidarSlam
+{
+
 //-----------------------------------------------------------------------------
 KeypointsRegistration::KeypointsRegistration(const KeypointsRegistration::Parameters& params,
                                              UndistortionMode undistortion,
@@ -635,3 +638,5 @@ void KeypointsRegistration::GetRansacLineNeighbors(const KDTree& kdtreePreviousE
     validKnnSqDist.push_back(knnSqDist[inlier]);
   }
 }
+
+} // end of LidarSlam namespace

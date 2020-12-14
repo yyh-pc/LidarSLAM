@@ -19,6 +19,9 @@
 #ifndef LIDAR_SLAM_ENUMS_H
 #define LIDAR_SLAM_ENUMS_H
 
+namespace LidarSlam
+{
+
 //------------------------------------------------------------------------------
 //! Type of a keypoint
 enum Keypoint
@@ -78,5 +81,7 @@ enum class EgoMotionMode
   //! and rely less on constant motion hypothesis.
   MOTION_EXTRAPOLATION_AND_REGISTRATION = 3
 };
+
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_ENUMS_H

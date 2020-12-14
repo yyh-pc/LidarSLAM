@@ -29,6 +29,35 @@
 
 #include "LidarSlam/Utilities.h"
 
+// PCL Octree compression does not compile properly on Windows with MSVC 2015
+// and below. Therefore, we cannot compile OctreeCompressedPointCloud.
+// If we use this code with MSVC 2015 and below, OctreeCompressedPointCloud
+// becomes just an alias for basic PCLPointCloud.
+#if defined(_MSC_VER) && _MSC_VER < 1910
+#define PCL_OCTREE_COMPRESSION_NOT_AVAILABLE
+#else
+
+#include <pcl/compression/octree_pointcloud_compression.h>
+#include <pcl/io/impl/octree_pointcloud_compression.hpp>  // seems to be missing in otree_pointcloud_compression.h
+
+// This workaround is only available on Linux, as sigaction is only supported on UNIX systems.
+// See OctreeCompressedPointCloud::GetCloud() for more details about why this is needed.
+#ifdef __linux__
+  #include <signal.h>
+  namespace
+  {
+    // Attach SIGFPE to c++ exception.
+    // This allows to properly deal with division by 0 or other computation errors.
+    // NOTE : See OctreeCompressedPointCloud::GetCloud() for more details about why this is needed.
+    void sigfpe_handler(int /* signum */) { throw std::logic_error("SIGFPE"); }
+  }
+#endif
+#endif
+
+
+namespace LidarSlam
+{
+
 //! PCD file data format.
 enum PCDFormat
 {
@@ -123,33 +152,18 @@ struct PCLPointCloud final : public PointCloudData<PointT>
     CloudTPtr Cloud;  ///< Raw uncompressed pointcloud.
 };
 
+
 //------------------------------------------------------------------------------
 // PCL Octree compression does not compile properly on Windows with MSVC 2015
 // and below. Therefore, we cannot compile OctreeCompressedPointCloud.
 // If we use this code with MSVC 2015 and below, OctreeCompressedPointCloud
 // becomes just an alias for basic PCLPointCloud.
-#if defined(_MSC_VER) && _MSC_VER < 1910
+#ifdef PCL_OCTREE_COMPRESSION_NOT_AVAILABLE
 #pragma message("PCL Octree PointCloud Compression is not supported by MSVC 2015 and below.")
 //------------------------------------------------------------------------------
 template<typename PointT>
 using OctreeCompressedPointCloud = PCLPointCloud<PointT>;
 #else
-
-#include <pcl/compression/octree_pointcloud_compression.h>
-#include <pcl/io/impl/octree_pointcloud_compression.hpp>  // seems to be missing in otree_pointcloud_compression.h
-
-// This workaround is only available on Linux, as sigaction is only supported on UNIX systems.
-#ifdef __linux__
-  #include <signal.h>
-  namespace
-  {
-    // Attach SIGFPE to c++ exception.
-    // This allows to properly deal with division by 0 or other computation errors.
-    // NOTE : See OctreeCompressedPointCloud::GetCloud() for more details about why this is needed.
-    void sigfpe_handler(int /* signum */) { throw std::logic_error("SIGFPE"); }
-  }
-#endif
-
 //------------------------------------------------------------------------------
 /*!
  * @brief Compress (with small loss) pointcloud with octree, and store pointcloud as binary data in RAM.
@@ -338,5 +352,7 @@ struct PointCloudStorage
     PointCloudStorageType Storage;                 ///< How is stored pointcloud data.
     std::unique_ptr<PointCloudData<PointT>> Data;  ///< Pointcloud data.
 };
+
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_POINT_CLOUD_STORAGE_H

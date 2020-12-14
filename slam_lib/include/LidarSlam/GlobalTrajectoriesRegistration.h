@@ -25,6 +25,9 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
+namespace LidarSlam
+{
+
 /**
  * @brief Find the global transform between two trajectories with ICP.
  * 
@@ -107,5 +110,7 @@ private:
   bool NoRoll = false;   ///< If true, roll angle (X axis) will be set to 0 in output transform.
   bool Verbose = false;  ///< If true, print some debug info.
 };
+
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_GLOBAL_TRAJECTORIES_REGISTRATION_H

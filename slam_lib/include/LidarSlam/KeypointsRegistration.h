@@ -29,6 +29,9 @@
 #include <ceres/ceres.h>
 #include <pcl/point_cloud.h>
 
+namespace LidarSlam
+{
+
 // Helper class to register one set of edge/plane/blob keypoints onto
 // another to estimate the 6D transformation between them.
 // Firstly, a matching step is perfomed : we need to build the point-to-line,
@@ -235,5 +238,7 @@ private:
   Eigen::Vector6d EndPoseArray;   ///< Pose at the end of frame (XYZRPY)
   Eigen::Vector6d StartPoseArray; ///< Pose at the beginning of frame (XYZRPY), only used if undistortion is enabled
 };
+
+} // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_KEYPOINTS_REGISTRATION_H

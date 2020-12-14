@@ -19,6 +19,9 @@
 #include "LidarSlam/GlobalTrajectoriesRegistration.h"
 #include "LidarSlam/Utilities.h"
 
+namespace LidarSlam
+{
+
 //------------------------------------------------------------------------------
 bool GlobalTrajectoriesRegistration::ComputeTransformOffset(const std::vector<Transform>& initPoses,
                                                             const std::vector<Transform>& finalPoses,
@@ -135,3 +138,5 @@ Eigen::Quaterniond GlobalTrajectoriesRegistration::ComputeRoughRotationOffset(co
   // Compute orientation alignment between two sub-trajectories
   return Eigen::Quaterniond::FromTwoVectors(initDirection, finalDirection);
 }
+
+} // end of LidarSlam namespace

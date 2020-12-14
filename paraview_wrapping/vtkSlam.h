@@ -238,7 +238,7 @@ protected:
   // MTime is a much more general mecanism so we can't rely on it
   vtkTimeStamp ParametersModificationTime;
 
-  std::unique_ptr<Slam> SlamAlgo;
+  std::unique_ptr<LidarSlam::Slam> SlamAlgo;
   vtkSpinningSensorKeypointExtractor* KeyPointsExtractor = nullptr;
 
 private:

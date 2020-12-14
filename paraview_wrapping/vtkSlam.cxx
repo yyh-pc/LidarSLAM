@@ -65,6 +65,9 @@ namespace Utils
 {
 namespace
 {
+// Import helper functions from LidarSlam
+using namespace LidarSlam::Utils;
+
 //-----------------------------------------------------------------------------
 template<typename T>
 vtkSmartPointer<T> CreateArray(const std::string& Name, int NumberOfComponents = 1, int NumberOfTuples = 0)
@@ -77,7 +80,7 @@ vtkSmartPointer<T> CreateArray(const std::string& Name, int NumberOfComponents =
 }
 
 //-----------------------------------------------------------------------------
-void PointCloudToPolyData(Slam::PointCloud::Ptr pc, vtkPolyData* poly)
+void PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr pc, vtkPolyData* poly)
 {
   const vtkIdType nbPoints = pc->size();
 
@@ -93,7 +96,7 @@ void PointCloudToPolyData(Slam::PointCloud::Ptr pc, vtkPolyData* poly)
   for (vtkIdType i = 0; i < nbPoints; ++i)
   {
     // Set point
-    const Slam::Point& p = pc->points[i];
+    const auto& p = pc->points[i];
     pts->SetPoint(i, p.x, p.y, p.z);
     intensityArray->SetTuple1(i, p.intensity);
     // TODO : add other fields (time, laserId)?
@@ -114,7 +117,7 @@ void PointCloudToPolyData(Slam::PointCloud::Ptr pc, vtkPolyData* poly)
 }
 
 //-----------------------------------------------------------------------------
-void PolyDataToPointCloud(vtkPolyData* poly, Slam::PointCloud::Ptr pc)
+void PolyDataToPointCloud(vtkPolyData* poly, LidarSlam::Slam::PointCloud::Ptr pc)
 {
   const vtkIdType nbPoints = poly->GetNumberOfPoints();
 
@@ -128,7 +131,7 @@ void PolyDataToPointCloud(vtkPolyData* poly, Slam::PointCloud::Ptr pc)
   double frameEndTime = 0;
   for (vtkIdType i = 0; i < nbPoints; i++)
   {
-    Slam::Point& p = pc->points[i];
+    auto& p = pc->points[i];
     double pos[3];
     poly->GetPoint(i, pos);
     p.x = pos[0];
@@ -147,7 +150,7 @@ void PolyDataToPointCloud(vtkPolyData* poly, Slam::PointCloud::Ptr pc)
 
 //-----------------------------------------------------------------------------
 vtkSlam::vtkSlam()
-: SlamAlgo(new Slam)
+: SlamAlgo(new LidarSlam::Slam)
 {
   this->SetNumberOfInputPorts(INPUT_PORT_COUNT);
   this->SetNumberOfOutputPorts(OUTPUT_PORT_COUNT);
@@ -201,7 +204,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   std::vector<size_t> laserMapping = GetLaserIdMapping(calib);
 
   // Conversion vtkPolyData -> PCL pointcloud
-  Slam::PointCloud::Ptr pc(new Slam::PointCloud);
+  LidarSlam::Slam::PointCloud::Ptr pc(new LidarSlam::Slam::PointCloud);
   Utils::PolyDataToPointCloud(input, pc);
 
   // Run SLAM
@@ -216,12 +219,12 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // Output : Current undistorted LiDAR frame in world coordinates
   auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
   slamFrame->ShallowCopy(input);
-  Slam::PointCloud::Ptr worldFrame = this->SlamAlgo->GetOutputFrame();
+  auto worldFrame = this->SlamAlgo->GetOutputFrame();
   auto undistortedPoints = vtkSmartPointer<vtkPoints>::New();
   undistortedPoints->SetNumberOfPoints(worldFrame->size());
   for (unsigned int i = 0; i < worldFrame->size(); i++)
   {
-    const Slam::Point& p = worldFrame->points[i];
+    const auto& p = worldFrame->points[i];
     undistortedPoints->SetPoint(i, p.x, p.y, p.z);
   }
   slamFrame->SetPoints(undistortedPoints);
@@ -424,7 +427,7 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
 void vtkSlam::AddCurrentPoseToTrajectory()
 {
   // Get current SLAM pose in WORLD coordinates
-  Transform Tworld = this->SlamAlgo->GetWorldTransform();
+  LidarSlam::Transform Tworld = this->SlamAlgo->GetWorldTransform();
   Eigen::Isometry3d pose = Tworld.GetIsometry();
 
   // Add position
@@ -506,9 +509,11 @@ int vtkSlam::GetEgoMotion()
 //-----------------------------------------------------------------------------
 void vtkSlam::SetEgoMotion(int mode)
 {
-  EgoMotionMode egoMotion = static_cast<EgoMotionMode>(mode);
-  if (egoMotion != EgoMotionMode::NONE         && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION &&
-      egoMotion != EgoMotionMode::REGISTRATION && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+  LidarSlam::EgoMotionMode egoMotion = static_cast<LidarSlam::EgoMotionMode>(mode);
+  if (egoMotion != LidarSlam::EgoMotionMode::NONE         &&
+      egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION &&
+      egoMotion != LidarSlam::EgoMotionMode::REGISTRATION &&
+      egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
   {
     vtkErrorMacro("Invalid ego-motion mode (" << mode << "), ignoring setting.");
     return;
@@ -532,8 +537,10 @@ int vtkSlam::GetUndistortion()
 //-----------------------------------------------------------------------------
 void vtkSlam::SetUndistortion(int mode)
 {
-  UndistortionMode undistortion = static_cast<UndistortionMode>(mode);
-  if (undistortion != UndistortionMode::NONE && undistortion != UndistortionMode::APPROXIMATED && undistortion != UndistortionMode::OPTIMIZED)
+  LidarSlam::UndistortionMode undistortion = static_cast<LidarSlam::UndistortionMode>(mode);
+  if (undistortion != LidarSlam::UndistortionMode::NONE &&
+      undistortion != LidarSlam::UndistortionMode::APPROXIMATED &&
+      undistortion != LidarSlam::UndistortionMode::OPTIMIZED)
   {
     vtkErrorMacro("Invalid undistortion mode (" << mode << "), ignoring setting.");
     return;

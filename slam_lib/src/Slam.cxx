@@ -89,6 +89,9 @@
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
 
+namespace LidarSlam
+{
+
 namespace Utils
 {
 namespace
@@ -1189,3 +1192,5 @@ void Slam::SetVoxelGridResolution(double resolution)
   this->PlanarPointsLocalMap->SetVoxelResolution(resolution);
   this->BlobsPointsLocalMap->SetVoxelResolution(resolution);
 }
+
+} // end of LidarSlam namespace

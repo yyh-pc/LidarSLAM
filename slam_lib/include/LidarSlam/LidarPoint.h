@@ -23,6 +23,9 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
+namespace LidarSlam
+{
+
 /** \brief A point structure representing Euclidean xyz coordinates, time, intensity, laser_id, device_id and label.
   * \ingroup common
   */
@@ -49,7 +52,9 @@ struct LidarPoint
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 } EIGEN_ALIGN16;
 
-POINT_CLOUD_REGISTER_POINT_STRUCT (LidarPoint,
+} // end of LidarSlam namespace
+
+POINT_CLOUD_REGISTER_POINT_STRUCT (LidarSlam::LidarPoint,
                                    (float, x, x)
                                    (float, y, y)
                                    (float, z, z)

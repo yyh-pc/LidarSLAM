@@ -73,6 +73,8 @@ namespace Eigen
   using Vector6d = Matrix<double, 6, 1>;
 }
 
+namespace LidarSlam
+{
 namespace Utils
 {
 //==============================================================================
@@ -408,5 +410,6 @@ inline void StopTimeAndDisplay(const std::string& timer)
 }
 
 }  // end of Utils namespace
+}  // end of LidarSlam namespace
 
 #endif // LIDAR_SLAM_UTILITIES_H
