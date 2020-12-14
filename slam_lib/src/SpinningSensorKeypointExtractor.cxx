@@ -60,7 +60,7 @@ bool LineFitting::FitPCA(std::vector<Eigen::Vector3d> const& points)
     data.row(k) = points[k];
   }
   // Solve PCA and save mean point in Position
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = ComputePCA(data, this->Position);
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = Utils::ComputePCA(data, this->Position);
 
   // Direction
   this->Direction = eig.eigenvectors().col(2).normalized();
@@ -108,7 +108,7 @@ inline double LineFitting::SquaredDistanceToPoint(Eigen::Vector3d const& point) 
 {
   return ((point - this->Position).cross(this->Direction)).squaredNorm();
 }
-}
+} // end of anonymous namespace
 
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
@@ -130,9 +130,9 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
   this->EdgesPoints.reset(new PointCloud);
   this->PlanarsPoints.reset(new PointCloud);
   this->BlobsPoints.reset(new PointCloud);
-  CopyPointCloudMetadata(*this->pclCurrentFrame, *this->EdgesPoints);
-  CopyPointCloudMetadata(*this->pclCurrentFrame, *this->PlanarsPoints);
-  CopyPointCloudMetadata(*this->pclCurrentFrame, *this->BlobsPoints);
+  Utils::CopyPointCloudMetadata(*this->pclCurrentFrame, *this->EdgesPoints);
+  Utils::CopyPointCloudMetadata(*this->pclCurrentFrame, *this->PlanarsPoints);
+  Utils::CopyPointCloudMetadata(*this->pclCurrentFrame, *this->BlobsPoints);
 
   this->Angles.resize(this->NLasers);
   this->Saliency.resize(this->NLasers);
@@ -487,10 +487,10 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     }
 
     // Sort the curvature score in a decreasing order
-    std::vector<size_t> sortedDepthGapIdx = SortIdx(this->DepthGap[scanLine]);
-    std::vector<size_t> sortedAnglesIdx = SortIdx(this->Angles[scanLine]);
-    std::vector<size_t> sortedSaliencyIdx = SortIdx(this->Saliency[scanLine]);
-    std::vector<size_t> sortedIntensityGap = SortIdx(this->IntensityGap[scanLine]);
+    std::vector<size_t> sortedDepthGapIdx  = Utils::SortIdx(this->DepthGap[scanLine]);
+    std::vector<size_t> sortedAnglesIdx    = Utils::SortIdx(this->Angles[scanLine]);
+    std::vector<size_t> sortedSaliencyIdx  = Utils::SortIdx(this->Saliency[scanLine]);
+    std::vector<size_t> sortedIntensityGap = Utils::SortIdx(this->IntensityGap[scanLine]);
 
     // Add edge according to criterion
     auto addEdgesUsingCriterion = [this, scanLine, Npts](const std::vector<size_t>& sortedValuesIdx,

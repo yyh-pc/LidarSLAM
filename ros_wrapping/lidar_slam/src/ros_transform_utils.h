@@ -24,6 +24,9 @@
 #include <tf2_ros/transform_listener.h>
 #include <LidarSlam/Transform.h>
 
+namespace Utils
+{
+
 //========================== Transform -> ROS msg ==============================
 
 //------------------------------------------------------------------------------
@@ -133,5 +136,7 @@ bool Tf2LookupTransform(Eigen::Isometry3d& transform,
               * Eigen::Quaterniond(t.rotation.w, t.rotation.x, t.rotation.y, t.rotation.z);
   return true;
 }
+
+} // end of Utils namespace
 
 #endif  // ROS_TRANSFORM_UTILS_H

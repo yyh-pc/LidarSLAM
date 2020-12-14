@@ -61,11 +61,13 @@
 //-----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkSlam)
 
+namespace Utils
+{
 namespace
 {
 //-----------------------------------------------------------------------------
 template<typename T>
-vtkSmartPointer<T> createArray(const std::string& Name, int NumberOfComponents = 1, int NumberOfTuples = 0)
+vtkSmartPointer<T> CreateArray(const std::string& Name, int NumberOfComponents = 1, int NumberOfTuples = 0)
 {
   vtkSmartPointer<T> array = vtkSmartPointer<T>::New();
   array->SetNumberOfComponents(NumberOfComponents);
@@ -82,7 +84,7 @@ void PointCloudToPolyData(Slam::PointCloud::Ptr pc, vtkPolyData* poly)
   // Init points
   vtkNew<vtkPoints> pts;
   pts->SetNumberOfPoints(nbPoints);
-  auto intensityArray = createArray<vtkDoubleArray>("intensity", 1, nbPoints);
+  auto intensityArray = Utils::CreateArray<vtkDoubleArray>("intensity", 1, nbPoints);
 
   // Init cells
   vtkNew<vtkIdTypeArray> cells;
@@ -141,6 +143,7 @@ void PolyDataToPointCloud(vtkPolyData* poly, Slam::PointCloud::Ptr pc)
   pc->header.stamp = frameEndTime; // time in microseconds
 }
 } // end of anonymous namespace
+} // end of Utils namespace
 
 //-----------------------------------------------------------------------------
 vtkSlam::vtkSlam()
@@ -157,7 +160,7 @@ void vtkSlam::Reset()
   this->SlamAlgo->Reset(true);
 
   // Reset processing duration timers
-  ResetTimers();
+  Utils::ResetTimers();
 
   // init the output SLAM trajectory
   this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
@@ -165,10 +168,10 @@ void vtkSlam::Reset()
   this->Trajectory->SetPoints(pts);
   auto cellArray = vtkSmartPointer<vtkCellArray>::New();
   this->Trajectory->SetLines(cellArray);
-  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Time", 1));
-  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
-  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
-  this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>("Covariance", 36));
+  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
+  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
+  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
+  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
 
   // Add the optional arrays to the trajectory
   if (this->AdvancedReturnMode)
@@ -176,7 +179,7 @@ void vtkSlam::Reset()
     auto debugInfo = this->SlamAlgo->GetDebugInformation();
     for (const auto& it : debugInfo)
     {
-      this->Trajectory->GetPointData()->AddArray(createArray<vtkDoubleArray>(it.first));
+      this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>(it.first));
     }
   }
 
@@ -189,8 +192,8 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
                          vtkInformationVector** inputVector,
                          vtkInformationVector* outputVector)
 {
-  IF_VERBOSE(1, InitTime("vtkSlam"));
-  IF_VERBOSE(3, InitTime("vtkSlam : input conversions"));
+  IF_VERBOSE(1, Utils::InitTime("vtkSlam"));
+  IF_VERBOSE(3, Utils::InitTime("vtkSlam : input conversions"));
 
   // Get the input
   vtkPolyData* input = vtkPolyData::GetData(inputVector[LIDAR_FRAME_INPUT_PORT], 0);
@@ -199,12 +202,12 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 
   // Conversion vtkPolyData -> PCL pointcloud
   Slam::PointCloud::Ptr pc(new Slam::PointCloud);
-  PolyDataToPointCloud(input, pc);
+  Utils::PolyDataToPointCloud(input, pc);
 
   // Run SLAM
-  IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : input conversions"));
+  IF_VERBOSE(3, Utils::StopTimeAndDisplay("vtkSlam : input conversions"));
   this->SlamAlgo->AddFrame(pc, laserMapping);
-  IF_VERBOSE(3, InitTime("vtkSlam : basic output conversions"));
+  IF_VERBOSE(3, Utils::InitTime("vtkSlam : basic output conversions"));
 
   // Update Trajectory with new SLAM pose
   this->AddCurrentPoseToTrajectory();
@@ -226,12 +229,12 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
   slamTrajectory->ShallowCopy(this->Trajectory);
 
-  IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : basic output conversions"));
+  IF_VERBOSE(3, Utils::StopTimeAndDisplay("vtkSlam : basic output conversions"));
 
   // ===== Aggregated Keypoints maps =====
   if (this->OutputKeypointsMaps)
   {
-    IF_VERBOSE(3, InitTime("vtkSlam : output keypoints maps"));
+    IF_VERBOSE(3, Utils::InitTime("vtkSlam : output keypoints maps"));
 
     // Cache maps to update them only every MapsUpdateStep frames
     static vtkPolyData* cacheEdgeMap = vtkPolyData::New();
@@ -239,9 +242,9 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     static vtkPolyData* cacheBlobMap = vtkPolyData::New();
     if ((this->SlamAlgo->GetNbrFrameProcessed() - 1) % this->MapsUpdateStep == 0)
     {
-      PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), cacheEdgeMap);
-      PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), cachePlanarMap);
-      PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), cacheBlobMap);
+      Utils::PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), cacheEdgeMap);
+      Utils::PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), cachePlanarMap);
+      Utils::PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), cacheBlobMap);
     }
 
     // Fill outputs from cache
@@ -255,29 +258,29 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
     blobMap->ShallowCopy(cacheBlobMap);
 
-    IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : output keypoints maps"));
+    IF_VERBOSE(3, Utils::StopTimeAndDisplay("vtkSlam : output keypoints maps"));
   }
 
   // ===== Extracted keypoints from current frame =====
   if (this->OutputCurrentKeypoints)
   {
-    IF_VERBOSE(3, InitTime("vtkSlam : output current keypoints"));
+    IF_VERBOSE(3, Utils::InitTime("vtkSlam : output current keypoints"));
     // Output : Current edge keypoints
     auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
-    PointCloudToPolyData(this->SlamAlgo->GetEdgesKeypoints(this->OutputKeypointsInWorldCoordinates), edgePoints);
+    Utils::PointCloudToPolyData(this->SlamAlgo->GetEdgesKeypoints(this->OutputKeypointsInWorldCoordinates), edgePoints);
     // Output : Current planar keypoints
     auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
-    PointCloudToPolyData(this->SlamAlgo->GetPlanarsKeypoints(this->OutputKeypointsInWorldCoordinates), planarPoints);
+    Utils::PointCloudToPolyData(this->SlamAlgo->GetPlanarsKeypoints(this->OutputKeypointsInWorldCoordinates), planarPoints);
     // Output : Current blob keypoints
     auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
-    PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(this->OutputKeypointsInWorldCoordinates), blobPoints);
-    IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : output current keypoints"));
+    Utils::PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(this->OutputKeypointsInWorldCoordinates), blobPoints);
+    IF_VERBOSE(3, Utils::StopTimeAndDisplay("vtkSlam : output current keypoints"));
   }
 
   // Add debug information if advanced return mode is enabled
   if (this->AdvancedReturnMode)
   {
-    IF_VERBOSE(3, InitTime("vtkSlam : add advanced return arrays"));
+    IF_VERBOSE(3, Utils::InitTime("vtkSlam : add advanced return arrays"));
 
     // Keypoints extraction debug array (curvatures, depth gap, intensity gap...)
     // Arrays added to WORLD transformed frame output
@@ -285,7 +288,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     auto keypointsExtractionDebugArray = this->SlamAlgo->GetKeyPointsExtractor()->GetDebugArray();
     for (const auto& it : keypointsExtractionDebugArray)
     {
-      auto array = createArray<vtkDoubleArray>(it.first.c_str(), 1, it.second.size());
+      auto array = Utils::CreateArray<vtkDoubleArray>(it.first.c_str(), 1, it.second.size());
       // memcpy is a better alternative than looping on all tuples
       std::memcpy(array->GetVoidPointer(0), it.second.data(), sizeof(double) * it.second.size());
       slamFrame->GetPointData()->AddArray(array);
@@ -313,17 +316,17 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
       auto debugArray = this->SlamAlgo->GetDebugArray();
       for (const auto& it : outputMap)
       {
-        auto array = createArray<vtkDoubleArray>(it.first.c_str(), 1, debugArray[it.first].size());
+        auto array = Utils::CreateArray<vtkDoubleArray>(it.first.c_str(), 1, debugArray[it.first].size());
         // memcpy is a better alternative than looping on all tuples
         std::memcpy(array->GetVoidPointer(0), debugArray[it.first].data(), sizeof(double) * debugArray[it.first].size());
         it.second->GetPointData()->AddArray(array);
       }
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("vtkSlam : add advanced return arrays"));
+    IF_VERBOSE(3, Utils::StopTimeAndDisplay("vtkSlam : add advanced return arrays"));
   }
 
-  IF_VERBOSE(1, StopTimeAndDisplay("vtkSlam"));
+  IF_VERBOSE(1, Utils::StopTimeAndDisplay("vtkSlam"));
 
   return 1;
 }
@@ -408,7 +411,7 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
     {
       verticalCorrection[i] = array->GetTuple1(i);
     }
-    laserIdMapping = SortIdx(verticalCorrection);
+    laserIdMapping = Utils::SortIdx(verticalCorrection);
   }
   else
   {
@@ -472,7 +475,7 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
       // Add new optional arrays to trajectory, and init past values to 0.
       for (const auto& it : debugInfo)
       {
-        auto array = createArray<vtkDoubleArray>(it.first, 1, this->Trajectory->GetNumberOfPoints());
+        auto array = Utils::CreateArray<vtkDoubleArray>(it.first, 1, this->Trajectory->GetNumberOfPoints());
         for (vtkIdType i = 0; i < this->Trajectory->GetNumberOfPoints(); i++)
           array->SetTuple1(i, 0.);
         this->Trajectory->GetPointData()->AddArray(array);
@@ -556,7 +559,7 @@ void vtkSlam::SetBaseToLidarTranslation(double x, double y, double z)
 void vtkSlam::SetBaseToLidarRotation(double rx, double ry, double rz)
 {
   Eigen::Isometry3d baseToLidar = this->SlamAlgo->GetBaseToLidarOffset();
-  baseToLidar.linear() = RPYtoRotationMatrix(Deg2Rad(rx), Deg2Rad(ry), Deg2Rad(rz));
+  baseToLidar.linear() = Utils::RPYtoRotationMatrix(Utils::Deg2Rad(rx), Utils::Deg2Rad(ry), Utils::Deg2Rad(rz));
   this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
   this->ParametersModificationTime.Modified();
 }

@@ -196,7 +196,7 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
 
     // Update BASE to GPS offset
     // Get the latest transform (we expect a static transform, so timestamp does not matter)
-    Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
+    Utils::Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
   }
 }
 
@@ -234,7 +234,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       }
       Transform& mapToGps = this->GpsPoses.back();
       Eigen::Isometry3d mapToOdom;
-      Tf2LookupTransform(mapToOdom, this->TfBuffer, mapToGps.frameid, this->OdometryFrameId, ros::Time(mapToGps.time));
+      Utils::Tf2LookupTransform(mapToOdom, this->TfBuffer, mapToGps.frameid, this->OdometryFrameId, ros::Time(mapToGps.time));
       Eigen::Isometry3d odomToBase = mapToOdom.inverse() * mapToGps.GetIsometry() * this->BaseToGpsOffset.inverse();
       this->LidarSlam.SetWorldTransformFromGuess(Transform(odomToBase, mapToGps.time, mapToGps.frameid));
       ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << odomToBase.matrix());
@@ -348,7 +348,7 @@ void LidarSlamNode::GpsSlamCalibration()
     gpsPath.header.stamp = latestTime;
     for (const Transform& pose: worldToGpsPoses)
     {
-      gpsPath.poses.emplace_back(TransformToPoseStampedMsg(pose));
+      gpsPath.poses.emplace_back(Utils::TransformToPoseStampedMsg(pose));
     }
     this->Publishers[ICP_CALIB_GPS_PATH].publish(gpsPath);
   }
@@ -361,7 +361,7 @@ void LidarSlamNode::GpsSlamCalibration()
     for (const Transform& pose: odomToGpsPoses)
     {
       Transform worldToGpsPose(worldToOdom * pose.GetIsometry(), pose.time, pose.frameid);
-      slamPath.poses.emplace_back(TransformToPoseStampedMsg(worldToGpsPose));
+      slamPath.poses.emplace_back(Utils::TransformToPoseStampedMsg(worldToGpsPose));
     }
     this->Publishers[ICP_CALIB_SLAM_PATH].publish(slamPath);
   }
@@ -371,11 +371,11 @@ void LidarSlamNode::GpsSlamCalibration()
   tfStamped.header.stamp = latestTime;
   tfStamped.header.frame_id = gpsFrameId;
   tfStamped.child_frame_id = this->OdometryFrameId;
-  tfStamped.transform = TransformToTfMsg(Transform(worldToOdom));
+  tfStamped.transform = Utils::TransformToTfMsg(Transform(worldToOdom));
   this->StaticTfBroadcaster.sendTransform(tfStamped);
 
   Eigen::Vector3d xyz = worldToOdom.translation();
-  Eigen::Vector3d ypr = RotationMatrixToRPY(worldToOdom.linear()).reverse();
+  Eigen::Vector3d ypr = Utils::RotationMatrixToRPY(worldToOdom.linear()).reverse();
   ROS_INFO_STREAM(BOLD_GREEN("Global transform from '" << gpsFrameId << "' to '" << this->OdometryFrameId << "' " <<
                   "successfully estimated to :\n" << worldToOdom.matrix() << "\n" <<
                   "(tf2 static transform : " << xyz.transpose() << " " << ypr.transpose() << " " << gpsFrameId << " " << this->OdometryFrameId << ")"));
@@ -410,7 +410,7 @@ void LidarSlamNode::PoseGraphOptimization()
   tfStamped.header.stamp = ros::Time(odomToBase.time);
   tfStamped.header.frame_id = worldToGpsPositions.back().frameid;
   tfStamped.child_frame_id = this->OdometryFrameId;
-  tfStamped.transform = TransformToTfMsg(Transform(gpsToBaseOffset));
+  tfStamped.transform = Utils::TransformToTfMsg(Transform(gpsToBaseOffset));
   this->StaticTfBroadcaster.sendTransform(tfStamped);
 
   // Publish optimized SLAM trajectory
@@ -421,7 +421,7 @@ void LidarSlamNode::PoseGraphOptimization()
     optimSlamTraj.header.stamp = ros::Time(odomToBase.time);
     std::vector<Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
     for (const Transform& pose: optimizedSlamPoses)
-      optimSlamTraj.poses.emplace_back(TransformToPoseStampedMsg(pose));
+      optimSlamTraj.poses.emplace_back(Utils::TransformToPoseStampedMsg(pose));
     this->Publishers[PGO_PATH].publish(optimSlamTraj);
   }
 
@@ -496,7 +496,7 @@ void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uin
     // We expect a static transform between BASE and LIDAR, so we don't care
     // about timestamp and get only the latest transform
     Eigen::Isometry3d baseToLidar;
-    if (Tf2LookupTransform(baseToLidar, this->TfBuffer, this->TrackingFrameId, lidarFrameId))
+    if (Utils::Tf2LookupTransform(baseToLidar, this->TfBuffer, this->TrackingFrameId, lidarFrameId))
       this->LidarSlam.SetBaseToLidarOffset(baseToLidar);
   }
 }
@@ -517,7 +517,7 @@ void LidarSlamNode::PublishOutput()
       odomMsg.header.stamp = ros::Time(odomToBase.time);
       odomMsg.header.frame_id = this->OdometryFrameId;
       odomMsg.child_frame_id = this->TrackingFrameId;
-      odomMsg.pose.pose = TransformToPoseMsg(odomToBase);
+      odomMsg.pose.pose = Utils::TransformToPoseMsg(odomToBase);
       auto covar = this->LidarSlam.GetTransformCovariance();
       std::copy(covar.begin(), covar.end(), odomMsg.pose.covariance.begin());
       this->Publishers[POSE_ODOM].publish(odomMsg);
@@ -530,7 +530,7 @@ void LidarSlamNode::PublishOutput()
       tfMsg.header.stamp = ros::Time(odomToBase.time);
       tfMsg.header.frame_id = this->OdometryFrameId;
       tfMsg.child_frame_id = this->TrackingFrameId;
-      tfMsg.transform = TransformToTfMsg(odomToBase);
+      tfMsg.transform = Utils::TransformToTfMsg(odomToBase);
       this->TfBroadcaster.sendTransform(tfMsg);
     }
   }
@@ -548,7 +548,7 @@ void LidarSlamNode::PublishOutput()
       odomMsg.header.stamp = ros::Time(odomToBasePred.time);
       odomMsg.header.frame_id = this->OdometryFrameId;
       odomMsg.child_frame_id = this->TrackingFrameId + "_prediction";
-      odomMsg.pose.pose = TransformToPoseMsg(odomToBasePred);
+      odomMsg.pose.pose = Utils::TransformToPoseMsg(odomToBasePred);
       auto covar = this->LidarSlam.GetTransformCovariance();
       std::copy(covar.begin(), covar.end(), odomMsg.pose.covariance.begin());
       this->Publishers[POSE_PREDICTION_ODOM].publish(odomMsg);
@@ -561,7 +561,7 @@ void LidarSlamNode::PublishOutput()
       tfMsg.header.stamp = ros::Time(odomToBasePred.time);
       tfMsg.header.frame_id = this->OdometryFrameId;
       tfMsg.child_frame_id = this->TrackingFrameId + "_prediction";
-      tfMsg.transform = TransformToTfMsg(odomToBasePred);
+      tfMsg.transform = Utils::TransformToTfMsg(odomToBasePred);
       this->TfBroadcaster.sendTransform(tfMsg);
     }
   }

@@ -31,8 +31,8 @@ KeypointsRegistration::KeypointsRegistration(const KeypointsRegistration::Parame
 , WithinFrameMotionPrior(startPosePrior, endPosePrior)
 {
   // Convert isometries to 6D state vectors : X, Y, Z, rX, rY, rZ
-  this->EndPoseArray   = IsometryToXYZRPY(this->EndPosePrior);
-  this->StartPoseArray = IsometryToXYZRPY(this->StartPosePrior);
+  this->EndPoseArray   = Utils::IsometryToXYZRPY(this->EndPosePrior);
+  this->StartPoseArray = Utils::IsometryToXYZRPY(this->StartPosePrior);
 }
 
 //-----------------------------------------------------------------------------
@@ -117,7 +117,7 @@ KeypointsRegistration::RegistrationError KeypointsRegistration::EstimateRegistra
   err.PositionError = std::sqrt(eigPosition.eigenvalues()(2));
   err.PositionErrorDirection = eigPosition.eigenvectors().col(2);
   Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigOrientation(err.Covariance.bottomRightCorner<3, 3>());
-  err.OrientationError = Rad2Deg(std::sqrt(eigOrientation.eigenvalues()(2)));
+  err.OrientationError = Utils::Rad2Deg(std::sqrt(eigOrientation.eigenvalues()(2)));
   err.OrientationErrorDirection = eigOrientation.eigenvectors().col(2);
 
   return err;
@@ -225,7 +225,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
     data.row(k) << pt.x, pt.y, pt.z;
   }
   Eigen::Vector3d mean;
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = ComputePCA(data, mean);
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = Utils::ComputePCA(data, mean);
 
   // PCA eigenvalues
   Eigen::Vector3d D = eig.eigenvalues();
@@ -337,7 +337,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
     data.row(k) << pt.x, pt.y, pt.z;
   }
   Eigen::Vector3d mean;
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = ComputePCA(data, mean);
+  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = Utils::ComputePCA(data, mean);
 
   // PCA eigenvalues
   Eigen::Vector3d D = eig.eigenvalues();

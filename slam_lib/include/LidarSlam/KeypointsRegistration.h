@@ -154,8 +154,8 @@ public:
   ceres::Solver::Summary Solve();
 
   // Get optimization results
-  Eigen::Isometry3d GetOptimizedEndPose() const { return XYZRPYtoIsometry(this->EndPoseArray); }
-  Eigen::Isometry3d GetOptimizedStartPose() const { return XYZRPYtoIsometry(this->StartPoseArray); }
+  Eigen::Isometry3d GetOptimizedEndPose() const { return Utils::XYZRPYtoIsometry(this->EndPoseArray); }
+  Eigen::Isometry3d GetOptimizedStartPose() const { return Utils::XYZRPYtoIsometry(this->StartPoseArray); }
 
   // Estimate registration error
   RegistrationError EstimateRegistrationError();

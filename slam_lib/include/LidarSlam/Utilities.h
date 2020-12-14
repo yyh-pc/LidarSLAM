@@ -73,8 +73,7 @@ namespace Eigen
   using Vector6d = Matrix<double, 6, 1>;
 }
 
-// Anonymous namespace to avoid multiple-definitions
-namespace
+namespace Utils
 {
 //==============================================================================
 //   Common helpers
@@ -344,9 +343,14 @@ inline uint64_t SecToPclStamp(double seconds)
 //==============================================================================
 
 //------------------------------------------------------------------------------
-std::unordered_map<std::string, std::chrono::steady_clock::time_point> startTimestamps;
-std::unordered_map<std::string, double> totalDurations;
-std::unordered_map<std::string, unsigned int> totalCalls;
+// Anonymous namespace to avoid multiple-definitions thanks to internal linkage
+// These variables will be defined locally in each translation unit.
+namespace
+{
+  std::unordered_map<std::string, std::chrono::steady_clock::time_point> startTimestamps;
+  std::unordered_map<std::string, double> totalDurations;
+  std::unordered_map<std::string, unsigned int> totalCalls;
+} // end of anonymous namespace
 
 //------------------------------------------------------------------------------
 /*!
@@ -403,6 +407,6 @@ inline void StopTimeAndDisplay(const std::string& timer)
   RESET_COUT_FIXED_PRECISION;
 }
 
-}  // end of anonymous namespace
+}  // end of Utils namespace
 
 #endif // LIDAR_SLAM_UTILITIES_H
