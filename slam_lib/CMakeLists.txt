@@ -19,6 +19,7 @@ set(LidarSlam_PUBLIC_HEADERS
   include/LidarSlam/GlobalTrajectoriesRegistration.h
   include/LidarSlam/KDTreePCLAdaptor.h
   include/LidarSlam/KeypointsRegistration.h
+  include/LidarSlam/CeresCostFunctions.h
   ${SLAM_g2o_headers}
   )
 
