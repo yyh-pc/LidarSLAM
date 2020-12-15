@@ -18,8 +18,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H
-#define SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H
+#pragma once
 
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/Enums.h"
@@ -31,6 +30,9 @@
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
+
+namespace LidarSlam
+{
 
 class SpinningSensorKeypointExtractor
 {
@@ -181,4 +183,4 @@ private:
   std::vector<PointCloud::Ptr> pclCurrentFrameByScan;
 };
 
-#endif // SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H
+} // end of LidarSlam namespace

@@ -16,14 +16,16 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef GLOBAL_TRAJECTORIES_REGISTRATION_H
-#define GLOBAL_TRAJECTORIES_REGISTRATION_H
+#pragma once
 
 #include "LidarSlam/Transform.h"
 #include <pcl/registration/icp.h>
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
+
+namespace LidarSlam
+{
 
 /**
  * @brief Find the global transform between two trajectories with ICP.
@@ -108,4 +110,4 @@ private:
   bool Verbose = false;  ///< If true, print some debug info.
 };
 
-#endif // GLOBAL_TRAJECTORIES_REGISTRATION_H
+} // end of LidarSlam namespace

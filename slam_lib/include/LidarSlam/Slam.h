@@ -71,8 +71,7 @@
 // - WORLD {W} : The world coordinate system {W} coincides with BASE at the
 //   initial position. The output trajectory describes BASE origin in WORLD.
 
-#ifndef SLAM_H
-#define SLAM_H
+#pragma once
 
 #include "LidarSlam/Utilities.h"
 #include "LidarSlam/Transform.h"
@@ -91,6 +90,9 @@
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
+
+namespace LidarSlam
+{
 
 class Slam
 {
@@ -571,4 +573,4 @@ private:
   Eigen::Isometry3d InterpolateBeginScanPose();
 };
 
-#endif // SLAM_H
+} // end of LidarSlam namespace

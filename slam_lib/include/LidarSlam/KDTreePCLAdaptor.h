@@ -17,11 +17,13 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef KDTREE_PCL_ADAPTOR_H
-#define KDTREE_PCL_ADAPTOR_H
+#pragma once
 
 #include <nanoflann.hpp>
 #include <pcl/point_cloud.h>
+
+namespace LidarSlam
+{
 
 template<typename PointT>
 class KDTreePCLAdaptor
@@ -172,4 +174,4 @@ protected:
   PointCloudPtr Cloud;
 };
 
-#endif // KDTREE_PCL_ADAPTOR_H
+} // end of LidarSlam namespace

@@ -19,6 +19,9 @@
 
 #include "LidarSlam/MotionModel.h"
 
+namespace LidarSlam
+{
+
 //-----------------------------------------------------------------------------
 Eigen::Isometry3d LinearInterpolation(const Eigen::Isometry3d& H0, const Eigen::Isometry3d& H1, double t, double t0, double t1)
 {
@@ -27,3 +30,5 @@ Eigen::Isometry3d LinearInterpolation(const Eigen::Isometry3d& H0, const Eigen::
   Eigen::Translation3d trans(H0.translation() + time * (H1.translation() - H0.translation()));
   return trans * rot;
 }
+
+} // end of LidarSlam namespace

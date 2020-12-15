@@ -196,7 +196,7 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
 
     // Update BASE to GPS offset
     // Get the latest transform (we expect a static transform, so timestamp does not matter)
-    Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
+    Utils::Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
   }
 }
 
@@ -232,11 +232,11 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
         ROS_ERROR_STREAM("Cannot set SLAM pose from GPS as no GPS pose has been received yet.");
         return;
       }
-      Transform& mapToGps = this->GpsPoses.back();
+      LidarSlam::Transform& mapToGps = this->GpsPoses.back();
       Eigen::Isometry3d mapToOdom;
-      Tf2LookupTransform(mapToOdom, this->TfBuffer, mapToGps.frameid, this->OdometryFrameId, ros::Time(mapToGps.time));
+      Utils::Tf2LookupTransform(mapToOdom, this->TfBuffer, mapToGps.frameid, this->OdometryFrameId, ros::Time(mapToGps.time));
       Eigen::Isometry3d odomToBase = mapToOdom.inverse() * mapToGps.GetIsometry() * this->BaseToGpsOffset.inverse();
-      this->LidarSlam.SetWorldTransformFromGuess(Transform(odomToBase, mapToGps.time, mapToGps.frameid));
+      this->LidarSlam.SetWorldTransformFromGuess(LidarSlam::Transform(odomToBase, mapToGps.time, mapToGps.frameid));
       ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << odomToBase.matrix());
       break;
     }
@@ -257,11 +257,14 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
     {
       ROS_INFO_STREAM("Saving keypoints maps to PCD.");
-      PCDFormat pcdFormat = static_cast<PCDFormat>(this->PrivNh.param("maps_saving/pcd_format", static_cast<int>(PCDFormat::BINARY_COMPRESSED)));
-      if (pcdFormat != PCDFormat::ASCII && pcdFormat != PCDFormat::BINARY && pcdFormat != PCDFormat::BINARY_COMPRESSED)
+      int pcdFormatInt = this->PrivNh.param("maps_saving/pcd_format", static_cast<int>(LidarSlam::PCDFormat::BINARY_COMPRESSED));
+      LidarSlam::PCDFormat pcdFormat = static_cast<LidarSlam::PCDFormat>(pcdFormatInt);
+      if (pcdFormat != LidarSlam::PCDFormat::ASCII &&
+          pcdFormat != LidarSlam::PCDFormat::BINARY &&
+          pcdFormat != LidarSlam::PCDFormat::BINARY_COMPRESSED)
       {
         ROS_ERROR_STREAM("Incorrect PCD format value (" << pcdFormat << "). Setting it to 'BINARY_COMPRESSED'.");
-        pcdFormat = PCDFormat::BINARY_COMPRESSED;
+        pcdFormat = LidarSlam::PCDFormat::BINARY_COMPRESSED;
       }
       this->LidarSlam.SaveMapsToPCD(msg.string_arg, pcdFormat);
       break;
@@ -295,8 +298,8 @@ void LidarSlamNode::GpsSlamCalibration()
   }
 
   // Transform to modifiable vectors
-  std::vector<Transform> odomToBasePoses = this->LidarSlam.GetTrajectory();
-  std::vector<Transform> worldToGpsPoses(this->GpsPoses.begin(), this->GpsPoses.end());
+  std::vector<LidarSlam::Transform> odomToBasePoses = this->LidarSlam.GetTrajectory();
+  std::vector<LidarSlam::Transform> worldToGpsPoses(this->GpsPoses.begin(), this->GpsPoses.end());
 
   if (worldToGpsPoses.size() < 2 && odomToBasePoses.size() < 2)
   {
@@ -317,14 +320,14 @@ void LidarSlamNode::GpsSlamCalibration()
       std::cout << "Transforming LiDAR pose acquired by SLAM to GPS antenna pose using LIDAR to GPS antenna offset :\n"
                 << this->BaseToGpsOffset.matrix() << std::endl;
     }
-    for (Transform& odomToGpsPose : odomToBasePoses)
+    for (LidarSlam::Transform& odomToGpsPose : odomToBasePoses)
     {
       Eigen::Isometry3d odomToBase = odomToGpsPose.GetIsometry();
       odomToGpsPose.SetIsometry(odomToBase * this->BaseToGpsOffset);
     }
   }
   // At this point, we now have GPS antenna poses in SLAM coordinates.
-  const std::vector<Transform>& odomToGpsPoses = odomToBasePoses;
+  const std::vector<LidarSlam::Transform>& odomToGpsPoses = odomToBasePoses;
 
   // Run calibration : compute transform from SLAM to WORLD
   GlobalTrajectoriesRegistration registration;
@@ -348,7 +351,7 @@ void LidarSlamNode::GpsSlamCalibration()
     gpsPath.header.stamp = latestTime;
     for (const Transform& pose: worldToGpsPoses)
     {
-      gpsPath.poses.emplace_back(TransformToPoseStampedMsg(pose));
+      gpsPath.poses.emplace_back(Utils::TransformToPoseStampedMsg(pose));
     }
     this->Publishers[ICP_CALIB_GPS_PATH].publish(gpsPath);
   }
@@ -360,8 +363,8 @@ void LidarSlamNode::GpsSlamCalibration()
     slamPath.header.stamp = latestTime;
     for (const Transform& pose: odomToGpsPoses)
     {
-      Transform worldToGpsPose(worldToOdom * pose.GetIsometry(), pose.time, pose.frameid);
-      slamPath.poses.emplace_back(TransformToPoseStampedMsg(worldToGpsPose));
+      LidarSlam::Transform worldToGpsPose(worldToOdom * pose.GetIsometry(), pose.time, pose.frameid);
+      slamPath.poses.emplace_back(Utils::TransformToPoseStampedMsg(worldToGpsPose));
     }
     this->Publishers[ICP_CALIB_SLAM_PATH].publish(slamPath);
   }
@@ -371,11 +374,11 @@ void LidarSlamNode::GpsSlamCalibration()
   tfStamped.header.stamp = latestTime;
   tfStamped.header.frame_id = gpsFrameId;
   tfStamped.child_frame_id = this->OdometryFrameId;
-  tfStamped.transform = TransformToTfMsg(Transform(worldToOdom));
+  tfStamped.transform = Utils::TransformToTfMsg(LidarSlam::Transform(worldToOdom));
   this->StaticTfBroadcaster.sendTransform(tfStamped);
 
   Eigen::Vector3d xyz = worldToOdom.translation();
-  Eigen::Vector3d ypr = RotationMatrixToRPY(worldToOdom.linear()).reverse();
+  Eigen::Vector3d ypr = LidarSlam::Utils::RotationMatrixToRPY(worldToOdom.linear()).reverse();
   ROS_INFO_STREAM(BOLD_GREEN("Global transform from '" << gpsFrameId << "' to '" << this->OdometryFrameId << "' " <<
                   "successfully estimated to :\n" << worldToOdom.matrix() << "\n" <<
                   "(tf2 static transform : " << xyz.transpose() << " " << ypr.transpose() << " " << gpsFrameId << " " << this->OdometryFrameId << ")"));
@@ -392,7 +395,7 @@ void LidarSlamNode::PoseGraphOptimization()
   }
 
   // Transform to modifiable vectors
-  std::vector<Transform> worldToGpsPositions(this->GpsPoses.begin(), this->GpsPoses.end());
+  std::vector<LidarSlam::Transform> worldToGpsPositions(this->GpsPoses.begin(), this->GpsPoses.end());
   std::vector<std::array<double, 9>> worldToGpsCovars(this->GpsCovars.begin(), this->GpsCovars.end());
 
   // Run pose graph optimization
@@ -405,12 +408,12 @@ void LidarSlamNode::PoseGraphOptimization()
   this->BaseToGpsOffset = gpsToBaseOffset.inverse();
 
   // Publish static tf with calibration to link world (UTM) frame to SLAM origin
-  Transform odomToBase = this->LidarSlam.GetWorldTransform();
+  LidarSlam::Transform odomToBase = this->LidarSlam.GetWorldTransform();
   geometry_msgs::TransformStamped tfStamped;
   tfStamped.header.stamp = ros::Time(odomToBase.time);
   tfStamped.header.frame_id = worldToGpsPositions.back().frameid;
   tfStamped.child_frame_id = this->OdometryFrameId;
-  tfStamped.transform = TransformToTfMsg(Transform(gpsToBaseOffset));
+  tfStamped.transform = Utils::TransformToTfMsg(LidarSlam::Transform(gpsToBaseOffset));
   this->StaticTfBroadcaster.sendTransform(tfStamped);
 
   // Publish optimized SLAM trajectory
@@ -421,7 +424,7 @@ void LidarSlamNode::PoseGraphOptimization()
     optimSlamTraj.header.stamp = ros::Time(odomToBase.time);
     std::vector<Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
     for (const Transform& pose: optimizedSlamPoses)
-      optimSlamTraj.poses.emplace_back(TransformToPoseStampedMsg(pose));
+      optimSlamTraj.poses.emplace_back(Utils::TransformToPoseStampedMsg(pose));
     this->Publishers[PGO_PATH].publish(optimSlamTraj);
   }
 
@@ -496,7 +499,7 @@ void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uin
     // We expect a static transform between BASE and LIDAR, so we don't care
     // about timestamp and get only the latest transform
     Eigen::Isometry3d baseToLidar;
-    if (Tf2LookupTransform(baseToLidar, this->TfBuffer, this->TrackingFrameId, lidarFrameId))
+    if (Utils::Tf2LookupTransform(baseToLidar, this->TfBuffer, this->TrackingFrameId, lidarFrameId))
       this->LidarSlam.SetBaseToLidarOffset(baseToLidar);
   }
 }
@@ -508,7 +511,7 @@ void LidarSlamNode::PublishOutput()
   if (this->Publish[POSE_ODOM] || this->Publish[POSE_TF])
   {
     // Get SLAM pose
-    Transform odomToBase = this->LidarSlam.GetWorldTransform();
+    LidarSlam::Transform odomToBase = this->LidarSlam.GetWorldTransform();
 
     // Publish as odometry msg
     if (this->Publish[POSE_ODOM])
@@ -517,7 +520,7 @@ void LidarSlamNode::PublishOutput()
       odomMsg.header.stamp = ros::Time(odomToBase.time);
       odomMsg.header.frame_id = this->OdometryFrameId;
       odomMsg.child_frame_id = this->TrackingFrameId;
-      odomMsg.pose.pose = TransformToPoseMsg(odomToBase);
+      odomMsg.pose.pose = Utils::TransformToPoseMsg(odomToBase);
       auto covar = this->LidarSlam.GetTransformCovariance();
       std::copy(covar.begin(), covar.end(), odomMsg.pose.covariance.begin());
       this->Publishers[POSE_ODOM].publish(odomMsg);
@@ -530,7 +533,7 @@ void LidarSlamNode::PublishOutput()
       tfMsg.header.stamp = ros::Time(odomToBase.time);
       tfMsg.header.frame_id = this->OdometryFrameId;
       tfMsg.child_frame_id = this->TrackingFrameId;
-      tfMsg.transform = TransformToTfMsg(odomToBase);
+      tfMsg.transform = Utils::TransformToTfMsg(odomToBase);
       this->TfBroadcaster.sendTransform(tfMsg);
     }
   }
@@ -539,7 +542,7 @@ void LidarSlamNode::PublishOutput()
   if (this->Publish[POSE_PREDICTION_ODOM] || this->Publish[POSE_PREDICTION_TF])
   {
     // Get latency corrected SLAM pose
-    Transform odomToBasePred = this->LidarSlam.GetLatencyCompensatedWorldTransform();
+    LidarSlam::Transform odomToBasePred = this->LidarSlam.GetLatencyCompensatedWorldTransform();
 
     // Publish as odometry msg
     if (this->Publish[POSE_PREDICTION_ODOM])
@@ -548,7 +551,7 @@ void LidarSlamNode::PublishOutput()
       odomMsg.header.stamp = ros::Time(odomToBasePred.time);
       odomMsg.header.frame_id = this->OdometryFrameId;
       odomMsg.child_frame_id = this->TrackingFrameId + "_prediction";
-      odomMsg.pose.pose = TransformToPoseMsg(odomToBasePred);
+      odomMsg.pose.pose = Utils::TransformToPoseMsg(odomToBasePred);
       auto covar = this->LidarSlam.GetTransformCovariance();
       std::copy(covar.begin(), covar.end(), odomMsg.pose.covariance.begin());
       this->Publishers[POSE_PREDICTION_ODOM].publish(odomMsg);
@@ -561,7 +564,7 @@ void LidarSlamNode::PublishOutput()
       tfMsg.header.stamp = ros::Time(odomToBasePred.time);
       tfMsg.header.frame_id = this->OdometryFrameId;
       tfMsg.child_frame_id = this->TrackingFrameId + "_prediction";
-      tfMsg.transform = TransformToTfMsg(odomToBasePred);
+      tfMsg.transform = Utils::TransformToTfMsg(odomToBasePred);
       this->TfBroadcaster.sendTransform(tfMsg);
     }
   }
@@ -599,35 +602,42 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   int egoMotionMode;
   if (priv_nh.getParam("slam/ego_motion", egoMotionMode))
   {
-    EgoMotionMode egoMotion = static_cast<EgoMotionMode>(egoMotionMode);
-    if (egoMotion != EgoMotionMode::NONE         && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION &&
-        egoMotion != EgoMotionMode::REGISTRATION && egoMotion != EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+    LidarSlam::EgoMotionMode egoMotion = static_cast<LidarSlam::EgoMotionMode>(egoMotionMode);
+    if (egoMotion != LidarSlam::EgoMotionMode::NONE &&
+        egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION &&
+        egoMotion != LidarSlam::EgoMotionMode::REGISTRATION &&
+        egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
     {
       ROS_ERROR_STREAM("Invalid ego-motion mode (" << egoMotionMode << "). Setting it to 'MOTION_EXTRAPOLATION'.");
-      egoMotion = EgoMotionMode::MOTION_EXTRAPOLATION;
+      egoMotion = LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION;
     }
     LidarSlam.SetEgoMotion(egoMotion);
   }
   int undistortionMode;
   if (priv_nh.getParam("slam/undistortion", undistortionMode))
   {
-    UndistortionMode undistortion = static_cast<UndistortionMode>(undistortionMode);
-    if (undistortion != UndistortionMode::NONE && undistortion != UndistortionMode::APPROXIMATED && undistortion != UndistortionMode::OPTIMIZED)
+    LidarSlam::UndistortionMode undistortion = static_cast<LidarSlam::UndistortionMode>(undistortionMode);
+    if (undistortion != LidarSlam::UndistortionMode::NONE &&
+        undistortion != LidarSlam::UndistortionMode::APPROXIMATED &&
+        undistortion != LidarSlam::UndistortionMode::OPTIMIZED)
     {
       ROS_ERROR_STREAM("Invalid undistortion mode (" << undistortion << "). Setting it to 'APPROXIMATED'.");
-      undistortion = UndistortionMode::APPROXIMATED;
+      undistortion = LidarSlam::UndistortionMode::APPROXIMATED;
     }
     LidarSlam.SetUndistortion(undistortion);
   }
   int pointCloudStorage;
   if (priv_nh.getParam("slam/logging_storage", pointCloudStorage))
   {
-    PointCloudStorageType storage = static_cast<PointCloudStorageType>(pointCloudStorage);
-    if (storage != PCL_CLOUD && storage != OCTREE_COMPRESSED &&
-        storage != PCD_ASCII && storage != PCD_BINARY && storage != PCD_BINARY_COMPRESSED)
+    LidarSlam::PointCloudStorageType storage = static_cast<LidarSlam::PointCloudStorageType>(pointCloudStorage);
+    if (storage != LidarSlam::PointCloudStorageType::PCL_CLOUD &&
+        storage != LidarSlam::PointCloudStorageType::OCTREE_COMPRESSED &&
+        storage != LidarSlam::PointCloudStorageType::PCD_ASCII &&
+        storage != LidarSlam::PointCloudStorageType::PCD_BINARY &&
+        storage != LidarSlam::PointCloudStorageType::PCD_BINARY_COMPRESSED)
     {
       ROS_ERROR_STREAM("Incorrect pointcloud logging type value (" << storage << "). Setting it to 'PCL'.");
-      storage = PCL_CLOUD;
+      storage = LidarSlam::PointCloudStorageType::PCL_CLOUD;
     }
     LidarSlam.SetLoggingStorage(storage);
   }

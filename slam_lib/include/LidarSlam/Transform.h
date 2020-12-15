@@ -16,10 +16,12 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef TRANSFORM_H
-#define TRANSFORM_H
+#pragma once
 
 #include <Eigen/Geometry>
+
+namespace LidarSlam
+{
 
 struct Transform
 {
@@ -75,4 +77,4 @@ public:
   Eigen::Matrix4d GetMatrix() const {return this->transform.matrix();}
 };
 
-#endif // TRANSFORM_H
+} // end of LidarSlam namespace

@@ -17,8 +17,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef CERES_COST_FUNCTIONS_H
-#define CERES_COST_FUNCTIONS_H
+#pragma once
 
 // LOCAL
 #include "LidarSlam/MotionModel.h"
@@ -27,7 +26,14 @@
 // EIGEN
 #include <Eigen/Geometry>
 
+namespace LidarSlam
+{
 namespace CeresCostFunctions
+{
+
+namespace Utils
+{
+namespace
 {
 //------------------------------------------------------------------------------
 /**
@@ -49,6 +55,8 @@ Eigen::Matrix<T, 3, 3> RotationMatrixFromRPY(const T& rx, const T& ry, const T& 
          -sy,           sx*cy,           cx*cy;
   return R;
 }
+} // end of anonymous namespace
+} // end of Utils namespace
 
 //------------------------------------------------------------------------------
 /**
@@ -90,7 +98,7 @@ struct MahalanobisDistanceAffineIsometryResidual
     static T lastRot[3] = {T(-1.), T(-1.), T(-1.)};
     if (!std::equal(w + 3, w + 6, lastRot))
     {
-      rot = RotationMatrixFromRPY(w[3], w[4], w[5]);
+      rot = Utils::RotationMatrixFromRPY(w[3], w[4], w[5]);
       std::copy(w + 3, w + 6, lastRot);
     }
 
@@ -165,7 +173,7 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     // Update H0 if needed
     if (!std::equal(w0, w0 + 6, lastW0))
     {
-      H0.linear() << RotationMatrixFromRPY(w0[3], w0[4], w0[5]);
+      H0.linear() << Utils::RotationMatrixFromRPY(w0[3], w0[4], w0[5]);
       H0.translation() << w0[0], w0[1], w0[2];
       transformInterpolator.SetH0(H0);
       std::copy(w0, w0 + 6, lastW0);
@@ -174,7 +182,7 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     // Update H1 if needed
     if (!std::equal(w1, w1 + 6, lastW1))
     {
-      H1.linear() << RotationMatrixFromRPY(w1[3], w1[4], w1[5]);
+      H1.linear() << Utils::RotationMatrixFromRPY(w1[3], w1[4], w1[5]);
       H1.translation() << w1[0], w1[1], w1[2];
       transformInterpolator.SetH1(H1);
       std::copy(w1, w1 + 6, lastW1);
@@ -205,6 +213,6 @@ private:
   const double Time;
   const double Weight;
 };
-} // end of namespace CeresCostFunctions
 
-#endif // CERES_COST_FUNCTIONS_H
+} // end of namespace CeresCostFunctions
+} // end of LidarSlam namespace

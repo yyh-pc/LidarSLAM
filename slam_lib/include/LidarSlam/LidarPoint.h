@@ -17,11 +17,13 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_POINT_H
-#define LIDAR_POINT_H
+#pragma once
 
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
+
+namespace LidarSlam
+{
 
 /** \brief A point structure representing Euclidean xyz coordinates, time, intensity, laser_id, device_id and label.
   * \ingroup common
@@ -49,7 +51,9 @@ struct LidarPoint
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 } EIGEN_ALIGN16;
 
-POINT_CLOUD_REGISTER_POINT_STRUCT (LidarPoint,
+} // end of LidarSlam namespace
+
+POINT_CLOUD_REGISTER_POINT_STRUCT (LidarSlam::LidarPoint,
                                    (float, x, x)
                                    (float, y, y)
                                    (float, z, z)
@@ -59,4 +63,3 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (LidarPoint,
                                    (std::uint8_t, device_id, device_id)
                                    (std::uint8_t, label, label)
 )
-#endif // LIDAR_POINT_H

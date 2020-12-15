@@ -16,8 +16,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_UTILITIES_H
-#define LIDAR_SLAM_UTILITIES_H
+#pragma once
 
 #include <pcl/point_cloud.h>
 
@@ -73,8 +72,9 @@ namespace Eigen
   using Vector6d = Matrix<double, 6, 1>;
 }
 
-// Anonymous namespace to avoid multiple-definitions
-namespace
+namespace LidarSlam
+{
+namespace Utils
 {
 //==============================================================================
 //   Common helpers
@@ -343,66 +343,72 @@ inline uint64_t SecToPclStamp(double seconds)
 //   Processing duration measurements
 //==============================================================================
 
-//------------------------------------------------------------------------------
-std::unordered_map<std::string, std::chrono::steady_clock::time_point> startTimestamps;
-std::unordered_map<std::string, double> totalDurations;
-std::unordered_map<std::string, unsigned int> totalCalls;
-
-//------------------------------------------------------------------------------
-/*!
- * @brief Reset timers values.
- * 
- * NOTE: This only resets timers declared in a given compilation unit.
- */
-inline void ResetTimers()
+namespace Timer
 {
-  startTimestamps.clear();
-  totalDurations.clear();
-  totalCalls.clear();
-}
+  //----------------------------------------------------------------------------
+  // Anonymous namespace to avoid multiple-definitions thanks to internal linkage.
+  // These variables will be defined locally in each translation unit.
+  namespace
+  {
+    std::unordered_map<std::string, std::chrono::steady_clock::time_point> startTimestamps;
+    std::unordered_map<std::string, double> totalDurations;
+    std::unordered_map<std::string, unsigned int> totalCalls;
+  } // end of anonymous namespace
 
-//------------------------------------------------------------------------------
-/*!
- * @brief Init a timer.
- * @param timer The name of the timer
- */
-inline void InitTime(const std::string& timer)
-{
-  startTimestamps[timer] = std::chrono::steady_clock::now();
-}
+  //----------------------------------------------------------------------------
+  /*!
+  * @brief Reset timers values.
+  *
+  * NOTE: This only resets timers declared in a given compilation unit.
+  */
+  inline void Reset()
+  {
+    startTimestamps.clear();
+    totalDurations.clear();
+    totalCalls.clear();
+  }
 
-//------------------------------------------------------------------------------
-/*!
- * @brief Get the timer value.
- * @param timer The name of the timer
- * @return The duration value, in seconds, since the initialization of the timer
- * 
- * NOTE : This returns 0 if the counter has not been initialized yet.
- */
-inline double GetTime(const std::string& timer)
-{
-  std::chrono::duration<double> chrono_ms = std::chrono::steady_clock::now() - startTimestamps[timer];
-  return chrono_ms.count();
-}
+  //----------------------------------------------------------------------------
+  /*!
+  * @brief Init a timer.
+  * @param timer The name of the timer
+  */
+  inline void Init(const std::string& timer)
+  {
+    startTimestamps[timer] = std::chrono::steady_clock::now();
+  }
 
-//------------------------------------------------------------------------------
-/*!
- * @brief Print a given timer value and its average value
- * @param timer The name of the timer
- * 
- * NOTE : This returns 0 if the counter has not been initialized yet.
- */
-inline void StopTimeAndDisplay(const std::string& timer)
-{
-  const double currentDuration = GetTime(timer);
-  totalDurations[timer] += currentDuration;
-  totalCalls[timer]++;
-  double meanDurationMs = totalDurations[timer] * 1000. / totalCalls[timer];
-  SET_COUT_FIXED_PRECISION(3);
-  PRINT_COLOR(CYAN, "  -> " << timer << " took : " << currentDuration * 1000. << " ms (average : " << meanDurationMs << " ms)");
-  RESET_COUT_FIXED_PRECISION;
-}
+  //----------------------------------------------------------------------------
+  /*!
+  * @brief Get the timer value.
+  * @param timer The name of the timer
+  * @return The duration value, in seconds, since the initialization of the timer
+  *
+  * NOTE : This returns 0 if the counter has not been initialized yet.
+  */
+  inline double Stop(const std::string& timer)
+  {
+    std::chrono::duration<double> chrono_ms = std::chrono::steady_clock::now() - startTimestamps[timer];
+    return chrono_ms.count();
+  }
 
-}  // end of anonymous namespace
-
-#endif // LIDAR_SLAM_UTILITIES_H
+  //----------------------------------------------------------------------------
+  /*!
+  * @brief Print a given timer value and its average value
+  * @param timer The name of the timer
+  *
+  * NOTE : This returns 0 if the counter has not been initialized yet.
+  */
+  inline void StopAndDisplay(const std::string& timer)
+  {
+    const double currentDuration = Stop(timer);
+    totalDurations[timer] += currentDuration;
+    totalCalls[timer]++;
+    double meanDurationMs = totalDurations[timer] * 1000. / totalCalls[timer];
+    SET_COUT_FIXED_PRECISION(3);
+    PRINT_COLOR(CYAN, "  -> " << timer << " took : " << currentDuration * 1000. << " ms (average : " << meanDurationMs << " ms)");
+    RESET_COUT_FIXED_PRECISION;
+  }
+}  // end of Timer namespace
+}  // end of Utils namespace
+}  // end of LidarSlam namespace

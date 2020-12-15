@@ -89,6 +89,11 @@
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
 
+namespace LidarSlam
+{
+
+namespace Utils
+{
 namespace
 {
 //-----------------------------------------------------------------------------
@@ -118,7 +123,8 @@ void LoggedKeypointsSize(const std::deque<PointCloudStorage<Slam::Point>>& log, 
     totalMemory += storage.MemorySize();
   }
 }
-}
+} // end of anonymous namespace
+} // end of Utils namespace
 
 //==============================================================================
 //   Main SLAM use
@@ -189,13 +195,13 @@ void Slam::Reset(bool resetLog)
   }
 
   // Reset processing duration timers
-  ResetTimers();
+  Utils::Timer::Reset();
 }
 
 //-----------------------------------------------------------------------------
 void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping)
 {
-  InitTime("SLAM frame processing");
+  Utils::Timer::Init("SLAM frame processing");
 
   // Skip frame if empty
   if (pc->empty())
@@ -217,14 +223,14 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 
   // Update current frame (check frame dropping, correct time field) and
   // estimate new state (extrapolate new pose with a constant velocity model)
-  IF_VERBOSE(3, InitTime("Update frame and state"));
+  IF_VERBOSE(3, Utils::Timer::Init("Update frame and state"));
   this->UpdateFrameAndState(pc);
-  IF_VERBOSE(3, StopTimeAndDisplay("Update frame and state"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Update frame and state"));
 
   // Compute the edges and planars keypoints
-  IF_VERBOSE(3, InitTime("Keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::Init("Keypoints extraction"));
   this->ExtractKeypoints(laserIdMapping);
-  IF_VERBOSE(3, StopTimeAndDisplay("Keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints extraction"));
 
   // If the new frame is the first one we just add the extracted keypoints into
   // the map without running odometry and localization steps
@@ -234,9 +240,9 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     if (this->EgoMotion == EgoMotionMode::REGISTRATION ||
         this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
     {
-      IF_VERBOSE(3, InitTime("Ego-Motion"));
+      IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion"));
       this->ComputeEgoMotion();
-      IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion"));
+      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
     }
 
     // Integrate the relative motion to the world transformation
@@ -251,23 +257,23 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     }
 
     // Perform Localization : compute Tworld from map and current frame keypoints
-    IF_VERBOSE(3, InitTime("Localization"));
+    IF_VERBOSE(3, Utils::Timer::Init("Localization"));
     this->Localization();
-    IF_VERBOSE(3, StopTimeAndDisplay("Localization"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization"));
   }
 
   // Update keypoints maps : add current keypoints to map using Tworld
   if (this->UpdateMap)
   {
-    IF_VERBOSE(3, InitTime("Maps update"));
+    IF_VERBOSE(3, Utils::Timer::Init("Maps update"));
     this->UpdateMapsUsingTworld();
-    IF_VERBOSE(3, StopTimeAndDisplay("Maps update"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Maps update"));
   }
 
   // Log current frame processing results : pose, covariance and keypoints.
-  IF_VERBOSE(3, InitTime("Logging"));
-  this->LogCurrentFrameState(PclStampToSec(this->CurrentFrame->header.stamp), this->WorldFrameId);
-  IF_VERBOSE(3, StopTimeAndDisplay("Logging"));
+  IF_VERBOSE(3, Utils::Timer::Init("Logging"));
+  this->LogCurrentFrameState(Utils::PclStampToSec(this->CurrentFrame->header.stamp), this->WorldFrameId);
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
   if (this->Verbosity >= 2)
@@ -275,18 +281,18 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     SET_COUT_FIXED_PRECISION(3);
     std::cout << "========== SLAM results ==========\n"
                  "Ego-Motion:\n"
-                 " translation = [" << this->Trelative.translation().transpose()                          << "]\n"
-                 " rotation    = [" << Rad2Deg(RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]\n";
+                 " translation = [" << this->Trelative.translation().transpose()                                        << "]\n"
+                 " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]\n";
     if (this->Undistortion)
     {
       Eigen::Isometry3d motion = this->TworldFrameStart.inverse() * this->Tworld;
       std::cout << "Within frame motion:\n"
-                   " translation = [" << motion.translation().transpose()                          << "]\n"
-                   " rotation    = [" << Rad2Deg(RotationMatrixToRPY(motion.linear())).transpose() << "]\n";
+                   " translation = [" << motion.translation().transpose()                                        << "]\n"
+                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(motion.linear())).transpose() << "]\n";
     }
     std::cout << "Localization:\n"
-                 " position    = [" << this->Tworld.translation().transpose()                          << "]\n"
-                 " orientation = [" << Rad2Deg(RotationMatrixToRPY(this->Tworld.linear())).transpose() << "]" << std::endl;
+                 " position    = [" << this->Tworld.translation().transpose()                                        << "]\n"
+                 " orientation = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Tworld.linear())).transpose() << "]" << std::endl;
     RESET_COUT_FIXED_PRECISION;
   }
 
@@ -298,25 +304,25 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     PointCloud::Ptr edgesMap   = this->GetEdgesMap(),
                     planarsMap = this->GetPlanarsMap(),
                     blobsMap   = this->GetBlobsMap();
-    std::cout << "Edges map   : " << edgesMap->size()   << " points, " << PointCloudMemorySize(*edgesMap)   * 1e-6 << " MB\n";
-    std::cout << "Planars map : " << planarsMap->size() << " points, " << PointCloudMemorySize(*planarsMap) * 1e-6 << " MB\n";
-    std::cout << "Blobs map   : " << blobsMap->size()   << " points, " << PointCloudMemorySize(*blobsMap)   * 1e-6 << " MB\n";
+    std::cout << "Edges map   : " << edgesMap->size()   << " points, " << Utils::PointCloudMemorySize(*edgesMap)   * 1e-6 << " MB\n";
+    std::cout << "Planars map : " << planarsMap->size() << " points, " << Utils::PointCloudMemorySize(*planarsMap) * 1e-6 << " MB\n";
+    std::cout << "Blobs map   : " << blobsMap->size()   << " points, " << Utils::PointCloudMemorySize(*blobsMap)   * 1e-6 << " MB\n";
 
     // Logged keypoints
     size_t memory, points;
-    LoggedKeypointsSize(this->LogEdgesPoints, memory, points);
+    Utils::LoggedKeypointsSize(this->LogEdgesPoints, memory, points);
     std::cout << "Edges log   : " << this->LogEdgesPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
-    LoggedKeypointsSize(this->LogPlanarsPoints, memory, points);
+    Utils::LoggedKeypointsSize(this->LogPlanarsPoints, memory, points);
     std::cout << "Planars log : " << this->LogPlanarsPoints.size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
-    LoggedKeypointsSize(this->LogBlobsPoints, memory, points);
+    Utils::LoggedKeypointsSize(this->LogBlobsPoints, memory, points);
     std::cout << "Blobs log   : " << this->LogBlobsPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
     RESET_COUT_FIXED_PRECISION;
   }
 
   // Frame processing duration
-  this->Latency = GetTime("SLAM frame processing");
+  this->Latency = Utils::Timer::Stop("SLAM frame processing");
   this->NbrFrameProcessed++;
-  IF_VERBOSE(1, StopTimeAndDisplay("SLAM frame processing"));
+  IF_VERBOSE(1, Utils::Timer::StopAndDisplay("SLAM frame processing"));
 }
 
 //-----------------------------------------------------------------------------
@@ -326,8 +332,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                     const std::string& g2oFileName)
 {
   #ifdef USE_G2O
-  IF_VERBOSE(1, InitTime("Pose graph optimization"));
-  IF_VERBOSE(3, InitTime("PGO : optimization"));
+  IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : optimization"));
 
   // Transform to modifiable vectors
   std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
@@ -342,7 +348,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                   "graph optimization.");
 
     // Set all poses covariances equal to twice the last one if we did not log it
-    std::array<double, 36> fakeSlamCovariance = Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance * 2);
+    std::array<double, 36> fakeSlamCovariance = Utils::Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance * 2);
     for (unsigned int i = 0; i < nbSlamPoses; i++)
       slamCovariances.emplace_back(fakeSlamCovariance);
   }
@@ -366,16 +372,16 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     return;
   }
 
-  IF_VERBOSE(3, StopTimeAndDisplay("PGO : optimization"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
   // Update GPS/LiDAR calibration
   gpsToSensorOffset = optimizedSlamPoses.front().GetIsometry();
 
   // Update SLAM trajectory and maps
-  IF_VERBOSE(3, InitTime("PGO : SLAM reset"));
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : SLAM reset"));
   this->Reset(false);
-  IF_VERBOSE(3, StopTimeAndDisplay("PGO : SLAM reset"));
-  IF_VERBOSE(3, InitTime("PGO : frames keypoints aggregation"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : SLAM reset"));
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : frames keypoints aggregation"));
   PointCloud edgesKeypoints, planarsKeypoints, blobsKeypoints;
   PointCloud::Ptr aggregatedEdgesMap(new PointCloud),
                   aggregatedPlanarsMap(new PointCloud),
@@ -402,8 +408,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
       *aggregatedBlobsMap += blobsKeypoints;
   }
 
-  IF_VERBOSE(3, StopTimeAndDisplay("PGO : frames keypoints aggregation"));
-  IF_VERBOSE(3, InitTime("PGO : final SLAM map update"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : frames keypoints aggregation"));
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : final SLAM map update"));
 
   // Set final pose
   this->Tworld         = this->LogTrajectory[nbSlamPoses - 1].GetIsometry();
@@ -431,8 +437,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     updateMap(*this->BlobsPointsLocalMap, blobsKeypoints, aggregatedBlobsMap);
 
   // Processing duration
-  IF_VERBOSE(3, StopTimeAndDisplay("PGO : final SLAM map update"));
-  IF_VERBOSE(1, StopTimeAndDisplay("Pose graph optimization"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : final SLAM map update"));
+  IF_VERBOSE(1, Utils::Timer::StopAndDisplay("Pose graph optimization"));
   #else
   #define UNUSED(var) (void)(var)
   UNUSED(gpsPositions); UNUSED(gpsCovariances); UNUSED(gpsToSensorOffset); UNUSED(g2oFileName);
@@ -458,7 +464,7 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
 //-----------------------------------------------------------------------------
 void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) const
 {
-  IF_VERBOSE(3, InitTime("Keypoints maps saving to PCD"));
+  IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
 
   // Save keypoints maps
   savePointCloudToPCD(filePrefix + "edges.pcd",   *this->GetEdgesMap(), pcdFormat, true);
@@ -467,13 +473,13 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) con
 
   // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
 
-  IF_VERBOSE(3, StopTimeAndDisplay("Keypoints maps saving to PCD"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints maps saving to PCD"));
 }
 
 //-----------------------------------------------------------------------------
 void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
 {
-  IF_VERBOSE(3, InitTime("Keypoints maps loading from PCD"));
+  IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps loading from PCD"));
 
   // In most of the cases, we would like to reset SLAM internal maps before
   // loading new maps to avoid conflicts.
@@ -496,7 +502,7 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
 
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
 
-  IF_VERBOSE(3, StopTimeAndDisplay("Keypoints maps loading from PCD"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints maps loading from PCD"));
 }
 
 //==============================================================================
@@ -549,7 +555,7 @@ Transform Slam::GetLatencyCompensatedWorldTransform() const
 //-----------------------------------------------------------------------------
 std::array<double, 36> Slam::GetTransformCovariance() const
 {
-  return Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance);
+  return Utils::Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance);
 }
 
 //-----------------------------------------------------------------------------
@@ -610,7 +616,7 @@ Slam::PointCloud::Ptr Slam::GetOutputFrame()
     output->header = this->CurrentFrame->header;
     output->points.reserve(this->CurrentFrame->size());
     for (const Slam::Point& p : *this->CurrentFrame)
-      output->push_back(TransformPoint(p, transformInterpolator(p.time)));
+      output->push_back(Utils::TransformPoint(p, transformInterpolator(p.time)));
   }
   else
   {
@@ -627,7 +633,7 @@ Slam::PointCloud::Ptr Slam::GetEdgesMap() const
 {
   PointCloud::Ptr map = this->EdgesPointsLocalMap->Get();
   map->header.frame_id = this->WorldFrameId;
-  map->header.stamp = SecToPclStamp(this->GetWorldTransform().time);
+  map->header.stamp = Utils::SecToPclStamp(this->GetWorldTransform().time);
   return map;
 }
 
@@ -636,7 +642,7 @@ Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
 {
   PointCloud::Ptr map = this->PlanarPointsLocalMap->Get();
   map->header.frame_id = this->WorldFrameId;
-  map->header.stamp = SecToPclStamp(this->GetWorldTransform().time);
+  map->header.stamp = Utils::SecToPclStamp(this->GetWorldTransform().time);
   return map;
 }
 
@@ -645,7 +651,7 @@ Slam::PointCloud::Ptr Slam::GetBlobsMap() const
 {
   PointCloud::Ptr map = this->BlobsPointsLocalMap->Get();
   map->header.frame_id = this->WorldFrameId;
-  map->header.stamp = SecToPclStamp(this->GetWorldTransform().time);
+  map->header.stamp = Utils::SecToPclStamp(this->GetWorldTransform().time);
   return map;
 }
 
@@ -689,7 +695,7 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
        this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION))
   {
     // Estimate new Tworld with a constant velocity model
-    const double t = PclStampToSec(inputPc->header.stamp);
+    const double t = Utils::PclStampToSec(inputPc->header.stamp);
     const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
     const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
     if (t0 < t1 && t1 < t)
@@ -705,7 +711,7 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
   PRINT_VERBOSE(2, "========== Update SLAM State ==========\n"
                    "Estimated Ego-Motion:\n"
                    " translation = [" << this->Trelative.translation().transpose()                          << "]\n"
-                   " rotation    = [" << Rad2Deg(RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]");
+                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]");
   RESET_COUT_FIXED_PRECISION;
 
   // Current keypoints become previous ones
@@ -790,7 +796,7 @@ void Slam::ComputeEgoMotion()
   //  3. with OpenMP, globally used with 2 threads : time = 2.
   //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
   // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
-  IF_VERBOSE(3, InitTime("EgoMotion : build KD tree"));
+  IF_VERBOSE(3, Utils::Timer::Init("EgoMotion : build KD tree"));
   KDTree kdtreePreviousEdges, kdtreePreviousPlanes;
   #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
   {
@@ -805,8 +811,8 @@ void Slam::ComputeEgoMotion()
                    << this->PreviousEdgesPoints->size() << " edges, "
                    << this->PreviousPlanarsPoints->size() << " planes");
 
-  IF_VERBOSE(3, StopTimeAndDisplay("EgoMotion : build KD tree"));
-  IF_VERBOSE(3, InitTime("Ego-Motion : whole ICP-LM loop"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("EgoMotion : build KD tree"));
+  IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
 
   // Reset ICP results
   unsigned int totalMatchedKeypoints = 0;
@@ -817,7 +823,7 @@ void Slam::ComputeEgoMotion()
   // non-linear least square cost function using Levenberg-Marquardt algorithm.
   for (unsigned int icpIter = 0; icpIter < this->EgoMotionICPMaxIter; ++icpIter)
   {
-    IF_VERBOSE(3, InitTime("  Ego-Motion : ICP"));
+    IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : ICP"));
 
     // We want to estimate our 6-DOF parameters using a non linear least square
     // minimization. The non linear part comes from the parametrization of the
@@ -857,8 +863,8 @@ void Slam::ComputeEgoMotion()
       break;
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : ICP"));
-    IF_VERBOSE(3, InitTime("  Ego-Motion : LM optim"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : ICP"));
+    IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : LM optim"));
 
     // Run LM optimization
     ceres::Solver::Summary summary = optim.Solve();
@@ -867,7 +873,7 @@ void Slam::ComputeEgoMotion()
     // Get back optimized Trelative
     this->Trelative = optim.GetOptimizedEndPose();
 
-    IF_VERBOSE(3, StopTimeAndDisplay("  Ego-Motion : LM optim"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : LM optim"));
 
     // If no L-M iteration has been made since the last ICP matching, it means
     // that we reached a local minimum for the ICP-LM algorithm.
@@ -877,7 +883,7 @@ void Slam::ComputeEgoMotion()
     }
   }
 
-  IF_VERBOSE(3, StopTimeAndDisplay("Ego-Motion : whole ICP-LM loop"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion : whole ICP-LM loop"));
 
   PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
                     << this->EgoMotionMatchingResults[EDGE].NbMatches()  << " edges, "
@@ -888,7 +894,7 @@ void Slam::ComputeEgoMotion()
 void Slam::Localization()
 {
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
-  IF_VERBOSE(3, InitTime("Localization : keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
   PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
   KDTree kdtreeEdges, kdtreePlanes, kdtreeBlobs;
 
@@ -929,8 +935,8 @@ void Slam::Localization()
                    << subPlanarPointsLocalMap->size() << " planes, "
                    << subBlobPointsLocalMap->size() << " blobs");
 
-  IF_VERBOSE(3, StopTimeAndDisplay("Localization : keypoints extraction"));
-  IF_VERBOSE(3, InitTime("Localization : whole ICP-LM loop"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::Init("Localization : whole ICP-LM loop"));
 
   // Reset ICP results
   unsigned int totalMatchedKeypoints = 0;
@@ -941,7 +947,7 @@ void Slam::Localization()
   // non-linear least square cost function using Levenberg-Marquardt algorithm.
   for (unsigned int icpIter = 0; icpIter < this->LocalizationICPMaxIter; ++icpIter)
   {
-    IF_VERBOSE(3, InitTime("  Localization : ICP"));
+    IF_VERBOSE(3, Utils::Timer::Init("  Localization : ICP"));
 
     // We want to estimate our 6-DOF parameters using a non linear least square
     // minimization. The non linear part comes from the parametrization of the
@@ -992,8 +998,8 @@ void Slam::Localization()
       break;
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("  Localization : ICP"));
-    IF_VERBOSE(3, InitTime("  Localization : LM optim"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : ICP"));
+    IF_VERBOSE(3, Utils::Timer::Init("  Localization : LM optim"));
 
     // Run LM optimization
     ceres::Solver::Summary summary = optim.Solve();
@@ -1013,7 +1019,7 @@ void Slam::Localization()
       this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
     }
 
-    IF_VERBOSE(3, StopTimeAndDisplay("  Localization : LM optim"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : LM optim"));
 
     // If no L-M iteration has been made since the last ICP matching, it means
     // that we reached a local minimum for the ICP-LM algorithm.
@@ -1026,7 +1032,7 @@ void Slam::Localization()
     }
   }
 
-  IF_VERBOSE(3, StopTimeAndDisplay("Localization : whole ICP-LM loop"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
 
   // Optionally print localization optimization summary
   SET_COUT_FIXED_PRECISION(3);
@@ -1054,10 +1060,10 @@ void Slam::UpdateMapsUsingTworld()
     worldFrame->header.frame_id = this->WorldFrameId;
     if (this->Undistortion)
       for (const Point& p : *baseFrame)
-        worldFrame->push_back(TransformPoint(p, this->WithinFrameMotion(p.time)));
+        worldFrame->push_back(Utils::TransformPoint(p, this->WithinFrameMotion(p.time)));
     else
       for (const Point& p : *baseFrame)
-        worldFrame->push_back(TransformPoint(p, this->Tworld));
+        worldFrame->push_back(Utils::TransformPoint(p, this->Tworld));
     // Add new keypoints to rolling grid
     map->Add(worldFrame);
   };
@@ -1083,7 +1089,7 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
   {
     // Save current frame data to buffer
     this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
-    this->LogCovariances.emplace_back(Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance));
+    this->LogCovariances.emplace_back(Utils::Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance));
     this->LogEdgesPoints.emplace_back(this->CurrentEdgesPoints, this->LoggingStorage);
     this->LogPlanarsPoints.emplace_back(this->CurrentPlanarsPoints, this->LoggingStorage);
     if (!this->FastSlam)
@@ -1125,7 +1131,7 @@ Eigen::Isometry3d Slam::InterpolateBeginScanPose()
   if (this->NbrFrameProcessed > 0)
   {
     const double prevFrameEnd = this->LogTrajectory.back().time;
-    const double currFrameEnd = PclStampToSec(this->CurrentFrame->header.stamp);
+    const double currFrameEnd = Utils::PclStampToSec(this->CurrentFrame->header.stamp);
     const double currFrameStart = currFrameEnd - this->FrameDuration;
     // Check that time is roughly increasing and that there is no time jump
     // during current frame (which would lead to huge FrameDuration)
@@ -1186,3 +1192,5 @@ void Slam::SetVoxelGridResolution(double resolution)
   this->PlanarPointsLocalMap->SetVoxelResolution(resolution);
   this->BlobsPointsLocalMap->SetVoxelResolution(resolution);
 }
+
+} // end of LidarSlam namespace

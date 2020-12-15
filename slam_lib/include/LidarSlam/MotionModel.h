@@ -17,10 +17,12 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef MOTION_MODEL_H
-#define MOTION_MODEL_H
+#pragma once
 
 #include <Eigen/Geometry>
+
+namespace LidarSlam
+{
 
 /**
  * \struct LinearTransformInterpolator
@@ -69,4 +71,4 @@ private:
 Eigen::Isometry3d LinearInterpolation(const Eigen::Isometry3d& H0, const Eigen::Isometry3d& H1,
                                       double t, double t0 = 0., double t1 = 1.);
 
-#endif // MOTION_MODEL_H
+} // end of LidarSlam namespace

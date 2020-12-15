@@ -25,6 +25,11 @@
 #include <g2o/solvers/eigen/linear_solver_eigen.h>
 #include <g2o/types/slam3d/types_slam3d.h>
 
+namespace LidarSlam
+{
+
+namespace Utils
+{
 namespace
 {
   //----------------------------------------------------------------------------
@@ -67,7 +72,8 @@ namespace
     }
     return bestId;
   }
-}
+} // end of anonymous namespace
+} // end of Utils namespace
 
 
 //------------------------------------------------------------------------------
@@ -89,7 +95,7 @@ PoseGraphOptimization::PoseGraphOptimization()
 //------------------------------------------------------------------------------
 void PoseGraphOptimization::SetGpsToSensorCalibration(double x, double y, double z, double rx, double ry, double rz)
 {
-  this->SetGpsToSensorCalibration(XYZRPYtoIsometry(x, y, z, rx, ry, rz));
+  this->SetGpsToSensorCalibration(Utils::XYZRPYtoIsometry(x, y, z, rx, ry, rz));
 }
 
 //------------------------------------------------------------------------------
@@ -227,7 +233,7 @@ void PoseGraphOptimization::BuildPoseGraph(const std::vector<Transform>& slamPos
     if (i > 0)
     {
       // Get edge between two last SLAM poses
-      Eigen::Isometry3d relativeTransform = GetRelativeTransform(slamPoses[i-1], slamPoses[i]);
+      Eigen::Isometry3d relativeTransform = Utils::GetRelativeTransform(slamPoses[i-1], slamPoses[i]);
       Eigen::Map<Eigen::Matrix6d> covMatrix((double*) slamCov[i].data());
 
       // Add edge to pose graph
@@ -245,7 +251,7 @@ void PoseGraphOptimization::BuildPoseGraph(const std::vector<Transform>& slamPos
   for (unsigned int i = 0; i < gpsPoses.size(); ++i)
   {
     // TODO can be optimized in order to not search again through all slam poses.
-    int foundId = FindClosestSlamPose(gpsPoses[i], slamPoses);
+    int foundId = Utils::FindClosestSlamPose(gpsPoses[i], slamPoses);
 
     // Check matching validity, and ensure that the found slam pose is different
     // from the previous one (to prevent matching a single SLAM point to 2 
@@ -277,3 +283,5 @@ void PoseGraphOptimization::BuildPoseGraph(const std::vector<Transform>& slamPos
     }
   }
 }
+
+} // end of LidarSlam namespace

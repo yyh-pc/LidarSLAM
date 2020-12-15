@@ -19,10 +19,13 @@
 #include "LidarSlam/Transform.h"
 #include "LidarSlam/Utilities.h"
 
+namespace LidarSlam
+{
+
 //------------------------------------------------------------------------------
 Transform::Transform(double x, double y, double z, double roll, double pitch, double yaw,
                      double t, const std::string& frame)
-  : transform(XYZRPYtoIsometry(x, y, z, roll, pitch, yaw))
+  : transform(Utils::XYZRPYtoIsometry(x, y, z, roll, pitch, yaw))
   , time(t)
   , frameid(frame)
 {}
@@ -30,7 +33,7 @@ Transform::Transform(double x, double y, double z, double roll, double pitch, do
 //------------------------------------------------------------------------------
 Transform::Transform(const Eigen::Vector6d& xyzrpy,
                      double t, const std::string& frame)
-  : transform(XYZRPYtoIsometry(xyzrpy))
+  : transform(Utils::XYZRPYtoIsometry(xyzrpy))
   , time(t)
   , frameid(frame)
 {}
@@ -38,7 +41,7 @@ Transform::Transform(const Eigen::Vector6d& xyzrpy,
 //------------------------------------------------------------------------------
 Transform::Transform(const Eigen::Vector3d& trans, const Eigen::Vector3d& rpy,
                      double t, const std::string& frame)
-  : transform(XYZRPYtoIsometry(trans(0), trans(1), trans(2), rpy(0), rpy(1), rpy(2)))
+  : transform(Utils::XYZRPYtoIsometry(trans(0), trans(1), trans(2), rpy(0), rpy(1), rpy(2)))
   , time(t)
   , frameid(frame)
 {}
@@ -58,3 +61,5 @@ Transform::Transform(const Eigen::Translation3d& trans, const Eigen::Quaterniond
   , time(t)
   , frameid(frame)
 {}
+
+} // end of LidarSlam namespace

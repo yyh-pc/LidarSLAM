@@ -16,8 +16,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef KEYPOINTS_REGISTRATION_H
-#define KEYPOINTS_REGISTRATION_H
+#pragma once
 
 #include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/LidarPoint.h"
@@ -28,6 +27,9 @@
 #include <Eigen/Dense>
 #include <ceres/ceres.h>
 #include <pcl/point_cloud.h>
+
+namespace LidarSlam
+{
 
 // Helper class to register one set of edge/plane/blob keypoints onto
 // another to estimate the 6D transformation between them.
@@ -154,8 +156,8 @@ public:
   ceres::Solver::Summary Solve();
 
   // Get optimization results
-  Eigen::Isometry3d GetOptimizedEndPose() const { return XYZRPYtoIsometry(this->EndPoseArray); }
-  Eigen::Isometry3d GetOptimizedStartPose() const { return XYZRPYtoIsometry(this->StartPoseArray); }
+  Eigen::Isometry3d GetOptimizedEndPose() const { return Utils::XYZRPYtoIsometry(this->EndPoseArray); }
+  Eigen::Isometry3d GetOptimizedStartPose() const { return Utils::XYZRPYtoIsometry(this->StartPoseArray); }
 
   // Estimate registration error
   RegistrationError EstimateRegistrationError();
@@ -236,4 +238,4 @@ private:
   Eigen::Vector6d StartPoseArray; ///< Pose at the beginning of frame (XYZRPY), only used if undistortion is enabled
 };
 
-#endif // KEYPOINTS_REGISTRATION_H
+} // end of LidarSlam namespace

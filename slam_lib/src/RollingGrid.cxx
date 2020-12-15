@@ -27,6 +27,11 @@
 #endif
 #include <pcl/filters/voxel_grid.h>
 
+namespace LidarSlam
+{
+
+namespace Utils
+{
 namespace
 {
   template<typename T>
@@ -37,7 +42,8 @@ namespace
                                                               std::vector<T>(size,
                                                                              defaultValue)));
   }
-}
+} // end of anonymous namespace
+} // end of Utils namespace
 
 //==============================================================================
 //   Initialization and parameters setters
@@ -47,7 +53,7 @@ namespace
 RollingGrid::RollingGrid(const Eigen::Vector3d& position)
 {
   // Create rolling grid
-  this->Grid = InitGrid3D<PointCloud::Ptr>(this->GridSize);
+  this->Grid = Utils::InitGrid3D<PointCloud::Ptr>(this->GridSize);
 
   this->Reset(position);
 }
@@ -87,7 +93,7 @@ void RollingGrid::SetGridSize(int size)
 
   // Resize voxel grid
   this->GridSize = size;
-  this->Grid = InitGrid3D<PointCloud::Ptr>(this->GridSize);
+  this->Grid = Utils::InitGrid3D<PointCloud::Ptr>(this->GridSize);
   // Clear current voxel grid and allocate new voxels
   this->Clear();
 
@@ -288,7 +294,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
   }
 
   // Voxels to filter because new points were added
-  Grid3D<uint8_t> voxelToFilter = InitGrid3D<uint8_t>(this->GridSize, 0);
+  Grid3D<uint8_t> voxelToFilter = Utils::InitGrid3D<uint8_t>(this->GridSize, 0);
 
   // Compute the "position" of the lowest cell of the VoxelGrid in voxels dimensions
   Eigen::Array3i voxelGridOrigin = this->PositionToVoxel(this->VoxelGridPosition) - this->GridSize / 2;
@@ -327,3 +333,5 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
     }
   }
 }
+
+} // end of LidarSlam namespace

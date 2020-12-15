@@ -17,13 +17,15 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef ROLLING_GRID_H
-#define ROLLING_GRID_H
+#pragma once
 
 #include "LidarSlam/LidarPoint.h"
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
+
+namespace LidarSlam
+{
 
 /*!
  * @brief Rolling voxel grid to store and access pointclouds of specific areas.
@@ -121,4 +123,4 @@ private:
   }
 };
 
-#endif  // ROLLING_GRID_H
+} // end of LidarSlam namespace
