@@ -163,7 +163,7 @@ void vtkSlam::Reset()
   this->SlamAlgo->Reset(true);
 
   // Reset processing duration timers
-  Utils::ResetTimers();
+  Utils::Timer::Reset();
 
   // init the output SLAM trajectory
   this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
@@ -195,8 +195,8 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
                          vtkInformationVector** inputVector,
                          vtkInformationVector* outputVector)
 {
-  IF_VERBOSE(1, Utils::InitTime("vtkSlam"));
-  IF_VERBOSE(3, Utils::InitTime("vtkSlam : input conversions"));
+  IF_VERBOSE(1, Utils::Timer::Init("vtkSlam"));
+  IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : input conversions"));
 
   // Get the input
   vtkPolyData* input = vtkPolyData::GetData(inputVector[LIDAR_FRAME_INPUT_PORT], 0);
@@ -208,9 +208,9 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   Utils::PolyDataToPointCloud(input, pc);
 
   // Run SLAM
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("vtkSlam : input conversions"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : input conversions"));
   this->SlamAlgo->AddFrame(pc, laserMapping);
-  IF_VERBOSE(3, Utils::InitTime("vtkSlam : basic output conversions"));
+  IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : basic output conversions"));
 
   // Update Trajectory with new SLAM pose
   this->AddCurrentPoseToTrajectory();
@@ -232,12 +232,12 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
   slamTrajectory->ShallowCopy(this->Trajectory);
 
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("vtkSlam : basic output conversions"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : basic output conversions"));
 
   // ===== Aggregated Keypoints maps =====
   if (this->OutputKeypointsMaps)
   {
-    IF_VERBOSE(3, Utils::InitTime("vtkSlam : output keypoints maps"));
+    IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : output keypoints maps"));
 
     // Cache maps to update them only every MapsUpdateStep frames
     static vtkPolyData* cacheEdgeMap = vtkPolyData::New();
@@ -261,13 +261,13 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
     blobMap->ShallowCopy(cacheBlobMap);
 
-    IF_VERBOSE(3, Utils::StopTimeAndDisplay("vtkSlam : output keypoints maps"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : output keypoints maps"));
   }
 
   // ===== Extracted keypoints from current frame =====
   if (this->OutputCurrentKeypoints)
   {
-    IF_VERBOSE(3, Utils::InitTime("vtkSlam : output current keypoints"));
+    IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : output current keypoints"));
     // Output : Current edge keypoints
     auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
     Utils::PointCloudToPolyData(this->SlamAlgo->GetEdgesKeypoints(this->OutputKeypointsInWorldCoordinates), edgePoints);
@@ -277,13 +277,13 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     // Output : Current blob keypoints
     auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
     Utils::PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(this->OutputKeypointsInWorldCoordinates), blobPoints);
-    IF_VERBOSE(3, Utils::StopTimeAndDisplay("vtkSlam : output current keypoints"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : output current keypoints"));
   }
 
   // Add debug information if advanced return mode is enabled
   if (this->AdvancedReturnMode)
   {
-    IF_VERBOSE(3, Utils::InitTime("vtkSlam : add advanced return arrays"));
+    IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : add advanced return arrays"));
 
     // Keypoints extraction debug array (curvatures, depth gap, intensity gap...)
     // Arrays added to WORLD transformed frame output
@@ -326,10 +326,10 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
       }
     }
 
-    IF_VERBOSE(3, Utils::StopTimeAndDisplay("vtkSlam : add advanced return arrays"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : add advanced return arrays"));
   }
 
-  IF_VERBOSE(1, Utils::StopTimeAndDisplay("vtkSlam"));
+  IF_VERBOSE(1, Utils::Timer::StopAndDisplay("vtkSlam"));
 
   return 1;
 }

@@ -195,13 +195,13 @@ void Slam::Reset(bool resetLog)
   }
 
   // Reset processing duration timers
-  Utils::ResetTimers();
+  Utils::Timer::Reset();
 }
 
 //-----------------------------------------------------------------------------
 void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping)
 {
-  Utils::InitTime("SLAM frame processing");
+  Utils::Timer::Init("SLAM frame processing");
 
   // Skip frame if empty
   if (pc->empty())
@@ -223,14 +223,14 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 
   // Update current frame (check frame dropping, correct time field) and
   // estimate new state (extrapolate new pose with a constant velocity model)
-  IF_VERBOSE(3, Utils::InitTime("Update frame and state"));
+  IF_VERBOSE(3, Utils::Timer::Init("Update frame and state"));
   this->UpdateFrameAndState(pc);
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("Update frame and state"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Update frame and state"));
 
   // Compute the edges and planars keypoints
-  IF_VERBOSE(3, Utils::InitTime("Keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::Init("Keypoints extraction"));
   this->ExtractKeypoints(laserIdMapping);
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("Keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints extraction"));
 
   // If the new frame is the first one we just add the extracted keypoints into
   // the map without running odometry and localization steps
@@ -240,9 +240,9 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     if (this->EgoMotion == EgoMotionMode::REGISTRATION ||
         this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
     {
-      IF_VERBOSE(3, Utils::InitTime("Ego-Motion"));
+      IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion"));
       this->ComputeEgoMotion();
-      IF_VERBOSE(3, Utils::StopTimeAndDisplay("Ego-Motion"));
+      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
     }
 
     // Integrate the relative motion to the world transformation
@@ -257,23 +257,23 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
     }
 
     // Perform Localization : compute Tworld from map and current frame keypoints
-    IF_VERBOSE(3, Utils::InitTime("Localization"));
+    IF_VERBOSE(3, Utils::Timer::Init("Localization"));
     this->Localization();
-    IF_VERBOSE(3, Utils::StopTimeAndDisplay("Localization"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization"));
   }
 
   // Update keypoints maps : add current keypoints to map using Tworld
   if (this->UpdateMap)
   {
-    IF_VERBOSE(3, Utils::InitTime("Maps update"));
+    IF_VERBOSE(3, Utils::Timer::Init("Maps update"));
     this->UpdateMapsUsingTworld();
-    IF_VERBOSE(3, Utils::StopTimeAndDisplay("Maps update"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Maps update"));
   }
 
   // Log current frame processing results : pose, covariance and keypoints.
-  IF_VERBOSE(3, Utils::InitTime("Logging"));
+  IF_VERBOSE(3, Utils::Timer::Init("Logging"));
   this->LogCurrentFrameState(Utils::PclStampToSec(this->CurrentFrame->header.stamp), this->WorldFrameId);
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("Logging"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
   if (this->Verbosity >= 2)
@@ -320,9 +320,9 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
   }
 
   // Frame processing duration
-  this->Latency = Utils::GetTime("SLAM frame processing");
+  this->Latency = Utils::Timer::Stop("SLAM frame processing");
   this->NbrFrameProcessed++;
-  IF_VERBOSE(1, Utils::StopTimeAndDisplay("SLAM frame processing"));
+  IF_VERBOSE(1, Utils::Timer::StopAndDisplay("SLAM frame processing"));
 }
 
 //-----------------------------------------------------------------------------
@@ -332,8 +332,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                     const std::string& g2oFileName)
 {
   #ifdef USE_G2O
-  IF_VERBOSE(1, Utils::InitTime("Pose graph optimization"));
-  IF_VERBOSE(3, Utils::InitTime("PGO : optimization"));
+  IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : optimization"));
 
   // Transform to modifiable vectors
   std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
@@ -372,16 +372,16 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     return;
   }
 
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("PGO : optimization"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
   // Update GPS/LiDAR calibration
   gpsToSensorOffset = optimizedSlamPoses.front().GetIsometry();
 
   // Update SLAM trajectory and maps
-  IF_VERBOSE(3, Utils::InitTime("PGO : SLAM reset"));
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : SLAM reset"));
   this->Reset(false);
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("PGO : SLAM reset"));
-  IF_VERBOSE(3, Utils::InitTime("PGO : frames keypoints aggregation"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : SLAM reset"));
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : frames keypoints aggregation"));
   PointCloud edgesKeypoints, planarsKeypoints, blobsKeypoints;
   PointCloud::Ptr aggregatedEdgesMap(new PointCloud),
                   aggregatedPlanarsMap(new PointCloud),
@@ -408,8 +408,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
       *aggregatedBlobsMap += blobsKeypoints;
   }
 
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("PGO : frames keypoints aggregation"));
-  IF_VERBOSE(3, Utils::InitTime("PGO : final SLAM map update"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : frames keypoints aggregation"));
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : final SLAM map update"));
 
   // Set final pose
   this->Tworld         = this->LogTrajectory[nbSlamPoses - 1].GetIsometry();
@@ -437,8 +437,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     updateMap(*this->BlobsPointsLocalMap, blobsKeypoints, aggregatedBlobsMap);
 
   // Processing duration
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("PGO : final SLAM map update"));
-  IF_VERBOSE(1, Utils::StopTimeAndDisplay("Pose graph optimization"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : final SLAM map update"));
+  IF_VERBOSE(1, Utils::Timer::StopAndDisplay("Pose graph optimization"));
   #else
   #define UNUSED(var) (void)(var)
   UNUSED(gpsPositions); UNUSED(gpsCovariances); UNUSED(gpsToSensorOffset); UNUSED(g2oFileName);
@@ -464,7 +464,7 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
 //-----------------------------------------------------------------------------
 void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) const
 {
-  IF_VERBOSE(3, Utils::InitTime("Keypoints maps saving to PCD"));
+  IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
 
   // Save keypoints maps
   savePointCloudToPCD(filePrefix + "edges.pcd",   *this->GetEdgesMap(), pcdFormat, true);
@@ -473,13 +473,13 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) con
 
   // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
 
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("Keypoints maps saving to PCD"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints maps saving to PCD"));
 }
 
 //-----------------------------------------------------------------------------
 void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
 {
-  IF_VERBOSE(3, Utils::InitTime("Keypoints maps loading from PCD"));
+  IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps loading from PCD"));
 
   // In most of the cases, we would like to reset SLAM internal maps before
   // loading new maps to avoid conflicts.
@@ -502,7 +502,7 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
 
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
 
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("Keypoints maps loading from PCD"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints maps loading from PCD"));
 }
 
 //==============================================================================
@@ -796,7 +796,7 @@ void Slam::ComputeEgoMotion()
   //  3. with OpenMP, globally used with 2 threads : time = 2.
   //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
   // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
-  IF_VERBOSE(3, Utils::InitTime("EgoMotion : build KD tree"));
+  IF_VERBOSE(3, Utils::Timer::Init("EgoMotion : build KD tree"));
   KDTree kdtreePreviousEdges, kdtreePreviousPlanes;
   #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
   {
@@ -811,8 +811,8 @@ void Slam::ComputeEgoMotion()
                    << this->PreviousEdgesPoints->size() << " edges, "
                    << this->PreviousPlanarsPoints->size() << " planes");
 
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("EgoMotion : build KD tree"));
-  IF_VERBOSE(3, Utils::InitTime("Ego-Motion : whole ICP-LM loop"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("EgoMotion : build KD tree"));
+  IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
 
   // Reset ICP results
   unsigned int totalMatchedKeypoints = 0;
@@ -823,7 +823,7 @@ void Slam::ComputeEgoMotion()
   // non-linear least square cost function using Levenberg-Marquardt algorithm.
   for (unsigned int icpIter = 0; icpIter < this->EgoMotionICPMaxIter; ++icpIter)
   {
-    IF_VERBOSE(3, Utils::InitTime("  Ego-Motion : ICP"));
+    IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : ICP"));
 
     // We want to estimate our 6-DOF parameters using a non linear least square
     // minimization. The non linear part comes from the parametrization of the
@@ -863,8 +863,8 @@ void Slam::ComputeEgoMotion()
       break;
     }
 
-    IF_VERBOSE(3, Utils::StopTimeAndDisplay("  Ego-Motion : ICP"));
-    IF_VERBOSE(3, Utils::InitTime("  Ego-Motion : LM optim"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : ICP"));
+    IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : LM optim"));
 
     // Run LM optimization
     ceres::Solver::Summary summary = optim.Solve();
@@ -873,7 +873,7 @@ void Slam::ComputeEgoMotion()
     // Get back optimized Trelative
     this->Trelative = optim.GetOptimizedEndPose();
 
-    IF_VERBOSE(3, Utils::StopTimeAndDisplay("  Ego-Motion : LM optim"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : LM optim"));
 
     // If no L-M iteration has been made since the last ICP matching, it means
     // that we reached a local minimum for the ICP-LM algorithm.
@@ -883,7 +883,7 @@ void Slam::ComputeEgoMotion()
     }
   }
 
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("Ego-Motion : whole ICP-LM loop"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion : whole ICP-LM loop"));
 
   PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
                     << this->EgoMotionMatchingResults[EDGE].NbMatches()  << " edges, "
@@ -894,7 +894,7 @@ void Slam::ComputeEgoMotion()
 void Slam::Localization()
 {
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
-  IF_VERBOSE(3, Utils::InitTime("Localization : keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
   PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
   KDTree kdtreeEdges, kdtreePlanes, kdtreeBlobs;
 
@@ -935,8 +935,8 @@ void Slam::Localization()
                    << subPlanarPointsLocalMap->size() << " planes, "
                    << subBlobPointsLocalMap->size() << " blobs");
 
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("Localization : keypoints extraction"));
-  IF_VERBOSE(3, Utils::InitTime("Localization : whole ICP-LM loop"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::Init("Localization : whole ICP-LM loop"));
 
   // Reset ICP results
   unsigned int totalMatchedKeypoints = 0;
@@ -947,7 +947,7 @@ void Slam::Localization()
   // non-linear least square cost function using Levenberg-Marquardt algorithm.
   for (unsigned int icpIter = 0; icpIter < this->LocalizationICPMaxIter; ++icpIter)
   {
-    IF_VERBOSE(3, Utils::InitTime("  Localization : ICP"));
+    IF_VERBOSE(3, Utils::Timer::Init("  Localization : ICP"));
 
     // We want to estimate our 6-DOF parameters using a non linear least square
     // minimization. The non linear part comes from the parametrization of the
@@ -998,8 +998,8 @@ void Slam::Localization()
       break;
     }
 
-    IF_VERBOSE(3, Utils::StopTimeAndDisplay("  Localization : ICP"));
-    IF_VERBOSE(3, Utils::InitTime("  Localization : LM optim"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : ICP"));
+    IF_VERBOSE(3, Utils::Timer::Init("  Localization : LM optim"));
 
     // Run LM optimization
     ceres::Solver::Summary summary = optim.Solve();
@@ -1019,7 +1019,7 @@ void Slam::Localization()
       this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
     }
 
-    IF_VERBOSE(3, Utils::StopTimeAndDisplay("  Localization : LM optim"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : LM optim"));
 
     // If no L-M iteration has been made since the last ICP matching, it means
     // that we reached a local minimum for the ICP-LM algorithm.
@@ -1032,7 +1032,7 @@ void Slam::Localization()
     }
   }
 
-  IF_VERBOSE(3, Utils::StopTimeAndDisplay("Localization : whole ICP-LM loop"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
 
   // Optionally print localization optimization summary
   SET_COUT_FIXED_PRECISION(3);
