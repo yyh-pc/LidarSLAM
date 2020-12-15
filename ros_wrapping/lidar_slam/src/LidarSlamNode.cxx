@@ -179,7 +179,7 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
     std::array<double, 9> gpsCovar = {c[ 0], c[ 1], c[ 2],
                                       c[ 6], c[ 7], c[ 8],
                                       c[12], c[13], c[14]};
-    this->GpsPoses.emplace_back(PoseMsgToTransform(msg.pose.pose, msg.header.stamp.toSec(), msg.header.frame_id));
+    this->GpsPoses.emplace_back(Utils::PoseMsgToTransform(msg.pose.pose, msg.header.stamp.toSec(), msg.header.frame_id));
     this->GpsCovars.emplace_back(gpsCovar);
 
     double loggingTimeout = this->LidarSlam.GetLoggingTimeout();
@@ -330,7 +330,7 @@ void LidarSlamNode::GpsSlamCalibration()
   const std::vector<LidarSlam::Transform>& odomToGpsPoses = odomToBasePoses;
 
   // Run calibration : compute transform from SLAM to WORLD
-  GlobalTrajectoriesRegistration registration;
+  LidarSlam::GlobalTrajectoriesRegistration registration;
   registration.SetNoRoll(this->PrivNh.param("gps/calibration/no_roll", false));  // DEBUG
   registration.SetVerbose(this->LidarSlam.GetVerbosity() >= 2);
   Eigen::Isometry3d worldToOdom;
@@ -349,7 +349,7 @@ void LidarSlamNode::GpsSlamCalibration()
     nav_msgs::Path gpsPath;
     gpsPath.header.frame_id = gpsFrameId;
     gpsPath.header.stamp = latestTime;
-    for (const Transform& pose: worldToGpsPoses)
+    for (const LidarSlam::Transform& pose: worldToGpsPoses)
     {
       gpsPath.poses.emplace_back(Utils::TransformToPoseStampedMsg(pose));
     }
@@ -361,7 +361,7 @@ void LidarSlamNode::GpsSlamCalibration()
     nav_msgs::Path slamPath;
     slamPath.header.frame_id = gpsFrameId;
     slamPath.header.stamp = latestTime;
-    for (const Transform& pose: odomToGpsPoses)
+    for (const LidarSlam::Transform& pose: odomToGpsPoses)
     {
       LidarSlam::Transform worldToGpsPose(worldToOdom * pose.GetIsometry(), pose.time, pose.frameid);
       slamPath.poses.emplace_back(Utils::TransformToPoseStampedMsg(worldToGpsPose));
@@ -422,8 +422,8 @@ void LidarSlamNode::PoseGraphOptimization()
     nav_msgs::Path optimSlamTraj;
     optimSlamTraj.header.frame_id = this->OdometryFrameId;
     optimSlamTraj.header.stamp = ros::Time(odomToBase.time);
-    std::vector<Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
-    for (const Transform& pose: optimizedSlamPoses)
+    std::vector<LidarSlam::Transform> optimizedSlamPoses = this->LidarSlam.GetTrajectory();
+    for (const LidarSlam::Transform& pose: optimizedSlamPoses)
       optimSlamTraj.poses.emplace_back(Utils::TransformToPoseStampedMsg(pose));
     this->Publishers[PGO_PATH].publish(optimSlamTraj);
   }
