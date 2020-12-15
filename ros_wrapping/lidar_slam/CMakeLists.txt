@@ -20,7 +20,6 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   sensor_msgs
   nav_msgs
-  velodyne_pcl
   message_generation
 )
 
@@ -131,15 +130,6 @@ include_directories(
   # include
   ${catkin_INCLUDE_DIRS}
 )
-
-add_executable(Velodyne_to_slam_node src/driverPc_to_slamPc/VelodyneToSlamNode.cxx)
-
-target_link_libraries(Velodyne_to_slam_node 
-${catkin_LIBRARIES}
-LidarSlam
-)
-
-add_dependencies(Velodyne_to_slam_node lidar_slam_generate_messages_cpp)
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
