@@ -7,19 +7,19 @@ if (g2o_FOUND)
 endif(g2o_FOUND)
 
 set(LidarSlam_PUBLIC_HEADERS
+  include/LidarSlam/CeresCostFunctions.h
   include/LidarSlam/Enums.h
-  include/LidarSlam/Utilities.h
-  include/LidarSlam/LidarPoint.h
-  include/LidarSlam/Transform.h
-  include/LidarSlam/RollingGrid.h
-  include/LidarSlam/Slam.h
-  include/LidarSlam/SpinningSensorKeypointExtractor.h
-  include/LidarSlam/MotionModel.h
-  include/LidarSlam/PointCloudStorage.h
   include/LidarSlam/GlobalTrajectoriesRegistration.h
   include/LidarSlam/KDTreePCLAdaptor.h
   include/LidarSlam/KeypointsRegistration.h
-  include/LidarSlam/CeresCostFunctions.h
+  include/LidarSlam/LidarPoint.h
+  include/LidarSlam/MotionModel.h
+  include/LidarSlam/PointCloudStorage.h
+  include/LidarSlam/RollingGrid.h
+  include/LidarSlam/Slam.h
+  include/LidarSlam/SpinningSensorKeypointExtractor.h
+  include/LidarSlam/Transform.h
+  include/LidarSlam/Utilities.h
   ${SLAM_g2o_headers}
   )
 
@@ -27,13 +27,14 @@ set(LidarSlam_PUBLIC_HEADERS
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 add_library(LidarSlam SHARED
-  src/Transform.cxx
+  src/GlobalTrajectoriesRegistration.cxx
+  src/KeypointsRegistration.cxx
+  src/MotionModel.cxx
   src/RollingGrid.cxx
   src/Slam.cxx
   src/SpinningSensorKeypointExtractor.cxx
-  src/MotionModel.cxx
-  src/GlobalTrajectoriesRegistration.cxx
-  src/KeypointsRegistration.cxx
+  src/Transform.cxx
+  src/Utilities.cxx
   ${LidarSlam_PUBLIC_HEADERS}
   ${SLAM_g2o_sources}
   )
