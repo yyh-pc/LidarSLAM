@@ -17,8 +17,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_ROLLING_GRID_H
-#define LIDAR_SLAM_ROLLING_GRID_H
+#pragma once
 
 #include "LidarSlam/LidarPoint.h"
 
@@ -125,5 +124,3 @@ private:
 };
 
 } // end of LidarSlam namespace
-
-#endif  // LIDAR_SLAM_ROLLING_GRID_H

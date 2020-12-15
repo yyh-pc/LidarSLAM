@@ -16,8 +16,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_POSE_GRAPH_OPTIMIZATION_H
-#define LIDAR_SLAM_POSE_GRAPH_OPTIMIZATION_H
+#pragma once
 
 #include "LidarSlam/Transform.h"
 #include <g2o/core/sparse_optimizer.h>
@@ -78,5 +77,3 @@ private:
 };
 
 } // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_POSE_GRAPH_OPTIMIZATION_H

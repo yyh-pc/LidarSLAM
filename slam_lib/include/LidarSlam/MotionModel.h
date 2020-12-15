@@ -17,8 +17,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_MOTION_MODEL_H
-#define LIDAR_SLAM_MOTION_MODEL_H
+#pragma once
 
 #include <Eigen/Geometry>
 
@@ -73,5 +72,3 @@ Eigen::Isometry3d LinearInterpolation(const Eigen::Isometry3d& H0, const Eigen::
                                       double t, double t0 = 0., double t1 = 1.);
 
 } // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_MOTION_MODEL_H

@@ -17,8 +17,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_LIDAR_POINT_H
-#define LIDAR_SLAM_LIDAR_POINT_H
+#pragma once
 
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
@@ -64,5 +63,3 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (LidarSlam::LidarPoint,
                                    (std::uint8_t, device_id, device_id)
                                    (std::uint8_t, label, label)
 )
-
-#endif // LIDAR_SLAM_LIDAR_POINT_H

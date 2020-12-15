@@ -71,8 +71,7 @@
 // - WORLD {W} : The world coordinate system {W} coincides with BASE at the
 //   initial position. The output trajectory describes BASE origin in WORLD.
 
-#ifndef LIDAR_SLAM_SLAM_H
-#define LIDAR_SLAM_SLAM_H
+#pragma once
 
 #include "LidarSlam/Utilities.h"
 #include "LidarSlam/Transform.h"
@@ -575,5 +574,3 @@ private:
 };
 
 } // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_SLAM_H

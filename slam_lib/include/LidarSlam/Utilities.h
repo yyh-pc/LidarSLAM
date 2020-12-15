@@ -16,8 +16,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_UTILITIES_H
-#define LIDAR_SLAM_UTILITIES_H
+#pragma once
 
 #include <pcl/point_cloud.h>
 
@@ -413,5 +412,3 @@ namespace Timer
 }  // end of Timer namespace
 }  // end of Utils namespace
 }  // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_UTILITIES_H

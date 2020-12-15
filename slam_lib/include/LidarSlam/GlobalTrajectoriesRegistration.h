@@ -16,8 +16,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_GLOBAL_TRAJECTORIES_REGISTRATION_H
-#define LIDAR_SLAM_GLOBAL_TRAJECTORIES_REGISTRATION_H
+#pragma once
 
 #include "LidarSlam/Transform.h"
 #include <pcl/registration/icp.h>
@@ -112,5 +111,3 @@ private:
 };
 
 } // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_GLOBAL_TRAJECTORIES_REGISTRATION_H

@@ -16,8 +16,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_ENUMS_H
-#define LIDAR_SLAM_ENUMS_H
+#pragma once
 
 namespace LidarSlam
 {
@@ -83,5 +82,3 @@ enum class EgoMotionMode
 };
 
 } // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_ENUMS_H

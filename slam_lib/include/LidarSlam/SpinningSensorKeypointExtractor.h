@@ -18,8 +18,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H
-#define LIDAR_SLAM_SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H
+#pragma once
 
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/Enums.h"
@@ -185,5 +184,3 @@ private:
 };
 
 } // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_SPINNING_SENSOR_KEYPOINT_EXTRACTOR_H

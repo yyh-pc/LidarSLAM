@@ -16,8 +16,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_POINT_CLOUD_STORAGE_H
-#define LIDAR_SLAM_POINT_CLOUD_STORAGE_H
+#pragma once
 
 // A new PCL Point is added so we need to recompile PCL to be able to use
 // filters (pcl::io::OctreePointCloudCompression) with this new type
@@ -354,5 +353,3 @@ struct PointCloudStorage
 };
 
 } // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_POINT_CLOUD_STORAGE_H

@@ -17,8 +17,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_KDTREE_PCL_ADAPTOR_H
-#define LIDAR_SLAM_KDTREE_PCL_ADAPTOR_H
+#pragma once
 
 #include <nanoflann.hpp>
 #include <pcl/point_cloud.h>
@@ -176,5 +175,3 @@ protected:
 };
 
 } // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_KDTREE_PCL_ADAPTOR_H

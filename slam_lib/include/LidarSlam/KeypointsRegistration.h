@@ -16,8 +16,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_KEYPOINTS_REGISTRATION_H
-#define LIDAR_SLAM_KEYPOINTS_REGISTRATION_H
+#pragma once
 
 #include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/LidarPoint.h"
@@ -240,5 +239,3 @@ private:
 };
 
 } // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_KEYPOINTS_REGISTRATION_H

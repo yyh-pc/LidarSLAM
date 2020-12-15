@@ -16,8 +16,7 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef LIDAR_SLAM_TRANSFORM_H
-#define LIDAR_SLAM_TRANSFORM_H
+#pragma once
 
 #include <Eigen/Geometry>
 
@@ -79,5 +78,3 @@ public:
 };
 
 } // end of LidarSlam namespace
-
-#endif // LIDAR_SLAM_TRANSFORM_H
