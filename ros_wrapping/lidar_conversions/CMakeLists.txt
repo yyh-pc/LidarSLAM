@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.9)
-project(velodyne_to_slam)
+project(lidar_conversions)
 
 ## Compile as C++14, supported in ROS Kinetic and newer
 set(CMAKE_CXX_STANDARD 14)
@@ -32,8 +32,8 @@ include_directories(
   "../../slam_lib/include/" #this package needs LidarPoint definition which is a header file in slam library
 )
 
-add_executable(velodyne_to_slam_node src/VelodyneToSlamNode.cxx)
+add_executable(velodyne_conversion_node src/VelodyneToLidarNode.cxx)
 
-target_link_libraries(velodyne_to_slam_node 
+target_link_libraries(velodyne_conversion_node 
 ${catkin_LIBRARIES}
 )

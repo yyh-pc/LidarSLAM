@@ -16,7 +16,7 @@
   </group>
   
   <!-- Conversion -->
-  <node name="velodyne_to_slam" pkg="velodyne_to_slam" type="velodyne_to_slam_node" output="screen">
+  <node name="velodyne_conversion" pkg="lidar_conversions" type="velodyne_conversion_node" output="screen">
   <param name="lidar_frequency" value="$(arg lidar_frequency)"/>
   </node>
 

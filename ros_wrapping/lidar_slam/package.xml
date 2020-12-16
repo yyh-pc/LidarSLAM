@@ -58,6 +58,7 @@
   <depend>nav_msgs</depend>
   <depend>velodyne_pcl</depend>
   <exec_depend>message_runtime</exec_depend>
+  <exec_depend>lidar_conversion</exec_depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

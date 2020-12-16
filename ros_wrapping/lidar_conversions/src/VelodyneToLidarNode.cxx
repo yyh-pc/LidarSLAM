@@ -17,11 +17,11 @@
 //==============================================================================
 
 #include <pcl_conversions/pcl_conversions.h>
-#include "VelodyneToSlamNode.h"
+#include "VelodyneToLidarNode.h"
 
 #define BOLD_GREEN(s) "\033[1;32m" << s << "\033[0m"
 
-VelodyneToSlamNode::VelodyneToSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
+VelodyneToLidarNode::VelodyneToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   : Nh(nh)
   , PrivNh(priv_nh)
 {
@@ -33,13 +33,13 @@ VelodyneToSlamNode::VelodyneToSlamNode(ros::NodeHandle& nh, ros::NodeHandle& pri
 
   // ***************************************************************************
   // Init ROS subscribers
-  this->Listener = nh.subscribe("velodyne_points", 1, &VelodyneToSlamNode::Callback, this);
+  this->Listener = nh.subscribe("velodyne_points", 1, &VelodyneToLidarNode::Callback, this);
 
   ROS_INFO_STREAM(BOLD_GREEN("Velodyne data converter is ready !"));
 }
 
 //------------------------------------------------------------------------------
-void VelodyneToSlamNode::Callback(const CloudV& cloudV)
+void VelodyneToLidarNode::Callback(const CloudV& cloudV)
 {
   // Init SLAM pointcloud
   CloudS cloudS;
@@ -106,7 +106,7 @@ int main(int argc, char **argv)
   ros::NodeHandle n;
   ros::NodeHandle priv_nh("~");
 
-  VelodyneToSlamNode v2s(n, priv_nh);
+  VelodyneToLidarNode v2s(n, priv_nh);
 
   ros::spin();
 

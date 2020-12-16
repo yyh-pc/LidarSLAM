@@ -25,7 +25,7 @@
 #include <pcl_ros/point_cloud.h>
 #include <LidarSlam/LidarPoint.h>
 
-class VelodyneToSlamNode
+class VelodyneToLidarNode
 {
 public:
   using PointS = LidarSlam::LidarPoint;    
@@ -39,7 +39,7 @@ public:
    * @param[in] nh      Public ROS node handle, used to init publisher/subscribers.
    * @param[in] priv_nh Private ROS node handle, used to access parameters.
    */
-  VelodyneToSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh);
+  VelodyneToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh);
 
   //----------------------------------------------------------------------------
   /*!
