@@ -162,9 +162,6 @@ void vtkSlam::Reset()
 {
   this->SlamAlgo->Reset(true);
 
-  // Reset processing duration timers
-  Utils::Timer::Reset();
-
   // init the output SLAM trajectory
   this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
   auto pts = vtkSmartPointer<vtkPoints>::New();

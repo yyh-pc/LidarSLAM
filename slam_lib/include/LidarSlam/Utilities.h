@@ -1,7 +1,7 @@
 //==============================================================================
 // Copyright 2019-2020 Kitware, Inc., Kitware SAS
-// Author: Laurenson Nick (Kitware SAS)
-// Creation date: 2019-05-13
+// Author: Cadart Nicolas (Kitware SAS)
+// Creation date: 2020-06-16
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,8 +24,6 @@
 
 #include <iostream>
 #include <iomanip>
-#include <unordered_map>
-#include <chrono>
 #include <math.h>
 #include <numeric>
 
@@ -140,12 +138,7 @@ inline constexpr T Deg2Rad(const T& deg)
  * @param yaw Rotation on Z axis
  * @return The 3x3 rotation matrix defined by : R = Rz(yaw) * Ry(pitch) * Rx(roll)
  */
-inline Eigen::Matrix3d RPYtoRotationMatrix(double roll, double pitch, double yaw)
-{
-  return Eigen::Matrix3d(Eigen::AngleAxisd(yaw,   Eigen::Vector3d::UnitZ()) *
-                         Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
-                         Eigen::AngleAxisd(roll,  Eigen::Vector3d::UnitX()));
-}
+Eigen::Matrix3d RPYtoRotationMatrix(double roll, double pitch, double yaw);
 
 //------------------------------------------------------------------------------
 /*!
@@ -153,25 +146,7 @@ inline Eigen::Matrix3d RPYtoRotationMatrix(double roll, double pitch, double yaw
  * @param rot The 3x3 rotation matrix, defined by : R = Rz(yaw) * Ry(pitch) * Rx(roll)
  * @return Euler angles around X, Y and Z axes, according to ZYX convention.
  */
-inline Eigen::Vector3d RotationMatrixToRPY(const Eigen::Matrix3d& rot)
-{
-  // `rpy = rot.eulerAngles(2, 1, 0).reverse()`             returns angles in range [-PI:PI]x[-PI:PI]x[0:PI].
-  // `rpy = Eigen::EulerAnglesZYXd(rot).angles().reverse()` returns angles in range [-PI:PI]x[-PI:PI]x[-PI:PI].
-  // But these are bad. For first range, yaw angle cannot be negative : this
-  // leads to un-necessary non trivial RPY decomposition, and to unstable
-  // optimization result as we are not optimizing around 0.
-  // For second ranges, there exist several RPY decomposition for the same
-  // rotation (one of them being non-trivial too). Therefore the optimization
-  // may also be unstable by oscillating between them.
-  // We prefer to output angles in range [-PI:PI]x[-PI/2:PI/2]x[-PI:PI] : we
-  // allow negative values to avoid oscillation artefacts, and minimize the
-  // pitch angle to fix representation.
-  Eigen::Vector3d rpy;
-  rpy.x() = std::atan2(rot(2, 1), rot(2, 2));
-  rpy.y() = -std::asin(rot(2, 0));
-  rpy.z() = std::atan2(rot(1, 0), rot(0, 0));
-  return rpy;
-}
+Eigen::Vector3d RotationMatrixToRPY(const Eigen::Matrix3d& rot);
 
 //------------------------------------------------------------------------------
 /*!
@@ -184,19 +159,12 @@ inline Eigen::Vector3d RotationMatrixToRPY(const Eigen::Matrix3d& rot)
  * @param yaw Rotation on Z axis
  * @return The rigid transform (rotaion + translation)
  */
-inline Eigen::Isometry3d XYZRPYtoIsometry(double x, double y, double z, double roll, double pitch, double yaw)
-{
-  Eigen::Isometry3d transform;
-  transform.linear() = RPYtoRotationMatrix(roll, pitch, yaw);  // Set rotation part
-  transform.translation() = Eigen::Vector3d(x, y, z);          // Set translation part
-  transform.makeAffine();                                      // Set the last row to [0 0 0 1]
-  return transform;
-}
+Eigen::Isometry3d XYZRPYtoIsometry(double x, double y, double z, double roll, double pitch, double yaw);
 
 //------------------------------------------------------------------------------
 /*!
  * @brief Convert translation and RPY to full rigid transform
- * @param xyzrpy Translation (x, Y, Z) and Rotation (rX, rY, rZ)
+ * @param xyzrpy Translation (X, Y, Z) and Rotation (rX, rY, rZ)
  * @return The rigid transform (rotation + translation)
  */
 template<typename T>
@@ -208,7 +176,7 @@ inline Eigen::Isometry3d XYZRPYtoIsometry(const T& xyzrpy)
 //------------------------------------------------------------------------------
 /*!
  * @brief Convert RPY and translation to full rigid transform
- * @param rpyxyz Rotation (rX, rY, rZ) and Translation (x, Y, Z)
+ * @param rpyxyz Rotation (rX, rY, rZ) and Translation (X, Y, Z)
  * @return The rigid transform (rotation + translation)
  */
 template<typename T>
@@ -223,12 +191,7 @@ inline Eigen::Isometry3d RPYXYZtoIsometry(const T& rpyxyz)
  * @param transform The rigid transform
  * @return 6D array, with translation (X, Y, Z) and rotation (rX, rY, rZ)
  */
-inline Eigen::Vector6d IsometryToXYZRPY(const Eigen::Isometry3d& transform)
-{
-  Eigen::Vector6d xyzrpy;
-  xyzrpy << transform.translation(), RotationMatrixToRPY(transform.linear());
-  return xyzrpy;
-}
+Eigen::Vector6d IsometryToXYZRPY(const Eigen::Isometry3d& transform);
 
 //------------------------------------------------------------------------------
 /*!
@@ -236,12 +199,7 @@ inline Eigen::Vector6d IsometryToXYZRPY(const Eigen::Isometry3d& transform)
  * @param transform The rigid transform
  * @return 6D array, with rotation (rX, rY, rZ) and translation (X, Y, Z)
  */
-inline Eigen::Vector6d IsometryToRPYXYZ(const Eigen::Isometry3d& transform)
-{
-  Eigen::Vector6d rpyxyz;
-  rpyxyz << RotationMatrixToRPY(transform.linear()), transform.translation();
-  return rpyxyz;
-}
+Eigen::Vector6d IsometryToRPYXYZ(const Eigen::Isometry3d& transform);
 
 //------------------------------------------------------------------------------
 /*!
@@ -250,14 +208,7 @@ inline Eigen::Vector6d IsometryToRPYXYZ(const Eigen::Isometry3d& transform)
  * @param[out] mean Where to store mean value
  * @return The PCA
  */
-inline Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data,
-                                                                 Eigen::Vector3d& mean)
-{
-  mean = data.colwise().mean();
-  Eigen::MatrixXd centered = data.rowwise() - mean.transpose();
-  Eigen::Matrix3d varianceCovariance = centered.transpose() * centered;
-  return Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d>(varianceCovariance);
-}
+Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data, Eigen::Vector3d& mean);
 
 //------------------------------------------------------------------------------
 /*!
@@ -265,11 +216,7 @@ inline Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Ma
  * @param data Nx3 array (e.g. stacked 3D points)
  * @return The PCA
  */
-inline Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data)
-{
-  Eigen::Vector3d mean;
-  return ComputePCA(data, mean);
-}
+Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data);
 
 //==============================================================================
 //   PCL helpers
@@ -346,37 +293,19 @@ inline uint64_t SecToPclStamp(double seconds)
 namespace Timer
 {
   //----------------------------------------------------------------------------
-  // Anonymous namespace to avoid multiple-definitions thanks to internal linkage.
-  // These variables will be defined locally in each translation unit.
-  namespace
-  {
-    std::unordered_map<std::string, std::chrono::steady_clock::time_point> startTimestamps;
-    std::unordered_map<std::string, double> totalDurations;
-    std::unordered_map<std::string, unsigned int> totalCalls;
-  } // end of anonymous namespace
-
-  //----------------------------------------------------------------------------
   /*!
-  * @brief Reset timers values.
+  * @brief Reset all timers values.
   *
-  * NOTE: This only resets timers declared in a given compilation unit.
+  * NOTE: This resets timers declared in all translation units.
   */
-  inline void Reset()
-  {
-    startTimestamps.clear();
-    totalDurations.clear();
-    totalCalls.clear();
-  }
+  void Reset();
 
   //----------------------------------------------------------------------------
   /*!
   * @brief Init a timer.
   * @param timer The name of the timer
   */
-  inline void Init(const std::string& timer)
-  {
-    startTimestamps[timer] = std::chrono::steady_clock::now();
-  }
+  void Init(const std::string& timer);
 
   //----------------------------------------------------------------------------
   /*!
@@ -384,31 +313,18 @@ namespace Timer
   * @param timer The name of the timer
   * @return The duration value, in seconds, since the initialization of the timer
   *
-  * NOTE : This returns 0 if the counter has not been initialized yet.
+  * NOTE : This may return garbage if the counter has not been initialized yet.
   */
-  inline double Stop(const std::string& timer)
-  {
-    std::chrono::duration<double> chrono_ms = std::chrono::steady_clock::now() - startTimestamps[timer];
-    return chrono_ms.count();
-  }
+  double Stop(const std::string& timer);
 
   //----------------------------------------------------------------------------
   /*!
-  * @brief Print a given timer value and its average value
+  * @brief Print a given timer value and its average value.
   * @param timer The name of the timer
   *
-  * NOTE : This returns 0 if the counter has not been initialized yet.
+  * NOTE : This may return garbage if the counter has not been initialized yet.
   */
-  inline void StopAndDisplay(const std::string& timer)
-  {
-    const double currentDuration = Stop(timer);
-    totalDurations[timer] += currentDuration;
-    totalCalls[timer]++;
-    double meanDurationMs = totalDurations[timer] * 1000. / totalCalls[timer];
-    SET_COUT_FIXED_PRECISION(3);
-    PRINT_COLOR(CYAN, "  -> " << timer << " took : " << currentDuration * 1000. << " ms (average : " << meanDurationMs << " ms)");
-    RESET_COUT_FIXED_PRECISION;
-  }
+  void StopAndDisplay(const std::string& timer);
 }  // end of Timer namespace
 }  // end of Utils namespace
 }  // end of LidarSlam namespace
