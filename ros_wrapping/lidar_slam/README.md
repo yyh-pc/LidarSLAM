@@ -19,7 +19,7 @@ Wrapping for Kitware LiDAR-only SLAM. It can also use GPS data to publish SLAM o
 
 ### Description and basic usage
 
-The raw SLAM node subscribes to velodyne pointclouds, and computes current pose of the tracked frame relative to the fixed odometry frame. It can output various data, such as SLAM pose (as Odometry msg or TF), keypoints maps, etc.
+The raw SLAM node subscribes to lidar_points, and computes current pose of the tracked frame relative to the fixed odometry frame. It can output various data, such as SLAM pose (as Odometry msg or TF), keypoints maps, etc.
 
 SLAM node supports massive configuration from ROS parameter server (even if default values are already provided). An example of configuration file can be found in [`params/slam_config.yaml`](params/slam_config.yaml). All parameters have to be set as private parameters.
 
@@ -42,15 +42,16 @@ rosbag play --clock <my_bag_file>  # in 2nd shell
 roslaunch lidar_slam slam.launch use_sim_time:=false
 ```
 
-This launch file will start a *lidar_slam_node*, a pre-configured RViz session, and, if `gps` arg is enabled, GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
+This launch file will start a *lidar_slam_node*, a pre-configured RViz session, a *velodyne_conversion_node* (converts the point type for lidar_slam use, node to adapt for other sensors) and, if `gps` arg is enabled, GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
 
-Input pointcloud must be a *sensor_msgs/PointCloud2* message (of points `velodyne_pointcloud::PointXYZIR`) published on topic '*velodyne_points*'.
+For Velodyne use, input pointcloud must be a *sensor_msgs/PointCloud2* message (of points `velodyne_pointcloud::PointXYZIR` or `velodyne_pointcloud::PointXYZIRT`) published on topic '*velodyne_points*'.
 Optional input GPS (see [Optional GPS use](#optional-gps-use) section) fix must be a *gps_common/GPSFix* message published on topic '*gps_fix*'.
 
 SLAM outputs can also be configured out to publish :
 - current pose as an *nav_msgs/Odometry* message on topic '*slam_odom*' and/or a TF from '*odometry_frame*' to '*tracking_frame*';
 - extracted keypoints from current frame as *sensor_msgs/PointCloud2* on topics '*keypoints/{edges,planes,blobs}*';
 - keypoints maps as *sensor_msgs/PointCloud2* on topics '*maps/{edges,planes,blobs}*';
+- point cloud from current frame registered in map as *sensor_msgs/PointCloud2* on topic '*slam_output_cloud*'.
 
 UTM/GPS conversion node can output SLAM pose as a *gps_common/GPSFix* message on topic '*slam_fix*'.
 

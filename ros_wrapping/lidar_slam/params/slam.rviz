@@ -122,7 +122,7 @@ Visualization Manager:
       Size (Pixels): 1
       Size (m): 0.029999999329447746
       Style: Squares
-      Topic: /slam_cloud
+      Topic: /slam_output_cloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true

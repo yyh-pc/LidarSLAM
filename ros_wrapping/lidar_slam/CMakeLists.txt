@@ -20,7 +20,6 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   sensor_msgs
   nav_msgs
-  velodyne_pcl
   message_generation
 )
 

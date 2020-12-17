@@ -41,7 +41,7 @@ enum Output
   PLANES_KEYPOINTS,      // Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
   BLOBS_KEYPOINTS,       // Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
 
-  SLAM_CLOUD,            // Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_cloud'.
+  SLAM_OUTPUT_CLOUD,     // Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_output_cloud'.
 
   PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'pgo_slam_path' latched topic.
   ICP_CALIB_SLAM_PATH,   // Publish ICP-aligned SLAM trajectory as Path msg to 'icp_slam_path' latched topic.
@@ -84,9 +84,6 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
                     "n_lasers will be guessed from 1st frame to build linear mapping.");
   }
 
-  // Get LiDAR frequency
-  priv_nh.getParam("lidar_frequency", this->LidarFreq);
-
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   priv_nh.getParam("gps/use_gps", this->UseGps);
 
@@ -111,7 +108,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   initPublisher(PLANES_KEYPOINTS, "keypoints/planes", CloudS, "output/keypoints/planes", false, 1, false);
   initPublisher(BLOBS_KEYPOINTS,  "keypoints/blobs",  CloudS, "output/keypoints/blobs",  false, 1, false);
 
-  initPublisher(SLAM_CLOUD, "slam_cloud", CloudS, "output/debug/cloud", false, 1, false);
+  initPublisher(SLAM_OUTPUT_CLOUD, "slam_output_cloud", CloudS, "output/debug/cloud", false, 1, false);
 
   if (this->UseGps)
   {
@@ -122,7 +119,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   // ***************************************************************************
   // Init ROS subscribers
-  this->CloudSub = nh.subscribe("velodyne_points", 1, &LidarSlamNode::ScanCallback, this);
+  this->CloudSub = nh.subscribe("lidar_points", 1, &LidarSlamNode::ScanCallback, this);
   this->SlamCommandSub = nh.subscribe("slam_command", 1,  &LidarSlamNode::SlamCommandCallback, this);
 
   // Init logging of GPS data for GPS/SLAM calibration or Pose Graph Optimization.
@@ -133,17 +130,22 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::ScanCallback(const CloudV& cloudV)
+void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
 {
+  if(cloudS_ptr->empty())
+  {
+    ROS_WARN_STREAM("Input point cloud sent by Lidar sensor driver is empty -> ignoring message");
+    return;
+  }
   // Init LaserIdMapping if not already done
   if (this->LaserIdMapping.empty())
   {
     // Iterate through pointcloud to find max ring
     unsigned int maxRing = 0;
-    for (const PointV& point : cloudV)
+    for (const PointS& point : *cloudS_ptr)
     {
-      if (point.ring > maxRing)
-        maxRing = point.ring;
+      if (point.laser_id > maxRing)
+        maxRing = point.laser_id;
     }
 
     // Init LaserIdMapping with linear mapping
@@ -151,18 +153,22 @@ void LidarSlamNode::ScanCallback(const CloudV& cloudV)
     std::iota(this->LaserIdMapping.begin(), this->LaserIdMapping.end(), 0);
     ROS_INFO_STREAM("[SLAM] Using 0->" << maxRing << " linear laser_id_mapping.");
   }
-
-  // Convert pointcloud PointV type to expected PointS type
-  CloudS::Ptr cloudS = this->ConvertToSlamPointCloud(cloudV);
+  
+  // Check if time field looks properly set
+  // If first and last points have same timestamps, this is not normal
+  if (cloudS_ptr->back().time - cloudS_ptr->front().time < 1e-8 && LidarSlam.GetUndistortion() != LidarSlam::UndistortionMode::NONE)
+  {
+    ROS_WARN_STREAM("Invalid point wise timestamps -> slam process may have an undefined behaviour");
+  }
 
   // If no tracking frame is set, track input pointcloud origin
   if (this->TrackingFrameId.empty())
-    this->TrackingFrameId = cloudS->header.frame_id;
+    this->TrackingFrameId = cloudS_ptr->header.frame_id;
   // Update TF from BASE to LiDAR
-  this->UpdateBaseToLidarOffset(cloudS->header.frame_id, cloudS->header.stamp);
+  this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->header.stamp);
 
   // Run SLAM : register new frame and update localization and map.
-  this->LidarSlam.AddFrame(cloudS, this->LaserIdMapping);
+  this->LidarSlam.AddFrame(cloudS_ptr, this->LaserIdMapping);
 
   // Publish SLAM output as requested by user
   this->PublishOutput();
@@ -437,60 +443,6 @@ void LidarSlamNode::PoseGraphOptimization()
 //==============================================================================
 
 //------------------------------------------------------------------------------
-LidarSlamNode::CloudS::Ptr LidarSlamNode::ConvertToSlamPointCloud(const CloudV& cloudV) const
-{
-  // Init SLAM pointcloud
-  CloudS::Ptr cloudS(new CloudS);
-  cloudS->resize(cloudV.size());
-  cloudS->header = cloudV.header;
-
-  // Check if time field looks properly set
-  // If first and last points have same timestamps, this is not normal
-  bool isTimeValid = (cloudV.front().time != cloudV.back().time);
-
-  // Helpers to estimate frameAdvancement in case time field is invalid
-  auto wrapMax = [](double x, double max) {return std::fmod(max + std::fmod(x, max), max);};
-  auto advancement = [](const PointV& velodynePoint) {return (M_PI - std::atan2(velodynePoint.y, velodynePoint.x)) / (2 * M_PI);};
-  const double initAdvancement = advancement(cloudV.front());
-  std::vector<double> previousAdvancementPerRing(this->LaserIdMapping.size(), -1);
-
-  // Build SLAM pointcloud
-  for(unsigned int i = 0; i < cloudV.size(); i++)
-  {
-    const PointV& velodynePoint = cloudV[i];
-    PointS& slamPoint = cloudS->at(i);
-
-    slamPoint.x = velodynePoint.x;
-    slamPoint.y = velodynePoint.y;
-    slamPoint.z = velodynePoint.z;
-    slamPoint.intensity = velodynePoint.intensity;
-    slamPoint.laser_id = velodynePoint.ring;
-    slamPoint.device_id = 0;
-
-    // Use time field is available
-    // time is the offset to add to header.stamp to get point-wise timestamp
-    if (isTimeValid)
-      slamPoint.time = velodynePoint.time;
-
-    // Try to build approximate timestamp from azimuth angle
-    // time is 0 for first point, and should match LiDAR period for last point for a complete scan.
-    else
-    {
-      ROS_WARN_STREAM_THROTTLE(1, "Invalid 'time' field, trying to build it from azimuth advancement.");
-      // Get normalized angle (in [0-1]), with angle 0 being first point direction
-      double frameAdvancement = advancement(velodynePoint);
-      frameAdvancement = wrapMax(frameAdvancement - initAdvancement, 1.);
-      // If we detect overflow, correct it
-      if (frameAdvancement < previousAdvancementPerRing[velodynePoint.ring])
-        frameAdvancement += 1;
-      previousAdvancementPerRing[velodynePoint.ring] = frameAdvancement;
-      slamPoint.time = frameAdvancement / this->LidarFreq;
-    }
-  }
-  return cloudS;
-}
-
-//------------------------------------------------------------------------------
 void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint64_t pclStamp)
 {
   // If tracking frame is different from input frame, get TF from LiDAR to BASE
@@ -585,7 +537,7 @@ void LidarSlamNode::PublishOutput()
   publishPointCloud(BLOBS_KEYPOINTS,  this->LidarSlam.GetBlobsKeypoints());
 
   // debug cloud
-  publishPointCloud(SLAM_CLOUD, this->LidarSlam.GetOutputFrame());
+  publishPointCloud(SLAM_OUTPUT_CLOUD, this->LidarSlam.GetOutputFrame());
 }
 
 //------------------------------------------------------------------------------

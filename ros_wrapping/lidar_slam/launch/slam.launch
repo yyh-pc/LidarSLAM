@@ -4,6 +4,8 @@
   <arg name="use_sim_time" default="true" doc="Use simulation time when replaying rosbags with '--clock' option."/>
   <arg name="rviz" default="true" doc="Visualize results with RViz."/>
   <arg name="gps" default="false" doc="If true, use GPS data to calibrate SLAM output. Otherwise, provide calibration."/>
+  <arg name="lidar_frequency" default="10.0" doc="Frequency of the Lidar scanner in Hertz (Number of frames per second). 
+  Only used to generate approximate point-wise timestamps when using undistortion if 'time' field is invalid and not usable)"/>
 
   <!-- Sim Time, used when replaying rosbag files (with mandatory option 'clock') -->
   <param name="/use_sim_time" value="$(arg use_sim_time)"/>
@@ -12,6 +14,11 @@
   <group if="$(arg rviz)">
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find lidar_slam)/params/slam.rviz"/>
   </group>
+  
+  <!-- Conversion -->
+  <node name="velodyne_conversion" pkg="lidar_conversions" type="velodyne_conversion_node" output="screen">
+  <param name="lidar_frequency" value="$(arg lidar_frequency)"/>
+  </node>
 
   <!-- LiDAR SLAM : compute TF slam_init -> velodyne -->
   <node name="lidar_slam" pkg="lidar_slam" type="lidar_slam_node" output="screen">
