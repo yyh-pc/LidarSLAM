@@ -29,11 +29,8 @@ catkin_package(
 
 include_directories(
   ${catkin_INCLUDE_DIRS}
-  "../../slam_lib/include/" #this package needs LidarPoint definition which is a header file in slam library
+  "../../slam_lib/include/"  # this package needs LidarPoint definition which is a header file in slam library
 )
 
 add_executable(velodyne_conversion_node src/VelodyneToLidarNode.cxx)
-
-target_link_libraries(velodyne_conversion_node 
-${catkin_LIBRARIES}
-)
+target_link_libraries(velodyne_conversion_node ${catkin_LIBRARIES})
