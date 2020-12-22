@@ -41,10 +41,22 @@ VelodyneToLidarNode::VelodyneToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& p
 //------------------------------------------------------------------------------
 void VelodyneToLidarNode::Callback(const CloudV& cloudV)
 {
+  // If input cloud is empty, ignore it
+  if (cloudV.empty())
+  {
+    ROS_ERROR_STREAM("Input Velodyne pointcloud is empty : frame ignored.");
+    return;
+  }
+
   // Init SLAM pointcloud
   CloudS cloudS;
   cloudS.reserve(cloudV.size());
+
+  // Copy pointcloud metadata
   cloudS.header = cloudV.header;
+  cloudS.is_dense = cloudV.is_dense;
+  cloudS.sensor_orientation_ = cloudV.sensor_orientation_;
+  cloudS.sensor_origin_ = cloudV.sensor_origin_;
   
   // Check if time field looks properly set
   // If first and last points have same timestamps, this is not normal
