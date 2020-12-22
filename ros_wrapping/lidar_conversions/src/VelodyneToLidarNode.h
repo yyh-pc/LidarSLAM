@@ -16,35 +16,43 @@
 // limitations under the License.
 //==============================================================================
 
-#ifndef VELODYNE_SLAM_NODE_H
-#define VELODYNE_SLAM_NODE_H
+#pragma once
 
-// ROS
 #include <ros/ros.h>
-#include <velodyne_pcl/point_types.h>
 #include <pcl_ros/point_cloud.h>
+#include <velodyne_pcl/point_types.h>
 #include <LidarSlam/LidarPoint.h>
 
+namespace lidar_conversions
+{
+
+/**
+ * @class VelodyneToLidarNode aims at converting pointclouds published by ROS
+ * Velodyne driver to the expected SLAM pointcloud format.
+ *
+ * The ROS Velodyne driver can be found here :
+ * https://github.com/ros-drivers/velodyne
+ */
 class VelodyneToLidarNode
 {
 public:
-  using PointS = LidarSlam::LidarPoint;    
-  using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM
   using PointV = velodyne_pcl::PointXYZIRT;
-  using CloudV = pcl::PointCloud<PointV>;  ///< Pointcloud published by velodyne driver and decoded by pcl
+  using CloudV = pcl::PointCloud<PointV>;  ///< Pointcloud published by velodyne driver
+  using PointS = LidarSlam::LidarPoint;
+  using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief     Constructor.
-   * @param[in] nh      Public ROS node handle, used to init publisher/subscribers.
-   * @param[in] priv_nh Private ROS node handle, used to access parameters.
+   * @brief Constructor.
+   * @param nh      Public ROS node handle, used to init publisher/subscriber.
+   * @param priv_nh Private ROS node handle, used to access parameters.
    */
   VelodyneToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh);
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief     New lidar frame callback, running Conversion and publishing PointCloud with LidarPoint Formatting.
-   * @param[in] cloud New Lidar Frame, published by velodyne_pointcloud/transform_node.
+   * @brief New lidar frame callback, converting and publishing Velodyne PointCloud as SLAM LidarPoint.
+   * @param cloud New Lidar Frame, published by velodyne_pointcloud/transform_node.
    */
   void Callback(const CloudV& cloud);
 
@@ -52,11 +60,11 @@ private:
 
   //----------------------------------------------------------------------------
 
-  // ROS node handles, subscribers and publishers
+  // ROS node handles, subscriber and publisher
   ros::NodeHandle &Nh, &PrivNh;
   ros::Subscriber Listener;
   ros::Publisher Talker;
   double LidarFreq;
 };
 
-#endif // VELODYNE_SLAM_NODE_H
+}  // end of namespace lidar_conversions
