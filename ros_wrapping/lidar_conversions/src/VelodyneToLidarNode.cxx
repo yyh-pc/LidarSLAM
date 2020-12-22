@@ -17,6 +17,7 @@
 //==============================================================================
 
 #include "VelodyneToLidarNode.h"
+#include "Utilities.h"
 #include <pcl_conversions/pcl_conversions.h>
 
 #define BOLD_GREEN(s) "\033[1;32m" << s << "\033[0m"
@@ -55,10 +56,7 @@ void VelodyneToLidarNode::Callback(const CloudV& cloudV)
   cloudS.reserve(cloudV.size());
 
   // Copy pointcloud metadata
-  cloudS.header = cloudV.header;
-  cloudS.is_dense = cloudV.is_dense;
-  cloudS.sensor_orientation_ = cloudV.sensor_orientation_;
-  cloudS.sensor_origin_ = cloudV.sensor_origin_;
+  Utils::CopyPointCloudMetadata(cloudV, cloudS);
 
   // Check if time field looks properly set
   // If first and last points have same timestamps, this is not normal
@@ -66,11 +64,8 @@ void VelodyneToLidarNode::Callback(const CloudV& cloudV)
   if (!isTimeValid)
     ROS_WARN_STREAM("Invalid 'time' field, it will be built from azimuth advancement.");
 
-  // Helpers to estimate frameAdvancement in case time field is invalid
-  auto wrapMax = [](double x, double max) { return std::fmod(max + std::fmod(x, max), max); };
-  auto advancement = [](const PointV& velodynePoint) { return (M_PI - std::atan2(velodynePoint.y, velodynePoint.x)) / (2 * M_PI); };
-  const double initAdvancement = advancement(cloudV.front());
-  std::map<int, double> previousAdvancementPerRing;
+  // Helper to estimate frameAdvancement in case time field is invalid
+  Utils::SpinningFrameAdvancementEstimator frameAdvancementEstimator;
 
   // Build SLAM pointcloud
   for (const PointV& velodynePoint : cloudV)
@@ -83,25 +78,16 @@ void VelodyneToLidarNode::Callback(const CloudV& cloudV)
     slamPoint.laser_id = velodynePoint.ring;
     slamPoint.device_id = 0;
 
-    // Use time field is available
+    // Use time field if available
     // time is the offset to add to header.stamp to get point-wise timestamp
     if (isTimeValid)
       slamPoint.time = velodynePoint.time;
 
     // Try to build approximate timestamp from azimuth angle
-    // time is 0 for first point, and should match LiDAR period for last point for a complete scan.
+    // time is 0 for first point, and should match LiDAR period for last point
+    // for a 360 degrees scan.
     else
-    {
-      // Get normalized angle (in [0-1]), with angle 0 being first point direction
-      double frameAdvancement = advancement(velodynePoint);
-      frameAdvancement = wrapMax(frameAdvancement - initAdvancement, 1.);
-      // If we detect overflow, correct it
-      // If current laser_id (ring) is not in map, the following line will insert it, associating it to value 0.0.
-      if (frameAdvancement < previousAdvancementPerRing[velodynePoint.ring])
-        frameAdvancement += 1;
-      previousAdvancementPerRing[velodynePoint.ring] = frameAdvancement;
-      slamPoint.time = frameAdvancement / this->LidarFreq;
-    }
+      slamPoint.time = frameAdvancementEstimator(slamPoint) / this->LidarFreq;
 
     cloudS.push_back(slamPoint);
   }
