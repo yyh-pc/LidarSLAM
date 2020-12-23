@@ -84,29 +84,24 @@ public:
 
 private:
 
-  // Reset all mumbers variables that are
-  // used during the process of a frame.
-  void PrepareDataForNextFrame();
-
-  // Convert the input vtk-format pointcloud
-  // into a pcl-pointcloud format. scan lines
-  // will also be sorted by their vertical angles
+  // Split the whole pointcloud into separate laser ring clouds,
+  // sorted by their vertical angles
   void ConvertAndSortScanLines();
 
-  // Compute the curvature of the scan lines
-  // The curvature is not the one of the surface
-  // that intersected the lines but the curvature
-  // of the scan lines taken in an isolated way
-  void ComputeCurvature();
+  // Reset all the features vectors and keypoints clouds
+  void PrepareDataForNextFrame();
 
-  // Invalid the points with bad criteria from
-  // the list of possible future keypoints.
-  // This points correspond to planar surface
-  // roughtly parallel to laser beam and points
-  // close to a gap created by occlusion
+  // Invalid the points with bad criteria from the list of possible future keypoints.
+  // These points correspond to planar surfaces roughly parallel to laser beam
+  // and points close to a gap created by occlusion.
   void InvalidPointWithBadCriteria();
 
-  // Labelizes point to be a keypoints or not
+  // Compute the curvature and other features within each the scan line.
+  // The curvature is not the one of the surface that intersects the lines but
+  // the 1D curvature within each isolated scan line.
+  void ComputeCurvature();
+
+  // Labelize point to be a keypoints or not
   void SetKeyPointsLabels();
 
   // Check if scanLine is almost empty
