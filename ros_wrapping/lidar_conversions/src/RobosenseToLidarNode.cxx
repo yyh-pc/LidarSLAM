@@ -96,10 +96,12 @@ void RobosenseToLidarNode::Callback(const CloudRS& cloudRS)
     uint16_t laser_id = i / cloudRS.width;
     slamPoint.laser_id = (cloudRS.height == 16) ? LASER_ID_MAPPING_RS16[laser_id] : laser_id;
 
-    // Build approximate timestamp from azimuth angle
-    // time is 0 for first point, and should match LiDAR period for last point
-    // for a 360 degrees scan.
-    slamPoint.time = frameAdvancementEstimator(slamPoint) / this->LidarFreq;
+    // Build approximate point-wise timestamp from azimuth angle
+    // 'frame advancement' is 0 for first point, and should match 1 for last point
+    // for a 360 degrees scan at ideal spinning frequency.
+    // 'time' is the offset to add to 'header.stamp' (timestamp of the last RSLidar packet)
+    // to get approximate point-wise timestamp.
+    slamPoint.time = (frameAdvancementEstimator(slamPoint) - 1) / this->LidarFreq;
 
     cloudS.push_back(slamPoint);
   }

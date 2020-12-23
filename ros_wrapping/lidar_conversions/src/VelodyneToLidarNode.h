@@ -65,6 +65,7 @@ private:
   ros::Subscriber Listener;
   ros::Publisher Talker;
   double LidarFreq;
+  bool TimestampFirstPacket = false;
 };
 
 }  // end of namespace lidar_conversions

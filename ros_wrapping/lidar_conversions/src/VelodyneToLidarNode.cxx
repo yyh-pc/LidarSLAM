@@ -31,6 +31,7 @@ VelodyneToLidarNode::VelodyneToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& p
 {
   // Get LiDAR frequency
   this->PrivNh.param("lidar_frequency", this->LidarFreq, 10.0);
+  this->PrivNh.param("timestamp_first_packet", this->TimestampFirstPacket, this->TimestampFirstPacket);
 
   // Init ROS publisher
   this->Talker = nh.advertise<CloudS>("lidar_points", 1);
@@ -83,11 +84,17 @@ void VelodyneToLidarNode::Callback(const CloudV& cloudV)
     if (isTimeValid)
       slamPoint.time = velodynePoint.time;
 
-    // Try to build approximate timestamp from azimuth angle
-    // time is 0 for first point, and should match LiDAR period for last point
-    // for a 360 degrees scan.
+    // Build approximate point-wise timestamp from azimuth angle
+    // 'frameAdvancement' is 0 for first point, and should match 1 for last point
+    // for a 360 degrees scan at ideal spinning frequency.
+    // 'time' is the offset to add to 'header.stamp' to get approximate point-wise timestamp.
+    // By default, 'header.stamp' is the timestamp of the last Veloydne packet,
+    // but user can choose the first packet timestamp using parameter 'timestamp_first_packet'.
     else
-      slamPoint.time = frameAdvancementEstimator(slamPoint) / this->LidarFreq;
+    {
+      double frameAdvancement = frameAdvancementEstimator(slamPoint);
+      slamPoint.time = (this->TimestampFirstPacket ? frameAdvancement : frameAdvancement - 1) / this->LidarFreq;
+    }
 
     cloudS.push_back(slamPoint);
   }
