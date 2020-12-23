@@ -42,9 +42,17 @@ rosbag play --clock <my_bag_file>  # in 2nd shell
 roslaunch lidar_slam slam.launch use_sim_time:=false
 ```
 
-This launch file will start a *lidar_slam_node*, a pre-configured RViz session, a *velodyne_conversion_node* (converts the point type for lidar_slam use, node to adapt for other sensors) and, if `gps` arg is enabled, GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
+This launch file will start a *lidar_slam_node*, a pre-configured RViz session, a *velodyne_conversion_node* (converts the point type for lidar_slam use, see next paragraph) and, if `gps` arg is enabled, GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
 
-For Velodyne use, input pointcloud must be a *sensor_msgs/PointCloud2* message (of points `velodyne_pointcloud::PointXYZIR` or `velodyne_pointcloud::PointXYZIRT`) published on topic '*velodyne_points*'.
+The SLAM algorithm expects input pointclouds on topic *lidar_points* as *sensor_msgs/PointCloud2* messages. These pointclouds should have the following fields:
+- **x**, **y**, **z** (`float`) : point coordinates
+- **time** (`double`) : time offset to add to the pointcloud header timestamp to get approximate point-wise aquisition timestamp
+- **intensity** (`float`) : intensity/reflectivity of the point
+- **laser_id** (`uint16`) : numeric identifier of the laser ring that shot this point. The lowest/bottom laser ring should be 0, and it should increase upward.
+- **device_id** (`uint8`), **label** (`uint8`) : optional inputs, not yet used.
+
+If your LiDAR driver does not output such data, you can use the `lidar_conversions` nodes.
+
 Optional input GPS (see [Optional GPS use](#optional-gps-use) section) fix must be a *gps_common/GPSFix* message published on topic '*gps_fix*'.
 
 SLAM outputs can also be configured out to publish :
