@@ -77,7 +77,7 @@ public:
   // will be separated in two classes : Edges keypoints which
   // correspond to area with high curvature scan lines and
   // planar keypoints which have small curvature
-  void ComputeKeyPoints(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping);
+  void ComputeKeyPoints(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping = {});
 
   // Function to enable to have some inside on why a given point was detected as a keypoint
   std::unordered_map<std::string, std::vector<double>> GetDebugArray() const;
@@ -91,7 +91,7 @@ private:
   // Convert the input vtk-format pointcloud
   // into a pcl-pointcloud format. scan lines
   // will also be sorted by their vertical angles
-  void ConvertAndSortScanLines();
+  void ConvertAndSortScanLines(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping = {});
 
   // Compute the curvature of the scan lines
   // The curvature is not the one of the surface

@@ -116,18 +116,6 @@ inline double LineFitting::SquaredDistanceToPoint(Eigen::Vector3d const& point) 
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 {
-  // Reset the pcl format pointcloud to store the new frame
-  this->pclCurrentFrameByScan.resize(this->NLasers);
-  for (auto& scanLineCloud: this->pclCurrentFrameByScan)
-  {
-    // Use clear() if pointcloud already exists to avoid re-allocating memory.
-    // No worry as pclCurrentFrameByScan is never shared with outer scope.
-    if (scanLineCloud)
-      scanLineCloud->clear();
-    else
-      scanLineCloud.reset(new PointCloud);
-  }
-
   // Do not use clear(), otherwise weird things could happen if outer program
   // uses these pointers
   this->EdgesPoints.reset(new PointCloud);
@@ -146,33 +134,54 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 }
 
 //-----------------------------------------------------------------------------
-void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
+void SpinningSensorKeypointExtractor::ConvertAndSortScanLines(const PointCloud::Ptr& pc,
+                                                              const std::vector<size_t>& laserIdMapping)
 {
-  // Separate pointcloud into different scan lines
-  // Modify the point so that laser_id is corrected with the laserIdMapping
-  for (Point const& oldPoint: *this->pclCurrentFrame)
+  bool useLaserIdMapping = !this->LaserIdMapping.empty();
+
+  // Clear previous scan lines
+  for (auto& scanLineCloud: this->pclCurrentFrameByScan)
   {
-    int id = this->LaserIdMapping[oldPoint.laser_id];
-    Point newPoint(oldPoint);
-    newPoint.laser_id = static_cast<uint16_t>(id);
-  
-    // add the current point to its corresponding laser scan
-    this->pclCurrentFrameByScan[id]->push_back(newPoint);
+    // Use clear() if pointcloud already exists to avoid re-allocating memory.
+    // No worry as pclCurrentFrameByScan is never shared with outer scope.
+    if (scanLineCloud)
+      scanLineCloud->clear();
+    else
+      scanLineCloud.reset(new PointCloud);
   }
+
+  // Separate pointcloud into different scan lines
+  for (const Point& point: *this->pclCurrentFrame)
+  {
+    // Get the correct laser ring ID
+    uint16_t id = point.laser_id;
+    if (useLaserIdMapping)
+      id = this->LaserIdMapping[id];
+  
+    // Ensure that there are enough available scan lines
+    while (id >= this->pclCurrentFrameByScan.size())
+      this->pclCurrentFrameByScan.emplace_back(new PointCloud);
+
+    // Add the current point to its corresponding laser scan
+    this->pclCurrentFrameByScan[id]->push_back(point);
+
+    // Correct laser_id if necessary
+    if (useLaserIdMapping)
+      this->pclCurrentFrameByScan[id]->back().laser_id = id;
+  }
+
+  // Save the number of lasers
+  this->NLasers = this->pclCurrentFrameByScan.size();
 }
 
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc,
                                                        const std::vector<size_t>& laserIdMapping)
 {
-  if (this->LaserIdMapping.empty())
-  {
-    this->NLasers = laserIdMapping.size();
-    this->LaserIdMapping = laserIdMapping;
-  }
   this->pclCurrentFrame = pc;
+  this->LaserIdMapping = laserIdMapping;
+  this->ConvertAndSortScanLines(pc, laserIdMapping);
   this->PrepareDataForNextFrame();
-  this->ConvertAndSortScanLines();
   // Initialize the vectors with the correct length
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
