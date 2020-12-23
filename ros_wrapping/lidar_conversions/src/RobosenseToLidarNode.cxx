@@ -36,8 +36,8 @@ RobosenseToLidarNode::RobosenseToLidarNode(ros::NodeHandle& nh, ros::NodeHandle&
   : Nh(nh)
   , PrivNh(priv_nh)
 {
-  // Get LiDAR frequency
-  this->PrivNh.param("lidar_frequency", this->LidarFreq, 10.0);
+  // Get LiDAR spinning speed
+  this->PrivNh.param("rpm", this->Rpm, this->Rpm);
 
   // Init ROS publisher
   this->Talker = nh.advertise<CloudS>("lidar_points", 1);
@@ -101,7 +101,7 @@ void RobosenseToLidarNode::Callback(const CloudRS& cloudRS)
     // for a 360 degrees scan at ideal spinning frequency.
     // 'time' is the offset to add to 'header.stamp' (timestamp of the last RSLidar packet)
     // to get approximate point-wise timestamp.
-    slamPoint.time = (frameAdvancementEstimator(slamPoint) - 1) / this->LidarFreq;
+    slamPoint.time = (frameAdvancementEstimator(slamPoint) - 1) / this->Rpm * 60.;
 
     cloudS.push_back(slamPoint);
   }

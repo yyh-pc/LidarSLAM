@@ -29,8 +29,8 @@ VelodyneToLidarNode::VelodyneToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& p
   : Nh(nh)
   , PrivNh(priv_nh)
 {
-  // Get LiDAR frequency
-  this->PrivNh.param("lidar_frequency", this->LidarFreq, 10.0);
+  //  Get LiDAR spinning speed and first timestamp option
+  this->PrivNh.param("rpm", this->Rpm, this->Rpm);
   this->PrivNh.param("timestamp_first_packet", this->TimestampFirstPacket, this->TimestampFirstPacket);
 
   // Init ROS publisher
@@ -93,7 +93,7 @@ void VelodyneToLidarNode::Callback(const CloudV& cloudV)
     else
     {
       double frameAdvancement = frameAdvancementEstimator(slamPoint);
-      slamPoint.time = (this->TimestampFirstPacket ? frameAdvancement : frameAdvancement - 1) / this->LidarFreq;
+      slamPoint.time = (this->TimestampFirstPacket ? frameAdvancement : frameAdvancement - 1) / this->Rpm * 60.;
     }
 
     cloudS.push_back(slamPoint);

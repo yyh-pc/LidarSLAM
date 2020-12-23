@@ -65,7 +65,10 @@ private:
   ros::NodeHandle &Nh, &PrivNh;
   ros::Subscriber Listener;
   ros::Publisher Talker;
-  double LidarFreq;
+
+  // Useful variables for approximate point-wise timestamps computation
+  // These parameters should be set to the same values as ROS RSLidar driver's.
+  double Rpm = 600;  ///< Spinning speed of sensor [rpm]
 };
 
 }  // end of namespace lidar_conversions

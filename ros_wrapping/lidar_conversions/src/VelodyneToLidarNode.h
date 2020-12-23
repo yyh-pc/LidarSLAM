@@ -64,8 +64,11 @@ private:
   ros::NodeHandle &Nh, &PrivNh;
   ros::Subscriber Listener;
   ros::Publisher Talker;
-  double LidarFreq;
-  bool TimestampFirstPacket = false;
+
+  // Useful variables for approximate point-wise timestamps computation
+  // These parameters should be set to the same values as ROS Velodyne driver's.
+  double Rpm = 600;  ///< Spinning speed of sensor [rpm]
+  bool TimestampFirstPacket = false;  ///< Wether timestamping is based on the first or last packet of each scan
 };
 
 }  // end of namespace lidar_conversions
