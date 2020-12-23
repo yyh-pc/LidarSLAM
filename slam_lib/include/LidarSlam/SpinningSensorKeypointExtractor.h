@@ -91,7 +91,7 @@ private:
   // Convert the input vtk-format pointcloud
   // into a pcl-pointcloud format. scan lines
   // will also be sorted by their vertical angles
-  void ConvertAndSortScanLines(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping = {});
+  void ConvertAndSortScanLines();
 
   // Compute the curvature of the scan lines
   // The curvature is not the one of the surface
