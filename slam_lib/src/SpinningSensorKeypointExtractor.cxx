@@ -114,10 +114,32 @@ inline double LineFitting::SquaredDistanceToPoint(Eigen::Vector3d const& point) 
 } // end of anonymous namespace
 
 //-----------------------------------------------------------------------------
-void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
+void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc,
+                                                       const std::vector<size_t>& laserIdMapping)
 {
-  // Reset the pcl format pointcloud to store the new frame
-  this->pclCurrentFrameByScan.resize(this->NLasers);
+  this->pclCurrentFrame = pc;
+  this->LaserIdMapping = laserIdMapping;
+
+  // Split whole pointcloud into separate laser ring clouds
+  this->ConvertAndSortScanLines();
+
+  // Initialize the features vectors and keypoints
+  this->PrepareDataForNextFrame();
+
+  // Invalid points with bad criteria
+  this->InvalidPointWithBadCriteria();
+
+  // Compute keypoints scores
+  this->ComputeCurvature();
+
+  // Labelize keypoints
+  this->SetKeyPointsLabels();
+}
+
+//-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
+{
+  // Clear previous scan lines
   for (auto& scanLineCloud: this->pclCurrentFrameByScan)
   {
     // Use clear() if pointcloud already exists to avoid re-allocating memory.
@@ -128,6 +150,34 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
       scanLineCloud.reset(new PointCloud);
   }
 
+  // Separate pointcloud into different scan lines
+  bool useLaserIdMapping = !this->LaserIdMapping.empty();
+  for (const Point& point: *this->pclCurrentFrame)
+  {
+    // Get the correct laser ring ID
+    uint16_t id = point.laser_id;
+    if (useLaserIdMapping)
+      id = this->LaserIdMapping[id];
+  
+    // Ensure that there are enough available scan lines
+    while (id >= this->pclCurrentFrameByScan.size())
+      this->pclCurrentFrameByScan.emplace_back(new PointCloud);
+
+    // Add the current point to its corresponding laser scan
+    this->pclCurrentFrameByScan[id]->push_back(point);
+
+    // Correct laser_id if necessary
+    if (useLaserIdMapping)
+      this->pclCurrentFrameByScan[id]->back().laser_id = id;
+  }
+
+  // Save the number of lasers
+  this->NLasers = this->pclCurrentFrameByScan.size();
+}
+
+//-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
+{
   // Do not use clear(), otherwise weird things could happen if outer program
   // uses these pointers
   this->EdgesPoints.reset(new PointCloud);
@@ -137,43 +187,15 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
   Utils::CopyPointCloudMetadata(*this->pclCurrentFrame, *this->PlanarsPoints);
   Utils::CopyPointCloudMetadata(*this->pclCurrentFrame, *this->BlobsPoints);
 
+  // Initialize the features vectors with the correct length
   this->Angles.resize(this->NLasers);
   this->Saliency.resize(this->NLasers);
   this->DepthGap.resize(this->NLasers);
   this->IntensityGap.resize(this->NLasers);
   this->IsPointValid.resize(this->NLasers);
   this->Label.resize(this->NLasers);
-}
 
-//-----------------------------------------------------------------------------
-void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
-{
-  // Separate pointcloud into different scan lines
-  // Modify the point so that laser_id is corrected with the laserIdMapping
-  for (Point const& oldPoint: *this->pclCurrentFrame)
-  {
-    int id = this->LaserIdMapping[oldPoint.laser_id];
-    Point newPoint(oldPoint);
-    newPoint.laser_id = static_cast<uint16_t>(id);
-  
-    // add the current point to its corresponding laser scan
-    this->pclCurrentFrameByScan[id]->push_back(newPoint);
-  }
-}
-
-//-----------------------------------------------------------------------------
-void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc,
-                                                       const std::vector<size_t>& laserIdMapping)
-{
-  if (this->LaserIdMapping.empty())
-  {
-    this->NLasers = laserIdMapping.size();
-    this->LaserIdMapping = laserIdMapping;
-  }
-  this->pclCurrentFrame = pc;
-  this->PrepareDataForNextFrame();
-  this->ConvertAndSortScanLines();
-  // Initialize the vectors with the correct length
+  // Initialize the scan lines features vectors with the correct length
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
   {
@@ -185,15 +207,113 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
     this->DepthGap[scanLine].assign(nbPoint, 0.);
     this->IntensityGap[scanLine].assign(nbPoint, 0.);
   }
+}
 
-  // Invalid points with bad criteria
-  this->InvalidPointWithBadCriteria();
+//-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
+{
+  const double expectedCoeff = 10.;
 
-  // compute keypoints scores
-  this->ComputeCurvature();
+  // loop over scan lines
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) firstprivate(expectedCoeff)
+  for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
+  {
+    // Useful shortcuts
+    const PointCloud& scanLineCloud = *(this->pclCurrentFrameByScan[scanLine]);
+    const int Npts = scanLineCloud.size();
 
-  // labelize keypoints
-  this->SetKeyPointsLabels();
+    // if the line is almost empty, skip it
+    if (this->IsScanLineAlmostEmpty(Npts))
+    {
+      for (int index = 0; index < Npts; ++index)
+        this->IsPointValid[scanLine][index].reset();
+      continue;
+    }
+
+    // invalidate first and last points
+    // CHECK why ?
+    for (int index = 0; index <= this->NeighborWidth; ++index)
+      this->IsPointValid[scanLine][index].reset();
+    for (int index = Npts - 1 - this->NeighborWidth - 1; index < Npts; ++index)
+      this->IsPointValid[scanLine][index].reset();
+
+    // loop over points into the scan line
+    for (int index = this->NeighborWidth; index < Npts - this->NeighborWidth - 1; ++index)
+    {
+      // double precision is useless as PCL points coordinates are internally stored as float
+      const Eigen::Vector3f& previousPoint = scanLineCloud[index - 1].getVector3fMap();
+      const Eigen::Vector3f& currentPoint  = scanLineCloud[index    ].getVector3fMap();
+      const Eigen::Vector3f& nextPoint     = scanLineCloud[index + 1].getVector3fMap();
+
+      const double L = currentPoint.norm();
+      const double Ln = nextPoint.norm();
+      const double dLn = (nextPoint - currentPoint).norm();
+      const double dLp = (currentPoint - previousPoint).norm();
+
+      // The expected length between two firings of the same laser is the
+      // distance along the same circular arc. It depends only on radius value
+      // and the angular resolution of the sensor.
+      const double expectedLength = this->AngleResolution * L;
+
+      // Invalid occluded points due to depth gap.
+      // If the distance between two successive points is bigger than the
+      // expected length, it means that there is a depth gap.
+      if (dLn > expectedCoeff * expectedLength)
+      {
+        // We must invalidate the points which belong to the occluded area (farest).
+        // If current point is the closest, invalid next part, starting from next point
+        if (L < Ln)
+        {
+          this->IsPointValid[scanLine][index + 1].reset();
+          for (int i = index + 2; i <= index + this->NeighborWidth; ++i)
+          {
+            const Eigen::Vector3f& Y  = scanLineCloud[i - 1].getVector3fMap();
+            const Eigen::Vector3f& Yn = scanLineCloud[i].getVector3fMap();
+
+            // If there is a gap in the neihborhood, we do not invalidate the rest of it.
+            if ((Yn - Y).norm() > expectedCoeff * expectedLength)
+            {
+              break;
+            }
+            // Otherwise, do not use next point
+            this->IsPointValid[scanLine][i].reset();
+          }
+        }
+        // If current point is the farest, invalid previous part, starting from current point
+        else
+        {
+          this->IsPointValid[scanLine][index].reset();
+          for (int i = index - this->NeighborWidth; i < index; ++i)
+          {
+            const Eigen::Vector3f& Yp = scanLineCloud[i].getVector3fMap();
+            const Eigen::Vector3f&  Y = scanLineCloud[i + 1].getVector3fMap();
+
+            // If there is a gap in the neihborhood, we do not invalidate the rest of it.
+            if ((Y - Yp).norm() > expectedCoeff * expectedLength)
+            {
+              break;
+            }
+            // Otherwise, do not use previous point
+            this->IsPointValid[scanLine][i].reset();
+          }
+        }
+      }
+
+      // Invalid points which are too close from the sensor
+      if (L < this->MinDistanceToSensor)
+      {
+        this->IsPointValid[scanLine][index].reset();
+      }
+
+      // Invalid points which are on a planar surface nearly parallel to the
+      // laser beam direction
+      else if ((dLp > 0.25 * expectedCoeff * expectedLength) &&
+               (dLn > 0.25 * expectedCoeff * expectedLength))
+      {
+        this->IsPointValid[scanLine][index].reset();
+      }
+    }
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -208,6 +328,10 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
           firstprivate(squaredDistToLineThreshold, squaredDepthDistCoeff, minDepthGapDist)
   for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
   {
+    // Useful shortcuts
+    const PointCloud& scanLineCloud = *(this->pclCurrentFrameByScan[scanLine]);
+    const int Npts = scanLineCloud.size();
+
     // We will compute the line that fits the neighbors located before the current point.
     // We will do the same for the neighbors located after the current point.
     // We will then compute the angle between these two lines as an approximation
@@ -218,8 +342,6 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
     farNeighbors.reserve(2 * this->NeighborWidth);
 
     LineFitting leftLine, rightLine, farNeighborsLine;
-
-    const int Npts = this->pclCurrentFrameByScan[scanLine]->size();
 
     // if the line is almost empty, skip it
     if (this->IsScanLineAlmostEmpty(Npts))
@@ -238,28 +360,22 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
       }
 
       // central point
-      const Point& currentPoint = this->pclCurrentFrameByScan[scanLine]->points[index];
-      const Eigen::Vector3d centralPoint(currentPoint.x, currentPoint.y, currentPoint.z);
+      const Point& currentPoint = scanLineCloud[index];
+      const Eigen::Vector3d centralPoint = currentPoint.getVector3fMap().cast<double>();
 
       // compute intensity gap
       // CHECK : do not use currentPoint.intensity?
-      const Point& previousPoint = this->pclCurrentFrameByScan[scanLine]->points[index - 1];
-      const Point& nextPoint = this->pclCurrentFrameByScan[scanLine]->points[index + 1];
+      const Point& previousPoint = scanLineCloud[index - 1];
+      const Point& nextPoint = scanLineCloud[index + 1];
       this->IntensityGap[scanLine][index] = std::abs(nextPoint.intensity - previousPoint.intensity);
 
       // Fill left and right neighborhoods, from central point to sides.
       // /!\ The way the neighbors are added to the vectors matters,
       // especially when computing the saliency
       for (int j = index - 1; j >= index - this->NeighborWidth; --j)
-      {
-        const Point& point = this->pclCurrentFrameByScan[scanLine]->points[j];
-        leftNeighbors[index - 1 - j] << point.x, point.y, point.z;
-      }
+        leftNeighbors[index - 1 - j] = scanLineCloud[j].getVector3fMap().cast<double>();
       for (int j = index + 1; j <= index + this->NeighborWidth; ++j)
-      {
-        const Point& point = this->pclCurrentFrameByScan[scanLine]->points[j];
-        rightNeighbors[j - index - 1] << point.x, point.y, point.z;
-      }
+        rightNeighbors[j - index - 1] = scanLineCloud[j].getVector3fMap().cast<double>();
 
       // Fit line on the left and right neighborhoods and
       // Indicate if they are flat or not
@@ -357,115 +473,6 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
 
       // Store max depth gap
       this->DepthGap[scanLine][index] = std::max(distLeft, distRight);
-    }
-  }
-}
-
-//-----------------------------------------------------------------------------
-void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
-{
-  const double expectedCoeff = 10.;
-
-  // loop over scan lines
-  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) firstprivate(expectedCoeff)
-  for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
-  {
-    const int Npts = this->pclCurrentFrameByScan[scanLine]->size();
-
-    // if the line is almost empty, skip it
-    if (this->IsScanLineAlmostEmpty(Npts))
-    {
-      for (int index = 0; index < Npts; ++index)
-        this->IsPointValid[scanLine][index].reset();
-      continue;
-    }
-
-    // invalidate first and last points
-    // CHECK why ?
-    for (int index = 0; index <= this->NeighborWidth; ++index)
-      this->IsPointValid[scanLine][index].reset();
-    for (int index = Npts - 1 - this->NeighborWidth - 1; index < Npts; ++index)
-      this->IsPointValid[scanLine][index].reset();
-
-    // loop over points into the scan line
-    for (int index = this->NeighborWidth; index < Npts - this->NeighborWidth - 1; ++index)
-    {
-      const Point& previousPoint = this->pclCurrentFrameByScan[scanLine]->points[index - 1];
-      const Point& currentPoint = this->pclCurrentFrameByScan[scanLine]->points[index];
-      const Point& nextPoint = this->pclCurrentFrameByScan[scanLine]->points[index + 1];
-
-      // double precision is useless as PCL points coordinates are internally stored as float
-      const Eigen::Vector3f& Xp = previousPoint.getVector3fMap();
-      const Eigen::Vector3f& X  = currentPoint.getVector3fMap();
-      const Eigen::Vector3f& Xn = nextPoint.getVector3fMap();
-
-      const double L = X.norm();
-      const double Ln = Xn.norm();
-      const double dLn = (Xn - X).norm();
-      const double dLp = (X - Xp).norm();
-
-      // The expected length between two firings of the same laser is the
-      // distance along the same circular arc. It depends only on radius value
-      // and the angular resolution of the sensor.
-      const double expectedLength = this->AngleResolution * L;
-
-      // Invalid occluded points due to depth gap.
-      // If the distance between two successive points is bigger than the
-      // expected length, it means that there is a depth gap.
-      if (dLn > expectedCoeff * expectedLength)
-      {
-        // We must invalidate the points which belong to the occluded area (farest).
-        // If current point is the closest, invalid next part, starting from next point
-        if (L < Ln)
-        {
-          this->IsPointValid[scanLine][index + 1].reset();
-          for (int i = index + 2; i <= index + this->NeighborWidth; ++i)
-          {
-            const Eigen::Vector3f& Y  = this->pclCurrentFrameByScan[scanLine]->points[i - 1].getVector3fMap();
-            const Eigen::Vector3f& Yn = this->pclCurrentFrameByScan[scanLine]->points[i].getVector3fMap();
-
-            // If there is a gap in the neihborhood, we do not invalidate the rest of it.
-            if ((Yn - Y).norm() > expectedCoeff * expectedLength)
-            {
-              break;
-            }
-            // Otherwise, do not use next point
-            this->IsPointValid[scanLine][i].reset();
-          }
-        }
-        // If current point is the farest, invalid previous part, starting from current point
-        else
-        {
-          this->IsPointValid[scanLine][index].reset();
-          for (int i = index - this->NeighborWidth; i < index; ++i)
-          {
-            const Eigen::Vector3f& Yp = this->pclCurrentFrameByScan[scanLine]->points[i].getVector3fMap();
-            const Eigen::Vector3f&  Y = this->pclCurrentFrameByScan[scanLine]->points[i + 1].getVector3fMap();
-
-            // If there is a gap in the neihborhood, we do not invalidate the rest of it.
-            if ((Y - Yp).norm() > expectedCoeff * expectedLength)
-            {
-              break;
-            }
-            // Otherwise, do not use previous point
-            this->IsPointValid[scanLine][i].reset();
-          }
-        }
-      }
-
-      // Invalid points which are too close from the sensor
-      if (L < this->MinDistanceToSensor)
-      {
-        this->IsPointValid[scanLine][index].reset();
-      }
-
-      // Invalid points which are on a planar surface nearly parallel to the
-      // laser beam direction
-      else if ((dLp > 0.25 * expectedCoeff * expectedLength) &&
-               (dLn > 0.25 * expectedCoeff * expectedLength))
-      {
-        this->IsPointValid[scanLine][index].reset();
-      }
     }
   }
 }
@@ -576,13 +583,13 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   {
     for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
     {
-      for (unsigned int index = 0; index < this->pclCurrentFrameByScan[scanLine]->size(); ++index)
+      const PointCloud& scanLineCloud = *(this->pclCurrentFrameByScan[scanLine]);
+      for (unsigned int index = 0; index < scanLineCloud.size(); ++index)
       {
         if (this->Label[scanLine][index][type])
         {
           this->IsPointValid[scanLine][index].set(type);
-          const Point& p = this->pclCurrentFrameByScan[scanLine]->points[index];
-          keypoints->push_back(p);
+          keypoints->push_back(scanLineCloud[index]);
         }
       }
     }

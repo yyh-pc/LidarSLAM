@@ -61,27 +61,13 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // Get SLAM params
   this->SetSlamParameters(priv_nh);
 
-  // Init laserIdMapping
-  std::vector<int> intLaserIdMapping;
-  int nLasers;
-  // Try to get it directly from ROS param
-  if (priv_nh.getParam("laser_id_mapping", intLaserIdMapping))
+  // Try to get laser ID mapping from ROS param.
+  // If not available, laser_ids will remain unchanged (= identity mapping)
+  std::vector<int> laserIdMapping;
+  if (priv_nh.getParam("laser_id_mapping", laserIdMapping))
   {
-    this->LaserIdMapping.assign(intLaserIdMapping.begin(), intLaserIdMapping.end());
+    this->LaserIdMapping.assign(laserIdMapping.begin(), laserIdMapping.end());
     ROS_INFO_STREAM("[SLAM] Using laser_id_mapping from ROS param.");
-  }
-  // Or only try to get number of lasers to build linear mapping
-  else if (priv_nh.getParam("n_lasers", nLasers))
-  {
-    this->LaserIdMapping.resize(nLasers);
-    std::iota(this->LaserIdMapping.begin(), this->LaserIdMapping.end(), 0);
-    ROS_INFO_STREAM("[SLAM] Using 0->" << nLasers - 1 << " linear laser_id_mapping from ROS param.");
-  }
-  // Otherwise, n_lasers will be guessed from 1st frame
-  else
-  {
-    ROS_WARN_STREAM("[SLAM] No laser_id_mapping nor n_lasers params found : "
-                    "n_lasers will be guessed from 1st frame to build linear mapping.");
   }
 
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
@@ -137,26 +123,11 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
     ROS_WARN_STREAM("Input point cloud sent by Lidar sensor driver is empty -> ignoring message");
     return;
   }
-  // Init LaserIdMapping if not already done
-  if (this->LaserIdMapping.empty())
-  {
-    // Iterate through pointcloud to find max ring
-    unsigned int maxRing = 0;
-    for (const PointS& point : *cloudS_ptr)
-    {
-      if (point.laser_id > maxRing)
-        maxRing = point.laser_id;
-    }
 
-    // Init LaserIdMapping with linear mapping
-    this->LaserIdMapping.resize(maxRing + 1);
-    std::iota(this->LaserIdMapping.begin(), this->LaserIdMapping.end(), 0);
-    ROS_INFO_STREAM("[SLAM] Using 0->" << maxRing << " linear laser_id_mapping.");
-  }
-  
   // Check if time field looks properly set
   // If first and last points have same timestamps, this is not normal
-  if (cloudS_ptr->back().time - cloudS_ptr->front().time < 1e-8 && LidarSlam.GetUndistortion() != LidarSlam::UndistortionMode::NONE)
+  if (cloudS_ptr->back().time - cloudS_ptr->front().time < 1e-8 &&
+      LidarSlam.GetUndistortion() != LidarSlam::UndistortionMode::NONE)
   {
     ROS_WARN_STREAM("Invalid point wise timestamps -> slam process may have an undefined behaviour");
   }
