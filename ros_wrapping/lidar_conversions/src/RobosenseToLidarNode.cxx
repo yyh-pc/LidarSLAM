@@ -66,15 +66,17 @@ void RobosenseToLidarNode::Callback(const CloudRS& cloudRS)
   Utils::CopyPointCloudMetadata(cloudRS, cloudS);
   cloudS.is_dense = true;
 
-  // Helper to estimate frame advancement
-  Utils::SpinningFrameAdvancementEstimator frameAdvancementEstimator;
+  // Helpers to estimate point-wise fields
+  const unsigned int nLasers = cloudRS.height;
+  const unsigned int pointsPerRing = cloudRS.size() / nLasers;
 
   // Build SLAM pointcloud
   for (unsigned int i = 0; i < cloudRS.size(); ++i)
   {
     const PointRS& rsPoint = cloudRS[i];
 
-    // Check that input point does not have NaNs
+    // Check that input point does not have NaNs as even invalid points are
+    // returned by the RSLidar driver
     if (!Utils::IsFinite(rsPoint))
       continue;
 
@@ -94,14 +96,17 @@ void RobosenseToLidarNode::Callback(const CloudRS& cloudRS)
     // If we are using RS16 sensor, we need to correct the laser number
     // CHECK this operation for other sensors than RS16
     uint16_t laser_id = i / cloudRS.width;
-    slamPoint.laser_id = (cloudRS.height == 16) ? LASER_ID_MAPPING_RS16[laser_id] : laser_id;
+    slamPoint.laser_id = (nLasers == 16) ? LASER_ID_MAPPING_RS16[laser_id] : laser_id;
 
-    // Build approximate point-wise timestamp from azimuth angle
+    // Build approximate point-wise timestamp from point id.
     // 'frame advancement' is 0 for first point, and should match 1 for last point
     // for a 360 degrees scan at ideal spinning frequency.
     // 'time' is the offset to add to 'header.stamp' (timestamp of the last RSLidar packet)
     // to get approximate point-wise timestamp.
-    slamPoint.time = (frameAdvancementEstimator(slamPoint) - 1) / this->Rpm * 60.;
+    // NOTE: to be precise, this estimation requires that each input scan is an
+    // entire scan covering excatly 360°.
+    double frameAdvancement = static_cast<double>(i % pointsPerRing) / pointsPerRing;
+    slamPoint.time = (frameAdvancement - 1) / this->Rpm * 60.;
 
     cloudS.push_back(slamPoint);
   }

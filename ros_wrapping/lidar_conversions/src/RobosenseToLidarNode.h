@@ -68,7 +68,9 @@ private:
 
   // Useful variables for approximate point-wise timestamps computation
   // These parameters should be set to the same values as ROS RSLidar driver's.
-  double Rpm = 600;  ///< Spinning speed of sensor [rpm]
+  // NOTE: to be precise, this timestamp estimation requires that each input
+  // scan is an entire scan covering excatly 360°.
+  double Rpm = 600;  ///< Spinning speed of sensor [rpm]. The duration of each input scan will be 60 / Rpm seconds.
 };
 
 }  // end of namespace lidar_conversions
