@@ -32,6 +32,9 @@ VelodyneToLidarNode::VelodyneToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& p
   // Get laser ID mapping
   this->PrivNh.param("laser_id_mapping", this->LaserIdMapping, this->LaserIdMapping);
 
+  //  Get LiDAR id
+  this->PrivNh.param("device_id", this->DeviceId, this->DeviceId);
+
   //  Get LiDAR spinning speed and first timestamp option
   this->PrivNh.param("rpm", this->Rpm, this->Rpm);
   this->PrivNh.param("timestamp_first_packet", this->TimestampFirstPacket, this->TimestampFirstPacket);
@@ -83,7 +86,7 @@ void VelodyneToLidarNode::Callback(const CloudV& cloudV)
     slamPoint.z = velodynePoint.z;
     slamPoint.intensity = velodynePoint.intensity;
     slamPoint.laser_id = useLaserIdMapping ? this->LaserIdMapping[velodynePoint.ring] : velodynePoint.ring;
-    slamPoint.device_id = 0;
+    slamPoint.device_id = this->DeviceId;
 
     // Use time field if available
     // time is the offset to add to header.stamp to get point-wise timestamp

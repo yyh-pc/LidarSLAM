@@ -72,6 +72,8 @@ private:
   // so this shouldn't be needed.
   std::vector<int> LaserIdMapping;
 
+  int DeviceId = 0;  ///< LiDAR device identifier to set for each point.
+
   // Useful variables for approximate point-wise timestamps computation
   // These parameters should be set to the same values as ROS Velodyne driver's.
   double Rpm = 600;  ///< Spinning speed of sensor [rpm]
