@@ -32,5 +32,10 @@ include_directories(
   "../../slam_lib/include/"  # this package needs LidarPoint definition which is a header file in slam library
 )
 
+# Velodyne Lidar
 add_executable(velodyne_conversion_node src/VelodyneToLidarNode.cxx)
 target_link_libraries(velodyne_conversion_node ${catkin_LIBRARIES})
+
+# Robosense RSLidar
+add_executable(robosense_conversion_node src/RobosenseToLidarNode.cxx)
+target_link_libraries(robosense_conversion_node ${catkin_LIBRARIES})

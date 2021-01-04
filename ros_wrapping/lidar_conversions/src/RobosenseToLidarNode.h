@@ -1,7 +1,8 @@
 //==============================================================================
 // Copyright 2019-2020 Kitware, Inc., Kitware SAS
 // Author: Sanchez Julia (Kitware SAS)
-// Creation date: 2020-12-10
+//         Cadart Nicolas (Kitware SAS)
+// Creation date: 2020-12-22
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,24 +21,24 @@
 
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
-#include <velodyne_pcl/point_types.h>
+#include <pcl/point_types.h>
 #include <LidarSlam/LidarPoint.h>
 
 namespace lidar_conversions
 {
 
 /**
- * @class VelodyneToLidarNode aims at converting pointclouds published by ROS
- * Velodyne driver to the expected SLAM pointcloud format.
+ * @class RobosenseToLidarNode aims at converting pointclouds published by RSLidar
+ * ROS driver to the expected SLAM pointcloud format.
  *
- * The ROS Velodyne driver can be found here :
- * https://github.com/ros-drivers/velodyne
+ * The ROS RSLidar driver can be found here :
+ * https://github.com/RoboSense-LiDAR/ros_rslidar
  */
-class VelodyneToLidarNode
+class RobosenseToLidarNode
 {
 public:
-  using PointV = velodyne_pcl::PointXYZIRT;
-  using CloudV = pcl::PointCloud<PointV>;  ///< Pointcloud published by velodyne driver
+  using PointRS = pcl::PointXYZI;
+  using CloudRS = pcl::PointCloud<PointRS>;  ///< Pointcloud published by rslidar driver
   using PointS = LidarSlam::LidarPoint;
   using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM
 
@@ -47,14 +48,14 @@ public:
    * @param nh      Public ROS node handle, used to init publisher/subscriber.
    * @param priv_nh Private ROS node handle, used to access parameters.
    */
-  VelodyneToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh);
+  RobosenseToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh);
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief New lidar frame callback, converting and publishing Velodyne PointCloud as SLAM LidarPoint.
-   * @param cloud New Lidar Frame, published by velodyne_pointcloud/transform_node.
+   * @brief New lidar frame callback, converting and publishing RSLidar PointCloud as SLAM LidarPoint.
+   * @param cloud New Lidar Frame, published by rslidar_pointcloud/cloud_node.
    */
-  void Callback(const CloudV& cloud);
+  void Callback(const CloudRS& cloud);
 
 private:
 
@@ -66,9 +67,10 @@ private:
   ros::Publisher Talker;
 
   // Useful variables for approximate point-wise timestamps computation
-  // These parameters should be set to the same values as ROS Velodyne driver's.
-  double Rpm = 600;  ///< Spinning speed of sensor [rpm]
-  bool TimestampFirstPacket = false;  ///< Wether timestamping is based on the first or last packet of each scan
+  // These parameters should be set to the same values as ROS RSLidar driver's.
+  // NOTE: to be precise, this timestamp estimation requires that each input
+  // scan is an entire scan covering excatly 360°.
+  double Rpm = 600;  ///< Spinning speed of sensor [rpm]. The duration of each input scan will be 60 / Rpm seconds.
 };
 
 }  // end of namespace lidar_conversions
