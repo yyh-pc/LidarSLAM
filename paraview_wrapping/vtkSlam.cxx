@@ -117,9 +117,10 @@ void PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr pc, vtkPolyData* poly
 }
 
 //-----------------------------------------------------------------------------
-void PolyDataToPointCloud(vtkPolyData* poly, LidarSlam::Slam::PointCloud::Ptr pc)
+void PolyDataToPointCloud(vtkPolyData* poly, LidarSlam::Slam::PointCloud::Ptr pc, const std::vector<size_t>& laserIdMapping = {})
 {
   const vtkIdType nbPoints = poly->GetNumberOfPoints();
+  const bool useLaserIdMapping = !laserIdMapping.empty();
 
   // Get pointers to arrays
   auto arrayTime = poly->GetPointData()->GetArray("adjustedtime");
@@ -138,7 +139,7 @@ void PolyDataToPointCloud(vtkPolyData* poly, LidarSlam::Slam::PointCloud::Ptr pc
     p.y = pos[1];
     p.z = pos[2];
     p.time = arrayTime->GetTuple1(i) * 1e-6; // time in seconds
-    p.laser_id = arrayLaserId->GetTuple1(i);
+    p.laser_id = useLaserIdMapping ? laserIdMapping[arrayLaserId->GetTuple1(i)] : arrayLaserId->GetTuple1(i);
     p.intensity = arrayIntensity->GetTuple1(i);
 
     frameEndTime = std::max(frameEndTime, arrayTime->GetTuple1(i));
@@ -202,11 +203,11 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 
   // Conversion vtkPolyData -> PCL pointcloud
   LidarSlam::Slam::PointCloud::Ptr pc(new LidarSlam::Slam::PointCloud);
-  Utils::PolyDataToPointCloud(input, pc);
+  Utils::PolyDataToPointCloud(input, pc, laserMapping);
 
   // Run SLAM
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : input conversions"));
-  this->SlamAlgo->AddFrame(pc, laserMapping);
+  this->SlamAlgo->AddFrame(pc);
   IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : basic output conversions"));
 
   // Update Trajectory with new SLAM pose
