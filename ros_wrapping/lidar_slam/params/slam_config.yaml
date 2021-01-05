@@ -2,9 +2,6 @@
 #  Real-time LiDAR SLAM parameters  #
 #####################################
 
-## Mapping from ring id to laser id (optional, default : identity mapping)
-# laser_id_mapping: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-
 # SLAM will compute the pose of tracking_frame in odometry_frame coordinates system, using measurements in input pointcloud frame.
 odometry_frame: "odom"       # Frame in which SLAM odometry and maps are expressed (default: odom).
 # tracking_frame: "base_link"  # Frame to track (default: input pointcloud frame_id; If different, ensure a valid TF tree is published).

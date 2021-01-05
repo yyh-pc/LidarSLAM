@@ -117,7 +117,6 @@ protected:
 
   // SLAM stuff
   LidarSlam::Slam LidarSlam;
-  std::vector<size_t> LaserIdMapping;
 
   // ROS node handles, subscribers and publishers
   ros::NodeHandle &Nh, &PrivNh;

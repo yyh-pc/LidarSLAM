@@ -29,6 +29,9 @@ VelodyneToLidarNode::VelodyneToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& p
   : Nh(nh)
   , PrivNh(priv_nh)
 {
+  // Get laser ID mapping
+  this->PrivNh.param("laser_id_mapping", this->LaserIdMapping, this->LaserIdMapping);
+
   //  Get LiDAR spinning speed and first timestamp option
   this->PrivNh.param("rpm", this->Rpm, this->Rpm);
   this->PrivNh.param("timestamp_first_packet", this->TimestampFirstPacket, this->TimestampFirstPacket);
@@ -59,6 +62,9 @@ void VelodyneToLidarNode::Callback(const CloudV& cloudV)
   // Copy pointcloud metadata
   Utils::CopyPointCloudMetadata(cloudV, cloudS);
 
+  // Check wether to use custom laser ID mapping or leave it untouched
+  bool useLaserIdMapping = !this->LaserIdMapping.empty();
+
   // Check if time field looks properly set
   // If first and last points have same timestamps, this is not normal
   bool isTimeValid = cloudV.back().time - cloudV.front().time > 1e-8;
@@ -76,7 +82,7 @@ void VelodyneToLidarNode::Callback(const CloudV& cloudV)
     slamPoint.y = velodynePoint.y;
     slamPoint.z = velodynePoint.z;
     slamPoint.intensity = velodynePoint.intensity;
-    slamPoint.laser_id = velodynePoint.ring;
+    slamPoint.laser_id = useLaserIdMapping ? this->LaserIdMapping[velodynePoint.ring] : velodynePoint.ring;
     slamPoint.device_id = 0;
 
     // Use time field if available

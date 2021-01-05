@@ -36,6 +36,9 @@ RobosenseToLidarNode::RobosenseToLidarNode(ros::NodeHandle& nh, ros::NodeHandle&
   : Nh(nh)
   , PrivNh(priv_nh)
 {
+  // Get laser ID mapping
+  this->PrivNh.param("laser_id_mapping", this->LaserIdMapping, this->LaserIdMapping);
+
   // Get LiDAR spinning speed
   this->PrivNh.param("rpm", this->Rpm, this->Rpm);
 
@@ -69,6 +72,7 @@ void RobosenseToLidarNode::Callback(const CloudRS& cloudRS)
   // Helpers to estimate point-wise fields
   const unsigned int nLasers = cloudRS.height;
   const unsigned int pointsPerRing = cloudRS.size() / nLasers;
+  const bool useLaserIdMapping = !this->LaserIdMapping.empty();
 
   // Build SLAM pointcloud
   for (unsigned int i = 0; i < cloudRS.size(); ++i)
@@ -93,10 +97,12 @@ void RobosenseToLidarNode::Callback(const CloudRS& cloudRS)
     slamPoint.intensity = rsPoint.intensity;
 
     // Compute laser ID
-    // If we are using RS16 sensor, we need to correct the laser number
+    // Use LaserIdMapping if given, otherwise use RS16's if input has 16 rings,
+    // otherwise do not correct laser_id.
     // CHECK this operation for other sensors than RS16
     uint16_t laser_id = i / cloudRS.width;
-    slamPoint.laser_id = (nLasers == 16) ? LASER_ID_MAPPING_RS16[laser_id] : laser_id;
+    slamPoint.laser_id = useLaserIdMapping ? this->LaserIdMapping[laser_id] :
+                                             (nLasers == 16) ? LASER_ID_MAPPING_RS16[laser_id] : laser_id;
 
     // Build approximate point-wise timestamp from point id.
     // 'frame advancement' is 0 for first point, and should match 1 for last point

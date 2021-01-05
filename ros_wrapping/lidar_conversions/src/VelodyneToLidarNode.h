@@ -65,6 +65,13 @@ private:
   ros::Subscriber Listener;
   ros::Publisher Talker;
 
+  // Optional mapping used to correct the numeric identifier of the laser ring that shot each point.
+  // SLAM expects that the lowest/bottom laser ring is 0, and is increasing upward.
+  // If unset, identity mapping (no laser_id change) will be used.
+  // NOTE: the Velodyne ROS driver should already correctly modify the laser_id,
+  // so this shouldn't be needed.
+  std::vector<int> LaserIdMapping;
+
   // Useful variables for approximate point-wise timestamps computation
   // These parameters should be set to the same values as ROS Velodyne driver's.
   double Rpm = 600;  ///< Spinning speed of sensor [rpm]
