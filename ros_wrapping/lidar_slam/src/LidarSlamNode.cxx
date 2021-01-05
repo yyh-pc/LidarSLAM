@@ -61,15 +61,6 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // Get SLAM params
   this->SetSlamParameters(priv_nh);
 
-  // Try to get laser ID mapping from ROS param.
-  // If not available, laser_ids will remain unchanged (= identity mapping)
-  std::vector<int> laserIdMapping;
-  if (priv_nh.getParam("laser_id_mapping", laserIdMapping))
-  {
-    this->LaserIdMapping.assign(laserIdMapping.begin(), laserIdMapping.end());
-    ROS_INFO_STREAM("[SLAM] Using laser_id_mapping from ROS param.");
-  }
-
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   priv_nh.getParam("gps/use_gps", this->UseGps);
 
@@ -139,7 +130,7 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
   this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->header.stamp);
 
   // Run SLAM : register new frame and update localization and map.
-  this->LidarSlam.AddFrame(cloudS_ptr, this->LaserIdMapping);
+  this->LidarSlam.AddFrame(cloudS_ptr);
 
   // Publish SLAM output as requested by user
   this->PublishOutput();

@@ -66,6 +66,13 @@ private:
   ros::Subscriber Listener;
   ros::Publisher Talker;
 
+  // Optional mapping used to correct the numeric identifier of the laser ring that shot each point.
+  // SLAM expects that the lowest/bottom laser ring is 0, and is increasing upward.
+  // If unset, the following mappings will be used :
+  // - if input cloud has 16 rings : RS16 mapping [0, 1, 2, 3, 4, 5, 6, 7, 15, 14, 13, 12, 11, 10, 9, 8]
+  // - otherwise : identity mapping (no laser_id change)
+  std::vector<int> LaserIdMapping;
+
   // Useful variables for approximate point-wise timestamps computation
   // These parameters should be set to the same values as ROS RSLidar driver's.
   // NOTE: to be precise, this timestamp estimation requires that each input
