@@ -211,10 +211,10 @@ void Slam::AddFrame(const PointCloud::Ptr& pc)
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
   PRINT_VERBOSE(2, "#########################################################\n");
 
-  // Update current frame, correct time field
-  IF_VERBOSE(3, Utils::Timer::Init("Update frame and state"));
-  this->UpdateFrameAndState(pc);
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Update frame and state"));
+  // Update current frame time field in prevision of undistortion
+  IF_VERBOSE(3, Utils::Timer::Init("Update frame time"));
+  this->UpdateFrameTime(pc);
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Update frame time"));
 
   // Compute the edges and planars keypoints
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints extraction"));
@@ -268,18 +268,18 @@ void Slam::AddFrame(const PointCloud::Ptr& pc)
     SET_COUT_FIXED_PRECISION(3);
     std::cout << "========== SLAM results ==========\n"
                  "Ego-Motion:\n"
-                 " translation = [" << this->Trelative.translation().transpose()                                        << "]\n"
-                 " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]\n";
+                 " translation = [" << this->Trelative.translation().transpose()                                        << "] m\n"
+                 " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "] °\n";
     if (this->Undistortion)
     {
       Eigen::Isometry3d motion = this->TworldFrameStart.inverse() * this->Tworld;
       std::cout << "Within frame motion:\n"
-                   " translation = [" << motion.translation().transpose()                                        << "]\n"
-                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(motion.linear())).transpose() << "]\n";
+                   " translation = [" << motion.translation().transpose()                                        << "] m\n"
+                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(motion.linear())).transpose() << "] °\n";
     }
     std::cout << "Localization:\n"
-                 " position    = [" << this->Tworld.translation().transpose()                                        << "]\n"
-                 " orientation = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Tworld.linear())).transpose() << "]" << std::endl;
+                 " position    = [" << this->Tworld.translation().transpose()                                        << "] m\n"
+                 " orientation = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Tworld.linear())).transpose() << "] °" << std::endl;
     RESET_COUT_FIXED_PRECISION;
   }
 
@@ -691,45 +691,60 @@ bool Slam::CheckFrame(const PointCloud::Ptr& inputPc)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
+void Slam::UpdateFrameTime(const PointCloud::Ptr& inputPc)
 {
-  // Current keypoints become previous ones
-  this->PreviousEdgesPoints = this->CurrentEdgesPoints;
-  this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
-
-  // Copy the input cloud to avoid modifying input
-  // CHECK : no other way to avoid this copy? Could be heavy with 64 or 128...
-  this->CurrentFrame = inputPc->makeShared();
-
-  // Get frame duration
-  double frameStartTime = std::numeric_limits<double>::max(),
-         frameEndTime   = std::numeric_limits<double>::min();
-  for (const Point& point: *this->CurrentFrame)
+  // If undistortion is enabled, compute FrameDuration and update 'time' field
+  // to allow later rolling shutter distortion correction.
+  if (this->Undistortion)
   {
-    frameStartTime = std::min(frameStartTime, point.time);
-    frameEndTime = std::max(frameEndTime, point.time);
-  }
-  this->FrameDuration = frameEndTime - frameStartTime;
+    // Copy the input cloud to avoid modifying input
+    // CHECK : no other way to avoid this copy? Could be heavy with 64 or 128...
+    this->CurrentFrame = inputPc->makeShared();
 
-  // FrameDuration should be > 0 if the time field is properly set
-  if (this->FrameDuration > 0)
-  {
-    // Modify the points so that time becomes a relative advancement (between 0 and 1)
-    for (Point& point: *this->CurrentFrame)
-      point.time = (point.time - frameStartTime) / this->FrameDuration;
+    // Get frame duration
+    double frameStartTime = std::numeric_limits<double>::max(),
+           frameEndTime   = std::numeric_limits<double>::min();
+    for (const Point& point: *this->CurrentFrame)
+    {
+      frameStartTime = std::min(frameStartTime, point.time);
+      frameEndTime = std::max(frameEndTime, point.time);
+    }
+    this->FrameDuration = frameEndTime - frameStartTime;
+
+    // FrameDuration should be > 0 if the time field is properly set
+    if (this->FrameDuration > 0)
+    {
+      // Modify the points so that time becomes a relative advancement (between 0 and 1)
+      for (Point& point: *this->CurrentFrame)
+        point.time = (point.time - frameStartTime) / this->FrameDuration;
+    }
+    else
+    {
+      // If time field is not usable, set it to 1 to match end frame timestamp
+      PRINT_WARNING("'time' field is not properly set and cannot be used for undistortion.");
+      for (Point& point: *this->CurrentFrame)
+        point.time = 1.;
+    }
   }
+
+  // If undistortion isn't enabled, no need to change 'time' field which won't
+  // be used, and input remains untouched
   else
-  {
-    // If time field is not usable, set it to 1 to match end frame timestamp
-    PRINT_WARNING("'time' field is not properly set and cannot be used for undistortion.");
-    for (Point& point: *this->CurrentFrame)
-      point.time = 1.;
-  }
+    this->CurrentFrame = inputPc;
 }
 
 //-----------------------------------------------------------------------------
 void Slam::ExtractKeypoints()
 {
+  PRINT_VERBOSE(2, "========== Keypoints extraction ==========");
+
+  // Current keypoints become previous ones
+  this->PreviousEdgesPoints = this->CurrentEdgesPoints;
+  this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
+
+  // Extract keypoints from input cloud,
+  this->KeyPointsExtractor->ComputeKeyPoints(this->CurrentFrame);
+
   auto transformToBase = [this](const Slam::PointCloud::Ptr& inputPc)
   {
     PointCloud::Ptr baseCloud;
@@ -749,16 +764,12 @@ void Slam::ExtractKeypoints()
     return baseCloud;
   };
 
-  // Extract keypoints from input cloud,
-  this->KeyPointsExtractor->ComputeKeyPoints(this->CurrentFrame);
-
   // Get keypoints and transform them from LIDAR to BASE coordinates if needed.
   this->CurrentEdgesPoints   = transformToBase(this->KeyPointsExtractor->GetEdgePoints());
   this->CurrentPlanarsPoints = transformToBase(this->KeyPointsExtractor->GetPlanarPoints());
   this->CurrentBlobsPoints   = transformToBase(this->KeyPointsExtractor->GetBlobPoints());
 
-  PRINT_VERBOSE(2, "========== Keypoints extraction ==========\n"
-                   "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
+  PRINT_VERBOSE(2, "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
                                            << this->CurrentPlanarsPoints->size() << " planes, "
                                            << this->CurrentBlobsPoints->size()   << " blobs.");
 }
@@ -898,14 +909,16 @@ void Slam::ComputeEgoMotion()
   // Print EgoMotion results
   SET_COUT_FIXED_PRECISION(3);
   PRINT_VERBOSE(2, "Estimated Ego-Motion (motion since last frame):\n"
-                   " translation = [" << this->Trelative.translation().transpose() << "]\n"
-                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]");
+                   " translation = [" << this->Trelative.translation().transpose() << "] m\n"
+                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "] °");
   RESET_COUT_FIXED_PRECISION;
 }
 
 //-----------------------------------------------------------------------------
 void Slam::Localization()
 {
+  PRINT_VERBOSE(2, "========== Localization ==========");
+
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
   PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
@@ -942,8 +955,7 @@ void Slam::Localization()
       extractMapKeypointsAndBuildKdTree(this->CurrentBlobsPoints, *this->BlobsPointsLocalMap, subBlobPointsLocalMap, kdtreeBlobs);
   }
 
-  PRINT_VERBOSE(2, "========== Localization ==========\n"
-                   << "Keypoints extracted from map : "
+  PRINT_VERBOSE(2, "Keypoints extracted from map : "
                    << subEdgesPointsLocalMap->size() << " edges, "
                    << subPlanarPointsLocalMap->size() << " planes, "
                    << subBlobPointsLocalMap->size() << " blobs");

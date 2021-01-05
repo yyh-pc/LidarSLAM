@@ -541,8 +541,8 @@ private:
   // (empty frame, same timestamp, frame dropping, ...)
   bool CheckFrame(const PointCloud::Ptr& inputPc);
 
-  // Update current frame, correct time field
-  void UpdateFrameAndState(const PointCloud::Ptr& inputPc);
+  // Update current frame time field in prevision of undistortion
+  void UpdateFrameTime(const PointCloud::Ptr& inputPc);
 
   // Extract keypoints from input pointcloud,
   // and transform them from LIDAR to BASE coordinate system.
