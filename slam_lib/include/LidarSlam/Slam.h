@@ -541,16 +541,16 @@ private:
   // (empty frame, same timestamp, frame dropping, ...)
   bool CheckFrame(const PointCloud::Ptr& inputPc);
 
-  // Update current frame, correct time field,
-  // and estimate new state (estimate new pose with a constant velocity model)
+  // Update current frame, correct time field
   void UpdateFrameAndState(const PointCloud::Ptr& inputPc);
 
   // Extract keypoints from input pointcloud,
   // and transform them from LIDAR to BASE coordinate system.
   void ExtractKeypoints();
 
-  // Estimate the ego motion since last frame by globally registering current
-  // frame keypoints on previous frame keypoints
+  // Estimate the ego motion since last frame.
+  // Extrapolate new pose with a constant velocity model and/or
+  // refine estimation by registering current frame keypoints on previous frame keypoints.
   void ComputeEgoMotion();
 
   // Compute the pose of the current frame in world referential by registering
