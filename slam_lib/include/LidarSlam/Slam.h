@@ -537,8 +537,12 @@ private:
   //   Main sub-problems and methods
   // ---------------------------------------------------------------------------
 
-  // Update current frame (check frame dropping, correct time field) and
-  // estimate new state (estimate new pose with a constant velocity model)
+  // Check that input frame is correct
+  // (empty frame, same timestamp, frame dropping, ...)
+  bool CheckFrame(const PointCloud::Ptr& inputPc);
+
+  // Update current frame, correct time field,
+  // and estimate new state (estimate new pose with a constant velocity model)
   void UpdateFrameAndState(const PointCloud::Ptr& inputPc);
 
   // Extract keypoints from input pointcloud,

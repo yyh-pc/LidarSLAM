@@ -203,26 +203,16 @@ void Slam::AddFrame(const PointCloud::Ptr& pc)
 {
   Utils::Timer::Init("SLAM frame processing");
 
-  // Skip frame if empty
-  if (pc->empty())
-  {
-    PRINT_ERROR("SLAM entry is an empty pointcloud : frame ignored.");
+  // Check that input frame is correct and can be processed
+  if (!this->CheckFrame(pc))
     return;
-  }
-
-  // Skip frame if it has the same timestamp as previous one (will induce problems in extrapolation)
-  if (pc->header.stamp == this->CurrentFrame->header.stamp)
-  {
-    PRINT_ERROR("SLAM entry has the same timestamp (" << pc->header.stamp << ") as previous pointcloud : frame ignored.");
-    return;
-  }
 
   PRINT_VERBOSE(2, "\n#########################################################");
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
   PRINT_VERBOSE(2, "#########################################################\n");
 
-  // Update current frame (check frame dropping, correct time field) and
-  // estimate new state (extrapolate new pose with a constant velocity model)
+  // Update current frame, correct time field
+  // and estimate new state (extrapolate new pose with a constant velocity model)
   IF_VERBOSE(3, Utils::Timer::Init("Update frame and state"));
   this->UpdateFrameAndState(pc);
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Update frame and state"));
@@ -678,14 +668,34 @@ Slam::PointCloud::Ptr Slam::GetBlobsKeypoints(bool worldCoordinates) const
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
+bool Slam::CheckFrame(const PointCloud::Ptr& inputPc)
 {
+  // Skip frame if empty
+  if (!inputPc || inputPc->empty())
+  {
+    PRINT_ERROR("SLAM entry is an empty pointcloud : frame ignored.");
+    return false;
+  }
+
+  // Skip frame if it has the same timestamp as previous one (will induce problems in extrapolation)
+  if (inputPc->header.stamp == this->CurrentFrame->header.stamp)
+  {
+    PRINT_ERROR("SLAM entry has the same timestamp (" << inputPc->header.stamp << ") as previous pointcloud : frame ignored.");
+    return false;
+  }
+
   // Check frame dropping
   unsigned int droppedFrames = inputPc->header.seq - this->PreviousFrameSeq - 1;
   if ((this->PreviousFrameSeq > 0) && (droppedFrames > 0))
     PRINT_WARNING("SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s" : "") << ".\n");
   this->PreviousFrameSeq = inputPc->header.seq;
 
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
+{
   // Estimate world pose at current time
   // Use previous pose as new pose estimation
   Eigen::Isometry3d TworldEstimation = this->Tworld;
