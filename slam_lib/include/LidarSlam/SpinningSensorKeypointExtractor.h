@@ -76,8 +76,9 @@ public:
   // Extract keypoints from the pointcloud. The key points
   // will be separated in two classes : Edges keypoints which
   // correspond to area with high curvature scan lines and
-  // planar keypoints which have small curvature
-  void ComputeKeyPoints(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping = {});
+  // planar keypoints which have small curvature.
+  // NOTE: This expects that the lowest/bottom laser_id is 0, and is increasing upward.
+  void ComputeKeyPoints(const PointCloud::Ptr& pc);
 
   // Function to enable to have some inside on why a given point was detected as a keypoint
   std::unordered_map<std::string, std::vector<double>> GetDebugArray() const;
@@ -85,7 +86,8 @@ public:
 private:
 
   // Split the whole pointcloud into separate laser ring clouds,
-  // sorted by their vertical angles
+  // sorted by their vertical angles.
+  // This expects that the lowest/bottom laser ring is 0, and is increasing upward.
   void ConvertAndSortScanLines();
 
   // Reset all the features vectors and keypoints clouds
@@ -149,9 +151,6 @@ private:
   // ---------------------------------------------------------------------------
   //   Internal variables
   // ---------------------------------------------------------------------------
-
-  // Mapping of the lasers id
-  std::vector<size_t> LaserIdMapping;
 
   // Number of lasers scan lines composing the pointcloud
   unsigned int NLasers = 0;

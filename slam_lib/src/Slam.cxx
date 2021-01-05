@@ -199,7 +199,7 @@ void Slam::Reset(bool resetLog)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping)
+void Slam::AddFrame(const PointCloud::Ptr& pc)
 {
   Utils::Timer::Init("SLAM frame processing");
 
@@ -229,7 +229,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserI
 
   // Compute the edges and planars keypoints
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints extraction"));
-  this->ExtractKeypoints(laserIdMapping);
+  this->ExtractKeypoints();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints extraction"));
 
   // If the new frame is the first one we just add the extracted keypoints into
@@ -749,7 +749,7 @@ void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::ExtractKeypoints(const std::vector<size_t>& laserIdMapping)
+void Slam::ExtractKeypoints()
 {
   auto transformToBase = [this](const Slam::PointCloud::Ptr& inputPc)
   {
@@ -771,7 +771,7 @@ void Slam::ExtractKeypoints(const std::vector<size_t>& laserIdMapping)
   };
 
   // Extract keypoints from input cloud,
-  this->KeyPointsExtractor->ComputeKeyPoints(this->CurrentFrame, laserIdMapping);
+  this->KeyPointsExtractor->ComputeKeyPoints(this->CurrentFrame);
 
   // Get keypoints and transform them from LIDAR to BASE coordinates if needed.
   this->CurrentEdgesPoints   = transformToBase(this->KeyPointsExtractor->GetEdgePoints());

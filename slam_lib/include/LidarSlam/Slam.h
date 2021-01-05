@@ -118,7 +118,7 @@ public:
   // From this frame; keypoints will be computed and extracted
   // in order to recover the ego-motion of the lidar sensor
   // and to update the map using keypoints and ego-motion
-  void AddFrame(const PointCloud::Ptr& pc, const std::vector<size_t>& laserIdMapping = {});
+  void AddFrame(const PointCloud::Ptr& pc);
 
   // Get the computed world transform so far (current BASE pose in WORLD coordinates)
   Transform GetWorldTransform() const;
@@ -543,7 +543,7 @@ private:
 
   // Extract keypoints from input pointcloud,
   // and transform them from LIDAR to BASE coordinate system.
-  void ExtractKeypoints(const std::vector<size_t>& laserIdMapping = {});
+  void ExtractKeypoints();
 
   // Estimate the ego motion since last frame by globally registering current
   // frame keypoints on previous frame keypoints
