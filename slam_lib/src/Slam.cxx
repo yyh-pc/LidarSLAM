@@ -203,29 +203,18 @@ void Slam::AddFrame(const PointCloud::Ptr& pc)
 {
   Utils::Timer::Init("SLAM frame processing");
 
-  // Skip frame if empty
-  if (pc->empty())
-  {
-    PRINT_ERROR("SLAM entry is an empty pointcloud : frame ignored.");
+  // Check that input frame is correct and can be processed
+  if (!this->CheckFrame(pc))
     return;
-  }
-
-  // Skip frame if it has the same timestamp as previous one (will induce problems in extrapolation)
-  if (pc->header.stamp == this->CurrentFrame->header.stamp)
-  {
-    PRINT_ERROR("SLAM entry has the same timestamp (" << pc->header.stamp << ") as previous pointcloud : frame ignored.");
-    return;
-  }
 
   PRINT_VERBOSE(2, "\n#########################################################");
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
   PRINT_VERBOSE(2, "#########################################################\n");
 
-  // Update current frame (check frame dropping, correct time field) and
-  // estimate new state (extrapolate new pose with a constant velocity model)
-  IF_VERBOSE(3, Utils::Timer::Init("Update frame and state"));
-  this->UpdateFrameAndState(pc);
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Update frame and state"));
+  // Update current frame time field in prevision of undistortion
+  IF_VERBOSE(3, Utils::Timer::Init("Update frame time"));
+  this->UpdateFrameTime(pc);
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Update frame time"));
 
   // Compute the edges and planars keypoints
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints extraction"));
@@ -236,16 +225,14 @@ void Slam::AddFrame(const PointCloud::Ptr& pc)
   // the map without running odometry and localization steps
   if (this->NbrFrameProcessed > 0)
   {
-    // Compute Trelative by registering current frame on previous one
-    if (this->EgoMotion == EgoMotionMode::REGISTRATION ||
-        this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
-    {
-      IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion"));
-      this->ComputeEgoMotion();
-      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
-    }
+    // Estimate Trelative by extrapolating new pose with a constant velocity model
+    // and/or registering current frame on previous one
+    IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion"));
+    this->ComputeEgoMotion();
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
 
     // Integrate the relative motion to the world transformation
+    this->PreviousTworld = this->Tworld;
     this->Tworld = this->PreviousTworld * this->Trelative;
     if (this->Undistortion)
     {
@@ -281,18 +268,18 @@ void Slam::AddFrame(const PointCloud::Ptr& pc)
     SET_COUT_FIXED_PRECISION(3);
     std::cout << "========== SLAM results ==========\n"
                  "Ego-Motion:\n"
-                 " translation = [" << this->Trelative.translation().transpose()                                        << "]\n"
-                 " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]\n";
+                 " translation = [" << this->Trelative.translation().transpose()                                        << "] m\n"
+                 " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "] °\n";
     if (this->Undistortion)
     {
       Eigen::Isometry3d motion = this->TworldFrameStart.inverse() * this->Tworld;
       std::cout << "Within frame motion:\n"
-                   " translation = [" << motion.translation().transpose()                                        << "]\n"
-                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(motion.linear())).transpose() << "]\n";
+                   " translation = [" << motion.translation().transpose()                                        << "] m\n"
+                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(motion.linear())).transpose() << "] °\n";
     }
     std::cout << "Localization:\n"
-                 " position    = [" << this->Tworld.translation().transpose()                                        << "]\n"
-                 " orientation = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Tworld.linear())).transpose() << "]" << std::endl;
+                 " position    = [" << this->Tworld.translation().transpose()                                        << "] m\n"
+                 " orientation = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Tworld.linear())).transpose() << "] °" << std::endl;
     RESET_COUT_FIXED_PRECISION;
   }
 
@@ -678,79 +665,86 @@ Slam::PointCloud::Ptr Slam::GetBlobsKeypoints(bool worldCoordinates) const
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-void Slam::UpdateFrameAndState(const PointCloud::Ptr& inputPc)
+bool Slam::CheckFrame(const PointCloud::Ptr& inputPc)
 {
+  // Skip frame if empty
+  if (!inputPc || inputPc->empty())
+  {
+    PRINT_ERROR("SLAM entry is an empty pointcloud : frame ignored.");
+    return false;
+  }
+
+  // Skip frame if it has the same timestamp as previous one (will induce problems in extrapolation)
+  if (inputPc->header.stamp == this->CurrentFrame->header.stamp)
+  {
+    PRINT_ERROR("SLAM entry has the same timestamp (" << inputPc->header.stamp << ") as previous pointcloud : frame ignored.");
+    return false;
+  }
+
   // Check frame dropping
   unsigned int droppedFrames = inputPc->header.seq - this->PreviousFrameSeq - 1;
   if ((this->PreviousFrameSeq > 0) && (droppedFrames > 0))
     PRINT_WARNING("SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s" : "") << ".\n");
   this->PreviousFrameSeq = inputPc->header.seq;
 
-  // Estimate world pose at current time
-  // Use previous pose as new pose estimation
-  Eigen::Isometry3d TworldEstimation = this->Tworld;
-  // Or linearly extrapolate previous motion to estimate new pose
-  if (this->NbrFrameProcessed >= 2 &&
-      (this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION ||
-       this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION))
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::UpdateFrameTime(const PointCloud::Ptr& inputPc)
+{
+  // If undistortion is enabled, compute FrameDuration and update 'time' field
+  // to allow later rolling shutter distortion correction.
+  if (this->Undistortion)
   {
-    // Estimate new Tworld with a constant velocity model
-    const double t = Utils::PclStampToSec(inputPc->header.stamp);
-    const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
-    const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
-    if (t0 < t1 && t1 < t)
-      TworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
+    // Copy the input cloud to avoid modifying input
+    // CHECK : no other way to avoid this copy? Could be heavy with 64 or 128...
+    this->CurrentFrame = inputPc->makeShared();
+
+    // Get frame duration
+    double frameStartTime = std::numeric_limits<double>::max(),
+           frameEndTime   = std::numeric_limits<double>::min();
+    for (const Point& point: *this->CurrentFrame)
+    {
+      frameStartTime = std::min(frameStartTime, point.time);
+      frameEndTime = std::max(frameEndTime, point.time);
+    }
+    this->FrameDuration = frameEndTime - frameStartTime;
+
+    // FrameDuration should be > 0 if the time field is properly set
+    if (this->FrameDuration > 0)
+    {
+      // Modify the points so that time becomes a relative advancement (between 0 and 1)
+      for (Point& point: *this->CurrentFrame)
+        point.time = (point.time - frameStartTime) / this->FrameDuration;
+    }
     else
-      PRINT_WARNING("Motion extrapolation skipped as time is not strictly increasing.");
+    {
+      // If time field is not usable, set it to 1 to match end frame timestamp
+      PRINT_WARNING("'time' field is not properly set and cannot be used for undistortion.");
+      for (Point& point: *this->CurrentFrame)
+        point.time = 1.;
+    }
   }
-  this->PreviousTworld = this->Tworld;
-  this->Tworld = TworldEstimation;
-  this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
 
-  SET_COUT_FIXED_PRECISION(3);
-  PRINT_VERBOSE(2, "========== Update SLAM State ==========\n"
-                   "Estimated Ego-Motion:\n"
-                   " translation = [" << this->Trelative.translation().transpose()                          << "]\n"
-                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "]");
-  RESET_COUT_FIXED_PRECISION;
-
-  // Current keypoints become previous ones
-  this->PreviousEdgesPoints = this->CurrentEdgesPoints;
-  this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
-
-  // Copy the input cloud to avoid modifying input
-  // CHECK : no other way to avoid this copy? Could be heavy with 64 or 128...
-  this->CurrentFrame = inputPc->makeShared();
-
-  // Get frame duration
-  double frameStartTime = std::numeric_limits<double>::max(),
-         frameEndTime   = std::numeric_limits<double>::min();
-  for (const Point& point: *this->CurrentFrame)
-  {
-    frameStartTime = std::min(frameStartTime, point.time);
-    frameEndTime = std::max(frameEndTime, point.time);
-  }
-  this->FrameDuration = frameEndTime - frameStartTime;
-
-  // FrameDuration should be > 0 if the time field is properly set
-  if (this->FrameDuration > 0)
-  {
-    // Modify the points so that time becomes a relative advancement (between 0 and 1)
-    for (Point& point: *this->CurrentFrame)
-      point.time = (point.time - frameStartTime) / this->FrameDuration;
-  }
+  // If undistortion isn't enabled, no need to change 'time' field which won't
+  // be used, and input remains untouched
   else
-  {
-    // If time field is not usable, set it to 1 to match end frame timestamp
-    PRINT_WARNING("'time' field is not properly set and cannot be used for undistortion.");
-    for (Point& point: *this->CurrentFrame)
-      point.time = 1.;
-  }
+    this->CurrentFrame = inputPc;
 }
 
 //-----------------------------------------------------------------------------
 void Slam::ExtractKeypoints()
 {
+  PRINT_VERBOSE(2, "========== Keypoints extraction ==========");
+
+  // Current keypoints become previous ones
+  this->PreviousEdgesPoints = this->CurrentEdgesPoints;
+  this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
+
+  // Extract keypoints from input cloud,
+  this->KeyPointsExtractor->ComputeKeyPoints(this->CurrentFrame);
+
   auto transformToBase = [this](const Slam::PointCloud::Ptr& inputPc)
   {
     PointCloud::Ptr baseCloud;
@@ -770,16 +764,12 @@ void Slam::ExtractKeypoints()
     return baseCloud;
   };
 
-  // Extract keypoints from input cloud,
-  this->KeyPointsExtractor->ComputeKeyPoints(this->CurrentFrame);
-
   // Get keypoints and transform them from LIDAR to BASE coordinates if needed.
   this->CurrentEdgesPoints   = transformToBase(this->KeyPointsExtractor->GetEdgePoints());
   this->CurrentPlanarsPoints = transformToBase(this->KeyPointsExtractor->GetPlanarPoints());
   this->CurrentBlobsPoints   = transformToBase(this->KeyPointsExtractor->GetBlobPoints());
 
-  PRINT_VERBOSE(2, "========== Keypoints extraction ==========\n"
-                   "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
+  PRINT_VERBOSE(2, "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
                                            << this->CurrentPlanarsPoints->size() << " planes, "
                                            << this->CurrentBlobsPoints->size()   << " blobs.");
 }
@@ -787,112 +777,148 @@ void Slam::ExtractKeypoints()
 //-----------------------------------------------------------------------------
 void Slam::ComputeEgoMotion()
 {
-  // kd-tree to process fast nearest neighbor
-  // among the keypoints of the previous pointcloud
-  // CHECK : This step behaves strangely much slower when using OpenMP.
-  // This section processing duration (arbitrary unit) :
-  //  1. without OpenMP included nor used in any code (nor in Slam or SSKE) : time = 1.
-  //  2. with OpenMP, globally used with only 1 thread : time = 1.
-  //  3. with OpenMP, globally used with 2 threads : time = 2.
-  //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
-  // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
-  IF_VERBOSE(3, Utils::Timer::Init("EgoMotion : build KD tree"));
-  KDTree kdtreePreviousEdges, kdtreePreviousPlanes;
-  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
+  PRINT_VERBOSE(2, "========== Ego-Motion ==========");
+
+  // Reset ego-motion
+  this->Trelative = Eigen::Isometry3d::Identity();
+
+  // Linearly extrapolate previous motion to estimate new pose
+  if (this->LogTrajectory.size() >= 2 &&
+      (this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION ||
+       this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION))
   {
-    #pragma omp section
-    kdtreePreviousEdges.Reset(this->PreviousEdgesPoints);
-    #pragma omp section
-    kdtreePreviousPlanes.Reset(this->PreviousPlanarsPoints);
+    // Estimate new Tworld with a constant velocity model
+    const double t = Utils::PclStampToSec(this->CurrentFrame->header.stamp);
+    const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
+    const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
+    if (t0 < t1 && t1 < t)
+    {
+      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
+      this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
+    }
+    else
+      PRINT_WARNING("Motion extrapolation skipped as time is not strictly increasing.");
   }
 
-  PRINT_VERBOSE(2, "========== Ego-Motion ==========\n"
-                   << "Keypoints extracted from previous frame : "
-                   << this->PreviousEdgesPoints->size() << " edges, "
-                   << this->PreviousPlanarsPoints->size() << " planes");
-
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("EgoMotion : build KD tree"));
-  IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
-
-  // Reset ICP results
-  unsigned int totalMatchedKeypoints = 0;
-
-  // ICP - Levenberg-Marquardt loop
-  // At each step of this loop an ICP matching is performed. Once the keypoints
-  // are matched, we estimate the the 6-DOF parameters by minimizing the
-  // non-linear least square cost function using Levenberg-Marquardt algorithm.
-  for (unsigned int icpIter = 0; icpIter < this->EgoMotionICPMaxIter; ++icpIter)
+  // Refine Trelative estimation by registering current frame on previous one
+  if (this->EgoMotion == EgoMotionMode::REGISTRATION ||
+      this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
   {
-    IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : ICP"));
-
-    // We want to estimate our 6-DOF parameters using a non linear least square
-    // minimization. The non linear part comes from the parametrization of the
-    // rotation endomorphism SO(3).
-    // First, we need to build the point-to-line, point-to-plane and
-    // point-to-blob ICP matches that will be optimized.
-    // Then, we use CERES Levenberg-Marquardt optimization to minimize the problem.
-    KeypointsRegistration::Parameters optimParams;
-    optimParams.NbThreads = this->NbThreads;
-    optimParams.SingleEdgePerRing = true;
-    optimParams.MaxDistanceForICPMatching = this->MaxDistanceForICPMatching;
-    optimParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
-    optimParams.LineDistanceNbrNeighbors = this->EgoMotionLineDistanceNbrNeighbors;
-    optimParams.MinimumLineNeighborRejection = this->EgoMotionMinimumLineNeighborRejection;
-    optimParams.LineDistancefactor = this->EgoMotionLineDistancefactor;
-    optimParams.MaxLineDistance = this->EgoMotionMaxLineDistance;
-    optimParams.PlaneDistanceNbrNeighbors = this->EgoMotionPlaneDistanceNbrNeighbors;
-    optimParams.PlaneDistancefactor1 = this->EgoMotionPlaneDistancefactor1;
-    optimParams.PlaneDistancefactor2 = this->EgoMotionPlaneDistancefactor2;
-    optimParams.MaxPlaneDistance = this->EgoMotionMaxPlaneDistance;
-    optimParams.LMMaxIter = this->EgoMotionLMMaxIter;
-    optimParams.LossScale = this->EgoMotionInitLossScale + icpIter * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
-
-    KeypointsRegistration optim(optimParams, UndistortionMode::NONE, this->Trelative);
-
-    // Loop over edges to build the point to line residuals
-    this->EgoMotionMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreePreviousEdges, Keypoint::EDGE);
-
-    // Loop over surfaces to build the point to plane residuals
-    this->EgoMotionMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePreviousPlanes, Keypoint::PLANE);
-
-    // Skip this frame if there are too few geometric keypoints matched
-    totalMatchedKeypoints = this->EgoMotionMatchingResults[EDGE].NbMatches() + this->EgoMotionMatchingResults[PLANE].NbMatches();
-    if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
+    // kd-tree to process fast nearest neighbor
+    // among the keypoints of the previous pointcloud
+    // CHECK : This step behaves strangely much slower when using OpenMP.
+    // This section processing duration (arbitrary unit) :
+    //  1. without OpenMP included nor used in any code (nor in Slam or SSKE) : time = 1.
+    //  2. with OpenMP, globally used with only 1 thread : time = 1.
+    //  3. with OpenMP, globally used with 2 threads : time = 2.
+    //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
+    // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
+    IF_VERBOSE(3, Utils::Timer::Init("EgoMotion : build KD tree"));
+    KDTree kdtreePreviousEdges, kdtreePreviousPlanes;
+    #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
     {
-      PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
-      break;
+      #pragma omp section
+      kdtreePreviousEdges.Reset(this->PreviousEdgesPoints);
+      #pragma omp section
+      kdtreePreviousPlanes.Reset(this->PreviousPlanarsPoints);
     }
 
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : ICP"));
-    IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : LM optim"));
+    PRINT_VERBOSE(2, "Keypoints extracted from previous frame : "
+                     << this->PreviousEdgesPoints->size() << " edges, "
+                     << this->PreviousPlanarsPoints->size() << " planes");
 
-    // Run LM optimization
-    ceres::Solver::Summary summary = optim.Solve();
-    PRINT_VERBOSE(4, summary.BriefReport());
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("EgoMotion : build KD tree"));
+    IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
 
-    // Get back optimized Trelative
-    this->Trelative = optim.GetOptimizedEndPose();
+    // Reset ICP results
+    unsigned int totalMatchedKeypoints = 0;
 
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : LM optim"));
-
-    // If no L-M iteration has been made since the last ICP matching, it means
-    // that we reached a local minimum for the ICP-LM algorithm.
-    if (summary.num_successful_steps == 1)
+    // ICP - Levenberg-Marquardt loop
+    // At each step of this loop an ICP matching is performed. Once the keypoints
+    // are matched, we estimate the the 6-DOF parameters by minimizing the
+    // non-linear least square cost function using Levenberg-Marquardt algorithm.
+    for (unsigned int icpIter = 0; icpIter < this->EgoMotionICPMaxIter; ++icpIter)
     {
-      break;
+      IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : ICP"));
+
+      // We want to estimate our 6-DOF parameters using a non linear least square
+      // minimization. The non linear part comes from the parametrization of the
+      // rotation endomorphism SO(3).
+      // First, we need to build the point-to-line, point-to-plane and
+      // point-to-blob ICP matches that will be optimized.
+      // Then, we use CERES Levenberg-Marquardt optimization to minimize the problem.
+      KeypointsRegistration::Parameters optimParams;
+      optimParams.NbThreads = this->NbThreads;
+      optimParams.SingleEdgePerRing = true;
+      optimParams.MaxDistanceForICPMatching = this->MaxDistanceForICPMatching;
+      optimParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
+      optimParams.LineDistanceNbrNeighbors = this->EgoMotionLineDistanceNbrNeighbors;
+      optimParams.MinimumLineNeighborRejection = this->EgoMotionMinimumLineNeighborRejection;
+      optimParams.LineDistancefactor = this->EgoMotionLineDistancefactor;
+      optimParams.MaxLineDistance = this->EgoMotionMaxLineDistance;
+      optimParams.PlaneDistanceNbrNeighbors = this->EgoMotionPlaneDistanceNbrNeighbors;
+      optimParams.PlaneDistancefactor1 = this->EgoMotionPlaneDistancefactor1;
+      optimParams.PlaneDistancefactor2 = this->EgoMotionPlaneDistancefactor2;
+      optimParams.MaxPlaneDistance = this->EgoMotionMaxPlaneDistance;
+      optimParams.LMMaxIter = this->EgoMotionLMMaxIter;
+      optimParams.LossScale = this->EgoMotionInitLossScale + icpIter * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
+
+      KeypointsRegistration optim(optimParams, UndistortionMode::NONE, this->Trelative);
+
+      // Loop over edges to build the point to line residuals
+      this->EgoMotionMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreePreviousEdges, Keypoint::EDGE);
+
+      // Loop over surfaces to build the point to plane residuals
+      this->EgoMotionMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePreviousPlanes, Keypoint::PLANE);
+
+      // Skip this frame if there are too few geometric keypoints matched
+      totalMatchedKeypoints = this->EgoMotionMatchingResults[EDGE].NbMatches() + this->EgoMotionMatchingResults[PLANE].NbMatches();
+      if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
+      {
+        PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
+        break;
+      }
+
+      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : ICP"));
+      IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : LM optim"));
+
+      // Run LM optimization
+      ceres::Solver::Summary summary = optim.Solve();
+      PRINT_VERBOSE(4, summary.BriefReport());
+
+      // Get back optimized Trelative
+      this->Trelative = optim.GetOptimizedEndPose();
+
+      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : LM optim"));
+
+      // If no L-M iteration has been made since the last ICP matching, it means
+      // that we reached a local minimum for the ICP-LM algorithm.
+      if (summary.num_successful_steps == 1)
+      {
+        break;
+      }
     }
+
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion : whole ICP-LM loop"));
+
+    PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
+                      << this->EgoMotionMatchingResults[EDGE].NbMatches()  << " edges, "
+                      << this->EgoMotionMatchingResults[PLANE].NbMatches() << " planes).");
   }
 
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion : whole ICP-LM loop"));
-
-  PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
-                    << this->EgoMotionMatchingResults[EDGE].NbMatches()  << " edges, "
-                    << this->EgoMotionMatchingResults[PLANE].NbMatches() << " planes).");
+  // Print EgoMotion results
+  SET_COUT_FIXED_PRECISION(3);
+  PRINT_VERBOSE(2, "Estimated Ego-Motion (motion since last frame):\n"
+                   " translation = [" << this->Trelative.translation().transpose() << "] m\n"
+                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "] °");
+  RESET_COUT_FIXED_PRECISION;
 }
 
 //-----------------------------------------------------------------------------
 void Slam::Localization()
 {
+  PRINT_VERBOSE(2, "========== Localization ==========");
+
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
   PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
@@ -929,8 +955,7 @@ void Slam::Localization()
       extractMapKeypointsAndBuildKdTree(this->CurrentBlobsPoints, *this->BlobsPointsLocalMap, subBlobPointsLocalMap, kdtreeBlobs);
   }
 
-  PRINT_VERBOSE(2, "========== Localization ==========\n"
-                   << "Keypoints extracted from map : "
+  PRINT_VERBOSE(2, "Keypoints extracted from map : "
                    << subEdgesPointsLocalMap->size() << " edges, "
                    << subPlanarPointsLocalMap->size() << " planes, "
                    << subBlobPointsLocalMap->size() << " blobs");
