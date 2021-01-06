@@ -191,12 +191,12 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     // Compute the transform to apply to X depending on (R0, T0) and (R1, T1).
     // The applied isometry will be the linear interpolation between them :
     // (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
-    const Isometry3T H = transformInterpolator(T(this->Time));
+    const Isometry3T H = transformInterpolator(Time);
 
     // Compute final residual value which is:
     //  Yt * A * Y with Y = R(theta) * X + T - C
-    const Vector3T Y = H.linear() * this->X + H.translation() - this->C;
-    const T squaredResidual = this->Weight * (Y.transpose() * this->A * Y)(0);
+    const Vector3T Y = H.linear() * X + H.translation() - C;
+    const T squaredResidual = Weight * (Y.transpose() * A * Y)(0);
 
     // Since t -> sqrt(t) is not differentiable in 0, we check the value of the
     // distance infenitesimale part. If it is not finite, it means that the
