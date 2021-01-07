@@ -410,10 +410,6 @@ private:
   // in seconds to add to the frame header timestamp.
   LinearTransformInterpolator<double> WithinFrameMotion;
 
-  // Point-wise 'time' field min and max values, representing the duration
-  // between the first and last points measurements.
-  std::pair<double, double> WithinFrameTime;
-
   // **** LOGGING ****
 
   // Computed trajectory of the sensor (the list of past computed poses,
@@ -540,9 +536,6 @@ private:
   // (empty frame, same timestamp, frame dropping, ...)
   bool CheckFrame(const PointCloud::Ptr& inputPc);
 
-  // Get current frame time field range in prevision of undistortion
-  void UpdateFrameTime();
-
   // Extract keypoints from input pointcloud,
   // and transform them from LIDAR to BASE coordinate system.
   void ExtractKeypoints();
@@ -564,17 +557,22 @@ private:
   void LogCurrentFrameState(double time, const std::string& frameId);
 
   // ---------------------------------------------------------------------------
-  //   Helpers
+  //   Undistortion helpers
   // ---------------------------------------------------------------------------
 
-  // All points of the current frame have been acquired at a different timestamp.
-  // The goal is to express them in the same referential. This can be done using
-  // estimated egomotion and assuming a constant angular velocity and velocity
-  // during a sweep, or any other motion model.
+  // All points of the current frame have been acquired at different timestamps.
+  // The goal is to express them in the same referential, at the timestamp in
+  // input scan header. This can be done using estimated egomotion and assuming
+  // a constant velocity during a sweep.
 
   // Extra/Interpolate scan pose using previous motion from PreviousTworld and Tworld.
-  // 'time' arg should match the point-wise 'time' field scale.
+  // 'time' arg is the time offset in seconds to current frame header.stamp.
   Eigen::Isometry3d InterpolateScanPose(double time);
+
+  // Init undistortion process based on point-wise time field.
+  // Get current frame time field range, and update within frame motion interpolator.
+  void InitUndistortion();
+
 };
 
 } // end of LidarSlam namespace
