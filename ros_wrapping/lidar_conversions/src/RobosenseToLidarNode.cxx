@@ -39,6 +39,9 @@ RobosenseToLidarNode::RobosenseToLidarNode(ros::NodeHandle& nh, ros::NodeHandle&
   // Get laser ID mapping
   this->PrivNh.param("laser_id_mapping", this->LaserIdMapping, this->LaserIdMapping);
 
+  //  Get LiDAR id
+  this->PrivNh.param("device_id", this->DeviceId, this->DeviceId);
+
   // Get LiDAR spinning speed
   this->PrivNh.param("rpm", this->Rpm, this->Rpm);
 
@@ -95,6 +98,7 @@ void RobosenseToLidarNode::Callback(const CloudRS& cloudRS)
     slamPoint.y = rsPoint.y;
     slamPoint.z = rsPoint.z;
     slamPoint.intensity = rsPoint.intensity;
+    slamPoint.device_id = this->DeviceId;
 
     // Compute laser ID
     // Use LaserIdMapping if given, otherwise use RS16's if input has 16 rings,

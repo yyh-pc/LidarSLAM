@@ -73,6 +73,8 @@ private:
   // - otherwise : identity mapping (no laser_id change)
   std::vector<int> LaserIdMapping;
 
+  int DeviceId = 0;  ///< LiDAR device identifier to set for each point.
+
   // Useful variables for approximate point-wise timestamps computation
   // These parameters should be set to the same values as ROS RSLidar driver's.
   // NOTE: to be precise, this timestamp estimation requires that each input
