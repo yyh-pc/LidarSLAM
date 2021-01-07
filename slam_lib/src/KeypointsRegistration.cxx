@@ -138,7 +138,8 @@ void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen
   // If OPTIMIZED mode, we need to optimize both first and second poses
   if (this->Undistortion == UndistortionMode::OPTIMIZED)
   {
-    ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<UndistortionResidual, 1, 6, 6>(new UndistortionResidual(A, P, X, time, weight));
+    double normTime = (time - this->WithinFrameMotionPrior.GetTime0()) / this->WithinFrameMotionPrior.GetTimeRange();
+    ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<UndistortionResidual, 1, 6, 6>(new UndistortionResidual(A, P, X, normTime, weight));
     #pragma omp critical(addIcpResidual)
     this->Problem.AddResidualBlock(cost_function,
                                    new ceres::ScaledLoss(new ceres::ArctanLoss(this->Params.LossScale), weight, ceres::TAKE_OWNERSHIP),

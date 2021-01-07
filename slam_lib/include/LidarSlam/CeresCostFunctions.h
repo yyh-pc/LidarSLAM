@@ -127,10 +127,10 @@ private:
 //------------------------------------------------------------------------------
 /**
  * \class MahalanobisDistanceInterpolatedMotionResidual
- * \brief Cost function to optimize the isometries H0=(R0, T0) and  H1=(R1, T1) so that:
- *        The linearly interpolated transform:
- *        (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
- *        applies to X acquired at time t minimizes the mahalanobis distance.
+ * \brief Cost function to optimize the isometries H0=(R0, T0) and H1=(R1, T1)
+ *        at timestamps t0=0 and t1=1 so that the linearly interpolated transform
+ *          (R, T) = (R0^(1-t) * R1^t, (1 - t) T0 + t T1)
+ *        applied to X (acquired at time t) minimizes the mahalanobis distance.
  *
  * It takes two 6D parameters blocks :
  *  1) First isometry H0 :
@@ -139,7 +139,6 @@ private:
  *  2) Second isometry H1 :
  *   - 3 parameters (6, 7, 8) to encode translation T1 : X, Y, Z
  *   - 3 parameters (9, 10, 11) to encode rotation R1 with euler angles : rX, rY, rZ
- *   
  */
 struct MahalanobisDistanceInterpolatedMotionResidual
 {
