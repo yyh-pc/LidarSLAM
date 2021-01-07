@@ -822,7 +822,7 @@ void Slam::ComputeEgoMotion()
       PRINT_VERBOSE(4, summary.BriefReport());
 
       // Get back optimized Trelative
-      this->Trelative = optim.GetOptimizedEndPose();
+      this->Trelative = optim.GetOptimizedFirstPose();
 
       IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : LM optim"));
 
@@ -940,9 +940,9 @@ void Slam::Localization()
     optimParams.LMMaxIter = this->LocalizationLMMaxIter;
     optimParams.LossScale = this->LocalizationInitLossScale + icpIter * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / this->LocalizationICPMaxIter;
 
-    Eigen::Isometry3d firstPose = this->WithinFrameMotion.GetH0();
-    Eigen::Isometry3d lastPose = this->Undistortion ? this->WithinFrameMotion.GetH1() : this->Tworld;
-    KeypointsRegistration optim(optimParams, this->Undistortion, lastPose, firstPose, this->WithinFrameMotion.GetTime1(), this->WithinFrameMotion.GetTime0());
+    KeypointsRegistration optim(optimParams, this->Undistortion,
+                                this->Undistortion ? this->WithinFrameMotion.GetH0() : this->Tworld,
+                                this->WithinFrameMotion.GetH1(), this->WithinFrameMotion.GetTime0(), this->WithinFrameMotion.GetTime1());
 
     // Loop over edges to build the point to line residuals
     this->LocalizationMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreeEdges, Keypoint::EDGE);
@@ -978,13 +978,13 @@ void Slam::Localization()
     // Update Tworld, WithinFrameMotion and Trelative from optimization results
     if (this->Undistortion == UndistortionMode::NONE)
     {
-      this->Tworld = optim.GetOptimizedEndPose();
+      this->Tworld = optim.GetOptimizedFirstPose();
     }
     else if (this->Undistortion == UndistortionMode::APPROXIMATED)
     {
       // Get optimized end pose, interpolate Tworld from previous and end poses,
       // and interpolate begin pose between previous and Tworld
-      Eigen::Isometry3d endPose = optim.GetOptimizedEndPose();
+      Eigen::Isometry3d endPose = optim.GetOptimizedSecondPose();
       double prevPoseTime = this->LogTrajectory.back().time;
       double currPoseTime = Utils::PclStampToSec(this->CurrentFrame->header.stamp);
       double endPoseTime = currPoseTime + this->WithinFrameMotion.GetTime1();
@@ -994,7 +994,7 @@ void Slam::Localization()
     else if (this->Undistortion == UndistortionMode::OPTIMIZED)
     {
       // Get fully optimized start and end poses, and interpolate Tworld between them
-      this->WithinFrameMotion.SetTransforms(optim.GetOptimizedStartPose(), optim.GetOptimizedEndPose());
+      this->WithinFrameMotion.SetTransforms(optim.GetOptimizedFirstPose(), optim.GetOptimizedSecondPose());
       this->Tworld = this->WithinFrameMotion(0.);
     }
     this->Trelative = this->PreviousTworld.inverse() * this->Tworld;

@@ -25,19 +25,19 @@ namespace LidarSlam
 //-----------------------------------------------------------------------------
 KeypointsRegistration::KeypointsRegistration(const KeypointsRegistration::Parameters& params,
                                              UndistortionMode undistortion,
-                                             const Eigen::Isometry3d& endPosePrior,
-                                             const Eigen::Isometry3d& startPosePrior,
-                                             double endPoseTime,
-                                             double startPoseTime)
-: Params(params)
-, Undistortion(undistortion)
-, EndPosePrior(endPosePrior)
-, StartPosePrior(startPosePrior)
-, WithinFrameMotionPrior(startPosePrior, endPosePrior, startPoseTime, endPoseTime)
+                                             const Eigen::Isometry3d& firstPosePrior,
+                                             const Eigen::Isometry3d& secondPosePrior,
+                                             double firstPoseTime,
+                                             double secondPoseTime)
+  : Params(params)
+  , Undistortion(undistortion)
+  , FirstPosePrior(firstPosePrior)
+  , SecondPosePrior(secondPosePrior)
+  , WithinFrameMotionPrior(firstPosePrior, secondPosePrior, firstPoseTime, secondPoseTime)
 {
   // Convert isometries to 6D state vectors : X, Y, Z, rX, rY, rZ
-  this->EndPoseArray   = Utils::IsometryToXYZRPY(this->EndPosePrior);
-  this->StartPoseArray = Utils::IsometryToXYZRPY(this->StartPosePrior);
+  this->FirstPoseArray  = Utils::IsometryToXYZRPY(firstPosePrior);
+  this->SecondPoseArray = Utils::IsometryToXYZRPY(secondPosePrior);
 }
 
 //-----------------------------------------------------------------------------
@@ -112,7 +112,7 @@ KeypointsRegistration::RegistrationError KeypointsRegistration::EstimateRegistra
   // Computation of the variance-covariance matrix
   ceres::Covariance covarianceSolver(covOptions);
   std::vector<std::pair<const double*, const double*>> covarianceBlocks;
-  const double* paramBlock = this->EndPoseArray.data();
+  const double* paramBlock = this->Undistortion ? this->SecondPoseArray.data() : this->FirstPoseArray.data();
   covarianceBlocks.emplace_back(paramBlock, paramBlock);
   covarianceSolver.Compute(covarianceBlocks, &this->Problem);
   covarianceSolver.GetCovarianceBlock(paramBlock, paramBlock, err.Covariance.data());
@@ -135,23 +135,32 @@ void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen
   using RigidResidual = CeresCostFunctions::MahalanobisDistanceAffineIsometryResidual;
   using UndistortionResidual = CeresCostFunctions::MahalanobisDistanceInterpolatedMotionResidual;
 
-  // If OPTIMIZED mode, we need to optimize both start and end poses
+  // If OPTIMIZED mode, we need to optimize both first and second poses
   if (this->Undistortion == UndistortionMode::OPTIMIZED)
   {
     ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<UndistortionResidual, 1, 6, 6>(new UndistortionResidual(A, P, X, time, weight));
     #pragma omp critical(addIcpResidual)
     this->Problem.AddResidualBlock(cost_function,
                                    new ceres::ScaledLoss(new ceres::ArctanLoss(this->Params.LossScale), weight, ceres::TAKE_OWNERSHIP),
-                                   this->StartPoseArray.data(), this->EndPoseArray.data());
+                                   this->FirstPoseArray.data(), this->SecondPoseArray.data());
   }
-  // If APPROXIMATED or NONE mode, we only need to optimize end pose
+  // If APPROXIMATED mode, we only need to optimize second pose
+  else if (this->Undistortion == UndistortionMode::APPROXIMATED)
+  {
+    ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<RigidResidual, 1, 6>(new RigidResidual(A, P, X, weight));
+    #pragma omp critical(addIcpResidual)
+    this->Problem.AddResidualBlock(cost_function,
+                                   new ceres::ScaledLoss(new ceres::ArctanLoss(this->Params.LossScale), weight, ceres::TAKE_OWNERSHIP),
+                                   this->SecondPoseArray.data());
+  }
+  // If NONE mode, we only need to optimize first pose
   else
   {
     ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<RigidResidual, 1, 6>(new RigidResidual(A, P, X, weight));
     #pragma omp critical(addIcpResidual)
     this->Problem.AddResidualBlock(cost_function,
                                    new ceres::ScaledLoss(new ceres::ArctanLoss(this->Params.LossScale), weight, ceres::TAKE_OWNERSHIP),
-                                   this->EndPoseArray.data());
+                                   this->FirstPoseArray.data());
   }
 }
 
@@ -168,12 +177,12 @@ void KeypointsRegistration::ComputePointInitAndFinalPose(const Point& p, Eigen::
 
     case UndistortionMode::APPROXIMATED:
       pFinal = this->WithinFrameMotionPrior(p.time) * pos;
-      pInit = this->EndPosePrior.inverse() * pFinal;
+      pInit = this->SecondPosePrior.inverse() * pFinal;
       break;
     
     case UndistortionMode::NONE:
       pInit = pos;
-      pFinal = this->EndPosePrior * pos;
+      pFinal = this->FirstPosePrior * pos;
       break;
   }
 }

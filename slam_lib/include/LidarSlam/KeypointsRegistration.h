@@ -31,9 +31,9 @@
 namespace LidarSlam
 {
 
-// Helper class to register one set of edge/plane/blob keypoints onto
-// another to estimate the 6D transformation between them.
-// Firstly, a matching step is perfomed : we need to build the point-to-line,
+// Helper class to register a set of edge/plane/blob keypoints onto
+// another to estimate the transformation between them.
+// Firstly, a matching step is performed : we need to build the point-to-line,
 // point-to-plane and point-to-blob residuals that will be optimized.
 // Then, we use CERES Levenberg-Marquardt optimization to minimize the problem.
 class KeypointsRegistration
@@ -142,12 +142,22 @@ public:
 
   //----------------------------------------------------------------------------
 
+  // Init ICP-LM optimizer.
+  //  - if undistortion is NONE :
+  //    FirstPose is the only considered transform, rigidly optimized.
+  //    SecondPose is not even used, nor is time info.
+  //  - if undistortion is APPROXIMATED :
+  //    FirstPose and SecondPose are first used as fixed priors for linear undistortion during ICP,
+  //    then only SecondPose is rigidly optimized.
+  //  - if undistortion is OPTIMIZED :
+  //    FirstPose and SecondPose are first used as fixed priors for linear undistortion during ICP,
+  //    then are optimized by iteratively refining undistortion.
   KeypointsRegistration(const Parameters& params,
                         UndistortionMode undistortion,
-                        const Eigen::Isometry3d& endPosePrior,
-                        const Eigen::Isometry3d& startPosePrior = Eigen::Isometry3d::Identity(),
-                        double endPoseTime = 1.,
-                        double startPoseTime = 0.);
+                        const Eigen::Isometry3d& firstPosePrior,
+                        const Eigen::Isometry3d& secondPosePrior = Eigen::Isometry3d::Identity(),
+                        double firstPoseTime = 0.,
+                        double secondPoseTime = 1.);
 
   // Build point-to-neighborhood residuals
   MatchingResults BuildAndMatchResiduals(const PointCloud::Ptr& currPoints,
@@ -158,10 +168,12 @@ public:
   ceres::Solver::Summary Solve();
 
   // Get optimization results
-  Eigen::Isometry3d GetOptimizedEndPose() const { return Utils::XYZRPYtoIsometry(this->EndPoseArray); }
-  Eigen::Isometry3d GetOptimizedStartPose() const { return Utils::XYZRPYtoIsometry(this->StartPoseArray); }
+  Eigen::Isometry3d GetOptimizedFirstPose()  const { return Utils::XYZRPYtoIsometry(this->FirstPoseArray); }
+  Eigen::Isometry3d GetOptimizedSecondPose() const { return Utils::XYZRPYtoIsometry(this->SecondPoseArray); }
 
   // Estimate registration error
+  // If undistortion is disabled, this error is estimated for FirstPose.
+  // If undistortion is enabled, this error is estimated for SecondPose.
   RegistrationError EstimateRegistrationError();
 
   //----------------------------------------------------------------------------
@@ -225,19 +237,19 @@ private:
 
   const UndistortionMode Undistortion;
 
-  // Initialization of DoF to optimize
-  const Eigen::Isometry3d EndPosePrior;
-  const Eigen::Isometry3d StartPosePrior;
-
-  // Frame pose interpolator, only used if undistortion is enabled
-  const LinearTransformInterpolator<double> WithinFrameMotionPrior;
-
   // The problem to build and optimize
   ceres::Problem Problem;
 
+  // Initialization of DoF to optimize
+  const Eigen::Isometry3d FirstPosePrior;   ///< Initial guess of the first pose to optimize
+  const Eigen::Isometry3d SecondPosePrior;  ///< Initial guess of the second pose to optimize (only used if undistortion is enabled)
+
   // DoF to optimize (= output)
-  Eigen::Vector6d EndPoseArray;   ///< Pose at the end of frame (XYZRPY)
-  Eigen::Vector6d StartPoseArray; ///< Pose at the beginning of frame (XYZRPY), only used if undistortion is enabled
+  Eigen::Vector6d FirstPoseArray;   ///< First pose to optimize (XYZRPY)
+  Eigen::Vector6d SecondPoseArray;  ///< Second pose to optimize (XYZRPY) (only used if undistortion is enabled)
+
+  // Frame pose interpolator (only used if undistortion is enabled)
+  const LinearTransformInterpolator<double> WithinFrameMotionPrior;
 };
 
 } // end of LidarSlam namespace
