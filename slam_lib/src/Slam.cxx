@@ -1130,11 +1130,18 @@ void Slam::InitUndistortion()
   // Get 'time' field range
   double firstFrameTime = std::numeric_limits<double>::max();
   double lastFrameTime  = std::numeric_limits<double>::min();
-  for (const Point& point: *this->CurrentFrame)
+  auto GetMinMaxTime = [&](const PointCloud::ConstPtr& cloud)
   {
-    firstFrameTime = std::min(firstFrameTime, point.time);
-    lastFrameTime  = std::max(lastFrameTime, point.time);
-  }
+    for (const Point& point: *cloud)
+    {
+      firstFrameTime = std::min(firstFrameTime, point.time);
+      lastFrameTime  = std::max(lastFrameTime, point.time);
+    }
+  };
+  GetMinMaxTime(this->CurrentEdgesPoints);
+  GetMinMaxTime(this->CurrentPlanarsPoints);
+  if (!this->FastSlam)
+    GetMinMaxTime(this->CurrentBlobsPoints);
 
   // Extrapolate first and last poses to initialize within frame motion interpolator
   this->WithinFrameMotion.SetH0(this->InterpolateScanPose(firstFrameTime), firstFrameTime);
