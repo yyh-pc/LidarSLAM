@@ -394,7 +394,7 @@ private:
 
   // Transformation to map the current pointcloud in the world coordinates
   // This pose is the pose of BASE in WORLD coordinates, at the time
-  // corresponding to the end of Lidar scan.
+  // corresponding to the timestamp in the header of input Lidar scan.
   Eigen::Isometry3d Tworld;
   Eigen::Isometry3d PreviousTworld;
 
@@ -404,16 +404,15 @@ private:
 
   // **** UNDISTORTION ****
 
-  // Pose at the beginning of current frame
-  Eigen::Isometry3d TworldFrameStart;
-
   // Transform interpolator to estimate the pose of the sensor within a lidar
   // frame, using poses at the beginning and end of frame.
+  // This will use the point-wise 'time' field, representing the time offset
+  // in seconds to add to the frame header timestamp.
   LinearTransformInterpolator<double> WithinFrameMotion;
 
-  // If Undistortion is enabled, it is necessary to save frame duration
-  // (time ellapsed between first and last point measurements)
-  double FrameDuration;
+  // Point-wise 'time' field min and max values, representing the duration
+  // between the first and last points measurements.
+  std::pair<double, double> WithinFrameTime;
 
   // **** LOGGING ****
 
@@ -541,8 +540,8 @@ private:
   // (empty frame, same timestamp, frame dropping, ...)
   bool CheckFrame(const PointCloud::Ptr& inputPc);
 
-  // Update current frame time field in prevision of undistortion
-  void UpdateFrameTime(const PointCloud::Ptr& inputPc);
+  // Get current frame time field range in prevision of undistortion
+  void UpdateFrameTime();
 
   // Extract keypoints from input pointcloud,
   // and transform them from LIDAR to BASE coordinate system.
@@ -573,8 +572,9 @@ private:
   // estimated egomotion and assuming a constant angular velocity and velocity
   // during a sweep, or any other motion model.
 
-  // Interpolate scan begin pose from PreviousTworld and Tworld.
-  Eigen::Isometry3d InterpolateBeginScanPose();
+  // Extra/Interpolate scan pose using previous motion from PreviousTworld and Tworld.
+  // 'time' arg should match the point-wise 'time' field scale.
+  Eigen::Isometry3d InterpolateScanPose(double time);
 };
 
 } // end of LidarSlam namespace
