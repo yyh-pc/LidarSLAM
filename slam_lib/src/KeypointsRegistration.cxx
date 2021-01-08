@@ -26,12 +26,14 @@ namespace LidarSlam
 KeypointsRegistration::KeypointsRegistration(const KeypointsRegistration::Parameters& params,
                                              UndistortionMode undistortion,
                                              const Eigen::Isometry3d& endPosePrior,
-                                             const Eigen::Isometry3d& startPosePrior)
+                                             const Eigen::Isometry3d& startPosePrior,
+                                             double endPoseTime,
+                                             double startPoseTime)
 : Params(params)
 , Undistortion(undistortion)
 , EndPosePrior(endPosePrior)
 , StartPosePrior(startPosePrior)
-, WithinFrameMotionPrior(startPosePrior, endPosePrior)
+, WithinFrameMotionPrior(startPosePrior, endPosePrior, startPoseTime, endPoseTime)
 {
   // Convert isometries to 6D state vectors : X, Y, Z, rX, rY, rZ
   this->EndPoseArray   = Utils::IsometryToXYZRPY(this->EndPosePrior);

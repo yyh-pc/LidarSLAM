@@ -145,7 +145,9 @@ public:
   KeypointsRegistration(const Parameters& params,
                         UndistortionMode undistortion,
                         const Eigen::Isometry3d& endPosePrior,
-                        const Eigen::Isometry3d& startPosePrior = Eigen::Isometry3d::Identity());
+                        const Eigen::Isometry3d& startPosePrior = Eigen::Isometry3d::Identity(),
+                        double endPoseTime = 1.,
+                        double startPoseTime = 0.);
 
   // Build point-to-neighborhood residuals
   MatchingResults BuildAndMatchResiduals(const PointCloud::Ptr& currPoints,
