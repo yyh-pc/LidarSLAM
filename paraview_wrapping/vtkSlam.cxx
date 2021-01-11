@@ -129,7 +129,8 @@ void PolyDataToPointCloud(vtkPolyData* poly, LidarSlam::Slam::PointCloud::Ptr pc
 
   // Loop over points data
   pc->resize(nbPoints);
-  double frameEndTime = 0;
+  double frameEndTime = arrayTime->GetRange()[1];
+  pc->header.stamp = frameEndTime; // max time in microseconds
   for (vtkIdType i = 0; i < nbPoints; i++)
   {
     auto& p = pc->points[i];
@@ -138,13 +139,10 @@ void PolyDataToPointCloud(vtkPolyData* poly, LidarSlam::Slam::PointCloud::Ptr pc
     p.x = pos[0];
     p.y = pos[1];
     p.z = pos[2];
-    p.time = arrayTime->GetTuple1(i) * 1e-6; // time in seconds
+    p.time = (arrayTime->GetTuple1(i) - frameEndTime) * 1e-6; // time offset to header timestamp in seconds
     p.laser_id = useLaserIdMapping ? laserIdMapping[arrayLaserId->GetTuple1(i)] : arrayLaserId->GetTuple1(i);
     p.intensity = arrayIntensity->GetTuple1(i);
-
-    frameEndTime = std::max(frameEndTime, arrayTime->GetTuple1(i));
   }
-  pc->header.stamp = frameEndTime; // time in microseconds
 }
 } // end of anonymous namespace
 } // end of Utils namespace

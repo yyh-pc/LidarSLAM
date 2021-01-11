@@ -394,7 +394,7 @@ private:
 
   // Transformation to map the current pointcloud in the world coordinates
   // This pose is the pose of BASE in WORLD coordinates, at the time
-  // corresponding to the end of Lidar scan.
+  // corresponding to the timestamp in the header of input Lidar scan.
   Eigen::Isometry3d Tworld;
   Eigen::Isometry3d PreviousTworld;
 
@@ -404,16 +404,11 @@ private:
 
   // **** UNDISTORTION ****
 
-  // Pose at the beginning of current frame
-  Eigen::Isometry3d TworldFrameStart;
-
   // Transform interpolator to estimate the pose of the sensor within a lidar
   // frame, using poses at the beginning and end of frame.
+  // This will use the point-wise 'time' field, representing the time offset
+  // in seconds to add to the frame header timestamp.
   LinearTransformInterpolator<double> WithinFrameMotion;
-
-  // If Undistortion is enabled, it is necessary to save frame duration
-  // (time ellapsed between first and last point measurements)
-  double FrameDuration;
 
   // **** LOGGING ****
 
@@ -541,9 +536,6 @@ private:
   // (empty frame, same timestamp, frame dropping, ...)
   bool CheckFrame(const PointCloud::Ptr& inputPc);
 
-  // Update current frame time field in prevision of undistortion
-  void UpdateFrameTime(const PointCloud::Ptr& inputPc);
-
   // Extract keypoints from input pointcloud,
   // and transform them from LIDAR to BASE coordinate system.
   void ExtractKeypoints();
@@ -565,16 +557,22 @@ private:
   void LogCurrentFrameState(double time, const std::string& frameId);
 
   // ---------------------------------------------------------------------------
-  //   Helpers
+  //   Undistortion helpers
   // ---------------------------------------------------------------------------
 
-  // All points of the current frame have been acquired at a different timestamp.
-  // The goal is to express them in the same referential. This can be done using
-  // estimated egomotion and assuming a constant angular velocity and velocity
-  // during a sweep, or any other motion model.
+  // All points of the current frame have been acquired at different timestamps.
+  // The goal is to express them in the same referential, at the timestamp in
+  // input scan header. This can be done using estimated egomotion and assuming
+  // a constant velocity during a sweep.
 
-  // Interpolate scan begin pose from PreviousTworld and Tworld.
-  Eigen::Isometry3d InterpolateBeginScanPose();
+  // Extra/Interpolate scan pose using previous motion from PreviousTworld and Tworld.
+  // 'time' arg is the time offset in seconds to current frame header.stamp.
+  Eigen::Isometry3d InterpolateScanPose(double time);
+
+  // Init undistortion process based on point-wise time field.
+  // Get current frame time field range, and update within frame motion interpolator.
+  void InitUndistortion();
+
 };
 
 } // end of LidarSlam namespace

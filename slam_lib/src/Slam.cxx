@@ -162,8 +162,7 @@ void Slam::Reset(bool resetLog)
   this->Tworld = Eigen::Isometry3d::Identity();
   this->PreviousTworld = Eigen::Isometry3d::Identity();
   this->Trelative = Eigen::Isometry3d::Identity();
-  this->TworldFrameStart = Eigen::Isometry3d::Identity();
-  this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
+  this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
 
   // Reset pose uncertainty
   this->LocalizationUncertainty = KeypointsRegistration::RegistrationError();
@@ -206,15 +205,11 @@ void Slam::AddFrame(const PointCloud::Ptr& pc)
   // Check that input frame is correct and can be processed
   if (!this->CheckFrame(pc))
     return;
+  this->CurrentFrame = pc;
 
   PRINT_VERBOSE(2, "\n#########################################################");
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
   PRINT_VERBOSE(2, "#########################################################\n");
-
-  // Update current frame time field in prevision of undistortion
-  IF_VERBOSE(3, Utils::Timer::Init("Update frame time"));
-  this->UpdateFrameTime(pc);
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Update frame time"));
 
   // Compute the edges and planars keypoints
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints extraction"));
@@ -231,19 +226,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc)
     this->ComputeEgoMotion();
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
 
-    // Integrate the relative motion to the world transformation
-    this->PreviousTworld = this->Tworld;
-    this->Tworld = this->PreviousTworld * this->Trelative;
-    if (this->Undistortion)
-    {
-      // Use extrapolated motion to initialize keypoints undistortion.
-      // (All keypoints will be transformed to the BASE referential at the end
-      // of frame acquisition)
-      this->TworldFrameStart = this->InterpolateBeginScanPose();
-      this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
-    }
-
-    // Perform Localization : compute Tworld from map and current frame keypoints
+    // Perform Localization : update Tworld from map and current frame keypoints
     IF_VERBOSE(3, Utils::Timer::Init("Localization"));
     this->Localization();
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization"));
@@ -272,7 +255,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc)
                  " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "] °\n";
     if (this->Undistortion)
     {
-      Eigen::Isometry3d motion = this->TworldFrameStart.inverse() * this->Tworld;
+      Eigen::Isometry3d motion = this->WithinFrameMotion.GetTransformRange();
       std::cout << "Within frame motion:\n"
                    " translation = [" << motion.translation().transpose()                                        << "] m\n"
                    " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(motion.linear())).transpose() << "] °\n";
@@ -596,11 +579,11 @@ Slam::PointCloud::Ptr Slam::GetOutputFrame()
   // followed by rigid transform or undistortion
   if (this->Undistortion)
   {
-    const Eigen::Isometry3d beginPose = this->TworldFrameStart * this->BaseToLidarOffset;
-    const Eigen::Isometry3d endPose = this->Tworld * this->BaseToLidarOffset;
-    LinearTransformInterpolator<double> transformInterpolator(beginPose, endPose);
+    LinearTransformInterpolator<double> transformInterpolator;
+    transformInterpolator.SetH0(this->WithinFrameMotion.GetH0() * this->BaseToLidarOffset, this->WithinFrameMotion.GetTime0());
+    transformInterpolator.SetH1(this->WithinFrameMotion.GetH1() * this->BaseToLidarOffset, this->WithinFrameMotion.GetTime1());
 
-    output->header = this->CurrentFrame->header;
+    Utils::CopyPointCloudMetadata(*this->CurrentFrame, *output);
     output->points.reserve(this->CurrentFrame->size());
     for (const Slam::Point& p : *this->CurrentFrame)
       output->push_back(Utils::TransformPoint(p, transformInterpolator(p.time)));
@@ -691,49 +674,6 @@ bool Slam::CheckFrame(const PointCloud::Ptr& inputPc)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::UpdateFrameTime(const PointCloud::Ptr& inputPc)
-{
-  // If undistortion is enabled, compute FrameDuration and update 'time' field
-  // to allow later rolling shutter distortion correction.
-  if (this->Undistortion)
-  {
-    // Copy the input cloud to avoid modifying input
-    // CHECK : no other way to avoid this copy? Could be heavy with 64 or 128...
-    this->CurrentFrame = inputPc->makeShared();
-
-    // Get frame duration
-    double frameStartTime = std::numeric_limits<double>::max(),
-           frameEndTime   = std::numeric_limits<double>::min();
-    for (const Point& point: *this->CurrentFrame)
-    {
-      frameStartTime = std::min(frameStartTime, point.time);
-      frameEndTime = std::max(frameEndTime, point.time);
-    }
-    this->FrameDuration = frameEndTime - frameStartTime;
-
-    // FrameDuration should be > 0 if the time field is properly set
-    if (this->FrameDuration > 0)
-    {
-      // Modify the points so that time becomes a relative advancement (between 0 and 1)
-      for (Point& point: *this->CurrentFrame)
-        point.time = (point.time - frameStartTime) / this->FrameDuration;
-    }
-    else
-    {
-      // If time field is not usable, set it to 1 to match end frame timestamp
-      PRINT_WARNING("'time' field is not properly set and cannot be used for undistortion.");
-      for (Point& point: *this->CurrentFrame)
-        point.time = 1.;
-    }
-  }
-
-  // If undistortion isn't enabled, no need to change 'time' field which won't
-  // be used, and input remains untouched
-  else
-    this->CurrentFrame = inputPc;
-}
-
-//-----------------------------------------------------------------------------
 void Slam::ExtractKeypoints()
 {
   PRINT_VERBOSE(2, "========== Keypoints extraction ==========");
@@ -791,13 +731,8 @@ void Slam::ComputeEgoMotion()
     const double t = Utils::PclStampToSec(this->CurrentFrame->header.stamp);
     const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
     const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
-    if (t0 < t1 && t1 < t)
-    {
-      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
-      this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
-    }
-    else
-      PRINT_WARNING("Motion extrapolation skipped as time is not strictly increasing.");
+    Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
+    this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
   }
 
   // Refine Trelative estimation by registering current frame on previous one
@@ -887,7 +822,7 @@ void Slam::ComputeEgoMotion()
       PRINT_VERBOSE(4, summary.BriefReport());
 
       // Get back optimized Trelative
-      this->Trelative = optim.GetOptimizedEndPose();
+      this->Trelative = optim.GetOptimizedFirstPose();
 
       IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : LM optim"));
 
@@ -918,6 +853,14 @@ void Slam::ComputeEgoMotion()
 void Slam::Localization()
 {
   PRINT_VERBOSE(2, "========== Localization ==========");
+
+  // Integrate the relative motion to the world transformation
+  this->PreviousTworld = this->Tworld;
+  this->Tworld = this->PreviousTworld * this->Trelative;
+  // If undistortion is enabled, init the within frame motion interpolator
+  // for rolling shutter distortion correction.
+  if (this->Undistortion)
+    this->InitUndistortion();
 
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
@@ -997,7 +940,9 @@ void Slam::Localization()
     optimParams.LMMaxIter = this->LocalizationLMMaxIter;
     optimParams.LossScale = this->LocalizationInitLossScale + icpIter * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / this->LocalizationICPMaxIter;
 
-    KeypointsRegistration optim(optimParams, this->Undistortion, this->Tworld, this->TworldFrameStart);
+    KeypointsRegistration optim(optimParams, this->Undistortion,
+                                this->Undistortion ? this->WithinFrameMotion.GetH0() : this->Tworld,
+                                this->WithinFrameMotion.GetH1(), this->WithinFrameMotion.GetTime0(), this->WithinFrameMotion.GetTime1());
 
     // Loop over edges to build the point to line residuals
     this->LocalizationMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreeEdges, Keypoint::EDGE);
@@ -1017,8 +962,8 @@ void Slam::Localization()
       // Reset state to previous one to avoid instability
       this->Trelative = Eigen::Isometry3d::Identity();
       this->Tworld = this->PreviousTworld;
-      this->TworldFrameStart = this->Tworld;
-      this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
+      if (this->Undistortion)
+        this->WithinFrameMotion.SetTransforms(this->Tworld, this->Tworld);
       PRINT_ERROR("Not enough keypoints, Localization skipped for this frame.");
       break;
     }
@@ -1030,19 +975,29 @@ void Slam::Localization()
     ceres::Solver::Summary summary = optim.Solve();
     PRINT_VERBOSE(4, summary.BriefReport());
 
-    // Unpack Tworld and TworldFrameStart
-    this->Tworld = optim.GetOptimizedEndPose();
-    this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
-    if (this->Undistortion == UndistortionMode::OPTIMIZED)
+    // Update Tworld, WithinFrameMotion and Trelative from optimization results
+    if (this->Undistortion == UndistortionMode::NONE)
     {
-      this->TworldFrameStart = optim.GetOptimizedStartPose();
-      this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
+      this->Tworld = optim.GetOptimizedFirstPose();
     }
     else if (this->Undistortion == UndistortionMode::APPROXIMATED)
     {
-      this->TworldFrameStart = this->InterpolateBeginScanPose();
-      this->WithinFrameMotion.SetTransforms(this->TworldFrameStart, this->Tworld);
+      // Get optimized end pose, interpolate Tworld from previous and end poses,
+      // and interpolate begin pose between previous and Tworld
+      Eigen::Isometry3d endPose = optim.GetOptimizedSecondPose();
+      double prevPoseTime = this->LogTrajectory.back().time;
+      double currPoseTime = Utils::PclStampToSec(this->CurrentFrame->header.stamp);
+      double endPoseTime = currPoseTime + this->WithinFrameMotion.GetTime1();
+      this->Tworld = LinearInterpolation(this->PreviousTworld, endPose, currPoseTime, prevPoseTime, endPoseTime);
+      this->WithinFrameMotion.SetTransforms(this->InterpolateScanPose(this->WithinFrameMotion.GetTime0()), endPose);
     }
+    else if (this->Undistortion == UndistortionMode::OPTIMIZED)
+    {
+      // Get fully optimized start and end poses, and interpolate Tworld between them
+      this->WithinFrameMotion.SetTransforms(optim.GetOptimizedFirstPose(), optim.GetOptimizedSecondPose());
+      this->Tworld = this->WithinFrameMotion(0.);
+    }
+    this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : LM optim"));
 
@@ -1147,29 +1102,64 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
 }
 
 //==============================================================================
-//   Helpers
+//   Undistortion helpers
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-Eigen::Isometry3d Slam::InterpolateBeginScanPose()
+Eigen::Isometry3d Slam::InterpolateScanPose(double time)
 {
-  if (this->NbrFrameProcessed > 0)
+  if (this->LogTrajectory.empty())
+    return this->Tworld;
+
+  constexpr double MAX_EXTRAPOLATION_RATIO = 3.;
+  const double prevPoseTime = this->LogTrajectory.back().time;
+  const double currPoseTime = Utils::PclStampToSec(this->CurrentFrame->header.stamp);
+
+  if (std::abs(time / (currPoseTime - prevPoseTime)) > MAX_EXTRAPOLATION_RATIO)
   {
-    const double prevFrameEnd = this->LogTrajectory.back().time;
-    const double currFrameEnd = Utils::PclStampToSec(this->CurrentFrame->header.stamp);
-    const double currFrameStart = currFrameEnd - this->FrameDuration;
-    // Check that time is roughly increasing and that there is no time jump
-    // during current frame (which would lead to huge FrameDuration)
-    if (prevFrameEnd < currFrameEnd && this->FrameDuration < 2 * (currFrameEnd - prevFrameEnd))
-      return LinearInterpolation(this->PreviousTworld, this->Tworld, currFrameStart, prevFrameEnd, currFrameEnd);
-    else
-    {
-      PRINT_WARNING("Motion interpolation skipped as time is not increasing.");
-      return this->Tworld;
-    }
+    PRINT_WARNING("Unable to interpolate scan pose from motion : extrapolation time is too far.");
+    return this->Tworld;
   }
-  else
-    return Eigen::Isometry3d::Identity();
+
+  return LinearInterpolation(this->PreviousTworld, this->Tworld, currPoseTime + time, prevPoseTime, currPoseTime);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::InitUndistortion()
+{
+  // Get 'time' field range
+  double firstFrameTime = std::numeric_limits<double>::max();
+  double lastFrameTime  = std::numeric_limits<double>::min();
+  auto GetMinMaxTime = [&](const PointCloud::ConstPtr& cloud)
+  {
+    for (const Point& point: *cloud)
+    {
+      firstFrameTime = std::min(firstFrameTime, point.time);
+      lastFrameTime  = std::max(lastFrameTime, point.time);
+    }
+  };
+  GetMinMaxTime(this->CurrentEdgesPoints);
+  GetMinMaxTime(this->CurrentPlanarsPoints);
+  if (!this->FastSlam)
+    GetMinMaxTime(this->CurrentBlobsPoints);
+
+  // Extrapolate first and last poses to initialize within frame motion interpolator
+  this->WithinFrameMotion.SetH0(this->InterpolateScanPose(firstFrameTime), firstFrameTime);
+  this->WithinFrameMotion.SetH1(this->InterpolateScanPose(lastFrameTime), lastFrameTime);
+
+  // Check time values
+  if (this->WithinFrameMotion.GetTimeRange() < 1e-6)
+  {
+    // If frame duration is 0, it means that the time field is constant
+    PRINT_WARNING("'time' field is not properly set (constant value) and cannot be used for undistortion.");
+    this->WithinFrameMotion.SetTransforms(this->Tworld, this->Tworld);
+    this->WithinFrameMotion.SetTimes(0., lastFrameTime);
+  }
+  else if (this->WithinFrameMotion.GetTimeRange() > 10.)
+  {
+    // If frame duration is bigger than 10 seconds, it is probably wrongly set
+    PRINT_WARNING("'time' field looks not properly set (frame duration > 10 s) and can lead to faulty undistortion.");
+  }
 }
 
 //==============================================================================
