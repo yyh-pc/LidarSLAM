@@ -68,6 +68,12 @@ namespace Eigen
 
   ///! @brief 6D Vector of double
   using Vector6d = Matrix<double, 6, 1>;
+
+  //! We could use an unaligned Isometry3d in order to avoid having to use
+  //! Eigen::aligned_allocator<Eigen::Isometry3d> in each declaration of
+  //! std::container storing isometries instances, as documented here :
+  //! http://eigen.tuxfamily.org/dox-devel/group__TopicStlContainers.html
+  using UnalignedIsometry3d = Eigen::Transform<double, 3, Eigen::Isometry, Eigen::DontAlign>;
 }
 
 namespace LidarSlam

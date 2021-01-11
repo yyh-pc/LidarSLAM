@@ -133,8 +133,8 @@ void LoggedKeypointsSize(const std::deque<PointCloudStorage<Slam::Point>>& log, 
 //-----------------------------------------------------------------------------
 Slam::Slam()
 {
-  // Allocate Keypoints Extractor
-  this->KeyPointsExtractor = std::make_shared<SpinningSensorKeypointExtractor>();
+  // Allocate a default Keypoint Extractor for device 0
+  this->KeyPointsExtractors[0] = std::make_shared<SpinningSensorKeypointExtractor>();
 
   // Allocate maps
   this->EdgesPointsLocalMap = std::make_shared<RollingGrid>();
@@ -168,7 +168,7 @@ void Slam::Reset(bool resetLog)
   this->LocalizationUncertainty = KeypointsRegistration::RegistrationError();
 
   // Reset point clouds
-  this->CurrentFrame.reset(new PointCloud);
+  this->CurrentFrames.clear(); this->CurrentFrames.emplace_back(new PointCloud);
   this->CurrentEdgesPoints.reset(new PointCloud);
   this->CurrentPlanarsPoints.reset(new PointCloud);
   this->CurrentBlobsPoints.reset(new PointCloud);
@@ -198,14 +198,14 @@ void Slam::Reset(bool resetLog)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::AddFrame(const PointCloud::Ptr& pc)
+void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 {
   Utils::Timer::Init("SLAM frame processing");
 
-  // Check that input frame is correct and can be processed
-  if (!this->CheckFrame(pc))
+  // Check that input frames are correct and can be processed
+  if (!this->CheckFrames(frames))
     return;
-  this->CurrentFrame = pc;
+  this->CurrentFrames = frames;
 
   PRINT_VERBOSE(2, "\n#########################################################");
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
@@ -242,7 +242,7 @@ void Slam::AddFrame(const PointCloud::Ptr& pc)
 
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, Utils::Timer::Init("Logging"));
-  this->LogCurrentFrameState(Utils::PclStampToSec(this->CurrentFrame->header.stamp), this->WorldFrameId);
+  this->LogCurrentFrameState(Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp), this->WorldFrameId);
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
@@ -573,29 +573,39 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
 //-----------------------------------------------------------------------------
 Slam::PointCloud::Ptr Slam::GetOutputFrame()
 {
-  PointCloud::Ptr output(new PointCloud);
+  PointCloud::Ptr aggregatedOutput(new PointCloud);
+  aggregatedOutput->header.frame_id = this->WorldFrameId;
+  aggregatedOutput->header.stamp =  this->CurrentFrames[0]->header.stamp;
+  aggregatedOutput->header.seq =  this->NbrFrameProcessed;
 
-  // Transform from LiDAR sensor to BASE coordinate system,
-  // followed by rigid transform or undistortion
-  if (this->Undistortion)
+  // Loop over frames of input
+  for (unsigned int i = 0; i < this->CurrentFrames.size(); ++i)
   {
-    LinearTransformInterpolator<double> transformInterpolator;
-    transformInterpolator.SetH0(this->WithinFrameMotion.GetH0() * this->BaseToLidarOffset, this->WithinFrameMotion.GetTime0());
-    transformInterpolator.SetH1(this->WithinFrameMotion.GetH1() * this->BaseToLidarOffset, this->WithinFrameMotion.GetTime1());
+    PointCloud output;
 
-    Utils::CopyPointCloudMetadata(*this->CurrentFrame, *output);
-    output->points.reserve(this->CurrentFrame->size());
-    for (const Slam::Point& p : *this->CurrentFrame)
-      output->push_back(Utils::TransformPoint(p, transformInterpolator(p.time)));
-  }
-  else
-  {
-    const Eigen::Isometry3d endPose = this->Tworld * this->BaseToLidarOffset;
-    pcl::transformPointCloud(*this->CurrentFrame, *output, endPose.matrix());
+    // Transform from LiDAR sensor to BASE coordinate system,
+    // followed by rigid transform or undistortion
+    if (this->Undistortion)
+    {
+      LinearTransformInterpolator<double> transformInterpolator;
+      transformInterpolator.SetH0(this->WithinFrameMotion.GetH0() * this->BaseToLidarOffsets[i], this->WithinFrameMotion.GetTime0());
+      transformInterpolator.SetH1(this->WithinFrameMotion.GetH1() * this->BaseToLidarOffsets[i], this->WithinFrameMotion.GetTime1());
+
+      output.reserve(this->CurrentFrames[i]->size());
+      for (const Slam::Point& p : *this->CurrentFrames[i])
+        output.push_back(Utils::TransformPoint(p, transformInterpolator(p.time)));
+    }
+    else
+    {
+      const Eigen::Isometry3d worldPose = this->Tworld * this->BaseToLidarOffsets[i];
+      pcl::transformPointCloud(*this->CurrentFrames[i], output, worldPose.matrix());
+    }
+
+    // Add registered (and undistorted) frame to aggregated output
+    *aggregatedOutput += output;
   }
 
-  output->header.frame_id = this->WorldFrameId;
-  return output;
+  return aggregatedOutput;
 }
 
 //-----------------------------------------------------------------------------
@@ -648,27 +658,38 @@ Slam::PointCloud::Ptr Slam::GetBlobsKeypoints(bool worldCoordinates) const
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-bool Slam::CheckFrame(const PointCloud::Ptr& inputPc)
+bool Slam::CheckFrames(const std::vector<PointCloud::Ptr>& frames)
 {
-  // Skip frame if empty
-  if (!inputPc || inputPc->empty())
+  // Check input frames and return if they are all empty
+  bool allFramesEmpty = true;
+  for (unsigned int i = 0; i < frames.size(); ++i)
   {
-    PRINT_ERROR("SLAM entry is an empty pointcloud : frame ignored.");
+    if (!frames[i] || !frames[i]->empty())
+      allFramesEmpty = false;
+    else
+      PRINT_WARNING("SLAM input frame " << i << " is an empty pointcloud : frame ignored.");
+  }
+  if (allFramesEmpty)
+  {
+    PRINT_ERROR("SLAM input only contains empty pointclouds : exiting.");
     return false;
   }
 
-  // Skip frame if it has the same timestamp as previous one (will induce problems in extrapolation)
-  if (inputPc->header.stamp == this->CurrentFrame->header.stamp)
+  // Skip frames if it has the same timestamp as previous ones (will induce problems in extrapolation)
+  if (frames[0]->header.stamp == this->CurrentFrames[0]->header.stamp)
   {
-    PRINT_ERROR("SLAM entry has the same timestamp (" << inputPc->header.stamp << ") as previous pointcloud : frame ignored.");
+    PRINT_ERROR("SLAM frames have the same timestamp (" << frames[0]->header.stamp << ") as previous ones : frames ignored.");
     return false;
   }
 
   // Check frame dropping
-  unsigned int droppedFrames = inputPc->header.seq - this->PreviousFrameSeq - 1;
-  if ((this->PreviousFrameSeq > 0) && (droppedFrames > 0))
-    PRINT_WARNING("SLAM dropped " << droppedFrames << " frame" << (droppedFrames > 1 ? "s" : "") << ".\n");
-  this->PreviousFrameSeq = inputPc->header.seq;
+  for (unsigned int i = 0; i < frames.size(); ++i)
+  {
+    unsigned int droppedFrames = frames[i]->header.seq - this->PreviousFramesSeq[i] - 1;
+    if ((this->PreviousFramesSeq[i] > 0) && (droppedFrames > 0))
+      PRINT_WARNING(droppedFrames << " frame(s)" << (frames.size() > 1 ? " from LiDAR device " + std::to_string(i) : "") << " were dropped by SLAM\n");
+    this->PreviousFramesSeq[i] = frames[i]->header.seq;
+  }
 
   return true;
 }
@@ -682,32 +703,59 @@ void Slam::ExtractKeypoints()
   this->PreviousEdgesPoints = this->CurrentEdgesPoints;
   this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
 
-  // Extract keypoints from input cloud,
-  this->KeyPointsExtractor->ComputeKeyPoints(this->CurrentFrame);
+  // Reset current keypoints
+  this->CurrentEdgesPoints.reset(new PointCloud);
+  this->CurrentPlanarsPoints.reset(new PointCloud);
+  this->CurrentBlobsPoints.reset(new PointCloud);
+  pcl::PCLHeader header;
+  header.frame_id = this->BaseFrameId;
+  header.stamp = this->CurrentFrames[0]->header.stamp;
+  header.seq = this->NbrFrameProcessed;
+  this->CurrentEdgesPoints->header = header;
+  this->CurrentPlanarsPoints->header = header;
+  this->CurrentBlobsPoints->header = header;
 
-  auto transformToBase = [this](const Slam::PointCloud::Ptr& inputPc)
+  auto transformToBase = [this](const Slam::PointCloud::Ptr& inputPc, const Eigen::Isometry3d& baseToLidar)
   {
     PointCloud::Ptr baseCloud;
-    // If transform to apply is identity, avoid much work and just change frame id if it is defined
-    if (this->BaseToLidarOffset.isApprox(Eigen::Isometry3d::Identity()))
-    {
+    // If transform to apply is identity, avoid much work
+    if (baseToLidar.isApprox(Eigen::Isometry3d::Identity()))
       baseCloud = inputPc;
-      baseCloud->header.frame_id = this->BaseFrameId.empty() ? inputPc->header.frame_id : this->BaseFrameId;
-    }
-    // If transform is set and non trivial, run transformation and notify it by changing frame id
+    // If transform is set and non trivial, run transformation
     else
     {
       baseCloud.reset(new PointCloud);
-      pcl::transformPointCloud(*inputPc, *baseCloud, this->BaseToLidarOffset.matrix());
-      baseCloud->header.frame_id = this->BaseFrameId.empty() ? this->BaseFrameIdDefault : this->BaseFrameId;
+      pcl::transformPointCloud(*inputPc, *baseCloud, baseToLidar.matrix());
     }
     return baseCloud;
   };
 
-  // Get keypoints and transform them from LIDAR to BASE coordinates if needed.
-  this->CurrentEdgesPoints   = transformToBase(this->KeyPointsExtractor->GetEdgePoints());
-  this->CurrentPlanarsPoints = transformToBase(this->KeyPointsExtractor->GetPlanarPoints());
-  this->CurrentBlobsPoints   = transformToBase(this->KeyPointsExtractor->GetBlobPoints());
+  // Extract keypoints from each input cloud
+  for (const PointCloud::Ptr& frame: this->CurrentFrames)
+  {
+    // Get LiDAR device id
+    int lidarDevice = frame->front().device_id;
+
+    // Get keypoints extractor
+    if (!this->KeyPointsExtractors.count(lidarDevice))
+    {
+      PRINT_ERROR("Input frame comes from LiDAR device " << lidarDevice
+                  << " but no keypoints extractor has been set for this device : ignoring frame.");
+      continue;
+    }
+    KeypointExtractorPtr& ke = this->KeyPointsExtractors[lidarDevice];
+
+    // Compute keypoints from this device frame
+    ke->ComputeKeyPoints(frame);
+
+    // Transform them from LIDAR to BASE coordinates, and aggregate them
+    Eigen::Isometry3d baseToLidar = this->BaseToLidarOffsets.count(lidarDevice) ?
+                                      this->BaseToLidarOffsets[lidarDevice] : Eigen::UnalignedIsometry3d::Identity();
+    *this->CurrentEdgesPoints   += *transformToBase(ke->GetEdgePoints(),   baseToLidar);
+    *this->CurrentPlanarsPoints += *transformToBase(ke->GetPlanarPoints(), baseToLidar);
+    if (!this->FastSlam)
+      *this->CurrentBlobsPoints   += *transformToBase(ke->GetBlobPoints(),   baseToLidar);
+  }
 
   PRINT_VERBOSE(2, "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
                                            << this->CurrentPlanarsPoints->size() << " planes, "
@@ -728,7 +776,7 @@ void Slam::ComputeEgoMotion()
        this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION))
   {
     // Estimate new Tworld with a constant velocity model
-    const double t = Utils::PclStampToSec(this->CurrentFrame->header.stamp);
+    const double t = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
     const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
     const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
     Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
@@ -986,7 +1034,7 @@ void Slam::Localization()
       // and interpolate begin pose between previous and Tworld
       Eigen::Isometry3d endPose = optim.GetOptimizedSecondPose();
       double prevPoseTime = this->LogTrajectory.back().time;
-      double currPoseTime = Utils::PclStampToSec(this->CurrentFrame->header.stamp);
+      double currPoseTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
       double endPoseTime = currPoseTime + this->WithinFrameMotion.GetTime1();
       this->Tworld = LinearInterpolation(this->PreviousTworld, endPose, currPoseTime, prevPoseTime, endPoseTime);
       this->WithinFrameMotion.SetTransforms(this->InterpolateScanPose(this->WithinFrameMotion.GetTime0()), endPose);
@@ -1113,7 +1161,7 @@ Eigen::Isometry3d Slam::InterpolateScanPose(double time)
 
   constexpr double MAX_EXTRAPOLATION_RATIO = 3.;
   const double prevPoseTime = this->LogTrajectory.back().time;
-  const double currPoseTime = Utils::PclStampToSec(this->CurrentFrame->header.stamp);
+  const double currPoseTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
 
   if (std::abs(time / (currPoseTime - prevPoseTime)) > MAX_EXTRAPOLATION_RATIO)
   {
