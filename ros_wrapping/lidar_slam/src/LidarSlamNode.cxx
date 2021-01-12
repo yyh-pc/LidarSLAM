@@ -621,16 +621,9 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
 
   // Keypoint extractors
-  std::vector<int> deviceIds;
-  priv_nh.param("slam/ke/device_ids", deviceIds, {0});
-  for (auto deviceId: deviceIds)
+  auto InitKeypointsExtractor = [&priv_nh](auto& ke, const std::string& prefix)
   {
-    // Init Keypoint extractor with default params
-    auto ke = std::make_shared<LidarSlam::SpinningSensorKeypointExtractor>();
-
-    // Chnage default parameters using ROS parameter server
     #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (priv_nh.getParam(rosParam, val)) ke->Set##keParam(val);}
-    std::string prefix = "slam/ke/device_" + std::to_string(deviceId) + "/";
     SetKeypointsExtractorParam(int,    prefix + "neighbor_width", NeighborWidth)
     SetKeypointsExtractorParam(double, prefix + "min_distance_to_sensor", MinDistanceToSensor)
     SetKeypointsExtractorParam(double, prefix + "angle_resolution", AngleResolution)
@@ -639,9 +632,32 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
     SetKeypointsExtractorParam(double, prefix + "edge_depth_gap_threshold", EdgeDepthGapThreshold)
     SetKeypointsExtractorParam(double, prefix + "edge_saliency_threshold", EdgeSaliencyThreshold)
     SetKeypointsExtractorParam(double, prefix + "edge_intensity_gap_threshold", EdgeIntensityGapThreshold)
+  };
+  // Multi-LiDAR devices
+  std::vector<int> deviceIds;
+  if (priv_nh.getParam("slam/ke/device_ids", deviceIds))
+  {
+    ROS_INFO_STREAM("Multi-LiDAR devices setup");
+    for (auto deviceId: deviceIds)
+    {
+      // Init Keypoint extractor with default params
+      auto ke = std::make_shared<LidarSlam::SpinningSensorKeypointExtractor>();
 
-    // Add extractor to SLAM
-    this->LidarSlam.SetKeyPointsExtractor(ke, deviceId);
-    ROS_INFO_STREAM("Adding keypoint extractor for LiDAR device " << deviceId);
+      // Change default parameters using ROS parameter server
+      std::string prefix = "slam/ke/device_" + std::to_string(deviceId) + "/";
+      InitKeypointsExtractor(ke, prefix);
+
+      // Add extractor to SLAM
+      this->LidarSlam.SetKeyPointsExtractor(ke, deviceId);
+      ROS_INFO_STREAM("Adding keypoint extractor for LiDAR device " << deviceId);
+    }
+  }
+  // Single LiDAR device
+  else
+  {
+    ROS_INFO_STREAM("Single LiDAR device setup");
+    auto ke = std::make_shared<LidarSlam::SpinningSensorKeypointExtractor>();
+    InitKeypointsExtractor(ke, "slam/ke/");
+    this->LidarSlam.SetKeyPointsExtractor(ke);
   }
 }
