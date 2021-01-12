@@ -6,10 +6,10 @@ Helper package to convert raw pointclouds output by common LiDAR drivers to the 
 
 The SLAM algorithm expects input pointclouds as *sensor_msgs/PointCloud2* messages. These pointclouds should have the following fields:
 - **x**, **y**, **z** (`float`) : point coordinates
-- **time** (`double`) : time offset to add to the pointcloud header timestamp to get approximate point-wise aquisition timestamp
+- **time** (`double`) : time offset to add to the pointcloud header timestamp to get approximate point-wise acquisition timestamp
 - **intensity** (`float`) : intensity/reflectivity of the point
 - **laser_id** (`uint16`) : numeric identifier of the laser ring that shot this point. The lowest/bottom laser ring should be 0, and it should increase upward.
-- **device_id** (`uint8`) : numeric identifier of the LiDAR device/sensor. This id should be the same for all points of the cloud aquired by the same sensor.
+- **device_id** (`uint8`) : numeric identifier of the LiDAR device/sensor. This id should be the same for all points of the cloud acquired by the same sensor.
 - **label** (`uint8`) : optional input, not yet used.
 
 Especially, the point-wise timestamps are necessary if undistortion is enabled in SLAM. The nodes of this package are able to compute approximate timestamps when those are not available in the input pointcloud.

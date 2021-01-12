@@ -168,7 +168,8 @@ void Slam::Reset(bool resetLog)
   this->LocalizationUncertainty = KeypointsRegistration::RegistrationError();
 
   // Reset point clouds
-  this->CurrentFrames.clear(); this->CurrentFrames.emplace_back(new PointCloud);
+  this->CurrentFrames.clear();
+  this->CurrentFrames.emplace_back(new PointCloud);
   this->CurrentEdgesPoints.reset(new PointCloud);
   this->CurrentPlanarsPoints.reset(new PointCloud);
   this->CurrentBlobsPoints.reset(new PointCloud);

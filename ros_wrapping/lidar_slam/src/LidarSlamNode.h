@@ -54,12 +54,12 @@ public:
    * Input pointcloud must have following fields :
    *  - x, y, z (float): point coordinates
    *  - time (double): time offset to add to the pointcloud header timestamp to
-   *    get approximate point-wise aquisition timestamp
+   *    get approximate point-wise acquisition timestamp
    *  - intensity (float): intensity/reflectivity of the point
    *  - laser_id (uint16): numeric identifier of the laser ring that shot this point.
    *    The lowest/bottom laser ring should be 0, and it should increase upward.
    *  - device_id (uint8): numeric identifier of the LiDAR device/sensor.
-   *    This id should be the same for all points of the cloud aquired by the same sensor.
+   *    This id should be the same for all points of the cloud acquired by the same sensor.
    *  - label (uint8): optional input, not yet used.
    */
   virtual void ScanCallback(const CloudS::Ptr cloudS_ptr);
@@ -72,12 +72,12 @@ public:
    * Input pointcloud must have following fields :
    *  - x, y, z (float): point coordinates
    *  - time (double): time offset to add to the pointcloud header timestamp to
-   *    get approximate point-wise aquisition timestamp
+   *    get approximate point-wise acquisition timestamp
    *  - intensity (float): intensity/reflectivity of the point
    *  - laser_id (uint16): numeric identifier of the laser ring that shot this point.
    *    The lowest/bottom laser ring should be 0, and it should increase upward.
    *  - device_id (uint8): numeric identifier of the LiDAR device/sensor.
-   *    This id should be the same for all points of the cloud aquired by the same sensor.
+   *    This id should be the same for all points of the cloud acquired by the same sensor.
    *  - label (uint8): optional input, not yet used.
    */
   virtual void SecondaryScanCallback(const CloudS::Ptr cloudS_ptr);
@@ -105,7 +105,7 @@ protected:
    * @param[in] lidarFrameId The input LiDAR pointcloud frame_id.
    * @param[in] lidarDeviceId The numerical identifier of the LiDAR sensor.
    */
-  void UpdateBaseToLidarOffset(const std::string& lidarFrameId, unsigned int lidarDeviceId);
+  void UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint8_t lidarDeviceId);
 
   //----------------------------------------------------------------------------
   /*!
@@ -121,10 +121,9 @@ protected:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief     Get and fill Slam parameters from ROS parameters server.
-   * @param[in] priv_nh Private ROS node handle to access parameters.
+   * @brief Get and fill Slam parameters from ROS parameters server.
    */
-  void SetSlamParameters(ros::NodeHandle& priv_nh);
+  void SetSlamParameters();
 
   //----------------------------------------------------------------------------
   /*!

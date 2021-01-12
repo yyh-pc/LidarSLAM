@@ -2,20 +2,20 @@
 #  Real-time LiDAR SLAM parameters  #
 #####################################
 
-# SLAM will compute the pose of tracking_frame in odometry_frame coordinates system, using measurements in input pointcloud frame.
-odometry_frame: "odom"       # Frame in which SLAM odometry and maps are expressed (default: odom).
-tracking_frame: "base_link"  # Frame to track (ensure a valid TF tree is published to link input pointcloud frame_id).
+# SLAM will compute the pose of tracking_frame in odometry_frame coordinates system, using measurements in input pointcloud frames.
+odometry_frame: "odom"       # Frame in which SLAM odometry and maps are expressed (default: odom)
+tracking_frame: "base_link"  # Frame to track (ensure a valid TF tree is published to link input pointcloud frame_id) (default: base_link)
 
 # Input LiDAR frames topics, expected as sensor_msgs/PointCloud2 messages with the following fields:
 # - x, y, z (float): point coordinates
-# - time (double): time offset to add to the pointcloud header timestamp to get approximate point-wise aquisition timestamp
+# - time (double): time offset to add to the pointcloud header timestamp to get approximate point-wise acquisition timestamp
 # - intensity (float): intensity/reflectivity of the point
 # - laser_id (uint16): numeric identifier of the laser ring that shot this point. The lowest/bottom laser ring should be 0, and it should increase upward.
-# - device_id (uint8): numeric identifier of the LiDAR device/sensor. This id should be the same for all points of the cloud aquired by the same sensor.
+# - device_id (uint8): numeric identifier of the LiDAR device/sensor. This id should be the same for all points of the cloud acquired by the same sensor.
 # - label (uint8): optional input, not yet used.
-input: "lidar_points"  # single LiDAR input
+input: "lidar_points"  # single LiDAR input (default: lidar_points)
 # input:  # multi LiDAR inputs
-#   - "lidar_points_1"  # Main topic: SLAM will be run each time a non-empty frame is received on this topic (default: lidar_points)
+#   - "lidar_points_1"  # Main topic: SLAM will be run each time a non-empty frame is received on this topic
 #   - "lidar_points_2"  # Secondary topics: non-empty frames will be buffered and added to main frame for multi-LiDAR SLAM.
 #   - "lidar_points_3"
 
@@ -185,7 +185,7 @@ slam:
     edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
 
     # # Multi LiDAR inputs
-    # # The devices to use for SLAM.
+    # # The multiple devices to use for SLAM.
     # # A keypoint extractor will be initialized for each device.
     # device_ids: [0, 10]
     # # Keypoint extractors parameters for each LiDAR sensor "device_<device_id>"

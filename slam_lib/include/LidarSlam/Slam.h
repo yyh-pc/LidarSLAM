@@ -116,21 +116,21 @@ public:
   // ---------------------------------------------------------------------------
 
   // Add a new frame to SLAM process.
-  // This will trigger the following sequential steps :
-  // - keypoints extraction : extract interesting keypoints to lower problem dimensionality
-  // - ego-motion : estimate motion since last pose to init localization step
-  // - localization : estimate global pose of current frame in map
-  // - maps update : update map using current registered frame
+  // This will trigger the following sequential steps:
+  // - keypoints extraction: extract interesting keypoints to lower problem dimensionality
+  // - ego-motion: estimate motion since last pose to init localization step
+  // - localization: estimate global pose of current frame in map
+  // - maps update: update maps using current registered frame
   void AddFrame(const PointCloud::Ptr& pc) { this->AddFrames({pc}); }
 
   // Add a set of frames to SLAM process.
-  // This will trigger the following sequential steps :
-  // - keypoints extraction : extract interesting keypoints from each frame to
+  // This will trigger the following sequential steps:
+  // - keypoints extraction: extract interesting keypoints from each frame to
   //   lower problem dimensionality, then aggregate them.
-  // - ego-motion : estimate motion since last pose to init localization step
-  // - localization : estimate global pose of current frame in map
-  // - maps update : update map using current registered frame
-  // This first frame will be considered as 'main' : its timestamp will be the
+  // - ego-motion: estimate motion since last pose to init localization step
+  // - localization: estimate global pose of current frame in map
+  // - maps update: update maps using current registered frame
+  // This first frame will be considered as 'main': its timestamp will be the
   // current pose time, its frame id will be used if no other is specified, ...
   void AddFrames(const std::vector<PointCloud::Ptr>& frames);
 
@@ -231,16 +231,16 @@ public:
   // ---------------------------------------------------------------------------
 
   // Get/Set all keypoints extractors
-  std::map<int, KeypointExtractorPtr> GetKeyPointsExtractors() const { return this->KeyPointsExtractors; }
-  void SetKeyPointsExtractors(const std::map<int, KeypointExtractorPtr>& extractors) { this->KeyPointsExtractors = extractors; }
+  std::map<uint8_t, KeypointExtractorPtr> GetKeyPointsExtractors() const { return this->KeyPointsExtractors; }
+  void SetKeyPointsExtractors(const std::map<uint8_t, KeypointExtractorPtr>& extractors) { this->KeyPointsExtractors = extractors; }
 
   // Get/Set a specific keypoints extractor
-  KeypointExtractorPtr GetKeyPointsExtractor(int deviceId = 0) const { return this->KeyPointsExtractors.at(deviceId); }
-  void SetKeyPointsExtractor(KeypointExtractorPtr extractor, int deviceId = 0) { this->KeyPointsExtractors[deviceId] = extractor; }
+  KeypointExtractorPtr GetKeyPointsExtractor(uint8_t deviceId = 0) const { return this->KeyPointsExtractors.at(deviceId); }
+  void SetKeyPointsExtractor(KeypointExtractorPtr extractor, uint8_t deviceId = 0) { this->KeyPointsExtractors[deviceId] = extractor; }
 
   // Get/Set a specific base to Lidar offset
-  Eigen::Isometry3d GetBaseToLidarOffset(int deviceId = 0) const { return this->BaseToLidarOffsets.at(deviceId); }
-  void SetBaseToLidarOffset(const Eigen::Isometry3d& transform, int deviceId = 0) { this->BaseToLidarOffsets[deviceId] = transform; }
+  Eigen::Isometry3d GetBaseToLidarOffset(uint8_t deviceId = 0) const { return this->BaseToLidarOffsets.at(deviceId); }
+  void SetBaseToLidarOffset(const Eigen::Isometry3d& transform, uint8_t deviceId = 0) { this->BaseToLidarOffsets[deviceId] = transform; }
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -444,12 +444,12 @@ private:
   std::map<int, unsigned int> PreviousFramesSeq;
 
   // Keypoints extractors, 1 for each lidar device
-  std::map<int, KeypointExtractorPtr> KeyPointsExtractors;
+  std::map<uint8_t, KeypointExtractorPtr> KeyPointsExtractors;
 
   // Static transform to link BASE and LIDAR coordinates systems for each device.
   // It corresponds to the pose of each LIDAR device origin in BASE coordinates.
   // If the transform is not available for a given device, identity will be used.
-  std::map<int, Eigen::UnalignedIsometry3d> BaseToLidarOffsets;
+  std::map<uint8_t, Eigen::UnalignedIsometry3d> BaseToLidarOffsets;
 
   // ---------------------------------------------------------------------------
   //   Keypoints and Maps

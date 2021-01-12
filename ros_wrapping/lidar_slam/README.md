@@ -46,7 +46,7 @@ This launch file will start a *lidar_slam_node*, a pre-configured RViz session, 
 
 The SLAM algorithm expects input pointclouds on topic *lidar_points* as *sensor_msgs/PointCloud2* messages. These pointclouds should have the following fields:
 - **x**, **y**, **z** (`float`) : point coordinates
-- **time** (`double`) : time offset to add to the pointcloud header timestamp to get approximate point-wise aquisition timestamp
+- **time** (`double`) : time offset to add to the pointcloud header timestamp to get approximate point-wise acquisition timestamp
 - **intensity** (`float`) : intensity/reflectivity of the point
 - **laser_id** (`uint16`) : numeric identifier of the laser ring that shot this point. The lowest/bottom laser ring should be 0, and it should increase upward.
 - **device_id** (`uint8`), **label** (`uint8`) : optional inputs, not yet used.

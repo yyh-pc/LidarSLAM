@@ -59,7 +59,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   , TfListener(TfBuffer)
 {
   // Get SLAM params
-  this->SetSlamParameters(priv_nh);
+  this->SetSlamParameters();
 
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   priv_nh.getParam("gps/use_gps", this->UseGps);
@@ -428,7 +428,7 @@ void LidarSlamNode::PoseGraphOptimization()
 //==============================================================================
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, unsigned int lidarDeviceId)
+void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint8_t lidarDeviceId)
 {
   // If tracking frame is different from input frame, get TF from LiDAR to BASE
   if (lidarFrameId != this->TrackingFrameId)
@@ -526,9 +526,9 @@ void LidarSlamNode::PublishOutput()
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
+void LidarSlamNode::SetSlamParameters()
 {
-  #define SetSlamParam(type, rosParam, slamParam) { type val; if (priv_nh.getParam(rosParam, val)) this->LidarSlam.Set##slamParam(val); }
+  #define SetSlamParam(type, rosParam, slamParam) { type val; if (this->PrivNh.getParam(rosParam, val)) this->LidarSlam.Set##slamParam(val); }
 
   // General
   SetSlamParam(bool,   "slam/fast_slam", FastSlam)
@@ -537,7 +537,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   SetSlamParam(double, "slam/logging_timeout", LoggingTimeout)
   SetSlamParam(double, "slam/max_distance_for_ICP_matching", MaxDistanceForICPMatching)
   int egoMotionMode;
-  if (priv_nh.getParam("slam/ego_motion", egoMotionMode))
+  if (this->PrivNh.getParam("slam/ego_motion", egoMotionMode))
   {
     LidarSlam::EgoMotionMode egoMotion = static_cast<LidarSlam::EgoMotionMode>(egoMotionMode);
     if (egoMotion != LidarSlam::EgoMotionMode::NONE &&
@@ -551,7 +551,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
     LidarSlam.SetEgoMotion(egoMotion);
   }
   int undistortionMode;
-  if (priv_nh.getParam("slam/undistortion", undistortionMode))
+  if (this->PrivNh.getParam("slam/undistortion", undistortionMode))
   {
     LidarSlam::UndistortionMode undistortion = static_cast<LidarSlam::UndistortionMode>(undistortionMode);
     if (undistortion != LidarSlam::UndistortionMode::NONE &&
@@ -564,7 +564,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
     LidarSlam.SetUndistortion(undistortion);
   }
   int pointCloudStorage;
-  if (priv_nh.getParam("slam/logging_storage", pointCloudStorage))
+  if (this->PrivNh.getParam("slam/logging_storage", pointCloudStorage))
   {
     LidarSlam::PointCloudStorageType storage = static_cast<LidarSlam::PointCloudStorageType>(pointCloudStorage);
     if (storage != LidarSlam::PointCloudStorageType::PCL_CLOUD &&
@@ -580,9 +580,9 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   }
 
   // Frame Ids
-  priv_nh.param("odometry_frame", this->OdometryFrameId, this->OdometryFrameId);
+  this->PrivNh.param("odometry_frame", this->OdometryFrameId, this->OdometryFrameId);
   this->LidarSlam.SetWorldFrameId(this->OdometryFrameId);
-  priv_nh.param("tracking_frame", this->TrackingFrameId, this->TrackingFrameId);
+  this->PrivNh.param("tracking_frame", this->TrackingFrameId, this->TrackingFrameId);
   this->LidarSlam.SetBaseFrameId(this->TrackingFrameId);
 
   // Ego motion
@@ -621,9 +621,9 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
 
   // Keypoint extractors
-  auto InitKeypointsExtractor = [&priv_nh](auto& ke, const std::string& prefix)
+  auto InitKeypointsExtractor = [this](auto& ke, const std::string& prefix)
   {
-    #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (priv_nh.getParam(rosParam, val)) ke->Set##keParam(val);}
+    #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (this->PrivNh.getParam(rosParam, val)) ke->Set##keParam(val);}
     SetKeypointsExtractorParam(int,    "slam/n_threads", NbThreads)
     SetKeypointsExtractorParam(int,    prefix + "neighbor_width", NeighborWidth)
     SetKeypointsExtractorParam(double, prefix + "min_distance_to_sensor", MinDistanceToSensor)
@@ -636,7 +636,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   };
   // Multi-LiDAR devices
   std::vector<int> deviceIds;
-  if (priv_nh.getParam("slam/ke/device_ids", deviceIds))
+  if (this->PrivNh.getParam("slam/ke/device_ids", deviceIds))
   {
     ROS_INFO_STREAM("Multi-LiDAR devices setup");
     for (auto deviceId: deviceIds)
