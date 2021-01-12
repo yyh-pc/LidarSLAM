@@ -272,13 +272,30 @@ inline void CopyPointCloudMetadata(const pcl::PointCloud<PointT>& from, pcl::Poi
 
 //------------------------------------------------------------------------------
 /*!
+ * @brief Build and return a PCL header
+ * @param timestamp PCL timestamp, in microseconds
+ * @param frameId Coordinates system frame ID
+ * @param seq Sequence number
+ * @return PCL header filled with these info
+ */
+inline pcl::PCLHeader BuildPclHeader(uint64_t timestamp, const std::string& frameId, unsigned int seq = 0)
+{
+  pcl::PCLHeader header;
+  header.stamp = timestamp;
+  header.frame_id = frameId;
+  header.seq = seq;
+  return header;
+}
+
+//------------------------------------------------------------------------------
+/*!
  * @brief Convert PCL timestamp (in microseconds) to seconds
- * @param pclStampMs PCL timestamp, in microseconds
+ * @param pclStampUs PCL timestamp, in microseconds
  * @return Timestamp in seconds
  */
-inline constexpr double PclStampToSec(uint64_t pclStampMs)
+inline constexpr double PclStampToSec(uint64_t pclStampUs)
 {
-  return pclStampMs * 1e-6;
+  return pclStampUs * 1e-6;
 }
 
 //------------------------------------------------------------------------------

@@ -574,9 +574,9 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
 Slam::PointCloud::Ptr Slam::GetOutputFrame()
 {
   PointCloud::Ptr aggregatedOutput(new PointCloud);
-  aggregatedOutput->header.frame_id = this->WorldFrameId;
-  aggregatedOutput->header.stamp =  this->CurrentFrames[0]->header.stamp;
-  aggregatedOutput->header.seq =  this->NbrFrameProcessed;
+  aggregatedOutput->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
+                                                   this->WorldFrameId,
+                                                   this->NbrFrameProcessed);
 
   // Loop over frames of input
   for (unsigned int i = 0; i < this->CurrentFrames.size(); ++i)
@@ -617,8 +617,9 @@ Slam::PointCloud::Ptr Slam::GetOutputFrame()
 Slam::PointCloud::Ptr Slam::GetEdgesMap() const
 {
   PointCloud::Ptr map = this->EdgesPointsLocalMap->Get();
-  map->header.frame_id = this->WorldFrameId;
-  map->header.stamp = Utils::SecToPclStamp(this->GetWorldTransform().time);
+  map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
+                                      this->WorldFrameId,
+                                      this->NbrFrameProcessed);
   return map;
 }
 
@@ -626,8 +627,9 @@ Slam::PointCloud::Ptr Slam::GetEdgesMap() const
 Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
 {
   PointCloud::Ptr map = this->PlanarPointsLocalMap->Get();
-  map->header.frame_id = this->WorldFrameId;
-  map->header.stamp = Utils::SecToPclStamp(this->GetWorldTransform().time);
+  map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
+                                      this->WorldFrameId,
+                                      this->NbrFrameProcessed);
   return map;
 }
 
@@ -635,8 +637,9 @@ Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
 Slam::PointCloud::Ptr Slam::GetBlobsMap() const
 {
   PointCloud::Ptr map = this->BlobsPointsLocalMap->Get();
-  map->header.frame_id = this->WorldFrameId;
-  map->header.stamp = Utils::SecToPclStamp(this->GetWorldTransform().time);
+  map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
+                                      this->WorldFrameId,
+                                      this->NbrFrameProcessed);
   return map;
 }
 
@@ -712,10 +715,7 @@ void Slam::ExtractKeypoints()
   this->CurrentEdgesPoints.reset(new PointCloud);
   this->CurrentPlanarsPoints.reset(new PointCloud);
   this->CurrentBlobsPoints.reset(new PointCloud);
-  pcl::PCLHeader header;
-  header.frame_id = this->BaseFrameId;
-  header.stamp = this->CurrentFrames[0]->header.stamp;
-  header.seq = this->NbrFrameProcessed;
+  pcl::PCLHeader header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp, this->BaseFrameId, this->NbrFrameProcessed);
   this->CurrentEdgesPoints->header = header;
   this->CurrentPlanarsPoints->header = header;
   this->CurrentBlobsPoints->header = header;
