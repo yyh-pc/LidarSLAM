@@ -750,11 +750,23 @@ void Slam::ExtractKeypoints()
     int lidarDevice = frame->front().device_id;
 
     // Get keypoints extractor
+    // Check if KE exists
     if (!this->KeyPointsExtractors.count(lidarDevice))
     {
-      PRINT_ERROR("Input frame comes from LiDAR device " << lidarDevice
-                  << " but no keypoints extractor has been set for this device : ignoring frame.");
-      continue;
+      // If KE does not exist but we are only using a single KE, use default one
+      if (this->KeyPointsExtractors.size() == 1)
+      {
+        PRINT_WARNING("Input frame comes from LiDAR device " << lidarDevice
+                    << " but no keypoints extractor has been set for this device : using default extractor for device 0.");
+        lidarDevice = 0;
+      }
+      // Otherwise ignore frame
+      else
+      {
+        PRINT_ERROR("Input frame comes from LiDAR device " << lidarDevice
+                    << " but no keypoints extractor has been set for this device : ignoring frame.");
+        continue;
+      }
     }
     KeypointExtractorPtr& ke = this->KeyPointsExtractors[lidarDevice];
 
