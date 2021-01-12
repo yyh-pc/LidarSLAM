@@ -624,6 +624,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   auto InitKeypointsExtractor = [&priv_nh](auto& ke, const std::string& prefix)
   {
     #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (priv_nh.getParam(rosParam, val)) ke->Set##keParam(val);}
+    SetKeypointsExtractorParam(int,    "slam/n_threads", NbThreads)
     SetKeypointsExtractorParam(int,    prefix + "neighbor_width", NeighborWidth)
     SetKeypointsExtractorParam(double, prefix + "min_distance_to_sensor", MinDistanceToSensor)
     SetKeypointsExtractorParam(double, prefix + "angle_resolution", AngleResolution)
