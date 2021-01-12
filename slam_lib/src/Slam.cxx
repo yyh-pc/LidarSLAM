@@ -601,6 +601,11 @@ Slam::PointCloud::Ptr Slam::GetOutputFrame()
       pcl::transformPointCloud(*this->CurrentFrames[i], output, worldPose.matrix());
     }
 
+    // Modify point-wise time offsets to match header.stamp
+    double timeOffset = Utils::PclStampToSec(this->CurrentFrames[i]->header.stamp) - Utils::PclStampToSec(aggregatedOutput->header.stamp);
+    for (auto& point: output)
+      point.time += timeOffset;
+
     // Add registered (and undistorted) frame to aggregated output
     *aggregatedOutput += output;
   }
@@ -715,19 +720,27 @@ void Slam::ExtractKeypoints()
   this->CurrentPlanarsPoints->header = header;
   this->CurrentBlobsPoints->header = header;
 
-  auto transformToBase = [this](const Slam::PointCloud::Ptr& inputPc, const Eigen::Isometry3d& baseToLidar)
+  // Transform pointcloud to BASE coordinates system and correct time offset
+  auto AddBaseKeypoints = [this](Slam::PointCloud::Ptr& allKp, const Slam::PointCloud::Ptr& kp, const Eigen::Isometry3d& baseToLidar)
   {
     PointCloud::Ptr baseCloud;
     // If transform to apply is identity, avoid much work
     if (baseToLidar.isApprox(Eigen::Isometry3d::Identity()))
-      baseCloud = inputPc;
+      baseCloud = kp;
     // If transform is set and non trivial, run transformation
     else
     {
       baseCloud.reset(new PointCloud);
-      pcl::transformPointCloud(*inputPc, *baseCloud, baseToLidar.matrix());
+      pcl::transformPointCloud(*kp, *baseCloud, baseToLidar.matrix());
     }
-    return baseCloud;
+
+    // Add to current keypoints
+    *allKp += *baseCloud;
+
+    // Modify point-wise time offsets to match header.stamp
+    double timeOffset = Utils::PclStampToSec(kp->header.stamp) - Utils::PclStampToSec(allKp->header.stamp);
+    for (unsigned int i = allKp->size() - kp->size(); i < allKp->size(); i++)
+      allKp->at(i).time += timeOffset;
   };
 
   // Extract keypoints from each input cloud
@@ -751,10 +764,10 @@ void Slam::ExtractKeypoints()
     // Transform them from LIDAR to BASE coordinates, and aggregate them
     Eigen::Isometry3d baseToLidar = this->BaseToLidarOffsets.count(lidarDevice) ?
                                       this->BaseToLidarOffsets[lidarDevice] : Eigen::UnalignedIsometry3d::Identity();
-    *this->CurrentEdgesPoints   += *transformToBase(ke->GetEdgePoints(),   baseToLidar);
-    *this->CurrentPlanarsPoints += *transformToBase(ke->GetPlanarPoints(), baseToLidar);
+    AddBaseKeypoints(this->CurrentEdgesPoints,   ke->GetEdgePoints(),   baseToLidar);
+    AddBaseKeypoints(this->CurrentPlanarsPoints, ke->GetPlanarPoints(), baseToLidar);
     if (!this->FastSlam)
-      *this->CurrentBlobsPoints   += *transformToBase(ke->GetBlobPoints(),   baseToLidar);
+      AddBaseKeypoints(this->CurrentBlobsPoints, ke->GetBlobPoints(),   baseToLidar);
   }
 
   PRINT_VERBOSE(2, "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
