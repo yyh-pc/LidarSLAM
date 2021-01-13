@@ -2,9 +2,22 @@
 #  Real-time LiDAR SLAM parameters  #
 #####################################
 
-# SLAM will compute the pose of tracking_frame in odometry_frame coordinates system, using measurements in input pointcloud frame.
-odometry_frame: "odom"       # Frame in which SLAM odometry and maps are expressed (default: odom).
-# tracking_frame: "base_link"  # Frame to track (default: input pointcloud frame_id; If different, ensure a valid TF tree is published).
+# SLAM will compute the pose of tracking_frame in odometry_frame coordinates system, using measurements in input pointcloud frames.
+odometry_frame: "odom"       # Frame in which SLAM odometry and maps are expressed (default: odom)
+tracking_frame: "base_link"  # Frame to track (ensure a valid TF tree is published to link input pointcloud frame_id) (default: base_link)
+
+# Input LiDAR frames topics, expected as sensor_msgs/PointCloud2 messages with the following fields:
+# - x, y, z (float): point coordinates
+# - time (double): time offset to add to the pointcloud header timestamp to get approximate point-wise acquisition timestamp
+# - intensity (float): intensity/reflectivity of the point
+# - laser_id (uint16): numeric identifier of the laser ring that shot this point. The lowest/bottom laser ring should be 0, and it should increase upward.
+# - device_id (uint8): numeric identifier of the LiDAR device/sensor. This id should be the same for all points of the cloud acquired by the same sensor.
+# - label (uint8): optional input, not yet used.
+input: "lidar_points"  # single LiDAR input (default: lidar_points)
+# input:  # multi LiDAR inputs
+#   - "lidar_points_1"  # Main topic: SLAM will be run each time a non-empty frame is received on this topic
+#   - "lidar_points_2"  # Secondary topics: non-empty frames will be buffered and added to main frame for multi-LiDAR SLAM.
+#   - "lidar_points_3"
 
 # SLAM node outputs
 # If set to true, LidarSlamNode will publish the given output to a topic or to the TF server (default to false if not specified).
@@ -159,8 +172,9 @@ slam:
     size: 50                # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
     resolution: 10.         # [m/voxel] Resolution of a voxel.
 
-  # Keypoints extraction
+  # Keypoint extractor for each LiDAR sensor
   ke:
+    # Single LiDAR input
     angle_resolution: 0.00698          # [rad] Maximal angular resolution of the lidar azimutal resolution.
     min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
     neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
@@ -169,3 +183,27 @@ slam:
     edge_depth_gap_threshold: 0.15     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
     edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
     edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
+
+    # # Multi LiDAR inputs
+    # # The multiple devices to use for SLAM.
+    # # A keypoint extractor will be initialized for each device.
+    # device_ids: [0, 10]
+    # # Keypoint extractors parameters for each LiDAR sensor "device_<device_id>"
+    # device_0:
+    #   angle_resolution: 0.00698          # [rad] Maximal angular resolution of the lidar azimutal resolution.
+    #   min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
+    #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
+    #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
+    #   edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
+    #   edge_depth_gap_threshold: 0.15     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
+    #   edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
+    #   edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
+    # device_10:
+    #   angle_resolution: 0.01             # [rad] Maximal angular resolution of the lidar azimutal resolution.
+    #   min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
+    #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
+    #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
+    #   edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
+    #   edge_depth_gap_threshold: 0.30     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
+    #   edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
+    #   edge_intensity_gap_threshold: 200. # [0-255] Threshold upon intensity gap to select an edge keypoint.

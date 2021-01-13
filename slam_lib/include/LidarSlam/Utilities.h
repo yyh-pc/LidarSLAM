@@ -68,6 +68,12 @@ namespace Eigen
 
   ///! @brief 6D Vector of double
   using Vector6d = Matrix<double, 6, 1>;
+
+  //! We could use an unaligned Isometry3d in order to avoid having to use
+  //! Eigen::aligned_allocator<Eigen::Isometry3d> in each declaration of
+  //! std::container storing isometries instances, as documented here:
+  //! http://eigen.tuxfamily.org/dox-devel/group__TopicStlContainers.html
+  using UnalignedIsometry3d = Eigen::Transform<double, 3, Eigen::Isometry, Eigen::DontAlign>;
 }
 
 namespace LidarSlam
@@ -266,13 +272,30 @@ inline void CopyPointCloudMetadata(const pcl::PointCloud<PointT>& from, pcl::Poi
 
 //------------------------------------------------------------------------------
 /*!
+ * @brief Build and return a PCL header
+ * @param timestamp PCL timestamp, in microseconds
+ * @param frameId Coordinates system frame ID
+ * @param seq Sequence number
+ * @return PCL header filled with these info
+ */
+inline pcl::PCLHeader BuildPclHeader(uint64_t timestamp, const std::string& frameId, unsigned int seq = 0)
+{
+  pcl::PCLHeader header;
+  header.stamp = timestamp;
+  header.frame_id = frameId;
+  header.seq = seq;
+  return header;
+}
+
+//------------------------------------------------------------------------------
+/*!
  * @brief Convert PCL timestamp (in microseconds) to seconds
- * @param pclStampMs PCL timestamp, in microseconds
+ * @param pclStampUs PCL timestamp, in microseconds
  * @return Timestamp in seconds
  */
-inline constexpr double PclStampToSec(uint64_t pclStampMs)
+inline constexpr double PclStampToSec(uint64_t pclStampUs)
 {
-  return pclStampMs * 1e-6;
+  return pclStampUs * 1e-6;
 }
 
 //------------------------------------------------------------------------------

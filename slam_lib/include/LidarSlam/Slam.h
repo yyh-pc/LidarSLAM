@@ -105,6 +105,7 @@ public:
   using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
   using KDTree = KDTreePCLAdaptor<Point>;
+  using KeypointExtractorPtr = std::shared_ptr<SpinningSensorKeypointExtractor>;
 
   // Initialization
   Slam();
@@ -114,11 +115,24 @@ public:
   //   Main SLAM use
   // ---------------------------------------------------------------------------
 
-  // Add a new frame to process to the slam algorithm
-  // From this frame; keypoints will be computed and extracted
-  // in order to recover the ego-motion of the lidar sensor
-  // and to update the map using keypoints and ego-motion
-  void AddFrame(const PointCloud::Ptr& pc);
+  // Add a new frame to SLAM process.
+  // This will trigger the following sequential steps:
+  // - keypoints extraction: extract interesting keypoints to lower problem dimensionality
+  // - ego-motion: estimate motion since last pose to init localization step
+  // - localization: estimate global pose of current frame in map
+  // - maps update: update maps using current registered frame
+  void AddFrame(const PointCloud::Ptr& pc) { this->AddFrames({pc}); }
+
+  // Add a set of frames to SLAM process.
+  // This will trigger the following sequential steps:
+  // - keypoints extraction: extract interesting keypoints from each frame to
+  //   lower problem dimensionality, then aggregate them.
+  // - ego-motion: estimate motion since last pose to init localization step
+  // - localization: estimate global pose of current frame in map
+  // - maps update: update maps using current registered frame
+  // This first frame will be considered as 'main': its timestamp will be the
+  // current pose time, its frame id will be used if no other is specified, ...
+  void AddFrames(const std::vector<PointCloud::Ptr>& frames);
 
   // Get the computed world transform so far (current BASE pose in WORLD coordinates)
   Transform GetWorldTransform() const;
@@ -179,7 +193,7 @@ public:
   // ---------------------------------------------------------------------------
 
   GetMacro(NbThreads, int)
-  void SetNbThreads(int n) { this->NbThreads = n; this->KeyPointsExtractor->SetNbThreads(n); }
+  void SetNbThreads(int n) { this->NbThreads = n; for (const auto& kv : this->KeyPointsExtractors) kv.second->SetNbThreads(n); }
 
   SetMacro(Verbosity, int)
   GetMacro(Verbosity, int)
@@ -206,14 +220,27 @@ public:
   //   Coordinates systems parameters
   // ---------------------------------------------------------------------------
 
-  SetMacro(BaseToLidarOffset, Eigen::Isometry3d const&)
-  GetMacro(BaseToLidarOffset, Eigen::Isometry3d)
-
   SetMacro(BaseFrameId, std::string const&)
   GetMacro(BaseFrameId, std::string)
 
   SetMacro(WorldFrameId, std::string const&)
   GetMacro(WorldFrameId, std::string)
+
+  // ---------------------------------------------------------------------------
+  //   Keypoints extraction
+  // ---------------------------------------------------------------------------
+
+  // Get/Set all keypoints extractors
+  std::map<uint8_t, KeypointExtractorPtr> GetKeyPointsExtractors() const { return this->KeyPointsExtractors; }
+  void SetKeyPointsExtractors(const std::map<uint8_t, KeypointExtractorPtr>& extractors) { this->KeyPointsExtractors = extractors; }
+
+  // Get/Set a specific keypoints extractor
+  KeypointExtractorPtr GetKeyPointsExtractor(uint8_t deviceId = 0) const { return this->KeyPointsExtractors.at(deviceId); }
+  void SetKeyPointsExtractor(KeypointExtractorPtr extractor, uint8_t deviceId = 0) { this->KeyPointsExtractors[deviceId] = extractor; }
+
+  // Get/Set a specific base to Lidar offset
+  Eigen::Isometry3d GetBaseToLidarOffset(uint8_t deviceId = 0) const { return this->BaseToLidarOffsets.at(deviceId); }
+  void SetBaseToLidarOffset(const Eigen::Isometry3d& transform, uint8_t deviceId = 0) { this->BaseToLidarOffsets[deviceId] = transform; }
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -297,7 +324,7 @@ public:
   SetMacro(LocalizationFinalLossScale, double)
 
   // ---------------------------------------------------------------------------
-  //   Rolling grid parameters and Keypoints extractor
+  //   Rolling grid parameters
   // ---------------------------------------------------------------------------
 
   // Set RollingGrid Parameters
@@ -307,9 +334,6 @@ public:
   void SetVoxelGridLeafSizeBlobs(double size);
   void SetVoxelGridSize(int size);
   void SetVoxelGridResolution(double resolution);
-
-  void SetKeyPointsExtractor(std::shared_ptr<SpinningSensorKeypointExtractor> extractor) { this->KeyPointsExtractor = extractor; }
-  std::shared_ptr<SpinningSensorKeypointExtractor> GetKeyPointsExtractor() const { return this->KeyPointsExtractor; }
 
 private:
 
@@ -366,11 +390,8 @@ private:
   // optimized map.
   bool UpdateMap = true;
 
-  // Number of frames that have been processed
+  // Number of frames that have been processed by SLAM (number of poses in trajectory)
   unsigned int NbrFrameProcessed = 0;
-
-  // Sequence id of the previous processed frame, used to check frames dropping
-  unsigned int PreviousFrameSeq = 0;
 
   // ---------------------------------------------------------------------------
   //   Trajectory, transforms and undistortion
@@ -378,14 +399,9 @@ private:
 
   // **** COORDINATES SYSTEMS ****
 
-  // Static transform to link BASE and LIDAR coordinates systems
-  // It corresponds to the pose of LIDAR origin in BASE coordinates
-  Eigen::Isometry3d BaseToLidarOffset = Eigen::Isometry3d::Identity();
-
   // Coordinates systems (CS) names to fill in pointclouds or poses headers
   std::string WorldFrameId = "world";  // CS of trajectory and maps
-  std::string BaseFrameId;             // CS of current keypoints, defaults to input cloud frame_id if BaseToLidarOffset is unset, or BaseFrameIdDefault otherwise.
-  const std::string BaseFrameIdDefault = "base";  // Default BASE name to use if BaseToLidarOffset is defined but not BaseFrameId.
+  std::string BaseFrameId = "base";    // CS of current keypoints
 
   // **** LOCALIZATION ****
 
@@ -421,14 +437,26 @@ private:
   std::deque<PointCloudStorage<Point>> LogBlobsPoints;
 
   // ---------------------------------------------------------------------------
-  //   Keypoints extraction and maps
+  //   Keypoints extraction
   // ---------------------------------------------------------------------------
 
-  // Current frame
-  PointCloud::Ptr CurrentFrame;
+  // Sequence id of the previous processed frame, used to check frames dropping
+  std::map<int, unsigned int> PreviousFramesSeq;
 
-  // Keypoints extractor
-  std::shared_ptr<SpinningSensorKeypointExtractor> KeyPointsExtractor;
+  // Keypoints extractors, 1 for each lidar device
+  std::map<uint8_t, KeypointExtractorPtr> KeyPointsExtractors;
+
+  // Static transform to link BASE and LIDAR coordinates systems for each device.
+  // It corresponds to the pose of each LIDAR device origin in BASE coordinates.
+  // If the transform is not available for a given device, identity will be used.
+  std::map<uint8_t, Eigen::UnalignedIsometry3d> BaseToLidarOffsets;
+
+  // ---------------------------------------------------------------------------
+  //   Keypoints and Maps
+  // ---------------------------------------------------------------------------
+
+  // Current frames (all input frames)
+  std::vector<PointCloud::Ptr> CurrentFrames;
 
   // Raw extracted keypoints, in BASE coordinates (no undistortion)
   PointCloud::Ptr CurrentEdgesPoints;
@@ -532,11 +560,11 @@ private:
   //   Main sub-problems and methods
   // ---------------------------------------------------------------------------
 
-  // Check that input frame is correct
+  // Check that input frames are correct
   // (empty frame, same timestamp, frame dropping, ...)
-  bool CheckFrame(const PointCloud::Ptr& inputPc);
+  bool CheckFrames(const std::vector<PointCloud::Ptr>& frames);
 
-  // Extract keypoints from input pointcloud,
+  // Extract keypoints from input pointclouds,
   // and transform them from LIDAR to BASE coordinate system.
   void ExtractKeypoints();
 

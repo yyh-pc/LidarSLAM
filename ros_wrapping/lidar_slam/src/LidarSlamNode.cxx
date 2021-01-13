@@ -59,7 +59,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   , TfListener(TfBuffer)
 {
   // Get SLAM params
-  this->SetSlamParameters(priv_nh);
+  this->SetSlamParameters();
 
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   priv_nh.getParam("gps/use_gps", this->UseGps);
@@ -96,7 +96,20 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   // ***************************************************************************
   // Init ROS subscribers
-  this->CloudSub = nh.subscribe("lidar_points", 1, &LidarSlamNode::ScanCallback, this);
+
+  // LiDAR inputs
+  std::vector<std::string> lidarTopics;
+  if (!priv_nh.getParam("input", lidarTopics))
+    lidarTopics.push_back(priv_nh.param<std::string>("input", "lidar_points"));
+  this->CloudSubs.push_back(nh.subscribe(lidarTopics[0], 1, &LidarSlamNode::ScanCallback, this));
+  ROS_INFO_STREAM("Using LiDAR frames on topic '" << lidarTopics[0] << "'");
+  for (unsigned int lidarTopicId = 1; lidarTopicId < lidarTopics.size(); lidarTopicId++)
+  {
+    this->CloudSubs.push_back(nh.subscribe(lidarTopics[lidarTopicId], 1, &LidarSlamNode::SecondaryScanCallback, this));
+    ROS_INFO_STREAM("Using secondary LiDAR frames on topic '" << lidarTopics[lidarTopicId] << "'");
+  }
+
+  // SLAM commands
   this->SlamCommandSub = nh.subscribe("slam_command", 1,  &LidarSlamNode::SlamCommandCallback, this);
 
   // Init logging of GPS data for GPS/SLAM calibration or Pose Graph Optimization.
@@ -115,26 +128,36 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
     return;
   }
 
-  // Check if time field looks properly set
-  // If first and last points have same timestamps, this is not normal
-  if (cloudS_ptr->back().time - cloudS_ptr->front().time < 1e-8 &&
-      LidarSlam.GetUndistortion() != LidarSlam::UndistortionMode::NONE)
-  {
-    ROS_WARN_STREAM("Invalid point wise timestamps -> slam process may have an undefined behaviour");
-  }
-
-  // If no tracking frame is set, track input pointcloud origin
-  if (this->TrackingFrameId.empty())
-    this->TrackingFrameId = cloudS_ptr->header.frame_id;
   // Update TF from BASE to LiDAR
-  this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->header.stamp);
+  this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id);
+
+  // Set the SLAM main input frame at first position
+  this->Frames.insert(this->Frames.begin(), cloudS_ptr);
 
   // Run SLAM : register new frame and update localization and map.
-  this->LidarSlam.AddFrame(cloudS_ptr);
+  this->LidarSlam.AddFrames(this->Frames);
+  this->Frames.clear();
 
   // Publish SLAM output as requested by user
   this->PublishOutput();
 }
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
+{
+  if(cloudS_ptr->empty())
+  {
+    ROS_WARN_STREAM("Secondary input point cloud sent by Lidar sensor driver is empty -> ignoring message");
+    return;
+  }
+
+  // Update TF from BASE to LiDAR for this device
+  this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id);
+
+  // Add new frame to SLAM input frames
+  this->Frames.push_back(cloudS_ptr);
+}
+
 
 //------------------------------------------------------------------------------
 void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
@@ -405,7 +428,7 @@ void LidarSlamNode::PoseGraphOptimization()
 //==============================================================================
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint64_t pclStamp)
+void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint8_t lidarDeviceId)
 {
   // If tracking frame is different from input frame, get TF from LiDAR to BASE
   if (lidarFrameId != this->TrackingFrameId)
@@ -414,7 +437,7 @@ void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uin
     // about timestamp and get only the latest transform
     Eigen::Isometry3d baseToLidar;
     if (Utils::Tf2LookupTransform(baseToLidar, this->TfBuffer, this->TrackingFrameId, lidarFrameId))
-      this->LidarSlam.SetBaseToLidarOffset(baseToLidar);
+      this->LidarSlam.SetBaseToLidarOffset(baseToLidar, lidarDeviceId);
   }
 }
 
@@ -503,9 +526,9 @@ void LidarSlamNode::PublishOutput()
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
+void LidarSlamNode::SetSlamParameters()
 {
-  #define SetSlamParam(type, rosParam, slamParam) { type val; if (priv_nh.getParam(rosParam, val)) this->LidarSlam.Set##slamParam(val); }
+  #define SetSlamParam(type, rosParam, slamParam) { type val; if (this->PrivNh.getParam(rosParam, val)) this->LidarSlam.Set##slamParam(val); }
 
   // General
   SetSlamParam(bool,   "slam/fast_slam", FastSlam)
@@ -514,7 +537,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   SetSlamParam(double, "slam/logging_timeout", LoggingTimeout)
   SetSlamParam(double, "slam/max_distance_for_ICP_matching", MaxDistanceForICPMatching)
   int egoMotionMode;
-  if (priv_nh.getParam("slam/ego_motion", egoMotionMode))
+  if (this->PrivNh.getParam("slam/ego_motion", egoMotionMode))
   {
     LidarSlam::EgoMotionMode egoMotion = static_cast<LidarSlam::EgoMotionMode>(egoMotionMode);
     if (egoMotion != LidarSlam::EgoMotionMode::NONE &&
@@ -528,7 +551,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
     LidarSlam.SetEgoMotion(egoMotion);
   }
   int undistortionMode;
-  if (priv_nh.getParam("slam/undistortion", undistortionMode))
+  if (this->PrivNh.getParam("slam/undistortion", undistortionMode))
   {
     LidarSlam::UndistortionMode undistortion = static_cast<LidarSlam::UndistortionMode>(undistortionMode);
     if (undistortion != LidarSlam::UndistortionMode::NONE &&
@@ -541,7 +564,7 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
     LidarSlam.SetUndistortion(undistortion);
   }
   int pointCloudStorage;
-  if (priv_nh.getParam("slam/logging_storage", pointCloudStorage))
+  if (this->PrivNh.getParam("slam/logging_storage", pointCloudStorage))
   {
     LidarSlam::PointCloudStorageType storage = static_cast<LidarSlam::PointCloudStorageType>(pointCloudStorage);
     if (storage != LidarSlam::PointCloudStorageType::PCL_CLOUD &&
@@ -557,10 +580,10 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   }
 
   // Frame Ids
-  priv_nh.param("odometry_frame", this->OdometryFrameId, this->OdometryFrameId);
+  this->PrivNh.param("odometry_frame", this->OdometryFrameId, this->OdometryFrameId);
   this->LidarSlam.SetWorldFrameId(this->OdometryFrameId);
-  if (priv_nh.getParam("tracking_frame", this->TrackingFrameId))
-    this->LidarSlam.SetBaseFrameId(this->TrackingFrameId);
+  this->PrivNh.param("tracking_frame", this->TrackingFrameId, this->TrackingFrameId);
+  this->LidarSlam.SetBaseFrameId(this->TrackingFrameId);
 
   // Ego motion
   SetSlamParam(int,    "slam/ego_motion_registration/LM_max_iter", EgoMotionLMMaxIter)
@@ -597,15 +620,45 @@ void LidarSlamNode::SetSlamParameters(ros::NodeHandle& priv_nh)
   SetSlamParam(double, "slam/voxel_grid/resolution", VoxelGridResolution)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
 
-  // Keypoints extraction
-  #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (priv_nh.getParam(rosParam, val)) this->LidarSlam.GetKeyPointsExtractor()->Set##keParam(val);}
-  SetKeypointsExtractorParam(int,    "slam/ke/neighbor_width", NeighborWidth)
-  SetKeypointsExtractorParam(double, "slam/ke/min_distance_to_sensor", MinDistanceToSensor)
-  SetKeypointsExtractorParam(double, "slam/ke/angle_resolution", AngleResolution)
-  SetKeypointsExtractorParam(double, "slam/ke/plane_sin_angle_threshold", PlaneSinAngleThreshold)
-  SetKeypointsExtractorParam(double, "slam/ke/edge_sin_angle_threshold", EdgeSinAngleThreshold)
-  // SetKeypointsExtractorParam(double, "slam/ke/dist_to_line_threshold", DistToLineThreshold)
-  SetKeypointsExtractorParam(double, "slam/ke/edge_depth_gap_threshold", EdgeDepthGapThreshold)
-  SetKeypointsExtractorParam(double, "slam/ke/edge_saliency_threshold", EdgeSaliencyThreshold)
-  SetKeypointsExtractorParam(double, "slam/ke/edge_intensity_gap_threshold", EdgeIntensityGapThreshold)
+  // Keypoint extractors
+  auto InitKeypointsExtractor = [this](auto& ke, const std::string& prefix)
+  {
+    #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (this->PrivNh.getParam(rosParam, val)) ke->Set##keParam(val);}
+    SetKeypointsExtractorParam(int,    "slam/n_threads", NbThreads)
+    SetKeypointsExtractorParam(int,    prefix + "neighbor_width", NeighborWidth)
+    SetKeypointsExtractorParam(double, prefix + "min_distance_to_sensor", MinDistanceToSensor)
+    SetKeypointsExtractorParam(double, prefix + "angle_resolution", AngleResolution)
+    SetKeypointsExtractorParam(double, prefix + "plane_sin_angle_threshold", PlaneSinAngleThreshold)
+    SetKeypointsExtractorParam(double, prefix + "edge_sin_angle_threshold", EdgeSinAngleThreshold)
+    SetKeypointsExtractorParam(double, prefix + "edge_depth_gap_threshold", EdgeDepthGapThreshold)
+    SetKeypointsExtractorParam(double, prefix + "edge_saliency_threshold", EdgeSaliencyThreshold)
+    SetKeypointsExtractorParam(double, prefix + "edge_intensity_gap_threshold", EdgeIntensityGapThreshold)
+  };
+  // Multi-LiDAR devices
+  std::vector<int> deviceIds;
+  if (this->PrivNh.getParam("slam/ke/device_ids", deviceIds))
+  {
+    ROS_INFO_STREAM("Multi-LiDAR devices setup");
+    for (auto deviceId: deviceIds)
+    {
+      // Init Keypoint extractor with default params
+      auto ke = std::make_shared<LidarSlam::SpinningSensorKeypointExtractor>();
+
+      // Change default parameters using ROS parameter server
+      std::string prefix = "slam/ke/device_" + std::to_string(deviceId) + "/";
+      InitKeypointsExtractor(ke, prefix);
+
+      // Add extractor to SLAM
+      this->LidarSlam.SetKeyPointsExtractor(ke, deviceId);
+      ROS_INFO_STREAM("Adding keypoint extractor for LiDAR device " << deviceId);
+    }
+  }
+  // Single LiDAR device
+  else
+  {
+    ROS_INFO_STREAM("Single LiDAR device setup");
+    auto ke = std::make_shared<LidarSlam::SpinningSensorKeypointExtractor>();
+    InitKeypointsExtractor(ke, "slam/ke/");
+    this->LidarSlam.SetKeyPointsExtractor(ke);
+  }
 }

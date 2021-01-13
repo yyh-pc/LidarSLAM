@@ -48,11 +48,39 @@ public:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief     New lidar frame callback, running SLAM and publishing TF.
-   * @param[in] cloud New Lidar Frame, published by conversion node.
-   * Slam pointcloud has fields     : x, y, z, time (double), intensity (float), laser_id (uint16),  device_id (uint8), label (uint8).
+   * @brief     New main LiDAR frame callback, running SLAM and publishing TF.
+   * @param[in] cloud New frame, published by conversion node.
+   *
+   * Input pointcloud must have following fields :
+   *  - x, y, z (float): point coordinates
+   *  - time (double): time offset to add to the pointcloud header timestamp to
+   *    get approximate point-wise acquisition timestamp
+   *  - intensity (float): intensity/reflectivity of the point
+   *  - laser_id (uint16): numeric identifier of the laser ring that shot this point.
+   *    The lowest/bottom laser ring should be 0, and it should increase upward.
+   *  - device_id (uint8): numeric identifier of the LiDAR device/sensor.
+   *    This id should be the same for all points of the cloud acquired by the same sensor.
+   *  - label (uint8): optional input, not yet used.
    */
   virtual void ScanCallback(const CloudS::Ptr cloudS_ptr);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief     New secondary lidar frame callback, buffered to be latered processed by SLAM.
+   * @param[in] cloud New frame, published by conversion node.
+   *
+   * Input pointcloud must have following fields :
+   *  - x, y, z (float): point coordinates
+   *  - time (double): time offset to add to the pointcloud header timestamp to
+   *    get approximate point-wise acquisition timestamp
+   *  - intensity (float): intensity/reflectivity of the point
+   *  - laser_id (uint16): numeric identifier of the laser ring that shot this point.
+   *    The lowest/bottom laser ring should be 0, and it should increase upward.
+   *  - device_id (uint8): numeric identifier of the LiDAR device/sensor.
+   *    This id should be the same for all points of the cloud acquired by the same sensor.
+   *  - label (uint8): optional input, not yet used.
+   */
+  virtual void SecondaryScanCallback(const CloudS::Ptr cloudS_ptr);
 
   //----------------------------------------------------------------------------
   /*!
@@ -75,9 +103,9 @@ protected:
   /*!
    * @brief     Update transform offset between BASE and LIDAR using TF2
    * @param[in] lidarFrameId The input LiDAR pointcloud frame_id.
-   * @param[in] pclStamp     The input pointcloud timestamp.
+   * @param[in] lidarDeviceId The numerical identifier of the LiDAR sensor.
    */
-  void UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint64_t pclStamp);
+  void UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint8_t lidarDeviceId);
 
   //----------------------------------------------------------------------------
   /*!
@@ -93,10 +121,9 @@ protected:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief     Get and fill Slam parameters from ROS parameters server.
-   * @param[in] priv_nh Private ROS node handle to access parameters.
+   * @brief Get and fill Slam parameters from ROS parameters server.
    */
-  void SetSlamParameters(ros::NodeHandle& priv_nh);
+  void SetSlamParameters();
 
   //----------------------------------------------------------------------------
   /*!
@@ -117,17 +144,18 @@ protected:
 
   // SLAM stuff
   LidarSlam::Slam LidarSlam;
+  std::vector<CloudS::Ptr> Frames;
 
   // ROS node handles, subscribers and publishers
   ros::NodeHandle &Nh, &PrivNh;
-  ros::Subscriber CloudSub;
+  std::vector<ros::Subscriber> CloudSubs;
   ros::Subscriber SlamCommandSub;
   std::unordered_map<int, ros::Publisher> Publishers;
   std::unordered_map<int, bool> Publish;
 
   // TF stuff
-  std::string OdometryFrameId = "odom";  ///< Frame in which SLAM odometry and maps are expressed.
-  std::string TrackingFrameId;           ///< Frame to track (default: input pointcloud frame_id; otherwise, ensure a valid TF tree is published).
+  std::string OdometryFrameId = "odom";       ///< Frame in which SLAM odometry and maps are expressed.
+  std::string TrackingFrameId = "base_link";  ///< Frame to track (ensure a valid TF tree is published).
   tf2_ros::Buffer TfBuffer;
   tf2_ros::TransformListener TfListener;
   tf2_ros::TransformBroadcaster TfBroadcaster;
