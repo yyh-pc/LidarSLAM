@@ -77,15 +77,15 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   initPublisher(POSE_ODOM,            "slam_odom",           nav_msgs::Odometry, "output/pose/odom",           true,  1, false);
   initPublisher(POSE_PREDICTION_ODOM, "slam_predicted_odom", nav_msgs::Odometry, "output/pose/predicted_odom", false, 1, false);
 
-  initPublisher(EDGES_MAP,  "maps/edges",  CloudS, "output/maps/edges",  false, 1, false);
-  initPublisher(PLANES_MAP, "maps/planes", CloudS, "output/maps/planes", false, 1, false);
-  initPublisher(BLOBS_MAP,  "maps/blobs",  CloudS, "output/maps/blobs",  false, 1, false);
+  initPublisher(EDGES_MAP,  "maps/edges",  CloudS, "output/maps/edges",  true, 1, false);
+  initPublisher(PLANES_MAP, "maps/planes", CloudS, "output/maps/planes", true, 1, false);
+  initPublisher(BLOBS_MAP,  "maps/blobs",  CloudS, "output/maps/blobs",  true, 1, false);
 
-  initPublisher(EDGES_KEYPOINTS,  "keypoints/edges",  CloudS, "output/keypoints/edges",  false, 1, false);
-  initPublisher(PLANES_KEYPOINTS, "keypoints/planes", CloudS, "output/keypoints/planes", false, 1, false);
-  initPublisher(BLOBS_KEYPOINTS,  "keypoints/blobs",  CloudS, "output/keypoints/blobs",  false, 1, false);
+  initPublisher(EDGES_KEYPOINTS,  "keypoints/edges",  CloudS, "output/keypoints/edges",  true, 1, false);
+  initPublisher(PLANES_KEYPOINTS, "keypoints/planes", CloudS, "output/keypoints/planes", true, 1, false);
+  initPublisher(BLOBS_KEYPOINTS,  "keypoints/blobs",  CloudS, "output/keypoints/blobs",  true, 1, false);
 
-  initPublisher(SLAM_OUTPUT_CLOUD, "slam_output_cloud", CloudS, "output/debug/cloud", false, 1, false);
+  initPublisher(SLAM_OUTPUT_CLOUD, "slam_output_cloud", CloudS, "output/debug/cloud", true, 1, false);
 
   if (this->UseGps)
   {

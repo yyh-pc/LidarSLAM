@@ -20,23 +20,23 @@ input: "lidar_points"  # single LiDAR input (default: lidar_points)
 #   - "lidar_points_3"
 
 # SLAM node outputs
-# If set to true, LidarSlamNode will publish the given output to a topic or to the TF server (default to false if not specified).
+# If set to true, LidarSlamNode will publish the given output to a topic or to the TF server (default to true if not specified).
 output:
   pose:
-    odom: true             # Publish SLAM pose as an Odometry msg on 'slam_odom' topic (default : true).
-    tf: true               # Publish SLAM pose as a TF from 'odometry_frame' to 'tracking_frame' (default : true).
-    predicted_odom: false  # Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
-    predicted_tf: false    # Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
+    odom: true             # Publish SLAM pose as an Odometry msg on 'slam_odom' topic.
+    tf: true               # Publish SLAM pose as a TF from 'odometry_frame' to 'tracking_frame'.
+    predicted_odom: false  # Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic (default: false).
+    predicted_tf: false    # Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction' (default: false).
   maps:
     edges: true            # Publish edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
     planes: true           # Publish planes keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
     blobs: true            # Publish blobs keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
   keypoints:
-    edges: false           # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
-    planes: false          # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
-    blobs: false           # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
+    edges: true            # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
+    planes: true           # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
+    blobs: true            # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
   debug:
-    cloud: false           # Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_cloud'.
+    cloud: true           # Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_cloud'.
 
 # Pointclouds saving to PCD files.
 # To save keypoints maps, send command SlamCommand::SAVE_KEYPOINTS_MAPS to 'slam_command' topic.
@@ -59,7 +59,7 @@ gps:
   # GPS/SLAM calibration can be triggered by sending SlamCommand::GPS_SLAM_CALIBRATION to 'slam_command' topic.
   calibration:
     no_roll: false            # If true, impose calibration to have no roll rotation. DEBUG
-    publish_icp_paths: false  # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps_path' and 'icp_slam_path' latched topics.
+    publish_icp_paths: false  # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps_path' and 'icp_slam_path' latched topics (default: false).
 
   # Pose Graph Optimization (PGO) (available if use_gps=true)
   # Use GPS positions and covariances to optimize SLAM trajectory and maps by correcting drift,
@@ -68,12 +68,12 @@ gps:
   # WARNING : this process is not real-time.
   pgo:
     g2o_file: "/home/user/pgo.g2o"  # Save pose graph to file (or do not save if null string or unset).
-    publish_path: false             # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic.
+    publish_path: false             # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic (default: false).
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
 
-  n_threads: 1      # Max number of threads to use for parallel processing
+  n_threads: 8      # Max number of threads to use for parallel processing (default: 1)
   fast_slam: true   # Use only edge and planar keypoints (do not use blob keypoints)
 
   # How to estimate Ego-Motion (approximate relative motion since last frame).
