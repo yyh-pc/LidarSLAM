@@ -231,16 +231,18 @@ public:
   // ---------------------------------------------------------------------------
 
   // Get/Set all keypoints extractors
-  std::map<uint8_t, KeypointExtractorPtr> GetKeyPointsExtractors() const { return this->KeyPointsExtractors; }
-  void SetKeyPointsExtractors(const std::map<uint8_t, KeypointExtractorPtr>& extractors) { this->KeyPointsExtractors = extractors; }
+  std::map<uint8_t, KeypointExtractorPtr> GetKeyPointsExtractors() const;
+  void SetKeyPointsExtractors(const std::map<uint8_t, KeypointExtractorPtr>& extractors);
 
   // Get/Set a specific keypoints extractor
-  KeypointExtractorPtr GetKeyPointsExtractor(uint8_t deviceId = 0) const { return this->KeyPointsExtractors.at(deviceId); }
-  void SetKeyPointsExtractor(KeypointExtractorPtr extractor, uint8_t deviceId = 0) { this->KeyPointsExtractors[deviceId] = extractor; }
+  // NOTE: If no keypoint extractor exists for the requested deviceId, the returned pointer is null.
+  KeypointExtractorPtr GetKeyPointsExtractor(uint8_t deviceId = 0) const;
+  void SetKeyPointsExtractor(KeypointExtractorPtr extractor, uint8_t deviceId = 0);
 
   // Get/Set a specific base to Lidar offset
-  Eigen::Isometry3d GetBaseToLidarOffset(uint8_t deviceId = 0) const { return this->BaseToLidarOffsets.at(deviceId); }
-  void SetBaseToLidarOffset(const Eigen::Isometry3d& transform, uint8_t deviceId = 0) { this->BaseToLidarOffsets[deviceId] = transform; }
+  // NOTE: If no base to lidar offset exists for the requested deviceId, the returned transform is identity.
+  Eigen::Isometry3d GetBaseToLidarOffset(uint8_t deviceId = 0) const;
+  void SetBaseToLidarOffset(const Eigen::Isometry3d& transform, uint8_t deviceId = 0);
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
