@@ -22,6 +22,7 @@ input: "lidar_points"  # single LiDAR input (default: lidar_points)
 # SLAM node outputs
 # If set to true, LidarSlamNode will publish the given output to a topic or to the TF server (default to true if not specified).
 output:
+  registered_points: true   # Publish registered (and undistorted) SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_registered_points'.
   pose:
     odom: true             # Publish SLAM pose as an Odometry msg on 'slam_odom' topic.
     tf: true               # Publish SLAM pose as a TF from 'odometry_frame' to 'tracking_frame'.
@@ -35,8 +36,6 @@ output:
     edges: true            # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
     planes: true           # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
     blobs: true            # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
-  debug:
-    cloud: true           # Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_cloud'.
 
 # Pointclouds saving to PCD files.
 # To save keypoints maps, send command SlamCommand::SAVE_KEYPOINTS_MAPS to 'slam_command' topic.

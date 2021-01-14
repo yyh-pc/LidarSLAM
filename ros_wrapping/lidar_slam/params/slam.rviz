@@ -26,7 +26,7 @@ Panels:
     Experimental: false
     Name: Time
     SyncMode: 0
-    SyncSource: SLAM registered cloud
+    SyncSource: SLAM registered points
 Preferences:
   PromptSaveOnExit: true
 Toolbars:
@@ -127,14 +127,14 @@ Visualization Manager:
       Max Intensity: 100
       Min Color: 0; 0; 0
       Min Intensity: 0
-      Name: SLAM registered cloud
+      Name: SLAM registered points
       Position Transformer: XYZ
       Queue Size: 1
       Selectable: true
       Size (Pixels): 2
       Size (m): 0.029999999329447746
       Style: Points
-      Topic: /slam_output_cloud
+      Topic: /slam_registered_points
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
