@@ -115,7 +115,7 @@ protected:
    *  - pose and covariance as Odometry msg or TF
    *  - extracted keypoints from current frame
    *  - keypoints maps
-   *  - other debug info
+   *  - undistorted input points registered in odometry frame
    */
   void PublishOutput();
 

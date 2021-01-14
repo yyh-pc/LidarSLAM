@@ -19,7 +19,7 @@ Wrapping for Kitware LiDAR-only SLAM. It can also use GPS data to publish SLAM o
 
 ### Description and basic usage
 
-The raw SLAM node subscribes to lidar_points, and computes current pose of the tracked frame relative to the fixed odometry frame. It can output various data, such as SLAM pose (as Odometry msg or TF), keypoints maps, etc.
+The SLAM node subscribes to one or several topics of LiDAR pointclouds, and computes current pose of the tracked frame relative to the fixed odometry frame. It can output various data, such as SLAM pose (as Odometry msg or TF), keypoint maps, etc.
 
 SLAM node supports massive configuration from ROS parameter server (even if default values are already provided). An example of configuration file can be found in [`params/slam_config.yaml`](params/slam_config.yaml). All parameters have to be set as private parameters.
 
@@ -42,14 +42,15 @@ rosbag play --clock <my_bag_file>  # in 2nd shell
 roslaunch lidar_slam slam.launch use_sim_time:=false
 ```
 
-This launch file will start a *lidar_slam_node*, a pre-configured RViz session, a *velodyne_conversion_node* (converts the point type for lidar_slam use, see next paragraph) and, if `gps` arg is enabled, GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
+This launch file will start a *lidar_slam_node*, a pre-configured RViz session, a *lidar_conversion_node* (converts the point type to expected SLAM use, see next paragraph) and, if `gps` arg is enabled, GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
 
-The SLAM algorithm expects input pointclouds on topic *lidar_points* as *sensor_msgs/PointCloud2* messages. These pointclouds should have the following fields:
+The SLAM node subscribes to one or several input pointclouds topics ((default single topic is *lidar_points*) as *sensor_msgs/PointCloud2* messages. These pointclouds should have the following fields:
 - **x**, **y**, **z** (`float`) : point coordinates
 - **time** (`double`) : time offset to add to the pointcloud header timestamp to get approximate point-wise acquisition timestamp
 - **intensity** (`float`) : intensity/reflectivity of the point
 - **laser_id** (`uint16`) : numeric identifier of the laser ring that shot this point. The lowest/bottom laser ring should be 0, and it should increase upward.
-- **device_id** (`uint8`), **label** (`uint8`) : optional inputs, not yet used.
+- **device_id** (`uint8`) : numeric identifier of the LiDAR device/sensor. This id should be the same for all points of the cloud acquired by the same sensor.
+- **label** (`uint8`) : optional input, not yet used.
 
 If your LiDAR driver does not output such data, you can use the `lidar_conversions` nodes.
 
@@ -59,7 +60,7 @@ SLAM outputs can also be configured out to publish :
 - current pose as an *nav_msgs/Odometry* message on topic '*slam_odom*' and/or a TF from '*odometry_frame*' to '*tracking_frame*';
 - extracted keypoints from current frame as *sensor_msgs/PointCloud2* on topics '*keypoints/{edges,planes,blobs}*';
 - keypoints maps as *sensor_msgs/PointCloud2* on topics '*maps/{edges,planes,blobs}*';
-- point cloud from current frame registered in map as *sensor_msgs/PointCloud2* on topic '*slam_output_cloud*'.
+- registered and undistorted point cloud from current frame, in odometry frame, as *sensor_msgs/PointCloud2* on topic '*slam_registered_points*'.
 
 UTM/GPS conversion node can output SLAM pose as a *gps_common/GPSFix* message on topic '*slam_fix*'.
 
@@ -144,7 +145,7 @@ utm
    └─ map
       └─ odom
          └─ base_link
-            ├─ velodyne
+            ├─ lidar
             └─ gps
 ```
 
@@ -153,5 +154,5 @@ utm
 - **map**: first received full 6D GPS pose. It defines the origin of the local map. If GPS does not provide orientation, pitch and heading can be estimated from motion. The static TF `enu -> map` is published by `gps_conversions/gps_to_utm` node.
 - **odom**: origin of the SLAM. The TF `map -> odom` can be published by a custom node, by `lidar_slam/lidar_slam_node` node (in case of GPS/SLAM auto-calibration or PGO), or manually set with tf2 static publishers in [`launch/slam.launch`](launch/slam.launch) (in case of pre-defined calibration).
 - **base_link**: current pose computed by SLAM algorithm (here `base_link` is the tracking frame). The TF `odom -> base_link` can be published by `lidar_slam/lidar_slam_node` node.
-- **velodyne**: pose of the LiDAR sensor on the moving base. The TF `base_link -> velodyne` should be published by a `tf2_ros/static_transform_publisher` node.
+- **lidar**: pose of the LiDAR sensor on the moving base. The TF `base_link -> lidar` should be published by a `tf2_ros/static_transform_publisher` node.
 - **gps**: pose of the GPS sensor on the moving base. The TF `base_link -> gps` should be published by a `tf2_ros/static_transform_publisher` node.
