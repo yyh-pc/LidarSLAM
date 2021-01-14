@@ -586,11 +586,12 @@ Slam::PointCloud::Ptr Slam::GetOutputFrame()
 
     // Transform from LiDAR sensor to BASE coordinate system,
     // followed by rigid transform or undistortion
+    Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(this->CurrentFrames[i]->front().device_id);
     if (this->Undistortion)
     {
       LinearTransformInterpolator<double> transformInterpolator;
-      transformInterpolator.SetH0(this->WithinFrameMotion.GetH0() * this->BaseToLidarOffsets[i], this->WithinFrameMotion.GetTime0());
-      transformInterpolator.SetH1(this->WithinFrameMotion.GetH1() * this->BaseToLidarOffsets[i], this->WithinFrameMotion.GetTime1());
+      transformInterpolator.SetH0(this->WithinFrameMotion.GetH0() * baseToLidar, this->WithinFrameMotion.GetTime0());
+      transformInterpolator.SetH1(this->WithinFrameMotion.GetH1() * baseToLidar, this->WithinFrameMotion.GetTime1());
 
       output.reserve(this->CurrentFrames[i]->size());
       for (const Slam::Point& p : *this->CurrentFrames[i])
@@ -598,7 +599,7 @@ Slam::PointCloud::Ptr Slam::GetOutputFrame()
     }
     else
     {
-      const Eigen::Isometry3d worldPose = this->Tworld * this->BaseToLidarOffsets[i];
+      const Eigen::Isometry3d worldPose = this->Tworld * baseToLidar;
       pcl::transformPointCloud(*this->CurrentFrames[i], output, worldPose.matrix());
     }
 
@@ -775,8 +776,7 @@ void Slam::ExtractKeypoints()
     ke->ComputeKeyPoints(frame);
 
     // Transform them from LIDAR to BASE coordinates, and aggregate them
-    Eigen::Isometry3d baseToLidar = this->BaseToLidarOffsets.count(lidarDevice) ?
-                                      this->BaseToLidarOffsets[lidarDevice] : Eigen::UnalignedIsometry3d::Identity();
+    Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(lidarDevice);
     AddBaseKeypoints(this->CurrentEdgesPoints,   ke->GetEdgePoints(),   baseToLidar);
     AddBaseKeypoints(this->CurrentPlanarsPoints, ke->GetPlanarPoints(), baseToLidar);
     if (!this->FastSlam)
@@ -1234,6 +1234,40 @@ void Slam::InitUndistortion()
     // If frame duration is bigger than 10 seconds, it is probably wrongly set
     PRINT_WARNING("'time' field looks not properly set (frame duration > 10 s) and can lead to faulty undistortion.");
   }
+}
+
+//==============================================================================
+//   Keypoints extraction parameters setting
+//==============================================================================
+
+//-----------------------------------------------------------------------------
+std::map<uint8_t, Slam::KeypointExtractorPtr> Slam::GetKeyPointsExtractors() const
+{
+  return this->KeyPointsExtractors;
+}
+void Slam::SetKeyPointsExtractors(const std::map<uint8_t, KeypointExtractorPtr>& extractors)
+{
+  this->KeyPointsExtractors = extractors;
+}
+
+//-----------------------------------------------------------------------------
+Slam::KeypointExtractorPtr Slam::GetKeyPointsExtractor(uint8_t deviceId) const
+{
+  return this->KeyPointsExtractors.count(deviceId) ? this->KeyPointsExtractors.at(deviceId) : KeypointExtractorPtr();
+}
+void Slam::SetKeyPointsExtractor(KeypointExtractorPtr extractor, uint8_t deviceId)
+{
+  this->KeyPointsExtractors[deviceId] = extractor;
+}
+
+//-----------------------------------------------------------------------------
+Eigen::Isometry3d Slam::GetBaseToLidarOffset(uint8_t deviceId) const
+{
+  return this->BaseToLidarOffsets.count(deviceId) ? this->BaseToLidarOffsets.at(deviceId) : Eigen::UnalignedIsometry3d::Identity();
+}
+void Slam::SetBaseToLidarOffset(const Eigen::Isometry3d& transform, uint8_t deviceId)
+{
+  this->BaseToLidarOffsets[deviceId] = transform;
 }
 
 //==============================================================================
