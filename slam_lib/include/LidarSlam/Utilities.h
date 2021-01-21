@@ -22,8 +22,6 @@
 #include <pcl/common/centroid.h>
 #include <pcl/common/eigen.h>
 
-#include <Eigen/Eigenvalues>
-
 #include <iostream>
 #include <iomanip>
 #include <math.h>
@@ -208,23 +206,6 @@ Eigen::Vector6d IsometryToXYZRPY(const Eigen::Isometry3d& transform);
  * @return 6D array, with rotation (rX, rY, rZ) and translation (X, Y, Z)
  */
 Eigen::Vector6d IsometryToRPYXYZ(const Eigen::Isometry3d& transform);
-
-//------------------------------------------------------------------------------
-/*!
- * @brief Compute PCA of Nx3 data array and mean value
- * @param[in] data Nx3 array (e.g. stacked 3D points)
- * @param[out] mean Where to store mean value
- * @return The PCA
- */
-Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data, Eigen::Vector3d& mean);
-
-//------------------------------------------------------------------------------
-/*!
- * @brief Compute PCA of Nx3 data array and mean value
- * @param data Nx3 array (e.g. stacked 3D points)
- * @return The PCA
- */
-Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data);
 
 //------------------------------------------------------------------------------
 /*!
