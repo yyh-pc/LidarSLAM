@@ -19,6 +19,8 @@
 #pragma once
 
 #include <pcl/point_cloud.h>
+#include <pcl/common/centroid.h>
+#include <pcl/common/eigen.h>
 
 #include <Eigen/Eigenvalues>
 
@@ -223,6 +225,32 @@ Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<do
  * @return The PCA
  */
 Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data);
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Compute the centroid and PCA of a pointcloud subset.
+ * @param[in] cloud The input pointcloud
+ * @param[in] indices The points to consider from cloud
+ * @param[out] centroid The mean point of the subset of points
+ * @param[out] eigenVectors The PCA eigen vectors corresponding to eigenValues
+ * @param[out] eigenValues The PCA eigen values, sorted by ascending order
+ */
+template<typename PointT, typename Scalar>
+void ComputeMeanAndPCA(const pcl::PointCloud<PointT>& cloud,
+                       const std::vector<int>& indices,
+                       Eigen::Matrix<Scalar, 3, 1>& centroid,
+                       Eigen::Matrix<Scalar, 3, 3>& eigenVectors,
+                       Eigen::Matrix<Scalar, 3, 1>& eigenValues)
+{
+  // Compute mean and normalized covariance matrix
+  EIGEN_ALIGN16 Eigen::Matrix<Scalar, 3, 3> covarianceMatrix;
+  EIGEN_ALIGN16 Eigen::Matrix<Scalar, 4, 1> xyzCentroid;
+  pcl::computeMeanAndCovarianceMatrix(cloud, indices, covarianceMatrix, xyzCentroid);
+  centroid = xyzCentroid.template head<3>();
+
+  // Compute eigen values and corresponding eigen vectors
+  pcl::eigen33(covarianceMatrix, eigenVectors, eigenValues);
+}
 
 //==============================================================================
 //   PCL helpers

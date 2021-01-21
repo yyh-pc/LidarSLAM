@@ -229,26 +229,18 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // =======================================================
   // Check if neighborhood is a good line candidate with PCA
 
-  // Compute PCA to determine best line approximation
-  // of the neighborhoodSize nearest edges points extracted.
-  // Thanks to the PCA we will check the shape of the neighborhood
-  // and keep it if it is well distributed along a line.
-  Eigen::MatrixXd data(neighborhoodSize, 3);
-  for (unsigned int k = 0; k < neighborhoodSize; k++)
-  {
-    const Point& pt = previousEdgesPoints[knnIndices[k]];
-    data.row(k) << pt.x, pt.y, pt.z;
-  }
+  // Compute PCA to determine best line approximation of the neighborhood.
+  // Thanks to the PCA we will check the shape of the neighborhood and keep it
+  // if it is well distributed along a line.
   Eigen::Vector3d mean;
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = Utils::ComputePCA(data, mean);
-
-  // PCA eigenvalues
-  Eigen::Vector3d D = eig.eigenvalues();
+  Eigen::Vector3d eigVals;
+  Eigen::Matrix3d eigVecs;
+  Utils::ComputeMeanAndPCA(previousEdgesPoints, knnIndices, mean, eigVecs, eigVals);
 
   // If the first eigen value is significantly higher than the second one,
   // it means that the sourrounding points are distributed on an edge line.
   // Otherwise, discard this bad unstructured neighborhood.
-  if (D(2) < this->Params.LineDistancefactor * D(1))
+  if (eigVals(2) < this->Params.LineDistancefactor * eigVals(1))
   {
     return MatchingResults::MatchStatus::BAD_PCA_STRUCTURE;
   }
@@ -257,7 +249,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // Compute point-to-line optimization parameters
 
   // n is the director vector of the line
-  Eigen::Vector3d n = eig.eigenvectors().col(2);
+  const Eigen::Vector3d& n = eigVecs.col(2);
 
   // A = (I-n*n.t).t * (I-n*n.t) = (I - n*n.t)^2
   // since (I-n*n.t) is a symmetric matrix
@@ -341,26 +333,19 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // ========================================================
   // Check if neighborhood is a good plane candidate with PCA
 
-  // Compute PCA to determine best plane approximation
-  // of the neighborhoodSize nearest edges points extracted.
-  // Thanks to the PCA we will check the shape of the neighborhood
-  // and keep it if it is well distributed along a plane.
-  Eigen::MatrixXd data(neighborhoodSize, 3);
-  for (unsigned int k = 0; k < neighborhoodSize; k++)
-  {
-    const Point& pt = previousPlanesPoints[knnIndices[k]];
-    data.row(k) << pt.x, pt.y, pt.z;
-  }
+  // Compute PCA to determine best plane approximation of the neighborhood.
+  // Thanks to the PCA we will check the shape of the neighborhood and keep it
+  // if it is well distributed along a plane.
   Eigen::Vector3d mean;
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig = Utils::ComputePCA(data, mean);
-
-  // PCA eigenvalues
-  Eigen::Vector3d D = eig.eigenvalues();
+  Eigen::Vector3d eigVals;
+  Eigen::Matrix3d eigVecs;
+  Utils::ComputeMeanAndPCA(previousPlanesPoints, knnIndices, mean, eigVecs, eigVals);
 
   // If the second eigen value is close to the highest one and bigger than the
   // smallest one, it means that the points are distributed along a plane.
   // Otherwise, discard this bad unstructured neighborhood.
-  if (this->Params.PlaneDistancefactor2 * D(1) < D(2) || D(1) < this->Params.PlaneDistancefactor1 * D(0))
+  if (this->Params.PlaneDistancefactor2 * eigVals(1) < eigVals(2) ||
+      eigVals(1) < this->Params.PlaneDistancefactor1 * eigVals(0))
   {
     return MatchingResults::MatchStatus::BAD_PCA_STRUCTURE;
   }
@@ -369,7 +354,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // Compute point-to-plane optimization parameters
 
   // n is the normal vector of the plane
-  Eigen::Vector3d n = eig.eigenvectors().col(0);
+  const Eigen::Vector3d& n = eigVecs.col(0);
   Eigen::Matrix3d A = n * n.transpose();
 
   // It would be the case if P1 = P2, P1 = P3 or P3 = P2, for instance if the
@@ -470,37 +455,29 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // ======================================================
   // Compute point-to-blob optimization parameters with PCA
 
-  // Compute PCA to determine best ellipsoid approximation of the
-  // neighborhoodSize nearest blob points extracted.
-  // Thanks to the PCA we will check the shape of the neighborhood and
-  // tune a distance function adapted to the distribution (Mahalanobis distance)
-  Eigen::MatrixXd data(neighborhoodSize, 3);
-  for (unsigned int k = 0; k < neighborhoodSize; k++)
-  {
-    const Point& pt = previousBlobsPoints[knnIndices[k]];
-    data.row(k) << pt.x, pt.y, pt.z;
-  }
-  Eigen::Vector3d mean = data.colwise().mean();
-  Eigen::MatrixXd centered = data.rowwise() - mean.transpose();
-  Eigen::Matrix3d varianceCovariance = centered.transpose() * centered;
+  // Compute PCA to determine best ellipsoid approximation of the neighborhood.
+  // Thanks to the PCA we will check the shape of the neighborhood and tune a
+  // distance function adapted to the distribution (Mahalanobis distance).
+  Eigen::Vector3d mean;
+  Eigen::Vector3d eigVals;
+  Eigen::Matrix3d eigVecs;
+  Utils::ComputeMeanAndPCA(previousBlobsPoints, knnIndices, mean, eigVecs, eigVals);
 
-  // Check that the covariance matrix is inversible
-  if (std::abs(varianceCovariance.determinant()) < 1e-6)
-  {
-    return MatchingResults::MatchStatus::BAD_PCA_STRUCTURE;
-  }
+  // TODO: check PCA structure
+  // if (PCA shape isn't OK)
+  // {
+  //   return MatchingResults::MatchStatus::BAD_PCA_STRUCTURE;
+  // }
 
-  // Sigma is the inverse of the covariance matrix encoding the mahalanobis distance
-  Eigen::Matrix3d sigma = varianceCovariance.inverse();
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eig(sigma);
+  // The inverse of the covariance matrix encodes the mahalanobis distance.
+  // Rescale the eigen values to preserve the shape of the mahalanobis distance,
+  // but removing the variance values scaling.
+  Eigen::Vector3d eigValsInv = eigVals.array().inverse();
+  eigValsInv /= eigValsInv.maxCoeff();
+  Eigen::Matrix3d A = eigVecs * eigValsInv.asDiagonal() * eigVecs.transpose();
 
-  // Rescale the variance covariance matrix to preserve the shape of the
-  // mahalanobis distance, but removing the variance values scaling.
-  Eigen::Vector3d D = eig.eigenvalues(); D /= D(2);
-  Eigen::Matrix3d U = eig.eigenvectors();
-  Eigen::Matrix3d A = U * D.asDiagonal() * U.transpose();
-
-  if (!std::isfinite(A.determinant()))
+  // Check the determinant of the matrix
+  if (!std::isfinite(eigValsInv.prod()))
   {
     return MatchingResults::MatchStatus::INVALID_NUMERICAL;
   }
