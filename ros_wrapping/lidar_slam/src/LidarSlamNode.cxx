@@ -624,15 +624,15 @@ void LidarSlamNode::SetSlamParameters()
   auto InitKeypointsExtractor = [this](auto& ke, const std::string& prefix)
   {
     #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (this->PrivNh.getParam(rosParam, val)) ke->Set##keParam(val);}
-    SetKeypointsExtractorParam(int,    "slam/n_threads", NbThreads)
-    SetKeypointsExtractorParam(int,    prefix + "neighbor_width", NeighborWidth)
-    SetKeypointsExtractorParam(double, prefix + "min_distance_to_sensor", MinDistanceToSensor)
-    SetKeypointsExtractorParam(double, prefix + "angle_resolution", AngleResolution)
-    SetKeypointsExtractorParam(double, prefix + "plane_sin_angle_threshold", PlaneSinAngleThreshold)
-    SetKeypointsExtractorParam(double, prefix + "edge_sin_angle_threshold", EdgeSinAngleThreshold)
-    SetKeypointsExtractorParam(double, prefix + "edge_depth_gap_threshold", EdgeDepthGapThreshold)
-    SetKeypointsExtractorParam(double, prefix + "edge_saliency_threshold", EdgeSaliencyThreshold)
-    SetKeypointsExtractorParam(double, prefix + "edge_intensity_gap_threshold", EdgeIntensityGapThreshold)
+    SetKeypointsExtractorParam(int,   "slam/n_threads", NbThreads)
+    SetKeypointsExtractorParam(int,   prefix + "neighbor_width", NeighborWidth)
+    SetKeypointsExtractorParam(float, prefix + "min_distance_to_sensor", MinDistanceToSensor)
+    SetKeypointsExtractorParam(float, prefix + "angle_resolution", AngleResolution)
+    SetKeypointsExtractorParam(float, prefix + "plane_sin_angle_threshold", PlaneSinAngleThreshold)
+    SetKeypointsExtractorParam(float, prefix + "edge_sin_angle_threshold", EdgeSinAngleThreshold)
+    SetKeypointsExtractorParam(float, prefix + "edge_depth_gap_threshold", EdgeDepthGapThreshold)
+    SetKeypointsExtractorParam(float, prefix + "edge_saliency_threshold", EdgeSaliencyThreshold)
+    SetKeypointsExtractorParam(float, prefix + "edge_intensity_gap_threshold", EdgeIntensityGapThreshold)
   };
   // Multi-LiDAR devices
   std::vector<int> deviceIds;

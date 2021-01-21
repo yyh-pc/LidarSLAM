@@ -46,26 +46,26 @@ public:
   GetMacro(NeighborWidth, int)
   SetMacro(NeighborWidth, int)
 
-  GetMacro(MinDistanceToSensor, double)
-  SetMacro(MinDistanceToSensor, double)
+  GetMacro(MinDistanceToSensor, float)
+  SetMacro(MinDistanceToSensor, float)
 
-  GetMacro(AngleResolution, double)
-  SetMacro(AngleResolution, double)
+  GetMacro(AngleResolution, float)
+  SetMacro(AngleResolution, float)
 
-  GetMacro(PlaneSinAngleThreshold, double)
-  SetMacro(PlaneSinAngleThreshold, double)
+  GetMacro(PlaneSinAngleThreshold, float)
+  SetMacro(PlaneSinAngleThreshold, float)
 
-  GetMacro(EdgeSinAngleThreshold, double)
-  SetMacro(EdgeSinAngleThreshold, double)
+  GetMacro(EdgeSinAngleThreshold, float)
+  SetMacro(EdgeSinAngleThreshold, float)
 
-  GetMacro(EdgeDepthGapThreshold, double)
-  SetMacro(EdgeDepthGapThreshold, double)
+  GetMacro(EdgeDepthGapThreshold, float)
+  SetMacro(EdgeDepthGapThreshold, float)
 
-  GetMacro(EdgeSaliencyThreshold, double)
-  SetMacro(EdgeSaliencyThreshold, double)
+  GetMacro(EdgeSaliencyThreshold, float)
+  SetMacro(EdgeSaliencyThreshold, float)
 
-  GetMacro(EdgeIntensityGapThreshold, double)
-  SetMacro(EdgeIntensityGapThreshold, double)
+  GetMacro(EdgeIntensityGapThreshold, float)
+  SetMacro(EdgeIntensityGapThreshold, float)
 
   GetMacro(NLasers, int)
 
@@ -81,7 +81,7 @@ public:
   void ComputeKeyPoints(const PointCloud::Ptr& pc);
 
   // Function to enable to have some inside on why a given point was detected as a keypoint
-  std::unordered_map<std::string, std::vector<double>> GetDebugArray() const;
+  std::unordered_map<std::string, std::vector<float>> GetDebugArray() const;
 
 private:
 
@@ -120,33 +120,33 @@ private:
   int NeighborWidth = 4;
 
   // Minimal point/sensor sensor to consider a point as valid
-  double MinDistanceToSensor = 3.0;  // [m]
+  float MinDistanceToSensor = 3.0;  // [m]
 
   // Maximal angle resolution of the lidar azimutal resolution.
   // (default value to VLP-16. We add an extra 20%)
-  double AngleResolution = DEG2RAD(0.4);  // [rad]
+  float AngleResolution = DEG2RAD(0.4);  // [rad]
 
   // Sharpness threshold to select a planar keypoint
-  double PlaneSinAngleThreshold = 0.5;  // sin(30°) (selected if sin angle is less than threshold)
+  float PlaneSinAngleThreshold = 0.5;  // sin(30°) (selected if sin angle is less than threshold)
 
   // Sharpness threshold to select an edge keypoint
-  double EdgeSinAngleThreshold = 0.86;  // ~sin(60°) (selected, if sin angle is more than threshold)
-  double DistToLineThreshold = 0.20;  // [m]
+  float EdgeSinAngleThreshold = 0.86;  // ~sin(60°) (selected, if sin angle is more than threshold)
+  float DistToLineThreshold = 0.20;  // [m]
 
   // Threshold upon depth gap in neighborhood to select an edge keypoint
-  double EdgeDepthGapThreshold = 0.15;  // [m]
+  float EdgeDepthGapThreshold = 0.15;  // [m]
 
   // Threshold upon saliency of a neighborhood to select an edge keypoint
-  double EdgeSaliencyThreshold = 1.5;  // [m]
+  float EdgeSaliencyThreshold = 1.5;  // [m]
 
   // Threshold upon intensity gap to select an edge keypoint
-  double EdgeIntensityGapThreshold = 50.;
+  float EdgeIntensityGapThreshold = 50.;
 
   // Threshold upon sphericity of a neighborhood to select a blob point
-  double SphericityThreshold = 0.35;  // CHECK : unused
+  float SphericityThreshold = 0.35;  // CHECK : unused
 
   // Coef to apply to the incertitude radius of the blob neighborhood
-  double IncertitudeCoef = 3.0;  // CHECK : unused
+  float IncertitudeCoef = 3.0;  // CHECK : unused
 
   // ---------------------------------------------------------------------------
   //   Internal variables
@@ -160,10 +160,10 @@ private:
   using KeypointFlags = std::bitset<Keypoint::nKeypointTypes>;
 
   // Curvature and other differential operations (scan by scan, point by point)
-  std::vector<std::vector<double>> Angles;
-  std::vector<std::vector<double>> DepthGap;
-  std::vector<std::vector<double>> Saliency;
-  std::vector<std::vector<double>> IntensityGap;
+  std::vector<std::vector<float>> Angles;
+  std::vector<std::vector<float>> DepthGap;
+  std::vector<std::vector<float>> Saliency;
+  std::vector<std::vector<float>> IntensityGap;
   std::vector<std::vector<KeypointFlags>> IsPointValid;
   std::vector<std::vector<KeypointFlags>> Label;
 
