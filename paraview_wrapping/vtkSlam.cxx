@@ -360,7 +360,7 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
   if (this->AutoDetectInputArrays)
   {
     // Check if requested arrays exist and set them if they are valid
-    auto checkAndSetArrays = [&](const char* time, const char* intensity, const char* laserId, const char* angles, double timeCoeff)
+    auto checkAndSetArrays = [&](const char* time, const char* intensity, const char* laserId, const char* angles)
     {
       bool valid = poly->GetPointData()->HasArray(time) &&
                    poly->GetPointData()->HasArray(intensity) &&
@@ -372,17 +372,34 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
         this->IntensityArrayName = intensity;
         this->LaserIdArrayName = laserId;
         this->VerticalCalibArrayName = angles;
-        this->TimeToSecondsFactor = timeCoeff;
       }
       return valid;
     };
 
-    // Test if LiDAR data is Velodyne or Ouster
-    if (!checkAndSetArrays("adjustedtime",  "intensity",      "laser_id", "verticalCorrection", 1e-6) && // Velodyne
-        !checkAndSetArrays("Raw Timestamp", "Signal Photons", "Channel",  "Altitude Angles",    1e-9))   // Ouster
+    // Check some keypoints extraction parameters values at SLAM initialization
+    #define CheckKEParameter(vendor, parameter, condition) \
+      if (this->Trajectory->GetNumberOfPoints() == 0 && \
+          !(this->SlamAlgo->GetKeyPointsExtractor()->Get ##parameter() condition)) \
+        { vtkWarningMacro(<< "SLAM run with " vendor " data: consider using " #parameter " " #condition); }
+
+    // Test if LiDAR data is Velodyne
+    if (checkAndSetArrays("adjustedtime", "intensity", "laser_id", "verticalCorrection"))
     {
-      vtkErrorMacro(<< "Unable to identify LiDAR arrays to use.");
+      this->TimeToSecondsFactor = 1e-6;
+      CheckKEParameter("Velodyne", EdgeIntensityGapThreshold, < 100);
     }
+
+    // Test if LiDAR data is Ouster
+    else if (checkAndSetArrays("Raw Timestamp", "Signal Photons", "Channel", "Altitude Angles"))
+    {
+      this->TimeToSecondsFactor = 1e-9;
+      CheckKEParameter("Ouster", EdgeIntensityGapThreshold, >= 100);
+      CheckKEParameter("Ouster", NeighborWidth, > 4);
+    }
+
+    // Failed to recognize LiDAR vendor
+    else
+      vtkErrorMacro(<< "Unable to identify LiDAR arrays to use.");
   }
 
   // Otherwise, user needs to specify which arrays to use
