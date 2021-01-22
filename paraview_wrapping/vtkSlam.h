@@ -77,6 +77,12 @@ public:
 
   void Reset();
 
+  vtkGetMacro(AutoDetectInputArrays, bool)
+  vtkSetMacro(AutoDetectInputArrays, bool)
+
+  vtkGetMacro(TimeToSecondsFactorSetting, double)
+  vtkSetMacro(TimeToSecondsFactorSetting, double)
+
   vtkGetMacro(AdvancedReturnMode, bool)
   virtual void SetAdvancedReturnMode(bool _arg);
 
@@ -293,6 +299,7 @@ private:
   std::string LaserIdArrayName;        ///< Laser ring id
   std::string VerticalCalibArrayName;  ///< Calibration column used to sort laser rings by elevation angle
   double TimeToSecondsFactor;          ///< Coef to apply to TimeArray values to express time in seconds
+  double TimeToSecondsFactorSetting;   ///< Duplicated parameter used to store the value set by user
 };
 
 #endif // VTK_SLAM_H

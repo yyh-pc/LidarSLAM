@@ -88,6 +88,11 @@ vtkSlam::vtkSlam()
 {
   this->SetNumberOfInputPorts(INPUT_PORT_COUNT);
   this->SetNumberOfOutputPorts(OUTPUT_PORT_COUNT);
+  // If auto-detect mode is disabled, user needs to specify input arrays to use
+  this->SetInputArrayToProcess(0, LIDAR_FRAME_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
+  this->SetInputArrayToProcess(1, LIDAR_FRAME_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
+  this->SetInputArrayToProcess(2, LIDAR_FRAME_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
+  this->SetInputArrayToProcess(3, CALIBRATION_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
   this->Reset();
 }
 
@@ -351,29 +356,43 @@ vtkMTimeType vtkSlam::GetMTime()
 //-----------------------------------------------------------------------------
 void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
 {
-  // Check if requested arrays exist and set them if they are valid
-  auto checkAndSetArrays = [&](const char* time, const char* intensity, const char* laserId, const char* angles, double timeCoeff)
+  // Try to auto-detect LiDAR model by checking available arrays
+  if (this->AutoDetectInputArrays)
   {
-    bool valid = poly->GetPointData()->HasArray(time) &&
-                 poly->GetPointData()->HasArray(intensity) &&
-                 poly->GetPointData()->HasArray(laserId) &&
-                 calib->GetRowData()->HasArray(angles);
-    if (valid)
+    // Check if requested arrays exist and set them if they are valid
+    auto checkAndSetArrays = [&](const char* time, const char* intensity, const char* laserId, const char* angles, double timeCoeff)
     {
-      this->TimeArrayName = time;
-      this->IntensityArrayName = intensity;
-      this->LaserIdArrayName = laserId;
-      this->VerticalCalibArrayName = angles;
-      this->TimeToSecondsFactor = timeCoeff;
-    }
-    return valid;
-  };
+      bool valid = poly->GetPointData()->HasArray(time) &&
+                   poly->GetPointData()->HasArray(intensity) &&
+                   poly->GetPointData()->HasArray(laserId) &&
+                   calib->GetRowData()->HasArray(angles);
+      if (valid)
+      {
+        this->TimeArrayName = time;
+        this->IntensityArrayName = intensity;
+        this->LaserIdArrayName = laserId;
+        this->VerticalCalibArrayName = angles;
+        this->TimeToSecondsFactor = timeCoeff;
+      }
+      return valid;
+    };
 
-  // Test if LiDAR data is Velodyne or Ouster
-  if (!checkAndSetArrays("adjustedtime",  "intensity",      "laser_id", "verticalCorrection", 1e-6) && // Velodyne
-      !checkAndSetArrays("Raw Timestamp", "Signal Photons", "Channel",  "Altitude Angles",    1e-9))   // Ouster
+    // Test if LiDAR data is Velodyne or Ouster
+    if (!checkAndSetArrays("adjustedtime",  "intensity",      "laser_id", "verticalCorrection", 1e-6) && // Velodyne
+        !checkAndSetArrays("Raw Timestamp", "Signal Photons", "Channel",  "Altitude Angles",    1e-9))   // Ouster
+    {
+      vtkErrorMacro(<< "Unable to identify LiDAR arrays to use.");
+    }
+  }
+
+  // Otherwise, user needs to specify which arrays to use
+  else
   {
-    vtkErrorMacro(<< "Unable to identify LiDAR arrays to use.");
+    this->TimeArrayName          = this->GetInputArrayToProcess(0, poly)->GetName();
+    this->IntensityArrayName     = this->GetInputArrayToProcess(1, poly)->GetName();
+    this->LaserIdArrayName       = this->GetInputArrayToProcess(2, poly)->GetName();
+    this->VerticalCalibArrayName = this->GetInputArrayToProcess(3, calib)->GetName();
+    this->TimeToSecondsFactor    = this->TimeToSecondsFactorSetting;
   }
 }
 
