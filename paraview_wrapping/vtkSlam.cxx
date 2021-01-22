@@ -151,14 +151,24 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
   slamFrame->ShallowCopy(input);
   auto worldFrame = this->SlamAlgo->GetOutputFrame();
-  auto undistortedPoints = vtkSmartPointer<vtkPoints>::New();
-  undistortedPoints->SetNumberOfPoints(worldFrame->size());
-  for (unsigned int i = 0; i < worldFrame->size(); i++)
+  vtkIdType nbPoints = input->GetNumberOfPoints();
+  auto registeredPoints = vtkSmartPointer<vtkPoints>::New();
+  registeredPoints->SetNumberOfPoints(nbPoints);
+  unsigned int worldFrameIndex = 0;
+  for (vtkIdType i = 0; i < nbPoints; i++)
   {
-    const auto& p = worldFrame->points[i];
-    undistortedPoints->SetPoint(i, p.x, p.y, p.z);
+    // Modify point only if non empty
+    double pos[3];
+    input->GetPoint(i, pos);
+    if (pos[0] || pos[1] || pos[2])
+    {
+      const auto& p = worldFrame->points[worldFrameIndex++];
+      registeredPoints->SetPoint(i, p.data);
+    }
+    else
+      registeredPoints->SetPoint(i, pos);
   }
-  slamFrame->SetPoints(undistortedPoints);
+  slamFrame->SetPoints(registeredPoints);
   // Output : SLAM Trajectory
   auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
   slamTrajectory->ShallowCopy(this->Trajectory);
@@ -403,20 +413,24 @@ void vtkSlam::PolyDataToPointCloud(vtkPolyData* poly,
   auto arrayIntensity = poly->GetPointData()->GetArray(this->IntensityArrayName.c_str());
 
   // Loop over points data
-  pc->resize(nbPoints);
+  pc->reserve(nbPoints);
   double frameEndTime = arrayTime->GetRange()[1];
   pc->header.stamp = frameEndTime * (this->TimeToSecondsFactor * 1e6); // max time in microseconds
   for (vtkIdType i = 0; i < nbPoints; i++)
   {
-    auto& p = pc->points[i];
     double pos[3];
     poly->GetPoint(i, pos);
-    p.x = pos[0];
-    p.y = pos[1];
-    p.z = pos[2];
-    p.time = (arrayTime->GetTuple1(i) - frameEndTime) * this->TimeToSecondsFactor; // time in seconds
-    p.laser_id = useLaserIdMapping ? laserIdMapping[arrayLaserId->GetTuple1(i)] : arrayLaserId->GetTuple1(i);
-    p.intensity = arrayIntensity->GetTuple1(i);
+    if (pos[0] || pos[1] || pos[2])
+    {
+      LidarSlam::Slam::Point p;
+      p.x = pos[0];
+      p.y = pos[1];
+      p.z = pos[2];
+      p.time = (arrayTime->GetTuple1(i) - frameEndTime) * this->TimeToSecondsFactor; // time in seconds
+      p.laser_id = useLaserIdMapping ? laserIdMapping[arrayLaserId->GetTuple1(i)] : arrayLaserId->GetTuple1(i);
+      p.intensity = arrayIntensity->GetTuple1(i);
+      pc->push_back(p);
+    }
   }
 }
 
