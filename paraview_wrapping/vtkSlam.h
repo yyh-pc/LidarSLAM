@@ -225,6 +225,9 @@ private:
   //   Useful helpers
   // ---------------------------------------------------------------------------
 
+  // Identify input arrays to use
+  void IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib);
+
   // Convert LiDAR calibration to laser id mapping
   std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
 
@@ -283,19 +286,13 @@ private:
   // Only used if OutputCurrentKeypoints = true.
   bool OutputKeypointsInWorldCoordinates = true;
 
-  // // Velodyne
-  // std::string TimeArrayName = "adjustedtime";
-  // std::string IntensityArrayName = "intensity";
-  // std::string LaserIdArrayName = "laser_id";
-  // std::string CalibArrayName = "verticalCorrection";
-  // double TimeToSecondsFactor = 1e-6;
-
-  // Ouster
-  std::string TimeArrayName = "Raw Timestamp";
-  std::string IntensityArrayName = "Signal Photons";
-  std::string LaserIdArrayName = "Channel";
-  std::string VerticalCalibArrayName = "Altitude Angles";
-  double TimeToSecondsFactor = 1e-9;
+  // Arrays to use (depending on LiDAR model) to fill points data
+  bool AutoDetectInputArrays = true;   ///< If true, try to auto-detect arrays to use. Otherwise, user needs to specify them.
+  std::string TimeArrayName;           ///< Point measurement timestamp
+  std::string IntensityArrayName;      ///< Point intensity/reflectivity values
+  std::string LaserIdArrayName;        ///< Laser ring id
+  std::string VerticalCalibArrayName;  ///< Calibration column used to sort laser rings by elevation angle
+  double TimeToSecondsFactor;          ///< Coef to apply to TimeArray values to express time in seconds
 };
 
 #endif // VTK_SLAM_H

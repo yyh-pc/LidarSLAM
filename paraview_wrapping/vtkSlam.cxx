@@ -132,6 +132,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // Get the input
   vtkPolyData* input = vtkPolyData::GetData(inputVector[LIDAR_FRAME_INPUT_PORT], 0);
   vtkTable* calib = vtkTable::GetData(inputVector[CALIBRATION_INPUT_PORT], 0);
+  this->IdentifyInputArrays(input, calib);
   std::vector<size_t> laserMapping = GetLaserIdMapping(calib);
 
   // Conversion vtkPolyData -> PCL pointcloud
@@ -346,6 +347,35 @@ vtkMTimeType vtkSlam::GetMTime()
 // =============================================================================
 //   Useful helpers
 // =============================================================================
+
+//-----------------------------------------------------------------------------
+void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
+{
+  // Check if requested arrays exist and set them if they are valid
+  auto checkAndSetArrays = [&](const char* time, const char* intensity, const char* laserId, const char* angles, double timeCoeff)
+  {
+    bool valid = poly->GetPointData()->HasArray(time) &&
+                 poly->GetPointData()->HasArray(intensity) &&
+                 poly->GetPointData()->HasArray(laserId) &&
+                 calib->GetRowData()->HasArray(angles);
+    if (valid)
+    {
+      this->TimeArrayName = time;
+      this->IntensityArrayName = intensity;
+      this->LaserIdArrayName = laserId;
+      this->VerticalCalibArrayName = angles;
+      this->TimeToSecondsFactor = timeCoeff;
+    }
+    return valid;
+  };
+
+  // Test if LiDAR data is Velodyne or Ouster
+  if (!checkAndSetArrays("adjustedtime",  "intensity",      "laser_id", "verticalCorrection", 1e-6) && // Velodyne
+      !checkAndSetArrays("Raw Timestamp", "Signal Photons", "Channel",  "Altitude Angles",    1e-9))   // Ouster
+  {
+    vtkErrorMacro(<< "Unable to identify LiDAR arrays to use.");
+  }
+}
 
 //-----------------------------------------------------------------------------
 std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
