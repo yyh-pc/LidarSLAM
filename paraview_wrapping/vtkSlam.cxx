@@ -25,6 +25,7 @@
 #include <vtkCellArray.h>
 #include <vtkDataArray.h>
 #include <vtkDoubleArray.h>
+#include <vtkFloatArray.h>
 #include <vtkInformation.h>
 #include <vtkInformationVector.h>
 #include <vtkLine.h>
@@ -287,9 +288,9 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     auto keypointsExtractionDebugArray = this->SlamAlgo->GetKeyPointsExtractor()->GetDebugArray();
     for (const auto& it : keypointsExtractionDebugArray)
     {
-      auto array = Utils::CreateArray<vtkDoubleArray>(it.first.c_str(), 1, it.second.size());
+      auto array = Utils::CreateArray<vtkFloatArray>(it.first.c_str(), 1, it.second.size());
       // memcpy is a better alternative than looping on all tuples
-      std::memcpy(array->GetVoidPointer(0), it.second.data(), sizeof(double) * it.second.size());
+      std::memcpy(array->GetVoidPointer(0), it.second.data(), sizeof(float) * it.second.size());
       slamFrame->GetPointData()->AddArray(array);
     }
 

@@ -84,23 +84,6 @@ Eigen::Vector6d IsometryToRPYXYZ(const Eigen::Isometry3d& transform)
   return rpyxyz;
 }
 
-//------------------------------------------------------------------------------
-Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data, Eigen::Vector3d& mean)
-{
-  mean = data.colwise().mean();
-  Eigen::MatrixXd centered = data.rowwise() - mean.transpose();
-  Eigen::Matrix3d varianceCovariance = centered.transpose() * centered;
-  return Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d>(varianceCovariance);
-}
-
-//------------------------------------------------------------------------------
-Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data)
-{
-  Eigen::Vector3d mean;
-  return ComputePCA(data, mean);
-}
-
-
 //==============================================================================
 //   Processing duration measurements
 //==============================================================================

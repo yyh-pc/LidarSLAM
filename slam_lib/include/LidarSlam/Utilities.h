@@ -19,8 +19,8 @@
 #pragma once
 
 #include <pcl/point_cloud.h>
-
-#include <Eigen/Eigenvalues>
+#include <pcl/common/centroid.h>
+#include <pcl/common/eigen.h>
 
 #include <iostream>
 #include <iomanip>
@@ -209,20 +209,29 @@ Eigen::Vector6d IsometryToRPYXYZ(const Eigen::Isometry3d& transform);
 
 //------------------------------------------------------------------------------
 /*!
- * @brief Compute PCA of Nx3 data array and mean value
- * @param[in] data Nx3 array (e.g. stacked 3D points)
- * @param[out] mean Where to store mean value
- * @return The PCA
+ * @brief Compute the centroid and PCA of a pointcloud subset.
+ * @param[in] cloud The input pointcloud
+ * @param[in] indices The points to consider from cloud
+ * @param[out] centroid The mean point of the subset of points
+ * @param[out] eigenVectors The PCA eigen vectors corresponding to eigenValues
+ * @param[out] eigenValues The PCA eigen values, sorted by ascending order
  */
-Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data, Eigen::Vector3d& mean);
+template<typename PointT, typename Scalar>
+void ComputeMeanAndPCA(const pcl::PointCloud<PointT>& cloud,
+                       const std::vector<int>& indices,
+                       Eigen::Matrix<Scalar, 3, 1>& centroid,
+                       Eigen::Matrix<Scalar, 3, 3>& eigenVectors,
+                       Eigen::Matrix<Scalar, 3, 1>& eigenValues)
+{
+  // Compute mean and normalized covariance matrix
+  EIGEN_ALIGN16 Eigen::Matrix<Scalar, 3, 3> covarianceMatrix;
+  EIGEN_ALIGN16 Eigen::Matrix<Scalar, 4, 1> xyzCentroid;
+  pcl::computeMeanAndCovarianceMatrix(cloud, indices, covarianceMatrix, xyzCentroid);
+  centroid = xyzCentroid.template head<3>();
 
-//------------------------------------------------------------------------------
-/*!
- * @brief Compute PCA of Nx3 data array and mean value
- * @param data Nx3 array (e.g. stacked 3D points)
- * @return The PCA
- */
-Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> ComputePCA(const Eigen::Matrix<double, Eigen::Dynamic, 3>& data);
+  // Compute eigen values and corresponding eigen vectors
+  pcl::eigen33(covarianceMatrix, eigenVectors, eigenValues);
+}
 
 //==============================================================================
 //   PCL helpers
