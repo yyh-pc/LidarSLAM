@@ -68,7 +68,7 @@
       <OutputPort name="Current planar keypoints"  index="6" id="port6" />
       <OutputPort name="Current blob keypoints"    index="7" id="port7" />
 
-      <!-- =============== Paraview filter outputs options =============== -->
+      <!-- ============= Paraview filter inputs/outputs options ============ -->
 
       <Property
           name="Reset state"
@@ -79,6 +79,114 @@
           This keeps parameters unchanged.
         </Documentation>
       </Property>
+
+      <!--~~~~~~~~~~~~~~~~~~~~~~~ Inputs options ~~~~~~~~~~~~~~~~~~~~~~~-->
+
+      <IntVectorProperty
+          name="Auto detect input arrays"
+          command="SetAutoDetectInputArrays"
+          default_values="1"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, SLAM filter will try to auto-detect the time, intensity
+          and laser ring id arrays to use depending on LiDAR model.
+        </Documentation>
+      </IntVectorProperty>
+
+      <!-- If auto-detection mode is disabled, user needs to specify input arrays to use -->
+      <StringVectorProperty name="Time array"
+                            command="SetInputArrayToProcess"
+                            element_types="0 0 0 0 2"
+                            number_of_elements="5"
+                            default_values="0"
+                            panel_visibility="advanced">
+        <ArrayListDomain attribute_type="Scalars" name="array_list">
+          <RequiredProperties>
+            <Property function="Input" name="Input" />
+          </RequiredProperties>
+        </ArrayListDomain>
+        <Documentation>
+          The points measurements timestamps.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Auto detect input arrays" value="0" />
+        </Hints>
+      </StringVectorProperty>
+
+      <StringVectorProperty name="Intensity array"
+                            command="SetInputArrayToProcess"
+                            element_types="0 0 0 0 2"
+                            number_of_elements="5"
+                            default_values="1"
+                            panel_visibility="advanced">
+        <ArrayListDomain attribute_type="Scalars" name="array_list">
+          <RequiredProperties>
+            <Property function="Input" name="Input" />
+          </RequiredProperties>
+        </ArrayListDomain>
+        <Documentation>
+          The points intensity/reflectivity measurements.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Auto detect input arrays" value="0" />
+        </Hints>
+      </StringVectorProperty>
+
+      <StringVectorProperty name="Laser ring id array"
+                            command="SetInputArrayToProcess"
+                            element_types="0 0 0 0 2"
+                            number_of_elements="5"
+                            default_values="2"
+                            panel_visibility="advanced">
+        <ArrayListDomain attribute_type="Scalars" name="array_list">
+          <RequiredProperties>
+            <Property function="Input" name="Input" />
+          </RequiredProperties>
+        </ArrayListDomain>
+        <Documentation>
+          The laser ring ids that acquired points.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Auto detect input arrays" value="0" />
+        </Hints>
+      </StringVectorProperty>
+
+      <StringVectorProperty name="Elevation angles calibration"
+                            command="SetInputArrayToProcess"
+                            element_types="0 0 0 0 2"
+                            number_of_elements="5"
+                            default_values="3"
+                            panel_visibility="advanced">
+        <ArrayListDomain attribute_type="Scalars" name="array_list">
+          <RequiredProperties>
+            <Property function="Input" name="Calibration" />
+          </RequiredProperties>
+        </ArrayListDomain>
+        <Documentation>
+          Calibration column used to sort laser rings by ascending elevation angle
+          (the lowest/bottom laser ring should be 0, and it should increase upward).
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Auto detect input arrays" value="0" />
+        </Hints>
+      </StringVectorProperty>
+
+      <DoubleVectorProperty name="Time to seconds factor"
+                            command="SetTimeToSecondsFactorSetting"
+                            default_values="1e-6"
+                            number_of_elements="1"
+                            panel_visibility="advanced">
+        <Documentation>
+          Coefficient to apply to *Time array* values to express timestamps in seconds.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Auto detect input arrays" value="0" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <!--~~~~~~~~~~~~~~~~~~~~~~ Outputs options ~~~~~~~~~~~~~~~~~~~~~~-->
 
       <IntVectorProperty
           name="Advanced return mode"
@@ -163,8 +271,14 @@
         </Hints>
       </IntVectorProperty>
 
-      <PropertyGroup label="Filter outputs options">
+      <PropertyGroup label="Filter inputs/outputs options">
         <Property name="Reset state" />
+        <Property name="Auto detect input arrays" />
+        <Property name="Time array" />
+        <Property name="Intensity array" />
+        <Property name="Laser ring id array" />
+        <Property name="Elevation angles calibration" />
+        <Property name="Time to seconds factor" />
         <Property name="Advanced return mode" />
         <Property name="Output keypoints maps" />
         <Property name="Keypoints maps update step" />
