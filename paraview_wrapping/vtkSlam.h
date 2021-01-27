@@ -241,7 +241,8 @@ private:
   void AddCurrentPoseToTrajectory();
 
   // Convert VTK PolyData to PCL pointcloud
-  void PolyDataToPointCloud(vtkPolyData* poly,
+  // Returns true if all input points are valid (null coordinates), false otherwise
+  bool PolyDataToPointCloud(vtkPolyData* poly,
                             LidarSlam::Slam::PointCloud::Ptr pc,
                             const std::vector<size_t>& laserIdMapping) const;
 

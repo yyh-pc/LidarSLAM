@@ -142,7 +142,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 
   // Conversion vtkPolyData -> PCL pointcloud
   LidarSlam::Slam::PointCloud::Ptr pc(new LidarSlam::Slam::PointCloud);
-  this->PolyDataToPointCloud(input, pc, laserMapping);
+  bool allPointsAreValid = this->PolyDataToPointCloud(input, pc, laserMapping);
 
   // Run SLAM
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : input conversions"));
@@ -158,23 +158,33 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   slamFrame->ShallowCopy(input);
   auto worldFrame = this->SlamAlgo->GetOutputFrame();
   vtkIdType nbPoints = input->GetNumberOfPoints();
+  // Modify only points coordinates to keep input arrays
   auto registeredPoints = vtkSmartPointer<vtkPoints>::New();
   registeredPoints->SetNumberOfPoints(nbPoints);
-  unsigned int worldFrameIndex = 0;
-  for (vtkIdType i = 0; i < nbPoints; i++)
-  {
-    // Modify point only if non empty
-    double pos[3];
-    input->GetPoint(i, pos);
-    if (pos[0] || pos[1] || pos[2])
-    {
-      const auto& p = worldFrame->points[worldFrameIndex++];
-      registeredPoints->SetPoint(i, p.data);
-    }
-    else
-      registeredPoints->SetPoint(i, pos);
-  }
   slamFrame->SetPoints(registeredPoints);
+  if (allPointsAreValid)
+  {
+    for (vtkIdType i = 0; i < nbPoints; i++)
+      registeredPoints->SetPoint(i, worldFrame->at(i).data);
+  }
+  else
+  {
+    unsigned int validFrameIndex = 0;
+    for (vtkIdType i = 0; i < nbPoints; i++)
+    {
+      // Modify point only if valid
+      double pos[3];
+      input->GetPoint(i, pos);
+      if (pos[0] || pos[1] || pos[2])
+      {
+        const auto& p = worldFrame->points[validFrameIndex++];
+        registeredPoints->SetPoint(i, p.data);
+      }
+      else
+        registeredPoints->SetPoint(i, pos);
+    }
+  }
+
   // Output : SLAM Trajectory
   auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
   slamTrajectory->ShallowCopy(this->Trajectory);
@@ -238,10 +248,28 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     auto keypointsExtractionDebugArray = this->SlamAlgo->GetKeyPointsExtractor()->GetDebugArray();
     for (const auto& it : keypointsExtractionDebugArray)
     {
-      auto array = Utils::CreateArray<vtkFloatArray>(it.first.c_str(), 1, it.second.size());
-      // memcpy is a better alternative than looping on all tuples
-      std::memcpy(array->GetVoidPointer(0), it.second.data(), sizeof(float) * it.second.size());
+      auto array = Utils::CreateArray<vtkFloatArray>(it.first.c_str(), 1, nbPoints);
       slamFrame->GetPointData()->AddArray(array);
+
+      // Fill array values from debug data
+      // memcpy is a better alternative than looping on all tuples
+      // but can only be used if the arrays use contiguous storage
+      if (allPointsAreValid)
+        std::memcpy(array->GetVoidPointer(0), it.second.data(), sizeof(float) * it.second.size());
+
+      // Otherwise, we need to loop over each point and test if it is valid.
+      // NOTE: this is slow, but we accept it as this mode is only used for debug purpose.
+      else
+      {
+        unsigned int validFrameIndex = 0;
+        for (vtkIdType i = 0; i < nbPoints; i++)
+        {
+          // Add array value only if point coordinates are non empty
+          double pos[3];
+          input->GetPoint(i, pos);
+          array->SetTuple1(i, (pos[0] || pos[1] || pos[2]) ? it.second[validFrameIndex++] : 0.);
+        }
+      }
     }
 
     // General SLAM info (number of keypoints used in ICP and optimization, max variance, ...)
@@ -466,7 +494,7 @@ void vtkSlam::AddCurrentPoseToTrajectory()
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::PolyDataToPointCloud(vtkPolyData* poly,
+bool vtkSlam::PolyDataToPointCloud(vtkPolyData* poly,
                                    LidarSlam::Slam::PointCloud::Ptr pc,
                                    const std::vector<size_t>& laserIdMapping = {}) const
 {
@@ -482,10 +510,13 @@ void vtkSlam::PolyDataToPointCloud(vtkPolyData* poly,
   pc->reserve(nbPoints);
   double frameEndTime = arrayTime->GetRange()[1];
   pc->header.stamp = frameEndTime * (this->TimeToSecondsFactor * 1e6); // max time in microseconds
+  bool allPointsAreValid = true;
   for (vtkIdType i = 0; i < nbPoints; i++)
   {
+    // Get point coordinates
     double pos[3];
     poly->GetPoint(i, pos);
+    // Check that points coordinates are not null before adding point
     if (pos[0] || pos[1] || pos[2])
     {
       LidarSlam::Slam::Point p;
@@ -497,7 +528,11 @@ void vtkSlam::PolyDataToPointCloud(vtkPolyData* poly,
       p.intensity = arrayIntensity->GetTuple1(i);
       pc->push_back(p);
     }
+    else
+      allPointsAreValid = false;
   }
+
+  return allPointsAreValid;
 }
 
 //-----------------------------------------------------------------------------
