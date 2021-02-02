@@ -648,8 +648,7 @@ void vtkSlam::SetUndistortion(int mode)
 {
   LidarSlam::UndistortionMode undistortion = static_cast<LidarSlam::UndistortionMode>(mode);
   if (undistortion != LidarSlam::UndistortionMode::NONE &&
-      undistortion != LidarSlam::UndistortionMode::APPROXIMATED &&
-      undistortion != LidarSlam::UndistortionMode::OPTIMIZED)
+      undistortion != LidarSlam::UndistortionMode::APPROXIMATED)
   {
     vtkErrorMacro("Invalid undistortion mode (" << mode << "), ignoring setting.");
     return;

@@ -371,7 +371,6 @@
         <EnumerationDomain name="enum">
           <Entry value="0" text="Disabled"/>
           <Entry value="1" text="Approximated"/>
-          <Entry value="2" text="Optimized"/>
         </EnumerationDomain>
         <Documentation>
           Undistortion mode, to correct rolling shutter distortion during a
@@ -384,9 +383,6 @@
 
           If APPROXIMATED, current beginning sweep pose will be guessed using a
           constant speed motion model from previous and current end sweep poses.
-          Then, linear undistortion between current begin and end poses is applied.
-
-          If OPTIMIZED, both current begin and end sweep poses are optimized.
           Then, linear undistortion between current begin and end poses is applied.
         </Documentation>
       </IntVectorProperty>

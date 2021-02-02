@@ -1065,12 +1065,6 @@ void Slam::Localization()
       this->Tworld = LinearInterpolation(this->PreviousTworld, endPose, currPoseTime, prevPoseTime, endPoseTime);
       this->WithinFrameMotion.SetTransforms(this->InterpolateScanPose(this->WithinFrameMotion.GetTime0()), endPose);
     }
-    else if (this->Undistortion == UndistortionMode::OPTIMIZED)
-    {
-      // Get fully optimized start and end poses, and interpolate Tworld between them
-      this->WithinFrameMotion.SetTransforms(optim.GetOptimizedFirstPose(), optim.GetOptimizedSecondPose());
-      this->Tworld = this->WithinFrameMotion(0.);
-    }
     this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : LM optim"));

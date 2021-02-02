@@ -133,20 +133,9 @@ void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen
 {
   // The Ceres residuals to use depending on undistortion mode
   using RigidResidual = CeresCostFunctions::MahalanobisDistanceAffineIsometryResidual;
-  using UndistortionResidual = CeresCostFunctions::MahalanobisDistanceInterpolatedMotionResidual;
 
-  // If OPTIMIZED mode, we need to optimize both first and second poses
-  if (this->Undistortion == UndistortionMode::OPTIMIZED)
-  {
-    double normTime = (time - this->WithinFrameMotionPrior.GetTime0()) / this->WithinFrameMotionPrior.GetTimeRange();
-    ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<UndistortionResidual, 1, 6, 6>(new UndistortionResidual(A, P, X, normTime, weight));
-    #pragma omp critical(addIcpResidual)
-    this->Problem.AddResidualBlock(cost_function,
-                                   new ceres::ScaledLoss(new ceres::ArctanLoss(this->Params.LossScale), weight, ceres::TAKE_OWNERSHIP),
-                                   this->FirstPoseArray.data(), this->SecondPoseArray.data());
-  }
   // If APPROXIMATED mode, we only need to optimize second pose
-  else if (this->Undistortion == UndistortionMode::APPROXIMATED)
+  if (this->Undistortion == UndistortionMode::APPROXIMATED)
   {
     ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<RigidResidual, 1, 6>(new RigidResidual(A, P, X, weight));
     #pragma omp critical(addIcpResidual)
@@ -171,11 +160,6 @@ void KeypointsRegistration::ComputePointInitAndFinalPose(const Point& p, Eigen::
   const Eigen::Vector3d pos = p.getVector3fMap().cast<double>();
   switch (this->Undistortion)
   {
-    case UndistortionMode::OPTIMIZED:
-      pInit = pos;
-      pFinal = this->WithinFrameMotionPrior(p.time) * pos;
-      break;
-
     case UndistortionMode::APPROXIMATED:
       pFinal = this->WithinFrameMotionPrior(p.time) * pos;
       pInit = this->SecondPosePrior.inverse() * pFinal;

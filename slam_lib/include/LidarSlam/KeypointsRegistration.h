@@ -149,9 +149,6 @@ public:
   //  - if undistortion is APPROXIMATED :
   //    FirstPose and SecondPose are first used as fixed priors for linear undistortion during ICP,
   //    then only SecondPose is rigidly optimized.
-  //  - if undistortion is OPTIMIZED :
-  //    FirstPose and SecondPose are first used as fixed priors for linear undistortion during ICP,
-  //    then are optimized by iteratively refining undistortion.
   KeypointsRegistration(const Parameters& params,
                         UndistortionMode undistortion,
                         const Eigen::Isometry3d& firstPosePrior,

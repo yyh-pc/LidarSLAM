@@ -555,8 +555,7 @@ void LidarSlamNode::SetSlamParameters()
   {
     LidarSlam::UndistortionMode undistortion = static_cast<LidarSlam::UndistortionMode>(undistortionMode);
     if (undistortion != LidarSlam::UndistortionMode::NONE &&
-        undistortion != LidarSlam::UndistortionMode::APPROXIMATED &&
-        undistortion != LidarSlam::UndistortionMode::OPTIMIZED)
+        undistortion != LidarSlam::UndistortionMode::APPROXIMATED)
     {
       ROS_ERROR_STREAM("Invalid undistortion mode (" << undistortion << "). Setting it to 'APPROXIMATED'.");
       undistortion = LidarSlam::UndistortionMode::APPROXIMATED;
