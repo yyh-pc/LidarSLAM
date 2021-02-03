@@ -366,24 +366,23 @@
       <IntVectorProperty
           name="Undistortion mode"
           command="SetUndistortion"
-          default_values="1"
+          default_values="2"
           number_of_elements="1">
         <EnumerationDomain name="enum">
           <Entry value="0" text="Disabled"/>
-          <Entry value="1" text="Approximated"/>
+          <Entry value="1" text="Once"/>
+          <Entry value="2" text="Refined"/>
         </EnumerationDomain>
         <Documentation>
-          Undistortion mode, to correct rolling shutter distortion during a
-          whole sweep during Lidar frame acquisition. This might be slower
-          and unstable in case of jumps.
+          Undistortion mode, to correct rolling shutter distortion during frame acquisition.
+          The undistortion should greatly improve the accuracy for smooth motions,
+          but might be unstable for high-frequency motions.
 
-          If DISABLED, SLAM will compute a rigid transform that will be applied
-          to the whole frame without taking into account the distortion due to
-          the lidar motion during a sweep.
+          DISABLED: no undistortion is performed.
 
-          If APPROXIMATED, current beginning sweep pose will be guessed using a
-          constant speed motion model from previous and current end sweep poses.
-          Then, linear undistortion between current begin and end poses is applied.
+          ONCE: undistortion is performed only once using estimated ego-motion.
+
+          REFINED: undistortion is iteratively refined using optimized ego-motion.
         </Documentation>
       </IntVectorProperty>
 

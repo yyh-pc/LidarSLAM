@@ -170,6 +170,9 @@ void Slam::Reset(bool resetLog)
   // Reset point clouds
   this->CurrentFrames.clear();
   this->CurrentFrames.emplace_back(new PointCloud);
+  this->CurrentRawEdgesPoints.reset(new PointCloud);
+  this->CurrentRawPlanarsPoints.reset(new PointCloud);
+  this->CurrentRawBlobsPoints.reset(new PointCloud);
   this->CurrentEdgesPoints.reset(new PointCloud);
   this->CurrentPlanarsPoints.reset(new PointCloud);
   this->CurrentBlobsPoints.reset(new PointCloud);
@@ -217,21 +220,17 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->ExtractKeypoints();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints extraction"));
 
-  // If the new frame is the first one we just add the extracted keypoints into
-  // the map without running odometry and localization steps
-  if (this->NbrFrameProcessed > 0)
-  {
-    // Estimate Trelative by extrapolating new pose with a constant velocity model
-    // and/or registering current frame on previous one
-    IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion"));
-    this->ComputeEgoMotion();
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
+  // Estimate Trelative by extrapolating new pose with a constant velocity model
+  // and/or registering current frame on previous one
+  IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion"));
+  this->ComputeEgoMotion();
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
 
-    // Perform Localization : update Tworld from map and current frame keypoints
-    IF_VERBOSE(3, Utils::Timer::Init("Localization"));
-    this->Localization();
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization"));
-  }
+  // Perform Localization : update Tworld from map and current frame keypoints
+  // and optionally undistort keypoints clouds based on ego-motion
+  IF_VERBOSE(3, Utils::Timer::Init("Localization"));
+  this->Localization();
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization"));
 
   // Update keypoints maps : add current keypoints to map using Tworld
   if (this->UpdateMap)
@@ -422,14 +421,14 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
 {
   // Set current pose
   this->Tworld = poseGuess.GetIsometry();
-  // TODO update motionParameters
 
   // Ego-Motion estimation is not valid anymore since we imposed a discontinuity.
   // We reset previous pose so that previous ego-motion extrapolation results in Identity matrix.
   // We reset current frame keypoints so that ego-motion registration will be skipped for next frame.
   this->PreviousTworld = this->Tworld;
-  this->CurrentEdgesPoints.reset(new PointCloud);
-  this->CurrentPlanarsPoints.reset(new PointCloud);
+  this->CurrentRawEdgesPoints.reset(new PointCloud);
+  this->CurrentRawPlanarsPoints.reset(new PointCloud);
+  this->CurrentRawBlobsPoints.reset(new PointCloud);
 }
 
 //-----------------------------------------------------------------------------
@@ -709,17 +708,17 @@ void Slam::ExtractKeypoints()
   PRINT_VERBOSE(2, "========== Keypoints extraction ==========");
 
   // Current keypoints become previous ones
-  this->PreviousEdgesPoints = this->CurrentEdgesPoints;
-  this->PreviousPlanarsPoints = this->CurrentPlanarsPoints;
+  this->PreviousRawEdgesPoints = this->CurrentRawEdgesPoints;
+  this->PreviousRawPlanarsPoints = this->CurrentRawPlanarsPoints;
 
   // Reset current keypoints
-  this->CurrentEdgesPoints.reset(new PointCloud);
-  this->CurrentPlanarsPoints.reset(new PointCloud);
-  this->CurrentBlobsPoints.reset(new PointCloud);
+  this->CurrentRawEdgesPoints.reset(new PointCloud);
+  this->CurrentRawPlanarsPoints.reset(new PointCloud);
+  this->CurrentRawBlobsPoints.reset(new PointCloud);
   pcl::PCLHeader header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp, this->BaseFrameId, this->NbrFrameProcessed);
-  this->CurrentEdgesPoints->header = header;
-  this->CurrentPlanarsPoints->header = header;
-  this->CurrentBlobsPoints->header = header;
+  this->CurrentRawEdgesPoints->header = header;
+  this->CurrentRawPlanarsPoints->header = header;
+  this->CurrentRawBlobsPoints->header = header;
 
   // Transform pointcloud to BASE coordinates system and correct time offset
   auto AddBaseKeypoints = [this](Slam::PointCloud::Ptr& allKp, const Slam::PointCloud::Ptr& kp, const Eigen::Isometry3d& baseToLidar)
@@ -776,15 +775,15 @@ void Slam::ExtractKeypoints()
 
     // Transform them from LIDAR to BASE coordinates, and aggregate them
     Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(lidarDevice);
-    AddBaseKeypoints(this->CurrentEdgesPoints,   ke->GetEdgePoints(),   baseToLidar);
-    AddBaseKeypoints(this->CurrentPlanarsPoints, ke->GetPlanarPoints(), baseToLidar);
+    AddBaseKeypoints(this->CurrentRawEdgesPoints,   ke->GetEdgePoints(),   baseToLidar);
+    AddBaseKeypoints(this->CurrentRawPlanarsPoints, ke->GetPlanarPoints(), baseToLidar);
     if (!this->FastSlam)
-      AddBaseKeypoints(this->CurrentBlobsPoints, ke->GetBlobPoints(),   baseToLidar);
+      AddBaseKeypoints(this->CurrentRawBlobsPoints, ke->GetBlobPoints(),   baseToLidar);
   }
 
-  PRINT_VERBOSE(2, "Extracted features : " << this->CurrentEdgesPoints->size()   << " edges, "
-                                           << this->CurrentPlanarsPoints->size() << " planes, "
-                                           << this->CurrentBlobsPoints->size()   << " blobs.");
+  PRINT_VERBOSE(2, "Extracted features : " << this->CurrentRawEdgesPoints->size()   << " edges, "
+                                           << this->CurrentRawPlanarsPoints->size() << " planes, "
+                                           << this->CurrentRawBlobsPoints->size()   << " blobs.");
 }
 
 //-----------------------------------------------------------------------------
@@ -826,14 +825,14 @@ void Slam::ComputeEgoMotion()
     #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
     {
       #pragma omp section
-      kdtreePreviousEdges.Reset(this->PreviousEdgesPoints);
+      kdtreePreviousEdges.Reset(this->PreviousRawEdgesPoints);
       #pragma omp section
-      kdtreePreviousPlanes.Reset(this->PreviousPlanarsPoints);
+      kdtreePreviousPlanes.Reset(this->PreviousRawPlanarsPoints);
     }
 
     PRINT_VERBOSE(2, "Keypoints extracted from previous frame : "
-                     << this->PreviousEdgesPoints->size() << " edges, "
-                     << this->PreviousPlanarsPoints->size() << " planes");
+                     << this->PreviousRawEdgesPoints->size() << " edges, "
+                     << this->PreviousRawPlanarsPoints->size() << " planes");
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("EgoMotion : build KD tree"));
     IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
@@ -874,10 +873,10 @@ void Slam::ComputeEgoMotion()
       KeypointsRegistration optim(optimParams, this->Trelative);
 
       // Loop over edges to build the point to line residuals
-      this->EgoMotionMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreePreviousEdges, Keypoint::EDGE);
+      this->EgoMotionMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentRawEdgesPoints, kdtreePreviousEdges, Keypoint::EDGE);
 
       // Loop over surfaces to build the point to plane residuals
-      this->EgoMotionMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePreviousPlanes, Keypoint::PLANE);
+      this->EgoMotionMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentRawPlanarsPoints, kdtreePreviousPlanes, Keypoint::PLANE);
 
       // Skip this frame if there are too few geometric keypoints matched
       totalMatchedKeypoints = this->EgoMotionMatchingResults[EDGE].NbMatches() + this->EgoMotionMatchingResults[PLANE].NbMatches();
@@ -930,10 +929,21 @@ void Slam::Localization()
   // Integrate the relative motion to the world transformation
   this->PreviousTworld = this->Tworld;
   this->Tworld = this->PreviousTworld * this->Trelative;
-  // If undistortion is enabled, init the within frame motion interpolator
-  // for rolling shutter distortion correction.
+
+  // Init undistorted keypoints clouds from raw points
+  this->CurrentEdgesPoints = this->CurrentRawEdgesPoints;
+  this->CurrentPlanarsPoints = this->CurrentRawPlanarsPoints;
+  this->CurrentBlobsPoints = this->CurrentRawBlobsPoints;
+  // Init and run undistortion if required
   if (this->Undistortion)
+  {
+    IF_VERBOSE(3, Utils::Timer::Init("Localization : initial undistortion"));
+    // Init the within frame motion interpolator time bounds
     this->InitUndistortion();
+    // Undistort keypoints clouds
+    this->RefineUndistortion();
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : initial undistortion"));
+  }
 
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
@@ -1016,13 +1026,13 @@ void Slam::Localization()
     KeypointsRegistration optim(optimParams, this->Tworld);
 
     // Loop over edges to build the point to line residuals
-    this->LocalizationMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->UndistortCloud(this->CurrentEdgesPoints), kdtreeEdges, Keypoint::EDGE);
+    this->LocalizationMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreeEdges, Keypoint::EDGE);
 
     // Loop over surfaces to build the point to plane residuals
-    this->LocalizationMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->UndistortCloud(this->CurrentPlanarsPoints), kdtreePlanes, Keypoint::PLANE);
+    this->LocalizationMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePlanes, Keypoint::PLANE);
 
     // Loop over blobs to build the point to blob residuals
-    this->LocalizationMatchingResults[BLOB] = optim.BuildAndMatchResiduals(this->UndistortCloud(this->CurrentBlobsPoints), kdtreeBlobs, Keypoint::BLOB);
+    this->LocalizationMatchingResults[BLOB] = optim.BuildAndMatchResiduals(this->CurrentBlobsPoints, kdtreeBlobs, Keypoint::BLOB);
 
     // Skip this frame if there is too few geometric keypoints matched
     totalMatchedKeypoints =   this->LocalizationMatchingResults[EDGE].NbMatches()
@@ -1046,17 +1056,13 @@ void Slam::Localization()
     ceres::Solver::Summary summary = optim.Solve();
     PRINT_VERBOSE(4, summary.BriefReport());
 
-    // Update Tworld, Trelative, and WithinFrameMotion from optimization results
+    // Update Tworld and Trelative from optimization results
     this->Tworld = optim.GetOptimizedPose();
     this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
-    if (this->Undistortion)
-    {
-      // Interpolate begin and end poses using PreviousTworld and Tworld
-      Eigen::Isometry3d worldToBaseBegin = this->InterpolateScanPose(this->WithinFrameMotion.GetTime0());
-      Eigen::Isometry3d worldToBaseEnd = this->InterpolateScanPose(this->WithinFrameMotion.GetTime1());
-      Eigen::Isometry3d baseToWorld = this->Tworld.inverse();
-      this->WithinFrameMotion.SetTransforms(baseToWorld * worldToBaseBegin, baseToWorld * worldToBaseEnd);
-    }
+
+    // Optionally refine undistortion
+    if (this->Undistortion == UndistortionMode::REFINED)
+      this->RefineUndistortion();
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : LM optim"));
 
@@ -1089,7 +1095,7 @@ void Slam::Localization()
 //-----------------------------------------------------------------------------
 void Slam::UpdateMapsUsingTworld()
 {
-  // it would be nice to add the point from the frame directly to the map
+  // Helper to transform points to WORLD coordinates and add them to map
   auto updateMap = [this](std::shared_ptr<RollingGrid> map, PointCloud::Ptr baseFrame, PointCloud::Ptr worldFrame)
   {
     // Transform keypoints to WORLD coordinates
@@ -1097,17 +1103,8 @@ void Slam::UpdateMapsUsingTworld()
     worldFrame->points.reserve(baseFrame->size());
     worldFrame->header = baseFrame->header;
     worldFrame->header.frame_id = this->WorldFrameId;
-    if (this->Undistortion)
-    {
-      auto transformInterpolator = this->WithinFrameMotion;
-      transformInterpolator.SetTransforms(this->Tworld * this->WithinFrameMotion.GetH0(),
-                                          this->Tworld * this->WithinFrameMotion.GetH1());
-      for (const Point& p : *baseFrame)
-        worldFrame->push_back(Utils::TransformPoint(p, transformInterpolator(p.time)));
-    }
-    else
-      for (const Point& p : *baseFrame)
-        worldFrame->push_back(Utils::TransformPoint(p, this->Tworld));
+    for (const Point& p : *baseFrame)
+      worldFrame->push_back(Utils::TransformPoint(p, this->Tworld));
     // Add new keypoints to rolling grid
     map->Add(worldFrame);
   };
@@ -1134,10 +1131,10 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
     // Save current frame data to buffer
     this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
     this->LogCovariances.emplace_back(Utils::Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance));
-    this->LogEdgesPoints.emplace_back(this->CurrentEdgesPoints, this->LoggingStorage);
-    this->LogPlanarsPoints.emplace_back(this->CurrentPlanarsPoints, this->LoggingStorage);
+    this->LogEdgesPoints.emplace_back(this->CurrentRawEdgesPoints, this->LoggingStorage);
+    this->LogPlanarsPoints.emplace_back(this->CurrentRawPlanarsPoints, this->LoggingStorage);
     if (!this->FastSlam)
-      this->LogBlobsPoints.emplace_back(this->CurrentBlobsPoints, this->LoggingStorage);
+      this->LogBlobsPoints.emplace_back(this->CurrentRawBlobsPoints, this->LoggingStorage);
 
     // If a timeout is defined, forget too old data
     if (this->LoggingTimeout > 0)
@@ -1192,35 +1189,31 @@ Eigen::Isometry3d Slam::InterpolateScanPose(double time)
 void Slam::InitUndistortion()
 {
   // Get 'time' field range
-  double firstFrameTime = std::numeric_limits<double>::max();
-  double lastFrameTime  = std::numeric_limits<double>::min();
+  double frameFirstTime = std::numeric_limits<double>::max();
+  double frameLastTime  = std::numeric_limits<double>::min();
   auto GetMinMaxTime = [&](const PointCloud::ConstPtr& cloud)
   {
     for (const Point& point: *cloud)
     {
-      firstFrameTime = std::min(firstFrameTime, point.time);
-      lastFrameTime  = std::max(lastFrameTime, point.time);
+      frameFirstTime = std::min(frameFirstTime, point.time);
+      frameLastTime  = std::max(frameLastTime, point.time);
     }
   };
   GetMinMaxTime(this->CurrentEdgesPoints);
   GetMinMaxTime(this->CurrentPlanarsPoints);
-  if (!this->FastSlam)
-    GetMinMaxTime(this->CurrentBlobsPoints);
+  GetMinMaxTime(this->CurrentBlobsPoints);
 
-  // Extrapolate first and last poses to initialize within frame motion interpolator
-  Eigen::Isometry3d worldToBaseBegin = this->InterpolateScanPose(firstFrameTime);
-  Eigen::Isometry3d worldToBaseEnd = this->InterpolateScanPose(lastFrameTime);
-  Eigen::Isometry3d baseToWorld = this->Tworld.inverse();
-  this->WithinFrameMotion.SetH0(baseToWorld * worldToBaseBegin, firstFrameTime);
-  this->WithinFrameMotion.SetH1(baseToWorld * worldToBaseEnd,   lastFrameTime);
+  // Update interpolator timestamps and reset transforms
+  this->WithinFrameMotion.SetTimes(frameFirstTime, frameLastTime);
+  this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
 
   // Check time values
   if (this->WithinFrameMotion.GetTimeRange() < 1e-6)
   {
-    // If frame duration is 0, it means that the time field is constant
+    // If frame duration is 0, it means that the time field is constant and cannot be used.
+    // We reset timestamps to 0, to ensure no time offset will be used.
     PRINT_WARNING("'time' field is not properly set (constant value) and cannot be used for undistortion.");
-    this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
-    this->WithinFrameMotion.SetTimes(0., lastFrameTime);
+    this->WithinFrameMotion.SetTimes(0., 0.);
   }
   else if (this->WithinFrameMotion.GetTimeRange() > 10.)
   {
@@ -1230,18 +1223,38 @@ void Slam::InitUndistortion()
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::UndistortCloud(const PointCloud::Ptr& cloud)
+void Slam::RefineUndistortion()
 {
-  PointCloud::Ptr undistortedCloud = cloud;
-  if (this->Undistortion)
+  // Get previously applied undistortion
+  Eigen::Isometry3d previousBaseBegin = this->WithinFrameMotion.GetH0();
+  Eigen::Isometry3d previousBaseEnd = this->WithinFrameMotion.GetH1();
+
+  // Extrapolate first and last poses to update within frame motion interpolator
+  Eigen::Isometry3d worldToBaseBegin = this->InterpolateScanPose(this->WithinFrameMotion.GetTime0());
+  Eigen::Isometry3d worldToBaseEnd = this->InterpolateScanPose(this->WithinFrameMotion.GetTime1());
+  Eigen::Isometry3d baseToWorld = this->Tworld.inverse();
+  Eigen::Isometry3d newBaseBegin = baseToWorld * worldToBaseBegin;
+  Eigen::Isometry3d newBaseEnd = baseToWorld * worldToBaseEnd;
+  this->WithinFrameMotion.SetTransforms(newBaseBegin, newBaseEnd);
+
+  // Init the interpolator to use to remove previous undistortion and apply updated one
+  auto transformInterpolator = this->WithinFrameMotion;
+  transformInterpolator.SetTransforms(newBaseBegin * previousBaseBegin.inverse(),
+                                      newBaseEnd * previousBaseEnd.inverse());
+
+  // Refine undistortion of keypoints clouds
+  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
   {
-    undistortedCloud.reset(new PointCloud);
-    Utils::CopyPointCloudMetadata(*cloud, *undistortedCloud);
-    undistortedCloud->points.reserve(cloud->size());
-    for (const Point& p : *cloud)
-      undistortedCloud->push_back(Utils::TransformPoint(p, this->WithinFrameMotion(p.time)));
+    #pragma omp section
+    for (Point& p : *this->CurrentEdgesPoints)
+      Utils::TransformPoint(p, transformInterpolator(p.time));
+    #pragma omp section
+    for (Point& p : *this->CurrentPlanarsPoints)
+      Utils::TransformPoint(p, transformInterpolator(p.time));
+    #pragma omp section
+    for (Point& p : *this->CurrentBlobsPoints)
+      Utils::TransformPoint(p, transformInterpolator(p.time));
   }
-  return undistortedCloud;
 }
 
 //==============================================================================
