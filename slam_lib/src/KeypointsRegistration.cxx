@@ -24,20 +24,12 @@ namespace LidarSlam
 
 //-----------------------------------------------------------------------------
 KeypointsRegistration::KeypointsRegistration(const KeypointsRegistration::Parameters& params,
-                                             UndistortionMode undistortion,
-                                             const Eigen::Isometry3d& firstPosePrior,
-                                             const Eigen::Isometry3d& secondPosePrior,
-                                             double firstPoseTime,
-                                             double secondPoseTime)
+                                             const Eigen::Isometry3d& posePrior)
   : Params(params)
-  , Undistortion(undistortion)
-  , FirstPosePrior(firstPosePrior)
-  , SecondPosePrior(secondPosePrior)
-  , WithinFrameMotionPrior(firstPosePrior, secondPosePrior, firstPoseTime, secondPoseTime)
+  , PosePrior(posePrior)
 {
-  // Convert isometries to 6D state vectors : X, Y, Z, rX, rY, rZ
-  this->FirstPoseArray  = Utils::IsometryToXYZRPY(firstPosePrior);
-  this->SecondPoseArray = Utils::IsometryToXYZRPY(secondPosePrior);
+  // Convert isometry to 6D state vector : X, Y, Z, rX, rY, rZ
+  this->PoseArray = Utils::IsometryToXYZRPY(posePrior);
 }
 
 //-----------------------------------------------------------------------------
@@ -112,7 +104,7 @@ KeypointsRegistration::RegistrationError KeypointsRegistration::EstimateRegistra
   // Computation of the variance-covariance matrix
   ceres::Covariance covarianceSolver(covOptions);
   std::vector<std::pair<const double*, const double*>> covarianceBlocks;
-  const double* paramBlock = this->Undistortion ? this->SecondPoseArray.data() : this->FirstPoseArray.data();
+  const double* paramBlock = this->PoseArray.data();
   covarianceBlocks.emplace_back(paramBlock, paramBlock);
   covarianceSolver.Compute(covarianceBlocks, &this->Problem);
   covarianceSolver.GetCovarianceBlock(paramBlock, paramBlock, err.Covariance.data());
@@ -129,47 +121,17 @@ KeypointsRegistration::RegistrationError KeypointsRegistration::EstimateRegistra
 }
 
 //----------------------------------------------------------------------------
-void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double time, double weight)
+void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double weight)
 {
-  // The Ceres residuals to use depending on undistortion mode
-  using RigidResidual = CeresCostFunctions::MahalanobisDistanceAffineIsometryResidual;
+  // Create the point-to-line/plane/blob cost function
+  using Residual = CeresCostFunctions::MahalanobisDistanceAffineIsometryResidual;
+  ceres::CostFunction* costFunction = new ceres::AutoDiffCostFunction<Residual, 1, 6>(new Residual(A, P, X, weight));
 
-  // If APPROXIMATED mode, we only need to optimize second pose
-  if (this->Undistortion == UndistortionMode::APPROXIMATED)
-  {
-    ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<RigidResidual, 1, 6>(new RigidResidual(A, P, X, weight));
-    #pragma omp critical(addIcpResidual)
-    this->Problem.AddResidualBlock(cost_function,
-                                   new ceres::ScaledLoss(new ceres::ArctanLoss(this->Params.LossScale), weight, ceres::TAKE_OWNERSHIP),
-                                   this->SecondPoseArray.data());
-  }
-  // If NONE mode, we only need to optimize first pose
-  else
-  {
-    ceres::CostFunction* cost_function = new ceres::AutoDiffCostFunction<RigidResidual, 1, 6>(new RigidResidual(A, P, X, weight));
-    #pragma omp critical(addIcpResidual)
-    this->Problem.AddResidualBlock(cost_function,
-                                   new ceres::ScaledLoss(new ceres::ArctanLoss(this->Params.LossScale), weight, ceres::TAKE_OWNERSHIP),
-                                   this->FirstPoseArray.data());
-  }
-}
-
-//-----------------------------------------------------------------------------
-void KeypointsRegistration::ComputePointInitAndFinalPose(const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal) const
-{
-  const Eigen::Vector3d pos = p.getVector3fMap().cast<double>();
-  switch (this->Undistortion)
-  {
-    case UndistortionMode::APPROXIMATED:
-      pFinal = this->WithinFrameMotionPrior(p.time) * pos;
-      pInit = this->SecondPosePrior.inverse() * pFinal;
-      break;
-    
-    case UndistortionMode::NONE:
-      pInit = pos;
-      pFinal = this->FirstPosePrior * pos;
-      break;
-  }
+  // Add constraint to problem
+  #pragma omp critical(addIcpResidual)
+  this->Problem.AddResidualBlock(costFunction,
+                                 new ceres::ScaledLoss(new ceres::ArctanLoss(this->Params.LossScale), weight, ceres::TAKE_OWNERSHIP),
+                                 this->PoseArray.data());
 }
 
 //-----------------------------------------------------------------------------
@@ -178,10 +140,10 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // =====================================================
   // Transform the point using the current pose estimation
 
-  // Rigid transform or time continuous motion model to take into account the
-  // rolling shutter distortion.
-  Eigen::Vector3d pInit, pFinal;
-  this->ComputePointInitAndFinalPose(p, pInit, pFinal);
+  // localPoint is the raw local position, on which we need to apply the transform to optimize.
+  // worldPoint is the estimated position in world coodinates.
+  Eigen::Vector3d localPoint = p.getVector3fMap().cast<double>();
+  Eigen::Vector3d worldPoint = this->PosePrior * localPoint;
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
@@ -189,9 +151,9 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   std::vector<int> knnIndices;
   std::vector<float> knnSqDist;
   if (this->Params.SingleEdgePerRing)
-    this->GetPerRingLineNeighbors(kdtreePreviousEdges, pFinal.data(), this->Params.LineDistanceNbrNeighbors, knnIndices, knnSqDist);
+    this->GetPerRingLineNeighbors(kdtreePreviousEdges, worldPoint.data(), this->Params.LineDistanceNbrNeighbors, knnIndices, knnSqDist);
   else
-    this->GetRansacLineNeighbors(kdtreePreviousEdges, pFinal.data(), this->Params.LineDistanceNbrNeighbors, this->Params.MaxLineDistance, knnIndices, knnSqDist);
+    this->GetRansacLineNeighbors(kdtreePreviousEdges, worldPoint.data(), this->Params.LineDistanceNbrNeighbors, this->Params.MaxLineDistance, knnIndices, knnSqDist);
 
   // If not enough neighbors, abort
   unsigned int neighborhoodSize = knnIndices.size();
@@ -275,7 +237,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   double fitQualityCoeff = 1.0 - std::sqrt(meanSquaredDist / squaredMaxDist);
 
   // Store the distance parameters values
-  this->AddIcpResidual(A, mean, pInit, p.time, fitQualityCoeff);
+  this->AddIcpResidual(A, mean, localPoint, fitQualityCoeff);
 
   return MatchingResults::MatchStatus::SUCCESS;
 }
@@ -286,17 +248,17 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // =====================================================
   // Transform the point using the current pose estimation
 
-  // Rigid transform or time continuous motion model to take into account the
-  // rolling shutter distortion.
-  Eigen::Vector3d pInit, pFinal;
-  this->ComputePointInitAndFinalPose(p, pInit, pFinal);
+  // localPoint is the raw local position, on which we need to apply the transform to optimize.
+  // worldPoint is the estimated position in world coodinates.
+  Eigen::Vector3d localPoint = p.getVector3fMap().cast<double>();
+  Eigen::Vector3d worldPoint = this->PosePrior * localPoint;
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
 
   std::vector<int> knnIndices;
   std::vector<float> knnSqDist;
-  unsigned int neighborhoodSize = kdtreePreviousPlanes.KnnSearch(pFinal.data(), this->Params.PlaneDistanceNbrNeighbors, knnIndices, knnSqDist);
+  unsigned int neighborhoodSize = kdtreePreviousPlanes.KnnSearch(worldPoint.data(), this->Params.PlaneDistanceNbrNeighbors, knnIndices, knnSqDist);
 
   // It means that there is not enough keypoints in the neighborhood
   if (neighborhoodSize < this->Params.PlaneDistanceNbrNeighbors)
@@ -372,7 +334,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   double fitQualityCoeff = 1.0 - std::sqrt(meanSquaredDist / squaredMaxDist);
 
   // Store the distance parameters values
-  this->AddIcpResidual(A, mean, pInit, p.time, fitQualityCoeff);
+  this->AddIcpResidual(A, mean, localPoint, fitQualityCoeff);
 
   return MatchingResults::MatchStatus::SUCCESS;
 }
@@ -383,10 +345,10 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // =====================================================
   // Transform the point using the current pose estimation
 
-  // Rigid transform or time continuous motion model to take into account the
-  // rolling shutter distortion.
-  Eigen::Vector3d pInit, pFinal;
-  this->ComputePointInitAndFinalPose(p, pInit, pFinal);
+  // localPoint is the raw local position, on which we need to apply the transform to optimize.
+  // worldPoint is the estimated position in world coodinates.
+  Eigen::Vector3d localPoint = p.getVector3fMap().cast<double>();
+  Eigen::Vector3d worldPoint = this->PosePrior * localPoint;
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
@@ -396,7 +358,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
 
   std::vector<int> knnIndices;
   std::vector<float> knnSqDist;
-  unsigned int neighborhoodSize = kdtreePreviousBlobs.KnnSearch(pFinal.data(), this->Params.BlobDistanceNbrNeighbors, knnIndices, knnSqDist);
+  unsigned int neighborhoodSize = kdtreePreviousBlobs.KnnSearch(worldPoint.data(), this->Params.BlobDistanceNbrNeighbors, knnIndices, knnSqDist);
 
   // It means that there is not enough keypoints in the neighborhood
   if (neighborhoodSize < this->Params.BlobDistanceNbrNeighbors)
@@ -474,7 +436,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   double fitQualityCoeff = 1.0;//1.0 - knnSqDist.back() / maxDist;
 
   // store the distance parameters values
-  this->AddIcpResidual(A, mean, pInit, p.time, fitQualityCoeff);
+  this->AddIcpResidual(A, mean, localPoint, fitQualityCoeff);
 
   return MatchingResults::MatchStatus::SUCCESS;
 }

@@ -423,7 +423,9 @@ private:
   // **** UNDISTORTION ****
 
   // Transform interpolator to estimate the pose of the sensor within a lidar
-  // frame, using poses at the beginning and end of frame.
+  // frame, using the BASE poses at the beginning and end of frame.
+  // This will be used to undistort the pointcloud and express its points
+  // relatively to the same BASE pose at frame header timestamp.
   // This will use the point-wise 'time' field, representing the time offset
   // in seconds to add to the frame header timestamp.
   LinearTransformInterpolator<double> WithinFrameMotion;
@@ -603,6 +605,9 @@ private:
   // Get current frame time field range, and update within frame motion interpolator.
   void InitUndistortion();
 
+  // Linearly undistort pointcloud to correct rolling shutter distortion.
+  // This uses the point-wise 'time' field to interpolate the correct transform.
+  PointCloud::Ptr UndistortCloud(const PointCloud::Ptr& cloud);
 };
 
 } // end of LidarSlam namespace

@@ -143,18 +143,7 @@ public:
   //----------------------------------------------------------------------------
 
   // Init ICP-LM optimizer.
-  //  - if undistortion is NONE :
-  //    FirstPose is the only considered transform, rigidly optimized.
-  //    SecondPose is not even used, nor is time info.
-  //  - if undistortion is APPROXIMATED :
-  //    FirstPose and SecondPose are first used as fixed priors for linear undistortion during ICP,
-  //    then only SecondPose is rigidly optimized.
-  KeypointsRegistration(const Parameters& params,
-                        UndistortionMode undistortion,
-                        const Eigen::Isometry3d& firstPosePrior,
-                        const Eigen::Isometry3d& secondPosePrior = Eigen::Isometry3d::Identity(),
-                        double firstPoseTime = 0.,
-                        double secondPoseTime = 1.);
+  KeypointsRegistration(const Parameters& params, const Eigen::Isometry3d& posePrior);
 
   // Build point-to-neighborhood residuals
   MatchingResults BuildAndMatchResiduals(const PointCloud::Ptr& currPoints,
@@ -165,12 +154,9 @@ public:
   ceres::Solver::Summary Solve();
 
   // Get optimization results
-  Eigen::Isometry3d GetOptimizedFirstPose()  const { return Utils::XYZRPYtoIsometry(this->FirstPoseArray); }
-  Eigen::Isometry3d GetOptimizedSecondPose() const { return Utils::XYZRPYtoIsometry(this->SecondPoseArray); }
+  Eigen::Isometry3d GetOptimizedPose()  const { return Utils::XYZRPYtoIsometry(this->PoseArray); }
 
   // Estimate registration error
-  // If undistortion is disabled, this error is estimated for FirstPose.
-  // If undistortion is enabled, this error is estimated for SecondPose.
   RegistrationError EstimateRegistrationError();
 
   //----------------------------------------------------------------------------
@@ -190,18 +176,8 @@ private:
   //    * A = (n*n.t) for a plane with n being the normal.
   //    * A is the symmetric variance-covariance matrix encoding the shape of
   //      the neighborhood for a blob.
-  // - time stores the time acquisition (used only if undistortion is enabled)
   // - weight attenuates the distance function for outliers
-  void AddIcpResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double time, double weight = 1.);
-
-  // Helper to compute point positions according to undistortion mode.
-  // - pInit will be the initial position in sensor coordinates, on which we
-  //   need to apply the transforms to optimize. This position will be used
-  //   in optimization.
-  // - pFinal will be estimated using the given prior to correspond to the
-  //   approximate point location in global coordinates system. This transformed
-  //   position can be used to find approximate nearest neighbors in map.
-  void ComputePointInitAndFinalPose(const Point& p, Eigen::Vector3d& pInit, Eigen::Vector3d& pFinal) const;
+  void AddIcpResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double weight = 1.);
 
   // Match the current keypoint with its neighborhood in the map / previous
   // frame to estimate P and A.
@@ -232,21 +208,14 @@ private:
 
   const Parameters Params;
 
-  const UndistortionMode Undistortion;
-
   // The problem to build and optimize
   ceres::Problem Problem;
 
   // Initialization of DoF to optimize
-  const Eigen::Isometry3d FirstPosePrior;   ///< Initial guess of the first pose to optimize
-  const Eigen::Isometry3d SecondPosePrior;  ///< Initial guess of the second pose to optimize (only used if undistortion is enabled)
+  const Eigen::Isometry3d PosePrior;  ///< Initial guess of the pose to optimize
 
   // DoF to optimize (= output)
-  Eigen::Vector6d FirstPoseArray;   ///< First pose to optimize (XYZRPY)
-  Eigen::Vector6d SecondPoseArray;  ///< Second pose to optimize (XYZRPY) (only used if undistortion is enabled)
-
-  // Frame pose interpolator (only used if undistortion is enabled)
-  const LinearTransformInterpolator<double> WithinFrameMotionPrior;
+  Eigen::Vector6d PoseArray;  ///< Pose parameters to optimize (XYZRPY)
 };
 
 } // end of LidarSlam namespace
