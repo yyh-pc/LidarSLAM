@@ -125,7 +125,7 @@ void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen
 {
   // Create the point-to-line/plane/blob cost function
   using Residual = CeresCostFunctions::MahalanobisDistanceAffineIsometryResidual;
-  ceres::CostFunction* costFunction = new ceres::AutoDiffCostFunction<Residual, 1, 6>(new Residual(A, P, X, weight));
+  ceres::CostFunction* costFunction = new ceres::AutoDiffCostFunction<Residual, 1, 6>(new Residual(A, P, X));
 
   // Add constraint to problem
   #pragma omp critical(addIcpResidual)
