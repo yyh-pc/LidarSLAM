@@ -341,7 +341,7 @@ namespace Timer
 
   //----------------------------------------------------------------------------
   /*!
-  * @brief Get the timer value.
+  * @brief Get the timer value, in seconds.
   * @param timer The name of the timer
   * @return The duration value, in seconds, since the initialization of the timer
   *
@@ -351,12 +351,23 @@ namespace Timer
 
   //----------------------------------------------------------------------------
   /*!
-  * @brief Print a given timer value and its average value.
+  * @brief Print a given timer value and its average value, in milliseconds.
   * @param timer The name of the timer
+  * @param nbDigits The number of digits to use to round milliseconds timer value
   *
-  * NOTE : This may return garbage if the counter has not been initialized yet.
+  * NOTE : This may display garbage if the counter has not been initialized yet.
   */
-  void StopAndDisplay(const std::string& timer);
+  void StopAndDisplay(const std::string& timer, int nbDigits = 3);
+
+  //----------------------------------------------------------------------------
+  /*!
+  * @brief Print a given timer average value, in milliseconds.
+  * @param timer The name of the timer
+  * @param nbDigits The number of digits to use to round milliseconds timer value
+  *
+  * NOTE : This may display garbage if the counter has not been initialized yet.
+  */
+  void Display(const std::string& timer, int nbDigits = 3);
 }  // end of Timer namespace
 }  // end of Utils namespace
 }  // end of LidarSlam namespace

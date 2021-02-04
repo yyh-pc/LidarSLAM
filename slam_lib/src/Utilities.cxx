@@ -116,19 +116,29 @@ namespace Timer
   //----------------------------------------------------------------------------
   double Stop(const std::string& timer)
   {
-    std::chrono::duration<double> chrono_ms = std::chrono::steady_clock::now() - startTimestamps[timer];
-    return chrono_ms.count();
+    std::chrono::duration<double> chrono_s = std::chrono::steady_clock::now() - startTimestamps[timer];
+    double duration = chrono_s.count();
+    totalDurations[timer] += duration;
+    totalCalls[timer]++;
+    return duration;
   }
 
   //----------------------------------------------------------------------------
-  void StopAndDisplay(const std::string& timer)
+  void StopAndDisplay(const std::string& timer, int nbDigits)
   {
     const double currentDuration = Stop(timer);
-    totalDurations[timer] += currentDuration;
-    totalCalls[timer]++;
     double meanDurationMs = totalDurations[timer] * 1000. / totalCalls[timer];
-    SET_COUT_FIXED_PRECISION(3);
+    SET_COUT_FIXED_PRECISION(nbDigits);
     PRINT_COLOR(CYAN, "  -> " << timer << " took : " << currentDuration * 1000. << " ms (average : " << meanDurationMs << " ms)");
+    RESET_COUT_FIXED_PRECISION;
+  }
+
+  //----------------------------------------------------------------------------
+  void Display(const std::string& timer, int nbDigits)
+  {
+    double meanDurationMs = totalDurations[timer] * 1000. / totalCalls[timer];
+    SET_COUT_FIXED_PRECISION(nbDigits);
+    PRINT_COLOR(CYAN, "  -> " << timer << " took in average : " << meanDurationMs << " ms");
     RESET_COUT_FIXED_PRECISION;
   }
 }  // end of Timer namespace
