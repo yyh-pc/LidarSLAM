@@ -190,15 +190,16 @@ void Slam::Reset(bool resetLog)
   // Reset log history
   if (resetLog)
   {
+    // Reset logged keypoints
     this->NbrFrameProcessed = 0;
     this->LogTrajectory.clear();
     this->LogEdgesPoints.clear();
     this->LogPlanarsPoints.clear();
     this->LogBlobsPoints.clear();
-  }
 
-  // Reset processing duration timers
-  Utils::Timer::Reset();
+    // Reset processing duration timers
+    Utils::Timer::Reset();
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -362,20 +363,40 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     this->LogTrajectory[i].SetIsometry(gpsToSensorOffset.inverse() * optimizedSlamPoses[i].GetIsometry());
 
     // Transform frame keypoints to world coordinates
-    Eigen::Matrix4d currentTransform = this->LogTrajectory[i].GetMatrix();
+    const auto& logEdges = this->LogEdgesPoints[i].GetCloud();
+    const auto& logPlanes = this->LogPlanarsPoints[i].GetCloud();
+    const auto& logBlobs = !this->FastSlam ? this->LogBlobsPoints[i].GetCloud() : PointCloud::Ptr(new PointCloud);
+    if (this->Undistortion && i >= 1)
+    {
+      // Init the undistortion interpolator
+      LinearTransformInterpolator<double> interpolator;
+      interpolator.SetTransforms(this->LogTrajectory[i - 1].GetIsometry(), this->LogTrajectory[i].GetIsometry());
+      interpolator.SetTimes(this->LogTrajectory[i].time - this->LogTrajectory[i - 1].time, 0.);
 
-    pcl::transformPointCloud(*this->LogEdgesPoints[i].GetCloud(), edgesKeypoints, currentTransform);
-    pcl::transformPointCloud(*this->LogPlanarsPoints[i].GetCloud(), planarsKeypoints, currentTransform);
-    if (!this->FastSlam)
-      pcl::transformPointCloud(*this->LogBlobsPoints[i].GetCloud(), blobsKeypoints, currentTransform);
-
-    // TODO: Deal with undistortion case (properly transform pointclouds before aggreagtion)
+      // Perform undistortion of keypoints clouds
+      auto undistortAndTransform = [&](const PointCloud& in, PointCloud& out)
+      {
+        out.clear();
+        out.reserve(in.size());
+        for (const Point& p : in)
+          out.push_back(Utils::TransformPoint(p, interpolator(p.time)));
+      };
+      undistortAndTransform(*logEdges, edgesKeypoints);
+      undistortAndTransform(*logPlanes, planarsKeypoints);
+      undistortAndTransform(*logBlobs, blobsKeypoints);
+    }
+    else
+    {
+      Eigen::Matrix4d currentTransform = this->LogTrajectory[i].GetMatrix();
+      pcl::transformPointCloud(*logEdges, edgesKeypoints, currentTransform);
+      pcl::transformPointCloud(*logPlanes, planarsKeypoints, currentTransform);
+      pcl::transformPointCloud(*logBlobs, blobsKeypoints, currentTransform);
+    }
 
     // Aggregate new keypoints to maps
     *aggregatedEdgesMap += edgesKeypoints;
     *aggregatedPlanarsMap += planarsKeypoints;
-    if (!this->FastSlam)
-      *aggregatedBlobsMap += blobsKeypoints;
+    *aggregatedBlobsMap += blobsKeypoints;
   }
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : frames keypoints aggregation"));
@@ -384,8 +405,6 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   // Set final pose
   this->Tworld         = this->LogTrajectory[nbSlamPoses - 1].GetIsometry();
   this->PreviousTworld = this->LogTrajectory[nbSlamPoses - 2].GetIsometry();
-
-  // TODO : Deal with undistortion case (update motionParameters)
 
   // Update SLAM maps
   auto updateMap = [&](RollingGrid& map, const PointCloud& lastPoints, const PointCloud::Ptr& aggregatedPoints)
