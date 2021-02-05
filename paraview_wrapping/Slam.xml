@@ -603,38 +603,38 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Init loss scale EM"
-          label="Init loss scale"
-          command="SetEgoMotionInitLossScale"
-          default_values="2.0"
+          name="Init saturation distance EM"
+          label="Init saturation distance"
+          command="SetEgoMotionInitSaturationDistance"
+          default_values="5."
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Arctan loss scale used for the first optimization iteration.
-          The Arctan loss of residual *r* using scale *s* is :
+          Maximum distance (in meters) beyond which the residual errors are
+          saturated to robustify the optimization against outlier constraints.
+          The residuals will be robustified by Tukey loss (~90% of saturation at
+          *SaturationDistance/2*, fully saturated at *SaturationDistance*).
 
-            *L = s · atan(r / s)*
-
-          The scale of loss function at current iteration is linearly
-          interpolated between Init and Final loss scale parameters.
+          The saturation distance at each iteration is linearly interpolated
+          between *Init* and *Final* saturation distance parameters.
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Final loss scale EM"
-          label="Final loss scale"
-          command="SetEgoMotionFinalLossScale"
-          default_values="0.2"
+          name="Final saturation distance EM"
+          label="Final saturation distance"
+          command="SetEgoMotionFinalSaturationDistance"
+          default_values="1."
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Arctan loss scale used for the last optimization iteration.
-          The Arctan loss of residual *r* using scale *s* is :
+          Maximum distance (in meters) beyond which the residual errors are
+          saturated to robustify the optimization against outlier constraints.
+          The residuals will be robustified by Tukey loss (~90% of saturation at
+          *SaturationDistance/2*, fully saturated at *SaturationDistance*).
 
-            *L = s · atan(r / s)*
-
-          The scale of loss function at current iteration is linearly
-          interpolated between Init and Final loss scale parameters.
+          The saturation distance at each iteration is linearly interpolated
+          between *Init* and *Final* saturation distance parameters.
         </Documentation>
       </DoubleVectorProperty>
 
@@ -649,8 +649,8 @@
         <Property name="Planarity factor 2 EM" />
         <Property name="Max edge neighbors distance to fitted line EM" />
         <Property name="Max plane neighbors distance to fitted plane EM" />
-        <Property name="Init loss scale EM" />
-        <Property name="Final loss scale EM" />
+        <Property name="Init saturation distance EM" />
+        <Property name="Final saturation distance EM" />
         <Hints>
           <!-- Show these parameters only if Ego-motion registration is enabled (Paraview >5.6)-->
           <PropertyWidgetDecorator type="CompositeDecorator">
@@ -799,36 +799,36 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Init loss scale"
-          command="SetLocalizationInitLossScale"
-          default_values="0.7"
+          name="Init saturation distance"
+          command="SetLocalizationInitSaturationDistance"
+          default_values="2."
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Arctan loss scale used for the first optimization iteration.
-          The Arctan loss of residual *r* using scale *s* is :
+          Maximum distance (in meters) beyond which the residual errors are
+          saturated to robustify the optimization against outlier constraints.
+          The residuals will be robustified by Tukey loss (~90% of saturation at
+          *SaturationDistance/2*, fully saturated at *SaturationDistance*).
 
-            *L = s · atan(r / s)*
-
-          The scale of loss function at current iteration is linearly
-          interpolated between Init and Final loss scale parameters.
+          The saturation distance at each iteration is linearly interpolated
+          between *Init* and *Final* saturation distance parameters.
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Final loss scale"
-          command="SetLocalizationFinalLossScale"
-          default_values="0.05"
+          name="Final saturation distance"
+          command="SetLocalizationFinalSaturationDistance"
+          default_values="0.5"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Arctan loss scale used for the last optimization iteration.
-          The Arctan loss of residual *r* using scale *s* is :
+          Maximum distance (in meters) beyond which the residual errors are
+          saturated to robustify the optimization against outlier constraints.
+          The residuals will be robustified by Tukey loss (~90% of saturation at
+          *SaturationDistance/2*, fully saturated at *SaturationDistance*).
 
-            *L = s · atan(r / s)*
-
-          The scale of loss function at current iteration is linearly
-          interpolated between Init and Final loss scale parameters.
+          The saturation distance at each iteration is linearly interpolated
+          between *Init* and *Final* saturation distance parameters.
         </Documentation>
       </DoubleVectorProperty>
 
@@ -843,8 +843,8 @@
         <Property name="Planarity factor 2" />
         <Property name="Max edge neighbors distance to fitted line" />
         <Property name="Max plane neighbors distance to fitted plane" />
-        <Property name="Init loss scale" />
-        <Property name="Final loss scale" />
+        <Property name="Init saturation distance" />
+        <Property name="Final saturation distance" />
       </PropertyGroup>
 
       <!-- ==================== Map Parameters ==================== -->

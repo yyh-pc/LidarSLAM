@@ -887,7 +887,8 @@ void Slam::ComputeEgoMotion()
       optimParams.PlaneDistancefactor2 = this->EgoMotionPlaneDistancefactor2;
       optimParams.MaxPlaneDistance = this->EgoMotionMaxPlaneDistance;
       optimParams.LMMaxIter = this->EgoMotionLMMaxIter;
-      optimParams.LossScale = this->EgoMotionInitLossScale + icpIter * (this->EgoMotionFinalLossScale - this->EgoMotionInitLossScale) / this->EgoMotionICPMaxIter;
+      double iterRatio = icpIter / static_cast<double>(this->EgoMotionICPMaxIter);
+      optimParams.SaturationDistance = (1 - iterRatio) * this->EgoMotionInitSaturationDistance + iterRatio * this->EgoMotionFinalSaturationDistance;
 
       KeypointsRegistration optim(optimParams, this->Trelative);
 
@@ -1040,7 +1041,8 @@ void Slam::Localization()
     optimParams.MaxPlaneDistance = this->LocalizationMaxPlaneDistance;
     optimParams.BlobDistanceNbrNeighbors = this->LocalizationBlobDistanceNbrNeighbors;
     optimParams.LMMaxIter = this->LocalizationLMMaxIter;
-    optimParams.LossScale = this->LocalizationInitLossScale + icpIter * (this->LocalizationFinalLossScale - this->LocalizationInitLossScale) / this->LocalizationICPMaxIter;
+    double iterRatio = icpIter / static_cast<double>(this->LocalizationICPMaxIter);
+    optimParams.SaturationDistance = (1 - iterRatio) * this->LocalizationInitSaturationDistance + iterRatio * this->LocalizationFinalSaturationDistance;
 
     KeypointsRegistration optim(optimParams, this->Tworld);
 

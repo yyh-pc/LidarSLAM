@@ -128,7 +128,7 @@ void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen
   ceres::CostFunction* costFunction = new ceres::AutoDiffCostFunction<Residual, 1, 6>(new Residual(A, P, X));
 
   // Use a robustifier to limit the contribution of an outlier match
-  auto* robustifier = new ceres::TukeyLoss(this->Params.LossScale);
+  auto* robustifier = new ceres::TukeyLoss(std::sqrt(this->Params.SaturationDistance));
   // Weight the contribution of the given match by its reliability
   auto* loss = new ceres::ScaledLoss(robustifier, weight, ceres::TAKE_OWNERSHIP);
 

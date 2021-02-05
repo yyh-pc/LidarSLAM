@@ -150,9 +150,8 @@ slam:
     plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
     max_line_distance: 0.2              # [m] Max distance to line model allowed to keep neighborhood.
     max_plane_distance: 0.2             # [m] Max distance to plane model allowed to keep neighborhood.
-    init_loss_scale: 2.                 # Initial arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
-    final_loss_scale: 0.2               # Final arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
-
+    init_saturation_distance: 5.        # Initial distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.
+    final_saturation_distance: 1.       # Final distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.
   # ICP and LM parameters for Localization step
   localization:
     ICP_max_iter: 3                     # Max number of iterations of ICP matching.
@@ -165,8 +164,8 @@ slam:
     plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
     max_line_distance: 0.2              # [m] Max distance to line model allowed to keep neighborhood.
     max_plane_distance: 0.2             # [m] Max distance to plane model allowed to keep neighborhood.
-    init_loss_scale: 0.7                # Initial arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
-    final_loss_scale: 0.05              # Final arctan loss scale factor to modify saturation (L(s) = scale * arctan(s/scale))
+    init_saturation_distance: 2.        # Initial distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.
+    final_saturation_distance: 0.5      # Final distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.
 
   # Keypoints maps, saved as downsampled voxel grids
   voxel_grid:

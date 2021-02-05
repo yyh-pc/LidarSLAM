@@ -596,8 +596,8 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/ego_motion_registration/plane_distance_factor2", EgoMotionPlaneDistancefactor2)
   SetSlamParam(double, "slam/ego_motion_registration/max_line_distance", EgoMotionMaxLineDistance)
   SetSlamParam(double, "slam/ego_motion_registration/max_plane_distance", EgoMotionMaxPlaneDistance)
-  SetSlamParam(double, "slam/ego_motion_registration/init_loss_scale", EgoMotionInitLossScale)
-  SetSlamParam(double, "slam/ego_motion_registration/final_loss_scale", EgoMotionFinalLossScale)
+  SetSlamParam(double, "slam/ego_motion_registration/init_saturation_distance", EgoMotionInitSaturationDistance)
+  SetSlamParam(double, "slam/ego_motion_registration/final_saturation_distance", EgoMotionFinalSaturationDistance)
 
   // Localization
   SetSlamParam(int,    "slam/localization/LM_max_iter", LocalizationLMMaxIter)
@@ -610,8 +610,8 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/localization/plane_distance_factor2", LocalizationPlaneDistancefactor2)
   SetSlamParam(double, "slam/localization/max_line_distance", LocalizationMaxLineDistance)
   SetSlamParam(double, "slam/localization/max_plane_distance", LocalizationMaxPlaneDistance)
-  SetSlamParam(double, "slam/localization/init_loss_scale", LocalizationInitLossScale)
-  SetSlamParam(double, "slam/localization/final_loss_scale", LocalizationFinalLossScale)
+  SetSlamParam(double, "slam/localization/init_saturation_distance", LocalizationInitSaturationDistance)
+  SetSlamParam(double, "slam/localization/final_saturation_distance", LocalizationFinalSaturationDistance)
 
   // Rolling grids
   SetSlamParam(double, "slam/voxel_grid/leaf_size_edges", VoxelGridLeafSizeEdges)

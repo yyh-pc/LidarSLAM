@@ -91,10 +91,10 @@ public:
     // Maximum number of iteration
     unsigned int LMMaxIter = 15;
 
-    // Arctan loss scale factor to saturate costs according to their quality.
-    // The loss function used is L(quality) = scale * arctan(quality / scale)
-    // with quality being the confidence associated to each keypoints match.
-    double LossScale = 0.5;
+    // Maximum distance (in meters) beyond which the residual errors are
+    // saturated to robustify the optimization against outlier constraints.
+    // The residuals will be robustified by Tukey loss at scale sqrt(SatDist).
+    double SaturationDistance = 1.;
   };
 
   //! Result of matching for one set of keypoints

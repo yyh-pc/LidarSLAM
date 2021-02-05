@@ -334,8 +334,8 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   PrintParameter(EgoMotionMaxPlaneDistance)
   PrintParameter(EgoMotionPlaneDistancefactor1)
   PrintParameter(EgoMotionPlaneDistancefactor2)
-  PrintParameter(EgoMotionInitLossScale)
-  PrintParameter(EgoMotionFinalLossScale)
+  PrintParameter(EgoMotionInitSaturationDistance)
+  PrintParameter(EgoMotionFinalSaturationDistance)
 
   PrintParameter(LocalizationLMMaxIter)
   PrintParameter(LocalizationICPMaxIter)
@@ -347,8 +347,8 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   PrintParameter(LocalizationPlaneDistancefactor1)
   PrintParameter(LocalizationPlaneDistancefactor2)
   PrintParameter(LocalizationMaxPlaneDistance)
-  PrintParameter(LocalizationInitLossScale)
-  PrintParameter(LocalizationFinalLossScale)
+  PrintParameter(LocalizationInitSaturationDistance)
+  PrintParameter(LocalizationFinalSaturationDistance)
 
   this->GetKeyPointsExtractor()->PrintSelf(os, indent);
 }

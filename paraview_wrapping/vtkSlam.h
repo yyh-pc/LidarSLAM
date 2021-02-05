@@ -159,11 +159,11 @@ public:
   vtkCustomGetMacro(EgoMotionMaxPlaneDistance, double)
   vtkCustomSetMacro(EgoMotionMaxPlaneDistance, double)
 
-  vtkCustomGetMacro(EgoMotionInitLossScale, double)
-  vtkCustomSetMacro(EgoMotionInitLossScale, double)
+  vtkCustomGetMacro(EgoMotionInitSaturationDistance, double)
+  vtkCustomSetMacro(EgoMotionInitSaturationDistance, double)
 
-  vtkCustomGetMacro(EgoMotionFinalLossScale, double)
-  vtkCustomSetMacro(EgoMotionFinalLossScale, double)
+  vtkCustomGetMacro(EgoMotionFinalSaturationDistance, double)
+  vtkCustomSetMacro(EgoMotionFinalSaturationDistance, double)
 
   // Get/Set Localization
   vtkCustomGetMacro(LocalizationLMMaxIter, unsigned int)
@@ -196,11 +196,11 @@ public:
   vtkCustomGetMacro(LocalizationMaxPlaneDistance, double)
   vtkCustomSetMacro(LocalizationMaxPlaneDistance, double)
 
-  vtkCustomGetMacro(LocalizationInitLossScale, double)
-  vtkCustomSetMacro(LocalizationInitLossScale, double)
+  vtkCustomGetMacro(LocalizationInitSaturationDistance, double)
+  vtkCustomSetMacro(LocalizationInitSaturationDistance, double)
 
-  vtkCustomGetMacro(LocalizationFinalLossScale, double)
-  vtkCustomSetMacro(LocalizationFinalLossScale, double)
+  vtkCustomGetMacro(LocalizationFinalSaturationDistance, double)
+  vtkCustomSetMacro(LocalizationFinalSaturationDistance, double)
 
   // ---------------------------------------------------------------------------
   //   Rolling grid parameters and Keypoints extractor

@@ -282,11 +282,11 @@ public:
   GetMacro(EgoMotionMaxPlaneDistance, double)
   SetMacro(EgoMotionMaxPlaneDistance, double)
 
-  GetMacro(EgoMotionInitLossScale, double)
-  SetMacro(EgoMotionInitLossScale, double)
+  GetMacro(EgoMotionInitSaturationDistance, double)
+  SetMacro(EgoMotionInitSaturationDistance, double)
 
-  GetMacro(EgoMotionFinalLossScale, double)
-  SetMacro(EgoMotionFinalLossScale, double)
+  GetMacro(EgoMotionFinalSaturationDistance, double)
+  SetMacro(EgoMotionFinalSaturationDistance, double)
 
   // Get/Set Localization
   GetMacro(LocalizationLMMaxIter, unsigned int)
@@ -319,11 +319,11 @@ public:
   GetMacro(LocalizationMaxPlaneDistance, double)
   SetMacro(LocalizationMaxPlaneDistance, double)
 
-  GetMacro(LocalizationInitLossScale, double)
-  SetMacro(LocalizationInitLossScale, double)
+  GetMacro(LocalizationInitSaturationDistance, double)
+  SetMacro(LocalizationInitSaturationDistance, double)
 
-  GetMacro(LocalizationFinalLossScale, double)
-  SetMacro(LocalizationFinalLossScale, double)
+  GetMacro(LocalizationFinalSaturationDistance, double)
+  SetMacro(LocalizationFinalSaturationDistance, double)
 
   // ---------------------------------------------------------------------------
   //   Rolling grid parameters
@@ -555,14 +555,14 @@ private:
 
   double MinNbrMatchedKeypoints = 20.;  // TODO : set from user interface
 
-  // Loss saturation properties
-  // The loss function used is  L(residual) = scale * arctan(residual / scale)
-  // where residual is the quality of each keypoints match.
-  // TODO : simplify parameters setting
-  double EgoMotionInitLossScale = 2.0 ;  // Saturation around 5 meters
-  double EgoMotionFinalLossScale = 0.2 ; // Saturation around 1.5 meters
-  double LocalizationInitLossScale = 0.7;     // Saturation around 2.5 meters
-  double LocalizationFinalLossScale = 0.05;   // Saturation around 0.4 meters
+  // Maximum distance (in meters) beyond which the residual errors are
+  // saturated to robustify the optimization against outlier constraints.
+  // The residuals will be robustified by Tukey loss at scale sqrt(SatDist),
+  // leading to ~90% of saturation at SatDist/2, fully saturated at SatDist.
+  double EgoMotionInitSaturationDistance = 5. ;
+  double EgoMotionFinalSaturationDistance = 1. ;
+  double LocalizationInitSaturationDistance = 2.;
+  double LocalizationFinalSaturationDistance = 0.5;
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods
