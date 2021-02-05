@@ -28,7 +28,7 @@ Eigen::Isometry3d LinearInterpolation(const Eigen::Isometry3d& H0, const Eigen::
   assert(t0 != t1);
   assert(!H0.isApprox(H1));
   const double time = (t - t0) / (t1 - t0);
-  Eigen::Quaterniond rot(Eigen::Quaterniond(H0.rotation()).slerp(time, Eigen::Quaterniond(H1.rotation())));
+  Eigen::Quaterniond rot(Eigen::Quaterniond(H0.linear()).slerp(time, Eigen::Quaterniond(H1.linear())));
   Eigen::Translation3d trans(H0.translation() + time * (H1.translation() - H0.translation()));
   return trans * rot;
 }
