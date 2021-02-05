@@ -113,8 +113,16 @@ public:
       nStatus = 7
     };
 
+    //! Match status and quality weight of each keypoint
+    struct MatchInfo
+    {
+      MatchStatus Status = MatchStatus::UNKOWN;
+      double Weight = 0.;
+    };
+
     // Matching result of each keypoint
     std::vector<MatchStatus> Rejections;
+    std::vector<double> Weights;
     // Histogram of the matching rejection causes
     std::array<int, MatchStatus::nStatus> RejectionsHistogram = {};
 
@@ -185,9 +193,9 @@ private:
   //   (R * X + T - P).t * A * (R * X + T - P)
   // where P is the mean point of the neighborhood, A is the squared distance operator,
   // X is the current point position and (R, T) the transform to optimize.
-  MatchingResults::MatchStatus BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p);
-  MatchingResults::MatchStatus BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p);
-  MatchingResults::MatchStatus BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p);
+  MatchingResults::MatchInfo BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p);
+  MatchingResults::MatchInfo BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p);
+  MatchingResults::MatchInfo BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p);
 
   // Instead of taking the k-nearest neigbors we will take specific neighbor
   // using the particularities of the lidar sensor

@@ -49,12 +49,13 @@ KeypointsRegistration::MatchingResults KeypointsRegistration::BuildAndMatchResid
       case Keypoint::BLOB:
         return this->BuildBlobMatch(prevPoints, currentPoint);
       default:
-        return MatchingResults::MatchStatus::UNKOWN;
+        return MatchingResults::MatchInfo();
     }
   };
 
   // Reset matching results
   MatchingResults matchingResults;
+  matchingResults.Weights.assign(currPoints->size(), 0.);
   matchingResults.Rejections.assign(currPoints->size(), MatchingResults::MatchStatus::UNKOWN);
   matchingResults.RejectionsHistogram.fill(0);
 
@@ -65,10 +66,11 @@ KeypointsRegistration::MatchingResults KeypointsRegistration::BuildAndMatchResid
     for (int ptIndex = 0; ptIndex < static_cast<int>(currPoints->size()); ++ptIndex)
     {
       const Point& currentPoint = currPoints->points[ptIndex];
-      MatchingResults::MatchStatus rejectionIndex = BuildAndMatchSingleResidual(currentPoint);
-      matchingResults.Rejections[ptIndex] = rejectionIndex;
+      const auto& match = BuildAndMatchSingleResidual(currentPoint);
+      matchingResults.Rejections[ptIndex] = match.Status;
+      matchingResults.Weights[ptIndex] = match.Weight;
       #pragma omp atomic
-      matchingResults.RejectionsHistogram[rejectionIndex]++;
+      matchingResults.RejectionsHistogram[match.Status]++;
     }
   }
 
@@ -138,7 +140,7 @@ void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen
 }
 
 //-----------------------------------------------------------------------------
-KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p)
+KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -162,14 +164,14 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   unsigned int neighborhoodSize = knnIndices.size();
   if (neighborhoodSize < this->Params.MinimumLineNeighborRejection)
   {
-    return MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS;
+    return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0. };
   }
 
   // If the nearest edges are too far from the current edge keypoint,
   // we skip this point.
   if (knnSqDist.back() > this->Params.MaxDistanceForICPMatching * this->Params.MaxDistanceForICPMatching)
   {
-    return MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR;
+    return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0. };
   }
 
   // Shortcut to keypoints cloud
@@ -191,7 +193,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // Otherwise, discard this bad unstructured neighborhood.
   if (eigVals(2) < this->Params.LineDistancefactor * eigVals(1))
   {
-    return MatchingResults::MatchStatus::BAD_PCA_STRUCTURE;
+    return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0. };
   }
 
   // =============================================
@@ -213,7 +215,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // returns that hit the same point.
   if (!std::isfinite(A(0, 0)))
   {
-    return MatchingResults::MatchStatus::INVALID_NUMERICAL;
+    return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0. };
   }
 
   // Evaluate the distance from the fitted line distribution of the neighborhood
@@ -227,7 +229,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
     // CHECK invalidate all neighborhood even if only one point is bad?
     if (squaredDist > squaredMaxDist)
     {
-      return MatchingResults::MatchStatus::MSE_TOO_LARGE;
+      return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0. };
     }
     meanSquaredDist += squaredDist;
   }
@@ -242,11 +244,11 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // Store the distance parameters values
   this->AddIcpResidual(A, mean, localPoint, fitQualityCoeff);
 
-  return MatchingResults::MatchStatus::SUCCESS;
+  return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff };
 }
 
 //-----------------------------------------------------------------------------
-KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p)
+KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -266,14 +268,14 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // It means that there is not enough keypoints in the neighborhood
   if (neighborhoodSize < this->Params.PlaneDistanceNbrNeighbors)
   {
-    return MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS;
+    return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0. };
   }
 
   // If the nearest planar points are too far from the current keypoint,
   // we skip this point.
   if (knnSqDist.back() > this->Params.MaxDistanceForICPMatching * this->Params.MaxDistanceForICPMatching)
   {
-    return MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR;
+    return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0. };
   }
 
   // Shortcut to keypoints cloud
@@ -296,7 +298,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   if (this->Params.PlaneDistancefactor2 * eigVals(1) < eigVals(2) ||
       eigVals(1) < this->Params.PlaneDistancefactor1 * eigVals(0))
   {
-    return MatchingResults::MatchStatus::BAD_PCA_STRUCTURE;
+    return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0. };
   }
 
   // ==============================================
@@ -310,7 +312,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // sensor has some dual returns that hit the same point.
   if (!std::isfinite(A(0, 0)))
   {
-    return MatchingResults::MatchStatus::INVALID_NUMERICAL;
+    return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0. };
   }
 
   // Evaluate the distance from the fitted plane distribution of the neighborhood
@@ -324,7 +326,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
     // CHECK invalidate all neighborhood even if only one point is bad?
     if (squaredDist > squaredMaxDist)
     {
-      return MatchingResults::MatchStatus::MSE_TOO_LARGE;
+      return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0. };
     }
     meanSquaredDist += squaredDist;
   }
@@ -339,11 +341,11 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // Store the distance parameters values
   this->AddIcpResidual(A, mean, localPoint, fitQualityCoeff);
 
-  return MatchingResults::MatchStatus::SUCCESS;
+  return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff };
 }
 
 //-----------------------------------------------------------------------------
-KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p)
+KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -366,14 +368,14 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // It means that there is not enough keypoints in the neighborhood
   if (neighborhoodSize < this->Params.BlobDistanceNbrNeighbors)
   {
-    return MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS;
+    return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0. };
   }
 
   // If the nearest blob points are too far from the current keypoint,
   // we skip this point.
   if (knnSqDist.back() > this->Params.MaxDistanceForICPMatching * this->Params.MaxDistanceForICPMatching)
   {
-    return MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR;
+    return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0. };
   }
 
   // Shortcut to keypoints cloud
@@ -398,7 +400,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   }
   if (squaredDiameter > maxDiameter * maxDiameter)
   {
-    return MatchingResults::MatchStatus::MSE_TOO_LARGE;
+    return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0. };
   }
 
   // ======================================================
@@ -415,7 +417,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // TODO: check PCA structure
   // if (PCA shape isn't OK)
   // {
-  //   return MatchingResults::MatchStatus::BAD_PCA_STRUCTURE;
+  //   return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0. };
   // }
 
   // The inverse of the covariance matrix encodes the mahalanobis distance.
@@ -428,7 +430,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // Check the determinant of the matrix
   if (!std::isfinite(eigValsInv.prod()))
   {
-    return MatchingResults::MatchStatus::INVALID_NUMERICAL;
+    return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0. };
   }
 
   // ===========================================
@@ -441,7 +443,7 @@ KeypointsRegistration::MatchingResults::MatchStatus KeypointsRegistration::Build
   // store the distance parameters values
   this->AddIcpResidual(A, mean, localPoint, fitQualityCoeff);
 
-  return MatchingResults::MatchStatus::SUCCESS;
+  return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff };
 }
 
 //-----------------------------------------------------------------------------

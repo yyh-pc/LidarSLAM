@@ -583,9 +583,14 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
   std::unordered_map<std::string, std::vector<double>> map;
   map["EgoMotion: edges matches"]  = toDoubleVector(this->EgoMotionMatchingResults.at(EDGE).Rejections);
   map["EgoMotion: planes matches"] = toDoubleVector(this->EgoMotionMatchingResults.at(PLANE).Rejections);
+  map["EgoMotion: edges weights"]  = this->EgoMotionMatchingResults.at(EDGE).Weights;
+  map["EgoMotion: planes weights"] = this->EgoMotionMatchingResults.at(PLANE).Weights;
   map["Localization: edges matches"]  = toDoubleVector(this->LocalizationMatchingResults.at(EDGE).Rejections);
   map["Localization: planes matches"] = toDoubleVector(this->LocalizationMatchingResults.at(PLANE).Rejections);
   map["Localization: blobs matches"]  = toDoubleVector(this->LocalizationMatchingResults.at(BLOB).Rejections);
+  map["Localization: edges weights"]  = this->LocalizationMatchingResults.at(EDGE).Weights;
+  map["Localization: planes weights"] = this->LocalizationMatchingResults.at(PLANE).Weights;
+  map["Localization: blobs weights"]  = this->LocalizationMatchingResults.at(BLOB).Weights;
   return map;
 }
 
