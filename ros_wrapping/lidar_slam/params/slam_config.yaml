@@ -92,20 +92,25 @@ slam:
   #     but should be more precise and rely less on constant motion hypothesis.
   ego_motion: 1
 
+
   # Undistortion mode, to correct rolling shutter distortion during frame acquisition.
-  # The undistortion should improve the accuracy, but the computation speed may
-  # decrease, and the result might be unstable in difficult situations.
-  #  0) No undistortion is performed :
+  # The undistortion should greatly improve the accuracy for smooth motions,
+  # but might be unstable for high-frequency motions.
+  #  0) NONE: no undistortion is performed :
   #     - End scan pose is optimized using rigid registration of raw scan and map.
-  #     - Raw input scan is added to maps.
-  #  1) Minimal undistortion is performed (might be unstable if jumps occur):
-  #     - Begin scan pose is linearly interpolated between previous and current end scan poses.
-  #     - End scan pose is optimized using rigid registration of undistorted scan and map.
+  #     - Raw input scan is added to map.
+  #  1) ONCE: undistortion is performed only one using estimated ego-motion:
+  #     - Begin and end scan poses are linearly interpolated using estimated ego-motion.
   #     - Scan is linearly undistorted between begin and end scan poses.
-  #  2) Ceres-optimized undistortion is performed (slower, and may be unstable):
-  #     - Both begin and end scan poses are optimized using registration of undistorted scan and map.
+  #     - Scan pose is iteratively optimized using rigid registration of undistorted scan and map.
+  #     - Undistorted scan is added to map.
+  #  2) REFINED: undistortion is iteratively refined using optimized ego-motion:
+  #     - Begin and end scan poses are linearly interpolated using ego-motion.
   #     - Scan is linearly undistorted between begin and end scan poses.
-  undistortion: 1
+  #     - Scan pose is optimized using rigid registration of undistorted scan and map.
+  #     - Iterate the three previous steps with updated ego-motion and poses.
+  #     - Undistorted scan is added to map.
+  undistortion: 2
 
   # Verbosity level :
   #  0) print errors, warnings or one time info

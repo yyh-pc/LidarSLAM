@@ -358,10 +358,10 @@ private:
   // Localization step.
   EgoMotionMode EgoMotion = EgoMotionMode::MOTION_EXTRAPOLATION;
 
-  // How the algorithm should undistort the lidar scans.
-  // The undistortion should improve the accuracy, but the computation speed
-  // may decrease, and the result might be unstable in difficult situations.
-  UndistortionMode Undistortion = UndistortionMode::APPROXIMATED;
+  // How to correct the rolling shutter distortion during frame acquisition.
+  // The undistortion should greatly improve the accuracy for smooth motions,
+  // but might be unstable for high-frequency motions.
+  UndistortionMode Undistortion = UndistortionMode::REFINED;
 
   // Indicate verbosity level to display more or less information :
   // 0: print errors, warnings or one time info
@@ -423,7 +423,9 @@ private:
   // **** UNDISTORTION ****
 
   // Transform interpolator to estimate the pose of the sensor within a lidar
-  // frame, using poses at the beginning and end of frame.
+  // frame, using the BASE poses at the beginning and end of frame.
+  // This will be used to undistort the pointcloud and express its points
+  // relatively to the same BASE pose at frame header timestamp.
   // This will use the point-wise 'time' field, representing the time offset
   // in seconds to add to the frame header timestamp.
   LinearTransformInterpolator<double> WithinFrameMotion;
@@ -461,12 +463,16 @@ private:
   std::vector<PointCloud::Ptr> CurrentFrames;
 
   // Raw extracted keypoints, in BASE coordinates (no undistortion)
+  PointCloud::Ptr CurrentRawEdgesPoints;
+  PointCloud::Ptr CurrentRawPlanarsPoints;
+  PointCloud::Ptr CurrentRawBlobsPoints;
+  PointCloud::Ptr PreviousRawEdgesPoints;
+  PointCloud::Ptr PreviousRawPlanarsPoints;
+
+  // Extracted keypoints, in BASE coordinates (with undistortion if enabled)
   PointCloud::Ptr CurrentEdgesPoints;
   PointCloud::Ptr CurrentPlanarsPoints;
   PointCloud::Ptr CurrentBlobsPoints;
-  PointCloud::Ptr PreviousEdgesPoints;
-  PointCloud::Ptr PreviousPlanarsPoints;
-  PointCloud::Ptr PreviousBlobsPoints;
 
   // Extracted keypoints, in WORLD coordinates (with undistortion if enabled)
   PointCloud::Ptr CurrentWorldEdgesPoints;
@@ -599,10 +605,12 @@ private:
   // 'time' arg is the time offset in seconds to current frame header.stamp.
   Eigen::Isometry3d InterpolateScanPose(double time);
 
-  // Init undistortion process based on point-wise time field.
-  // Get current frame time field range, and update within frame motion interpolator.
+  // Init undistortion interpolator time bounds based on point-wise time field.
   void InitUndistortion();
 
+  // Update the undistortion interpolator poses bounds,
+  // and refine the undistortion of the current keypoints clouds.
+  void RefineUndistortion();
 };
 
 } // end of LidarSlam namespace

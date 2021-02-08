@@ -35,21 +35,25 @@ enum Keypoint
 //! How to deal with undistortion
 enum UndistortionMode
 {
-  //! No undistortion is performed :
+  //! No undistortion is performed:
   //!  - End scan pose is optimized using rigid registration of raw scan and map.
-  //!  - Raw input scan is added to maps.
+  //!  - Raw input scan is added to map.
   NONE = 0,
 
-  //! Minimal undistortion is performed :
-  //!  - Begin scan pose is linearly interpolated between previous and current end scan poses.
-  //!  - End scan pose is optimized using rigid registration of undistorted scan and map.
+  //! Undistortion is performed only once using estimated ego-motion:
+  //!  - Begin and end scan poses are linearly interpolated using estimated ego-motion.
   //!  - Scan is linearly undistorted between begin and end scan poses.
-  APPROXIMATED = 1,
+  //!  - Scan pose is iteratively optimized using rigid registration of undistorted scan and map.
+  //!  - Undistorted scan is added to map.
+  ONCE = 1,
 
-  //! Ceres-optimized undistortion is performed :
-  //!  - Both begin and end scan poses are optimized using registration of undistorted scan and map.
+  //! Undistortion is iteratively refined using optimized ego-motion:
+  //!  - Begin and end scan poses are linearly interpolated using ego-motion.
   //!  - Scan is linearly undistorted between begin and end scan poses.
-  OPTIMIZED = 2
+  //!  - Scan pose is optimized using rigid registration of undistorted scan and map.
+  //!  - Iterate the three previous steps with updated ego-motion and poses.
+  //!  - Undistorted scan is added to map.
+  REFINED = 2
 };
 
 //------------------------------------------------------------------------------
