@@ -288,9 +288,13 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
       auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
       std::unordered_map<std::string, vtkPolyData*> outputMap;
       outputMap["EgoMotion: edges matches"] = edgePoints;
+      outputMap["EgoMotion: edges weights"] = edgePoints;
       outputMap["Localization: edges matches"] = edgePoints;
+      outputMap["Localization: edges weights"] = edgePoints;
       outputMap["EgoMotion: planes matches"] = planarPoints;
+      outputMap["EgoMotion: planes weights"] = planarPoints;
       outputMap["Localization: planes matches"] = planarPoints;
+      outputMap["Localization: planes weights"] = planarPoints;
       auto debugArray = this->SlamAlgo->GetDebugArray();
       for (const auto& it : outputMap)
       {
@@ -334,8 +338,8 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   PrintParameter(EgoMotionMaxPlaneDistance)
   PrintParameter(EgoMotionPlaneDistancefactor1)
   PrintParameter(EgoMotionPlaneDistancefactor2)
-  PrintParameter(EgoMotionInitLossScale)
-  PrintParameter(EgoMotionFinalLossScale)
+  PrintParameter(EgoMotionInitSaturationDistance)
+  PrintParameter(EgoMotionFinalSaturationDistance)
 
   PrintParameter(LocalizationLMMaxIter)
   PrintParameter(LocalizationICPMaxIter)
@@ -347,8 +351,8 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   PrintParameter(LocalizationPlaneDistancefactor1)
   PrintParameter(LocalizationPlaneDistancefactor2)
   PrintParameter(LocalizationMaxPlaneDistance)
-  PrintParameter(LocalizationInitLossScale)
-  PrintParameter(LocalizationFinalLossScale)
+  PrintParameter(LocalizationInitSaturationDistance)
+  PrintParameter(LocalizationFinalSaturationDistance)
 
   this->GetKeyPointsExtractor()->PrintSelf(os, indent);
 }

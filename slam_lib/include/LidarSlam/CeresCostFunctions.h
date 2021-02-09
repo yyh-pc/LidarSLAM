@@ -74,12 +74,10 @@ struct MahalanobisDistanceAffineIsometryResidual
 {
   MahalanobisDistanceAffineIsometryResidual(const Eigen::Matrix3d& argA,
                                             const Eigen::Vector3d& argC,
-                                            const Eigen::Vector3d& argX,
-                                            double argWeight)
+                                            const Eigen::Vector3d& argX)
     : A(argA)
     , C(argC)
     , X(argX)
-    , Weight(argWeight)
   {}
 
   template <typename T>
@@ -102,12 +100,10 @@ struct MahalanobisDistanceAffineIsometryResidual
       std::copy(w + 3, w + 6, lastRot);
     }
 
-    // Compute Y = R(theta) * X + T - C
+    // Compute residual value which is:
+    //   Yt * A * Y with Y = R * X + T - C
     const Vector3T Y = rot * X + trans - C;
-
-    // Compute final residual value which is:
-    //   Ht * A * H with H = R(theta)X + T
-    const T squaredResidual = Weight * (Y.transpose() * A * Y)(0);
+    const T squaredResidual = Y.transpose() * A * Y;
 
     // Since t -> sqrt(t) is not differentiable in 0, we check the value of the
     // distance infenitesimale part. If it is not finite, it means that the
@@ -121,7 +117,6 @@ private:
   const Eigen::Matrix3d A;
   const Eigen::Vector3d C;
   const Eigen::Vector3d X;
-  const double Weight;
 };
 
 //------------------------------------------------------------------------------
@@ -145,13 +140,11 @@ struct MahalanobisDistanceInterpolatedMotionResidual
   MahalanobisDistanceInterpolatedMotionResidual(const Eigen::Matrix3d& argA,
                                                 const Eigen::Vector3d& argC,
                                                 const Eigen::Vector3d& argX,
-                                                double argTime,
-                                                double argWeight)
+                                                double argTime)
     : A(argA)
     , C(argC)
     , X(argX)
     , Time(argTime)
-    , Weight(argWeight)
   {}
 
   template <typename T>
@@ -192,10 +185,10 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     // (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
     const Isometry3T H = transformInterpolator(Time);
 
-    // Compute final residual value which is:
-    //  Yt * A * Y with Y = R(theta) * X + T - C
+    // Compute residual value which is:
+    //  Yt * A * Y with Y = R * X + T - C
     const Vector3T Y = H.linear() * X + H.translation() - C;
-    const T squaredResidual = Weight * (Y.transpose() * A * Y)(0);
+    const T squaredResidual = Y.transpose() * A * Y;
 
     // Since t -> sqrt(t) is not differentiable in 0, we check the value of the
     // distance infenitesimale part. If it is not finite, it means that the
@@ -210,7 +203,6 @@ private:
   const Eigen::Vector3d C;
   const Eigen::Vector3d X;
   const double Time;
-  const double Weight;
 };
 
 } // end of namespace CeresCostFunctions
