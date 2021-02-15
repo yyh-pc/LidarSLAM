@@ -201,10 +201,14 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
 {
-  const float expectedLengthCoeff = 10.;
+  // Max angle between Lidar Ray and hyptothetic plane normal
+  constexpr float MAX_ANGLE_TO_NORMAL = Utils::Deg2Rad(70.);
+  // Coeff to multiply to point depth, in order to obtain the maximal distance
+  // between two neighbors of the same Lidar ray on a plane
+  const float maxPosDiffCoeff = std::sin(this->AngleResolution) / std::cos(this->AngleResolution + MAX_ANGLE_TO_NORMAL);
 
   // loop over scan lines
-  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) firstprivate(expectedLengthCoeff)
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) firstprivate(maxPosDiffCoeff)
   for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
   {
     // Useful shortcuts
@@ -219,55 +223,53 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
       continue;
     }
 
-    // invalidate first and last points
-    // CHECK why ?
-    for (int index = 0; index <= this->NeighborWidth; ++index)
+    // Invalidate first and last points: because of undistortion, the depth of
+    // first and last points can not be compared
+    for (int index = 0; index < this->NeighborWidth; ++index)
+    {
       this->IsPointValid[scanLine][index].reset();
-    for (int index = Npts - 1 - this->NeighborWidth - 1; index < Npts; ++index)
-      this->IsPointValid[scanLine][index].reset();
+      this->IsPointValid[scanLine][Npts - 1 - index].reset();
+    }
 
     // loop over points into the scan line
-    for (int index = this->NeighborWidth; index < Npts - this->NeighborWidth - 1; ++index)
+    for (int index = this->NeighborWidth; index < Npts - 1 - this->NeighborWidth; ++index)
     {
-      // double precision is useless as PCL points coordinates are internally stored as float
-      const Eigen::Vector3f& previousPoint = scanLineCloud[index - 1].getVector3fMap();
-      const Eigen::Vector3f& currentPoint  = scanLineCloud[index    ].getVector3fMap();
-      const Eigen::Vector3f& nextPoint     = scanLineCloud[index + 1].getVector3fMap();
-
+      const auto& currentPoint = scanLineCloud[index].getVector3fMap();
       const float L = currentPoint.norm();
-      const float Ln = nextPoint.norm();
-      const float dLn = (nextPoint - currentPoint).norm();
-      const float dLp = (currentPoint - previousPoint).norm();
 
-      // The expected length between two firings of the same laser is the
-      // distance along the same circular arc. It depends only on radius value
-      // and the angular resolution of the sensor.
-      // We multiply this length by a coeff for tolerance.
-      const float expectedLength = this->AngleResolution * L * expectedLengthCoeff;
-      const float sqExpectedLength = expectedLength * expectedLength;
+      // Invalid points which are too close from the sensor
+      if (L < this->MinDistanceToSensor)
+      {
+        this->IsPointValid[scanLine][index].reset();
+      }
 
-      // Invalid occluded points due to depth gap.
+      // Compute maximal acceptable distance of two consecutive neighbors
+      // aquired by the same laser, considering they lay on the same plane which
+      // is not too oblique relatively to Lidar ray.
+      // Check that this expected distance is not below range measurements noise.
+      const float maxPosDiff = std::max(L * maxPosDiffCoeff, 0.02f);
+      const float sqMaxPosDiff = maxPosDiff * maxPosDiff;
+
+      // Invalid occluded points due to depth gap or parallel beam.
       // If the distance between two successive points is bigger than the
       // expected length, it means that there is a depth gap.
-      if (dLn > expectedLength)
+      const auto& nextPoint = scanLineCloud[index + 1].getVector3fMap();
+      if ((nextPoint - currentPoint).squaredNorm() > sqMaxPosDiff)
       {
         // We must invalidate the points which belong to the occluded area (farthest).
         // If current point is the closest, invalid next part, starting from next point
-        if (L < Ln)
+        if (L < nextPoint.norm())
         {
           this->IsPointValid[scanLine][index + 1].reset();
-          for (int i = index + 2; i <= index + this->NeighborWidth; ++i)
+          for (int i = index + 1; i < index + this->NeighborWidth; ++i)
           {
-            const Eigen::Vector3f& Y  = scanLineCloud[i - 1].getVector3fMap();
-            const Eigen::Vector3f& Yn = scanLineCloud[i].getVector3fMap();
-
-            // If there is a gap in the neighborhood, we do not invalidate the rest of it.
-            if ((Yn - Y).squaredNorm() > sqExpectedLength)
-            {
+            const auto& Y  = scanLineCloud[i].getVector3fMap();
+            const auto& Yn = scanLineCloud[i + 1].getVector3fMap();
+            // If there is a gap in the neighborhood, we do not invalidate the rest of it
+            if ((Yn - Y).squaredNorm() > sqMaxPosDiff)
               break;
-            }
             // Otherwise, do not use next point
-            this->IsPointValid[scanLine][i].reset();
+            this->IsPointValid[scanLine][i + 1].reset();
           }
         }
         // If current point is the farest, invalid previous part, starting from current point
@@ -276,32 +278,15 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
           this->IsPointValid[scanLine][index].reset();
           for (int i = index - 1; i > index - this->NeighborWidth; --i)
           {
-            const Eigen::Vector3f& Yp = scanLineCloud[i].getVector3fMap();
-            const Eigen::Vector3f&  Y = scanLineCloud[i + 1].getVector3fMap();
-
+            const auto& Yp = scanLineCloud[i].getVector3fMap();
+            const auto&  Y = scanLineCloud[i + 1].getVector3fMap();
             // If there is a gap in the neighborhood, we do not invalidate the rest of it.
-            if ((Y - Yp).squaredNorm() > sqExpectedLength)
-            {
+            if ((Y - Yp).squaredNorm() > sqMaxPosDiff)
               break;
-            }
             // Otherwise, do not use previous point
             this->IsPointValid[scanLine][i].reset();
           }
         }
-      }
-
-      // Invalid points which are too close from the sensor
-      if (L < this->MinDistanceToSensor)
-      {
-        this->IsPointValid[scanLine][index].reset();
-      }
-
-      // Invalid points which are on a planar surface nearly parallel to the
-      // laser beam direction
-      else if ((dLp > 0.25 * expectedLength) &&
-               (dLn > 0.25 * expectedLength))
-      {
-        this->IsPointValid[scanLine][index].reset();
       }
     }
   }
