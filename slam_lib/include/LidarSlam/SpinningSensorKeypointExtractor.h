@@ -96,7 +96,7 @@ private:
   // Invalid the points with bad criteria from the list of possible future keypoints.
   // These points correspond to planar surfaces roughly parallel to laser beam
   // and points close to a gap created by occlusion.
-  void InvalidPointWithBadCriteria();
+  void InvalidateNotUsablePoints();
 
   // Compute the curvature and other features within each the scan line.
   // The curvature is not the one of the surface that intersects the lines but
