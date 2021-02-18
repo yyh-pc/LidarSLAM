@@ -73,10 +73,10 @@ Eigen::Matrix<T, 3, 3> RotationMatrixFromRPY(const T& rx, const T& ry, const T& 
 struct MahalanobisDistanceAffineIsometryResidual
 {
   MahalanobisDistanceAffineIsometryResidual(const Eigen::Matrix3d& argA,
-                                            const Eigen::Vector3d& argC,
+                                            const Eigen::Vector3d& argP,
                                             const Eigen::Vector3d& argX)
     : A(argA)
-    , C(argC)
+    , P(argP)
     , X(argX)
   {}
 
@@ -100,22 +100,19 @@ struct MahalanobisDistanceAffineIsometryResidual
       std::copy(w + 3, w + 6, lastRot);
     }
 
-    // Compute residual value which is:
-    //   Yt * A * Y with Y = R * X + T - C
-    const Vector3T Y = rot * X + trans - C;
-    const T squaredResidual = Y.transpose() * A * Y;
+    // Transform point with rotation and translation
+    const Vector3T Y = rot * X + trans;
 
-    // Since t -> sqrt(t) is not differentiable in 0, we check the value of the
-    // distance infenitesimale part. If it is not finite, it means that the
-    // first order derivative has been evaluated in 0
-    residual[0] = squaredResidual < 1e-6 ? T(0) : ceres::sqrt(squaredResidual);
+    // Compute residual
+    Eigen::Map<Vector3T> residualVec(residual);
+    residualVec = A * (Y - P);
 
     return true;
   }
 
 private:
   const Eigen::Matrix3d A;
-  const Eigen::Vector3d C;
+  const Eigen::Vector3d P;
   const Eigen::Vector3d X;
 };
 
@@ -138,11 +135,11 @@ private:
 struct MahalanobisDistanceInterpolatedMotionResidual
 {
   MahalanobisDistanceInterpolatedMotionResidual(const Eigen::Matrix3d& argA,
-                                                const Eigen::Vector3d& argC,
+                                                const Eigen::Vector3d& argP,
                                                 const Eigen::Vector3d& argX,
                                                 double argTime)
     : A(argA)
-    , C(argC)
+    , P(argP)
     , X(argX)
     , Time(argTime)
   {}
@@ -184,23 +181,20 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     // The applied isometry will be the linear interpolation between them :
     // (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
     const Isometry3T H = transformInterpolator(Time);
-
-    // Compute residual value which is:
-    //  Yt * A * Y with Y = R * X + T - C
-    const Vector3T Y = H.linear() * X + H.translation() - C;
-    const T squaredResidual = Y.transpose() * A * Y;
-
-    // Since t -> sqrt(t) is not differentiable in 0, we check the value of the
-    // distance infenitesimale part. If it is not finite, it means that the
-    // first order derivative has been evaluated in 0
-    residual[0] = squaredResidual < 1e-6 ? T(0) : ceres::sqrt(squaredResidual);
+    
+    // Transform point with rotation and translation
+    const Vector3T Y = H.linear() * X + H.translation();
+    
+    // Compute residual
+    Eigen::Map<Vector3T> residualVec(residual);
+    residualVec = A * (Y - P);
 
     return true;
   }
 
 private:
   const Eigen::Matrix3d A;
-  const Eigen::Vector3d C;
+  const Eigen::Vector3d P;
   const Eigen::Vector3d X;
   const double Time;
 };
