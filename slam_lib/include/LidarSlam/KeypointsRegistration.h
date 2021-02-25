@@ -116,8 +116,8 @@ public:
     //! Match status and quality weight of each keypoint
     struct MatchInfo
     {
-      MatchStatus Status = MatchStatus::UNKOWN;
-      double Weight = 0.;
+      MatchStatus Status;
+      double Weight;
     };
 
     // Matching result of each keypoint
