@@ -62,11 +62,14 @@ Eigen::Matrix<T, 3, 3> RotationMatrixFromRPY(const T& rx, const T& ry, const T& 
 /**
  * \class MahalanobisDistanceAffineIsometryResidual
  * \brief Cost function to optimize the affine isometry transformation
- *        (rotation and translation) that minimizes the mahalanobis distance
- *        between a point X and its neighborhood encoded by the mean point C
- *        and the variance covariance matrix A
+ *        (rotation and translation) so that the mahalanobis distance
+ *        between a point X and its neighborhood is minimized.
  *
- * It takes one 6D parameters block :
+ * More precisely, in case the user is interested in implementing a cost function of the form
+ * cost(x) = (x - P)^T C^{-1} (x - P) where, P is a mean and C is a covariance matrix,
+ * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the covariance, 
+ * also known as the stiffness matrix.
+ * This function takes one 6D parameters block :
  *   - 3 first parameters to encode translation : X, Y, Z
  *   - 3 last parameters to encode rotation with euler angles : rX, rY, rZ
  */
@@ -119,12 +122,16 @@ private:
 //------------------------------------------------------------------------------
 /**
  * \class MahalanobisDistanceInterpolatedMotionResidual
- * \brief Cost function to optimize the isometries H0=(R0, T0) and H1=(R1, T1)
+ * \brief Cost function to optimize the affine isometry transformations H0=(R0, T0) and H1=(R1, T1)
  *        at timestamps t0=0 and t1=1 so that the linearly interpolated transform
- *          (R, T) = (R0^(1-t) * R1^t, (1 - t) T0 + t T1)
+ *        (R, T) = (R0^(1-t) * R1^t, (1 - t) T0 + t T1)
  *        applied to X (acquired at time t) minimizes the mahalanobis distance.
  *
- * It takes two 6D parameters blocks :
+ * More precisely, in case the user is interested in implementing a cost function of the form
+ * cost(x) = (x - P)^T C^{-1} (x - P) where, P is a mean vector and C is a covariance matrix,
+ * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the covariance, 
+ * also known as the stiffness matrix.
+ * This function takes two 6D parameters blocks :
  *  1) First isometry H0 :
  *   - 3 parameters (0, 1, 2) to encode translation T0 : X, Y, Z
  *   - 3 parameters (3, 4, 5) to encode rotation R0 with euler angles : rX, rY, rZ

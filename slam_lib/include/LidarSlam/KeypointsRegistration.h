@@ -174,25 +174,21 @@ private:
   // Add an ICP match residual.
   // To recover the motion, we have to minimize the function
   //   f(R, T) = sum(d(edge_kpt, line)^2) + sum(d(plane_kpt, plane)^2) + sum(d(blob_kpt, blob)^2)
-  // In all cases, the squared distance between the keypoint and the line/plane/blob can be written :
-  //    (R * X + T - P).t * A * (R * X + T - P)
+  // In all cases, the squared Mahalanobis distance between the keypoint and the line/plane/blob can be written :
+  //   (R * X + T - P).t * A.t * A * (R * X + T - P)
   // Where :
+  // - (R, T) is the rigid transform to optimize 
   // - X is the key point
   // - P is the mean point of the line/plane/blob neighborhood
-  // - A is the squared distance operator :
-  //    * A = (I - n*n.t)^2 for a line with n being a director vector of the line.
-  //    * A = (n*n.t) for a plane with n being the normal.
-  //    * A is the symmetric variance-covariance matrix encoding the shape of
-  //      the neighborhood for a blob.
+  // - A is the distance operator:
+  //    * A = (I - u*u.t) for a line with u being the unit tangent vector of the line.
+  //    * A = (n*n.t) for a plane with n being its normal.
+  //    * A = C^{-1/2} is the squared information matrix, aka stiffness matrix, where 
+  //      C is the covariance matrix encoding the shape of the neighborhood for a blob.
   // - weight attenuates the distance function for outliers
   void AddIcpResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double weight = 1.);
 
   // Match the current keypoint with its neighborhood in the map / previous
-  // frame to estimate P and A.
-  // From this match we will compute the point-to-neighborhood distance function:
-  //   (R * X + T - P).t * A * (R * X + T - P)
-  // where P is the mean point of the neighborhood, A is the squared distance operator,
-  // X is the current point position and (R, T) the transform to optimize.
   MatchingResults::MatchInfo BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p);
   MatchingResults::MatchInfo BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p);
   MatchingResults::MatchInfo BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p);
