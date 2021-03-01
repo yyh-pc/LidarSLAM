@@ -127,7 +127,7 @@ void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen
 {
   // Create the point-to-line/plane/blob cost function
   using Residual = CeresCostFunctions::MahalanobisDistanceAffineIsometryResidual;
-  ceres::CostFunction* costFunction = new ceres::AutoDiffCostFunction<Residual, 1, 6>(new Residual(A, P, X));
+  ceres::CostFunction* costFunction = new ceres::AutoDiffCostFunction<Residual, 3, 6>(new Residual(A, P, X));
 
   // Use a robustifier to limit the contribution of an outlier match
   auto* robustifier = new ceres::TukeyLoss(std::sqrt(this->Params.SaturationDistance));
@@ -421,14 +421,12 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildBl
   // }
 
   // The inverse of the covariance matrix encodes the mahalanobis distance.
-  // Rescale the eigen values to preserve the shape of the mahalanobis distance,
-  // but removing the variance values scaling.
-  Eigen::Vector3d eigValsInv = eigVals.array().inverse();
-  eigValsInv /= eigValsInv.maxCoeff();
-  Eigen::Matrix3d A = eigVecs * eigValsInv.asDiagonal() * eigVecs.transpose();
+  // The residual vector is A*(pt - mean) with A = Covariance^(-1/2)
+  Eigen::Vector3d eigValsSqrtInv = eigVals.array().rsqrt();
+  Eigen::Matrix3d A = eigVecs * eigValsSqrtInv.asDiagonal() * eigVecs.transpose();
 
   // Check the determinant of the matrix
-  if (!std::isfinite(eigValsInv.prod()))
+  if (!std::isfinite(eigValsSqrtInv.prod()))
   {
     return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0. };
   }

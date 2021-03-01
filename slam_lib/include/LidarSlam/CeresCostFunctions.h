@@ -62,21 +62,24 @@ Eigen::Matrix<T, 3, 3> RotationMatrixFromRPY(const T& rx, const T& ry, const T& 
 /**
  * \class MahalanobisDistanceAffineIsometryResidual
  * \brief Cost function to optimize the affine isometry transformation
- *        (rotation and translation) that minimizes the mahalanobis distance
- *        between a point X and its neighborhood encoded by the mean point C
- *        and the variance covariance matrix A
+ *        (rotation and translation) so that the mahalanobis distance
+ *        between a point X and its neighborhood is minimized.
  *
- * It takes one 6D parameters block :
+ * More precisely, in case the user is interested in implementing a cost function of the form
+ * cost(x) = (x - P)^T C^{-1} (x - P) where, P is a mean and C is a covariance matrix,
+ * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the covariance, 
+ * also known as the stiffness matrix.
+ * This function takes one 6D parameters block :
  *   - 3 first parameters to encode translation : X, Y, Z
  *   - 3 last parameters to encode rotation with euler angles : rX, rY, rZ
  */
 struct MahalanobisDistanceAffineIsometryResidual
 {
   MahalanobisDistanceAffineIsometryResidual(const Eigen::Matrix3d& argA,
-                                            const Eigen::Vector3d& argC,
+                                            const Eigen::Vector3d& argP,
                                             const Eigen::Vector3d& argX)
     : A(argA)
-    , C(argC)
+    , P(argP)
     , X(argX)
   {}
 
@@ -100,34 +103,35 @@ struct MahalanobisDistanceAffineIsometryResidual
       std::copy(w + 3, w + 6, lastRot);
     }
 
-    // Compute residual value which is:
-    //   Yt * A * Y with Y = R * X + T - C
-    const Vector3T Y = rot * X + trans - C;
-    const T squaredResidual = Y.transpose() * A * Y;
+    // Transform point with rotation and translation
+    const Vector3T Y = rot * X + trans;
 
-    // Since t -> sqrt(t) is not differentiable in 0, we check the value of the
-    // distance infenitesimale part. If it is not finite, it means that the
-    // first order derivative has been evaluated in 0
-    residual[0] = squaredResidual < 1e-6 ? T(0) : ceres::sqrt(squaredResidual);
+    // Compute residual
+    Eigen::Map<Vector3T> residualVec(residual);
+    residualVec = A * (Y - P);
 
     return true;
   }
 
 private:
   const Eigen::Matrix3d A;
-  const Eigen::Vector3d C;
+  const Eigen::Vector3d P;
   const Eigen::Vector3d X;
 };
 
 //------------------------------------------------------------------------------
 /**
  * \class MahalanobisDistanceInterpolatedMotionResidual
- * \brief Cost function to optimize the isometries H0=(R0, T0) and H1=(R1, T1)
+ * \brief Cost function to optimize the affine isometry transformations H0=(R0, T0) and H1=(R1, T1)
  *        at timestamps t0=0 and t1=1 so that the linearly interpolated transform
- *          (R, T) = (R0^(1-t) * R1^t, (1 - t) T0 + t T1)
+ *        (R, T) = (R0^(1-t) * R1^t, (1 - t) T0 + t T1)
  *        applied to X (acquired at time t) minimizes the mahalanobis distance.
  *
- * It takes two 6D parameters blocks :
+ * More precisely, in case the user is interested in implementing a cost function of the form
+ * cost(x) = (x - P)^T C^{-1} (x - P) where, P is a mean vector and C is a covariance matrix,
+ * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the covariance, 
+ * also known as the stiffness matrix.
+ * This function takes two 6D parameters blocks :
  *  1) First isometry H0 :
  *   - 3 parameters (0, 1, 2) to encode translation T0 : X, Y, Z
  *   - 3 parameters (3, 4, 5) to encode rotation R0 with euler angles : rX, rY, rZ
@@ -138,11 +142,11 @@ private:
 struct MahalanobisDistanceInterpolatedMotionResidual
 {
   MahalanobisDistanceInterpolatedMotionResidual(const Eigen::Matrix3d& argA,
-                                                const Eigen::Vector3d& argC,
+                                                const Eigen::Vector3d& argP,
                                                 const Eigen::Vector3d& argX,
                                                 double argTime)
     : A(argA)
-    , C(argC)
+    , P(argP)
     , X(argX)
     , Time(argTime)
   {}
@@ -184,23 +188,20 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     // The applied isometry will be the linear interpolation between them :
     // (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
     const Isometry3T H = transformInterpolator(Time);
-
-    // Compute residual value which is:
-    //  Yt * A * Y with Y = R * X + T - C
-    const Vector3T Y = H.linear() * X + H.translation() - C;
-    const T squaredResidual = Y.transpose() * A * Y;
-
-    // Since t -> sqrt(t) is not differentiable in 0, we check the value of the
-    // distance infenitesimale part. If it is not finite, it means that the
-    // first order derivative has been evaluated in 0
-    residual[0] = squaredResidual < 1e-6 ? T(0) : ceres::sqrt(squaredResidual);
+    
+    // Transform point with rotation and translation
+    const Vector3T Y = H.linear() * X + H.translation();
+    
+    // Compute residual
+    Eigen::Map<Vector3T> residualVec(residual);
+    residualVec = A * (Y - P);
 
     return true;
   }
 
 private:
   const Eigen::Matrix3d A;
-  const Eigen::Vector3d C;
+  const Eigen::Vector3d P;
   const Eigen::Vector3d X;
   const double Time;
 };
