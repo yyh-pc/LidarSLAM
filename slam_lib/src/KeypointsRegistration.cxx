@@ -49,7 +49,7 @@ KeypointsRegistration::MatchingResults KeypointsRegistration::BuildAndMatchResid
       case Keypoint::BLOB:
         return this->BuildBlobMatch(prevPoints, currentPoint);
       default:
-        return MatchingResults::MatchInfo();
+        return MatchingResults::MatchInfo{ MatchingResults::MatchStatus::UNKOWN, 0. };
     }
   };
 
