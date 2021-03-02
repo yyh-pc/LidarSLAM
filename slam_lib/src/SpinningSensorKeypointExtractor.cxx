@@ -274,7 +274,7 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
         else
         {
           this->IsPointValid[scanLine][index].reset();
-          for (int i = index - this->NeighborWidth; i < index; ++i)
+          for (int i = index - 1; i > index - this->NeighborWidth; --i)
           {
             const Eigen::Vector3f& Yp = scanLineCloud[i].getVector3fMap();
             const Eigen::Vector3f&  Y = scanLineCloud[i + 1].getVector3fMap();
