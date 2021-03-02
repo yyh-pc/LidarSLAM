@@ -91,8 +91,8 @@ bool LineFitting::FitPCAAndCheckConsistency(const SpinningSensorKeypointExtracto
   bool isLineFittingAccurate = true;
 
   // First check if the neighborhood is approximately straight
-  const Eigen::Vector3f U = (cloud[1].getVector3fMap() - cloud[0].getVector3fMap()).normalized();
-  for (unsigned int i = 1; i < indices.size() - 1; i++)
+  const Eigen::Vector3f U = (cloud[indices.back()].getVector3fMap() - cloud[indices.front()].getVector3fMap()).normalized();
+  for (unsigned int i = 0; i < indices.size() - 1; i++)
   {
     const Eigen::Vector3f V = (cloud[indices[i + 1]].getVector3fMap() - cloud[indices[i]].getVector3fMap()).normalized();
     const float sinAngle = (U.cross(V)).norm();
@@ -274,7 +274,7 @@ void SpinningSensorKeypointExtractor::InvalidPointWithBadCriteria()
         else
         {
           this->IsPointValid[scanLine][index].reset();
-          for (int i = index - this->NeighborWidth; i < index; ++i)
+          for (int i = index - 1; i > index - this->NeighborWidth; --i)
           {
             const Eigen::Vector3f& Yp = scanLineCloud[i].getVector3fMap();
             const Eigen::Vector3f&  Y = scanLineCloud[i + 1].getVector3fMap();
@@ -542,8 +542,8 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
       if (sinAngle > this->PlaneSinAngleThreshold)
         break;
 
-      // if the point is invalid as plane, continue
-      if (!this->IsPointValid[scanLine][index][Keypoint::PLANE])
+      // if the point is invalid as plane or sinAngle value is unset, continue
+      if (!this->IsPointValid[scanLine][index][Keypoint::PLANE] || sinAngle < 1e-6)
         continue;
 
       // else indicate that the point is a planar one
