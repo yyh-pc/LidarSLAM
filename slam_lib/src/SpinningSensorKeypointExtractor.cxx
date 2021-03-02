@@ -91,8 +91,8 @@ bool LineFitting::FitPCAAndCheckConsistency(const SpinningSensorKeypointExtracto
   bool isLineFittingAccurate = true;
 
   // First check if the neighborhood is approximately straight
-  const Eigen::Vector3f U = (cloud[1].getVector3fMap() - cloud[0].getVector3fMap()).normalized();
-  for (unsigned int i = 1; i < indices.size() - 1; i++)
+  const Eigen::Vector3f U = (cloud[indices.back()].getVector3fMap() - cloud[indices.front()].getVector3fMap()).normalized();
+  for (unsigned int i = 0; i < indices.size() - 1; i++)
   {
     const Eigen::Vector3f V = (cloud[indices[i + 1]].getVector3fMap() - cloud[indices[i]].getVector3fMap()).normalized();
     const float sinAngle = (U.cross(V)).norm();
