@@ -542,8 +542,8 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
       if (sinAngle > this->PlaneSinAngleThreshold)
         break;
 
-      // if the point is invalid as plane, continue
-      if (!this->IsPointValid[scanLine][index][Keypoint::PLANE])
+      // if the point is invalid as plane or sinAngle value is unset, continue
+      if (!this->IsPointValid[scanLine][index][Keypoint::PLANE] || sinAngle < 1e-6)
         continue;
 
       // else indicate that the point is a planar one
