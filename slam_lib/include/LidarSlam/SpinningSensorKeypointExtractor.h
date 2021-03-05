@@ -67,7 +67,7 @@ public:
   GetMacro(EdgeIntensityGapThreshold, float)
   SetMacro(EdgeIntensityGapThreshold, float)
 
-  GetMacro(NLasers, int)
+  GetMacro(NbLaserRings, int)
 
   PointCloud::Ptr GetEdgePoints() const { return this->EdgesPoints; }
   PointCloud::Ptr GetPlanarPoints() const { return this->PlanarsPoints; }
@@ -153,7 +153,7 @@ private:
   // ---------------------------------------------------------------------------
 
   // Number of lasers scan lines composing the pointcloud
-  unsigned int NLasers = 0;
+  unsigned int NbLaserRings = 0;
 
   //! Label of a point as a keypoint
   //! We use binary flags as each point can have different keypoint labels.
@@ -173,8 +173,8 @@ private:
   PointCloud::Ptr BlobsPoints;
 
   // Current point cloud stored in two differents formats
-  PointCloud::Ptr pclCurrentFrame;
-  std::vector<PointCloud::Ptr> pclCurrentFrameByScan;
+  PointCloud::Ptr Scan;
+  std::vector<PointCloud::Ptr> ScanLines;
 };
 
 } // end of LidarSlam namespace
