@@ -162,6 +162,10 @@ void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
 
   // Save the number of lasers
   this->NbLaserRings = this->ScanLines.size();
+
+  // Estimate azimuthal resolution if not already done
+  if (this->AngleResolution < 1e-6)
+    this->EstimateAzimuthalResolution();
 }
 
 //-----------------------------------------------------------------------------
@@ -576,6 +580,46 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   addKeypoints(Keypoint::EDGE, this->EdgesPoints);
   addKeypoints(Keypoint::PLANE, this->PlanarsPoints);
   addKeypoints(Keypoint::BLOB, this->BlobsPoints);
+}
+
+//-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::EstimateAzimuthalResolution()
+{
+  // Compute horizontal angle values between successive points
+  std::vector<float> angles;
+  angles.reserve(this->Scan->size());
+  for (const PointCloud::Ptr& scanLine : this->ScanLines)
+  {
+    for (unsigned int index = 1; index < scanLine->size(); ++index)
+    {
+      // Compute horizontal angle between two measurements
+      // WARNING: to be correct, the points need to be in the LIDAR sensor
+      // coordinates system, where the sensor is spinning around Z axis.
+      Eigen::Map<const Eigen::Vector2f> p1(scanLine->at(index - 1).data);
+      Eigen::Map<const Eigen::Vector2f> p2(scanLine->at(index).data);
+      float angle = std::abs(std::acos(p1.dot(p2) / (p1.norm() * p2.norm())));
+
+      // Keep only angles greater than 0 to avoid dual return issues
+      if (angle > 1e-4)
+        angles.push_back(angle);
+    }
+  }
+
+  // Estimate azimuthal resolution from these angles
+  std::sort(angles.begin(), angles.end());
+  unsigned int maxInliersIdx = angles.size();
+  float maxAngle = Utils::Deg2Rad(5.);
+  float medianAngle = 0.;
+  // Iterate until only angles between direct LiDAR beam neighbors remain.
+  // The max resolution angle is decreased at each iteration.
+  while (maxAngle > 1.8 * medianAngle)
+  {
+    maxInliersIdx = std::upper_bound(angles.begin(), angles.begin() + maxInliersIdx, maxAngle) - angles.begin();
+    medianAngle = angles[maxInliersIdx / 2];
+    maxAngle = std::min(medianAngle * 2., maxAngle / 1.8);
+  }
+  this->AngleResolution = medianAngle;
+  std::cout << "LiDAR's azimuthal resolution estimated to " << Utils::Rad2Deg(this->AngleResolution) << "°" << std::endl;
 }
 
 //-----------------------------------------------------------------------------

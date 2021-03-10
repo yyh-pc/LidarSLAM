@@ -106,6 +106,11 @@ private:
   // Labelize point to be a keypoints or not
   void SetKeyPointsLabels();
 
+  // Auto estimate azimuth angle resolution based on current ScanLines
+  // WARNING: to be correct, the points need to be in the LIDAR sensor
+  // coordinates system, where the sensor is spinning around Z axis.
+  void EstimateAzimuthalResolution();
+
   // Check if scanLine is almost empty
   inline bool IsScanLineAlmostEmpty(int nScanLinePts) const { return nScanLinePts < 2 * this->NeighborWidth + 1; }
 
@@ -122,9 +127,12 @@ private:
   // Minimal point/sensor sensor to consider a point as valid
   float MinDistanceToSensor = 3.0;  // [m]
 
-  // Maximal angle resolution of the lidar azimutal resolution.
-  // (default value to VLP-16. We add an extra 20%)
-  float AngleResolution = DEG2RAD(0.4);  // [rad]
+  // Azimuthal (= horizontal angle) resolution of the spinning lidar sensor
+  // If it is less or equal to 0, it will be auto-estimated from next frame.
+  // (default value to VLP-16 spinning at 1200 rpm)
+  // This angular resolution is used to compute an expected distance between two
+  // consecutives firings.
+  float AngleResolution = Utils::Deg2Rad(0.4);  // [rad]
 
   // Sharpness threshold to select a planar keypoint
   float PlaneSinAngleThreshold = 0.5;  // sin(30°) (selected if sin angle is less than threshold)
