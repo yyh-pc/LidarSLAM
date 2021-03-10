@@ -164,7 +164,7 @@ void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
   this->NbLaserRings = this->ScanLines.size();
 
   // Estimate azimuthal resolution if not already done
-  if (this->AngleResolution < 1e-6)
+  if (this->AzimuthalResolution < 1e-6)
     this->EstimateAzimuthalResolution();
 }
 
@@ -209,7 +209,7 @@ void SpinningSensorKeypointExtractor::InvalidateNotUsablePoints()
   constexpr float MAX_ANGLE_TO_NORMAL = Utils::Deg2Rad(70.);
   // Coeff to multiply to point depth, in order to obtain the maximal distance
   // between two neighbors of the same Lidar ray on a plane
-  const float maxPosDiffCoeff = std::sin(this->AngleResolution) / std::cos(this->AngleResolution + MAX_ANGLE_TO_NORMAL);
+  const float maxPosDiffCoeff = std::sin(this->AzimuthalResolution) / std::cos(this->AzimuthalResolution + MAX_ANGLE_TO_NORMAL);
 
   // Loop over scan lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) firstprivate(maxPosDiffCoeff)
@@ -618,8 +618,8 @@ void SpinningSensorKeypointExtractor::EstimateAzimuthalResolution()
     medianAngle = angles[maxInliersIdx / 2];
     maxAngle = std::min(medianAngle * 2., maxAngle / 1.8);
   }
-  this->AngleResolution = medianAngle;
-  std::cout << "LiDAR's azimuthal resolution estimated to " << Utils::Rad2Deg(this->AngleResolution) << "°" << std::endl;
+  this->AzimuthalResolution = medianAngle;
+  std::cout << "LiDAR's azimuthal resolution estimated to " << Utils::Rad2Deg(this->AzimuthalResolution) << "°" << std::endl;
 }
 
 //-----------------------------------------------------------------------------

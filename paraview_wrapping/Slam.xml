@@ -1143,20 +1143,6 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Sensor's azimutal angle resolution"
-          command="SetAngleResolution"
-          default_values="0.00698"
-          number_of_elements="1"
-          panel_visibility="advanced">
-        <Documentation>
-          Azimutal angle resolution of the Lidar sensor (radians). This angle
-          resolution is used to compute an expected distance between two
-          consecutives firings. From this expected distance, we can detect
-          if a point is a potential gap and start additional investigation.
-        </Documentation>
-      </DoubleVectorProperty>
-
       <PropertyGroup label="Spinning Sensor Keypoints Extractor parameters">
         <Property name="Neighborhood width" />
         <Property name="Min distance to sensor" />
@@ -1165,7 +1151,6 @@
         <Property name="Edge min saliency distance" />
         <Property name="Edge min intensity gap" />
         <Property name="Edge min depth gap" />
-        <Property name="Sensor's azimutal angle resolution" />
       </PropertyGroup>
 
     </Proxy>

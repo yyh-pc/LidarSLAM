@@ -49,9 +49,6 @@ public:
   GetMacro(MinDistanceToSensor, float)
   SetMacro(MinDistanceToSensor, float)
 
-  GetMacro(AngleResolution, float)
-  SetMacro(AngleResolution, float)
-
   GetMacro(PlaneSinAngleThreshold, float)
   SetMacro(PlaneSinAngleThreshold, float)
 
@@ -66,6 +63,9 @@ public:
 
   GetMacro(EdgeIntensityGapThreshold, float)
   SetMacro(EdgeIntensityGapThreshold, float)
+
+  GetMacro(AzimuthalResolution, float)
+  SetMacro(AzimuthalResolution, float)
 
   GetMacro(NbLaserRings, int)
 
@@ -127,13 +127,6 @@ private:
   // Minimal point/sensor sensor to consider a point as valid
   float MinDistanceToSensor = 3.0;  // [m]
 
-  // Azimuthal (= horizontal angle) resolution of the spinning lidar sensor
-  // If it is less or equal to 0, it will be auto-estimated from next frame.
-  // (default value to VLP-16 spinning at 1200 rpm)
-  // This angular resolution is used to compute an expected distance between two
-  // consecutives firings.
-  float AngleResolution = Utils::Deg2Rad(0.4);  // [rad]
-
   // Sharpness threshold to select a planar keypoint
   float PlaneSinAngleThreshold = 0.5;  // sin(30°) (selected if sin angle is less than threshold)
 
@@ -159,6 +152,12 @@ private:
   // ---------------------------------------------------------------------------
   //   Internal variables
   // ---------------------------------------------------------------------------
+
+  // Azimuthal (= horizontal angle) resolution of the spinning lidar sensor
+  // If it is less or equal to 0, it will be auto-estimated from next frame.
+  // This angular resolution is used to compute an expected distance between two
+  // consecutives firings.
+  float AzimuthalResolution = 0.;  // [rad]
 
   // Number of lasers scan lines composing the pointcloud
   unsigned int NbLaserRings = 0;
