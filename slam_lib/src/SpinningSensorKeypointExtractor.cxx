@@ -117,7 +117,7 @@ inline float LineFitting::SquaredDistanceToPoint(Eigen::Vector3f const& point) c
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc)
 {
-  this->pclCurrentFrame = pc;
+  this->Scan = pc;
 
   // Split whole pointcloud into separate laser ring clouds
   this->ConvertAndSortScanLines();
@@ -139,10 +139,10 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
 void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
 {
   // Clear previous scan lines
-  for (auto& scanLineCloud: this->pclCurrentFrameByScan)
+  for (auto& scanLineCloud: this->ScanLines)
   {
     // Use clear() if pointcloud already exists to avoid re-allocating memory.
-    // No worry as pclCurrentFrameByScan is never shared with outer scope.
+    // No worry as ScanLines is never shared with outer scope.
     if (scanLineCloud)
       scanLineCloud->clear();
     else
@@ -150,18 +150,22 @@ void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
   }
 
   // Separate pointcloud into different scan lines
-  for (const Point& point: *this->pclCurrentFrame)
+  for (const Point& point: *this->Scan)
   {
     // Ensure that there are enough available scan lines
-    while (point.laser_id >= this->pclCurrentFrameByScan.size())
-      this->pclCurrentFrameByScan.emplace_back(new PointCloud);
+    while (point.laser_id >= this->ScanLines.size())
+      this->ScanLines.emplace_back(new PointCloud);
 
     // Add the current point to its corresponding laser scan
-    this->pclCurrentFrameByScan[point.laser_id]->push_back(point);
+    this->ScanLines[point.laser_id]->push_back(point);
   }
 
   // Save the number of lasers
-  this->NLasers = this->pclCurrentFrameByScan.size();
+  this->NbLaserRings = this->ScanLines.size();
+
+  // Estimate azimuthal resolution if not already done
+  if (this->AzimuthalResolution < 1e-6)
+    this->EstimateAzimuthalResolution();
 }
 
 //-----------------------------------------------------------------------------
@@ -172,23 +176,23 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
   this->EdgesPoints.reset(new PointCloud);
   this->PlanarsPoints.reset(new PointCloud);
   this->BlobsPoints.reset(new PointCloud);
-  Utils::CopyPointCloudMetadata(*this->pclCurrentFrame, *this->EdgesPoints);
-  Utils::CopyPointCloudMetadata(*this->pclCurrentFrame, *this->PlanarsPoints);
-  Utils::CopyPointCloudMetadata(*this->pclCurrentFrame, *this->BlobsPoints);
+  Utils::CopyPointCloudMetadata(*this->Scan, *this->EdgesPoints);
+  Utils::CopyPointCloudMetadata(*this->Scan, *this->PlanarsPoints);
+  Utils::CopyPointCloudMetadata(*this->Scan, *this->BlobsPoints);
 
   // Initialize the features vectors with the correct length
-  this->Angles.resize(this->NLasers);
-  this->Saliency.resize(this->NLasers);
-  this->DepthGap.resize(this->NLasers);
-  this->IntensityGap.resize(this->NLasers);
-  this->IsPointValid.resize(this->NLasers);
-  this->Label.resize(this->NLasers);
+  this->Angles.resize(this->NbLaserRings);
+  this->Saliency.resize(this->NbLaserRings);
+  this->DepthGap.resize(this->NbLaserRings);
+  this->IntensityGap.resize(this->NbLaserRings);
+  this->IsPointValid.resize(this->NbLaserRings);
+  this->Label.resize(this->NbLaserRings);
 
   // Initialize the scan lines features vectors with the correct length
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
-  for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
+  for (int scanLine = 0; scanLine < static_cast<int>(this->NbLaserRings); ++scanLine)
   {
-    size_t nbPoint = this->pclCurrentFrameByScan[scanLine]->size();
+    size_t nbPoint = this->ScanLines[scanLine]->size();
     this->IsPointValid[scanLine].assign(nbPoint, KeypointFlags().set());  // set all flags to 1
     this->Label[scanLine].assign(nbPoint, KeypointFlags().reset());  // set all flags to 0
     this->Angles[scanLine].assign(nbPoint, 0.);
@@ -205,14 +209,14 @@ void SpinningSensorKeypointExtractor::InvalidateNotUsablePoints()
   constexpr float MAX_ANGLE_TO_NORMAL = Utils::Deg2Rad(70.);
   // Coeff to multiply to point depth, in order to obtain the maximal distance
   // between two neighbors of the same Lidar ray on a plane
-  const float maxPosDiffCoeff = std::sin(this->AngleResolution) / std::cos(this->AngleResolution + MAX_ANGLE_TO_NORMAL);
+  const float maxPosDiffCoeff = std::sin(this->AzimuthalResolution) / std::cos(this->AzimuthalResolution + MAX_ANGLE_TO_NORMAL);
 
   // Loop over scan lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) firstprivate(maxPosDiffCoeff)
-  for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
+  for (int scanLine = 0; scanLine < static_cast<int>(this->NbLaserRings); ++scanLine)
   {
     // Useful shortcuts
-    const PointCloud& scanLineCloud = *(this->pclCurrentFrameByScan[scanLine]);
+    const PointCloud& scanLineCloud = *(this->ScanLines[scanLine]);
     const int Npts = scanLineCloud.size();
 
     // If the line is almost empty, skip it
@@ -303,10 +307,10 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
   // loop over scans lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) \
           firstprivate(sqDistToLineThreshold, sqDepthDistCoeff, minDepthGapDist)
-  for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
+  for (int scanLine = 0; scanLine < static_cast<int>(this->NbLaserRings); ++scanLine)
   {
     // Useful shortcuts
-    const PointCloud& scanLineCloud = *(this->pclCurrentFrameByScan[scanLine]);
+    const PointCloud& scanLineCloud = *(this->ScanLines[scanLine]);
     const int Npts = scanLineCloud.size();
 
     // if the line is almost empty, skip it
@@ -465,9 +469,9 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
   // loop over the scan lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) \
           firstprivate(sqEdgeSaliencythreshold, sqEdgeDepthGapThreshold)
-  for (int scanLine = 0; scanLine < static_cast<int>(this->NLasers); ++scanLine)
+  for (int scanLine = 0; scanLine < static_cast<int>(this->NbLaserRings); ++scanLine)
   {
-    const int Npts = this->pclCurrentFrameByScan[scanLine]->size();
+    const int Npts = this->ScanLines[scanLine]->size();
 
     // if the line is almost empty, skip it
     if (this->IsScanLineAlmostEmpty(Npts))
@@ -560,9 +564,9 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
 
   auto addKeypoints = [this](Keypoint type, PointCloud::Ptr& keypoints)
   {
-    for (unsigned int scanLine = 0; scanLine < this->NLasers; ++scanLine)
+    for (unsigned int scanLine = 0; scanLine < this->NbLaserRings; ++scanLine)
     {
-      const PointCloud& scanLineCloud = *(this->pclCurrentFrameByScan[scanLine]);
+      const PointCloud& scanLineCloud = *(this->ScanLines[scanLine]);
       for (unsigned int index = 0; index < scanLineCloud.size(); ++index)
       {
         if (this->Label[scanLine][index][type])
@@ -579,15 +583,55 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
 }
 
 //-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::EstimateAzimuthalResolution()
+{
+  // Compute horizontal angle values between successive points
+  std::vector<float> angles;
+  angles.reserve(this->Scan->size());
+  for (const PointCloud::Ptr& scanLine : this->ScanLines)
+  {
+    for (unsigned int index = 1; index < scanLine->size(); ++index)
+    {
+      // Compute horizontal angle between two measurements
+      // WARNING: to be correct, the points need to be in the LIDAR sensor
+      // coordinates system, where the sensor is spinning around Z axis.
+      Eigen::Map<const Eigen::Vector2f> p1(scanLine->at(index - 1).data);
+      Eigen::Map<const Eigen::Vector2f> p2(scanLine->at(index).data);
+      float angle = std::abs(std::acos(p1.dot(p2) / (p1.norm() * p2.norm())));
+
+      // Keep only angles greater than 0 to avoid dual return issues
+      if (angle > 1e-4)
+        angles.push_back(angle);
+    }
+  }
+
+  // Estimate azimuthal resolution from these angles
+  std::sort(angles.begin(), angles.end());
+  unsigned int maxInliersIdx = angles.size();
+  float maxAngle = Utils::Deg2Rad(5.);
+  float medianAngle = 0.;
+  // Iterate until only angles between direct LiDAR beam neighbors remain.
+  // The max resolution angle is decreased at each iteration.
+  while (maxAngle > 1.8 * medianAngle)
+  {
+    maxInliersIdx = std::upper_bound(angles.begin(), angles.begin() + maxInliersIdx, maxAngle) - angles.begin();
+    medianAngle = angles[maxInliersIdx / 2];
+    maxAngle = std::min(medianAngle * 2., maxAngle / 1.8);
+  }
+  this->AzimuthalResolution = medianAngle;
+  std::cout << "LiDAR's azimuthal resolution estimated to " << Utils::Rad2Deg(this->AzimuthalResolution) << "°" << std::endl;
+}
+
+//-----------------------------------------------------------------------------
 std::unordered_map<std::string, std::vector<float>> SpinningSensorKeypointExtractor::GetDebugArray() const
 {
   auto get1DVector = [this](auto const& vector2d)
   {
-    std::vector<float> v(this->pclCurrentFrame->size());
-    std::vector<int> indexByScanLine(this->NLasers, 0);
-    for (unsigned int i = 0; i < this->pclCurrentFrame->size(); i++)
+    std::vector<float> v(this->Scan->size());
+    std::vector<int> indexByScanLine(this->NbLaserRings, 0);
+    for (unsigned int i = 0; i < this->Scan->size(); i++)
     {
-      const auto& laserId = this->pclCurrentFrame->points[i].laser_id;
+      const auto& laserId = this->Scan->points[i].laser_id;
       v[i] = vector2d[laserId][indexByScanLine[laserId]];
       indexByScanLine[laserId]++;
     }
@@ -596,11 +640,11 @@ std::unordered_map<std::string, std::vector<float>> SpinningSensorKeypointExtrac
 
   auto get1DVectorFromFlag = [this](auto const& vector2d, int flag)
   {
-    std::vector<float> v(this->pclCurrentFrame->size());
-    std::vector<int> indexByScanLine(this->NLasers, 0);
-    for (unsigned int i = 0; i < this->pclCurrentFrame->size(); i++)
+    std::vector<float> v(this->Scan->size());
+    std::vector<int> indexByScanLine(this->NbLaserRings, 0);
+    for (unsigned int i = 0; i < this->Scan->size(); i++)
     {
-      const auto& laserId = this->pclCurrentFrame->points[i].laser_id;
+      const auto& laserId = this->Scan->points[i].laser_id;
       v[i] = vector2d[laserId][indexByScanLine[laserId]][flag];
       indexByScanLine[laserId]++;
     }

@@ -178,7 +178,6 @@ slam:
   # Keypoint extractor for each LiDAR sensor
   ke:
     # Single LiDAR input
-    angle_resolution: 0.00698          # [rad] Maximal angular resolution of the lidar azimutal resolution.
     min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
     neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
@@ -193,7 +192,6 @@ slam:
     # device_ids: [0, 10]
     # # Keypoint extractors parameters for each LiDAR sensor "device_<device_id>"
     # device_0:
-    #   angle_resolution: 0.00698          # [rad] Maximal angular resolution of the lidar azimutal resolution.
     #   min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
@@ -202,7 +200,6 @@ slam:
     #   edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
     #   edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
     # device_10:
-    #   angle_resolution: 0.01             # [rad] Maximal angular resolution of the lidar azimutal resolution.
     #   min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).

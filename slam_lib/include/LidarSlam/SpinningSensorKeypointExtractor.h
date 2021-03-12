@@ -49,9 +49,6 @@ public:
   GetMacro(MinDistanceToSensor, float)
   SetMacro(MinDistanceToSensor, float)
 
-  GetMacro(AngleResolution, float)
-  SetMacro(AngleResolution, float)
-
   GetMacro(PlaneSinAngleThreshold, float)
   SetMacro(PlaneSinAngleThreshold, float)
 
@@ -67,7 +64,10 @@ public:
   GetMacro(EdgeIntensityGapThreshold, float)
   SetMacro(EdgeIntensityGapThreshold, float)
 
-  GetMacro(NLasers, int)
+  GetMacro(AzimuthalResolution, float)
+  SetMacro(AzimuthalResolution, float)
+
+  GetMacro(NbLaserRings, int)
 
   PointCloud::Ptr GetEdgePoints() const { return this->EdgesPoints; }
   PointCloud::Ptr GetPlanarPoints() const { return this->PlanarsPoints; }
@@ -106,6 +106,11 @@ private:
   // Labelize point to be a keypoints or not
   void SetKeyPointsLabels();
 
+  // Auto estimate azimuth angle resolution based on current ScanLines
+  // WARNING: to be correct, the points need to be in the LIDAR sensor
+  // coordinates system, where the sensor is spinning around Z axis.
+  void EstimateAzimuthalResolution();
+
   // Check if scanLine is almost empty
   inline bool IsScanLineAlmostEmpty(int nScanLinePts) const { return nScanLinePts < 2 * this->NeighborWidth + 1; }
 
@@ -121,10 +126,6 @@ private:
 
   // Minimal point/sensor sensor to consider a point as valid
   float MinDistanceToSensor = 3.0;  // [m]
-
-  // Maximal angle resolution of the lidar azimutal resolution.
-  // (default value to VLP-16. We add an extra 20%)
-  float AngleResolution = DEG2RAD(0.4);  // [rad]
 
   // Sharpness threshold to select a planar keypoint
   float PlaneSinAngleThreshold = 0.5;  // sin(30°) (selected if sin angle is less than threshold)
@@ -152,8 +153,14 @@ private:
   //   Internal variables
   // ---------------------------------------------------------------------------
 
+  // Azimuthal (= horizontal angle) resolution of the spinning lidar sensor
+  // If it is less or equal to 0, it will be auto-estimated from next frame.
+  // This angular resolution is used to compute an expected distance between two
+  // consecutives firings.
+  float AzimuthalResolution = 0.;  // [rad]
+
   // Number of lasers scan lines composing the pointcloud
-  unsigned int NLasers = 0;
+  unsigned int NbLaserRings = 0;
 
   //! Label of a point as a keypoint
   //! We use binary flags as each point can have different keypoint labels.
@@ -173,8 +180,8 @@ private:
   PointCloud::Ptr BlobsPoints;
 
   // Current point cloud stored in two differents formats
-  PointCloud::Ptr pclCurrentFrame;
-  std::vector<PointCloud::Ptr> pclCurrentFrameByScan;
+  PointCloud::Ptr Scan;
+  std::vector<PointCloud::Ptr> ScanLines;
 };
 
 } // end of LidarSlam namespace

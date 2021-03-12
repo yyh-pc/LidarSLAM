@@ -38,7 +38,6 @@ void vtkSpinningSensorKeypointExtractor::PrintSelf(std::ostream& os, vtkIndent i
 
   PrintParameter(NeighborWidth)
   PrintParameter(MinDistanceToSensor)
-  PrintParameter(AngleResolution)
 
   PrintParameter(PlaneSinAngleThreshold)
 
@@ -47,5 +46,6 @@ void vtkSpinningSensorKeypointExtractor::PrintSelf(std::ostream& os, vtkIndent i
   PrintParameter(EdgeSaliencyThreshold)
   PrintParameter(EdgeIntensityGapThreshold)
 
-  PrintParameter(NLasers)
+  PrintParameter(NbLaserRings)
+  PrintParameter(AzimuthalResolution)
 }

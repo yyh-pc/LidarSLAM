@@ -54,8 +54,6 @@ public:
 
   vtkCustomSetMacro(MinDistanceToSensor, float)
 
-  vtkCustomSetMacro(AngleResolution, float)
-
   vtkCustomSetMacro(PlaneSinAngleThreshold, float)
 
   vtkCustomSetMacro(EdgeSinAngleThreshold, float)
