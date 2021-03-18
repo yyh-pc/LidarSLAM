@@ -211,9 +211,17 @@ public:
   virtual void SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor*);
 
   // Set RollingGrid Parameters
-  vtkCustomSetMacroNoCheck(VoxelGridLeafSizeEdges, double)
-  vtkCustomSetMacroNoCheck(VoxelGridLeafSizePlanes, double)
-  vtkCustomSetMacroNoCheck(VoxelGridLeafSizeBlobs, double)
+  virtual void SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s);
+
+  // For edges
+  virtual void SetVoxelGridLeafSizeEdges(double s)  { SetVoxelGridLeafSize(LidarSlam::Keypoint::EDGE, s);  }
+
+  // For planes
+  virtual void SetVoxelGridLeafSizePlanes(double s) { SetVoxelGridLeafSize(LidarSlam::Keypoint::PLANE, s); }
+
+  // For blobs
+  virtual void SetVoxelGridLeafSizeBlobs(double s)  { SetVoxelGridLeafSize(LidarSlam::Keypoint::BLOB, s);  }
+
   vtkCustomSetMacroNoCheck(VoxelGridSize, int)
   vtkCustomSetMacroNoCheck(VoxelGridResolution, double)
 

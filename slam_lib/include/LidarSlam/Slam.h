@@ -148,17 +148,13 @@ public:
   std::vector<std::array<double, 36>> GetCovariances() const;
 
   // Get keypoints maps
-  PointCloud::Ptr GetEdgesMap() const;
-  PointCloud::Ptr GetPlanarsMap() const;
-  PointCloud::Ptr GetBlobsMap() const;
+  PointCloud::Ptr GetMap(Keypoint k) const;
 
   // Get extracted keypoints from current frame.
   // If worldCoordinates=false, it returns raw keypoints in BASE coordinates,
   // without undistortion. If worldCoordinates=true, it returns undistorted
   // keypoints in WORLD coordinates.
-  PointCloud::Ptr GetEdgesKeypoints(bool worldCoordinates = true) const;
-  PointCloud::Ptr GetPlanarsKeypoints(bool worldCoordinates = true) const;
-  PointCloud::Ptr GetBlobsKeypoints(bool worldCoordinates = true) const;
+  PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = true) const;
 
   // Get current frame
   PointCloud::Ptr GetOutputFrame();
@@ -331,9 +327,7 @@ public:
 
   // Set RollingGrid Parameters
   void ClearMaps();
-  void SetVoxelGridLeafSizeEdges(double size);
-  void SetVoxelGridLeafSizePlanes(double size);
-  void SetVoxelGridLeafSizeBlobs(double size);
+  void SetVoxelGridLeafSize(Keypoint k, double size);
   void SetVoxelGridSize(int size);
   void SetVoxelGridResolution(double resolution);
 
@@ -436,9 +430,7 @@ private:
   // covariances and keypoints of each frame).
   std::deque<Transform> LogTrajectory;
   std::deque<std::array<double, 36>> LogCovariances;
-  std::deque<PointCloudStorage<Point>> LogEdgesPoints;
-  std::deque<PointCloudStorage<Point>> LogPlanarsPoints;
-  std::deque<PointCloudStorage<Point>> LogBlobsPoints;
+  std::map<Keypoint, std::deque<PointCloudStorage<Point>>> LogKeypoints;
 
   // ---------------------------------------------------------------------------
   //   Keypoints extraction
@@ -463,26 +455,17 @@ private:
   std::vector<PointCloud::Ptr> CurrentFrames;
 
   // Raw extracted keypoints, in BASE coordinates (no undistortion)
-  PointCloud::Ptr CurrentRawEdgesPoints;
-  PointCloud::Ptr CurrentRawPlanarsPoints;
-  PointCloud::Ptr CurrentRawBlobsPoints;
-  PointCloud::Ptr PreviousRawEdgesPoints;
-  PointCloud::Ptr PreviousRawPlanarsPoints;
+  std::map<Keypoint, PointCloud::Ptr> CurrentRawKeypoints;
+  std::map<Keypoint, PointCloud::Ptr> PreviousRawKeypoints;
 
   // Extracted keypoints, in BASE coordinates (with undistortion if enabled)
-  PointCloud::Ptr CurrentEdgesPoints;
-  PointCloud::Ptr CurrentPlanarsPoints;
-  PointCloud::Ptr CurrentBlobsPoints;
+  std::map<Keypoint, PointCloud::Ptr> CurrentUndistortedKeypoints;
 
   // Extracted keypoints, in WORLD coordinates (with undistortion if enabled)
-  PointCloud::Ptr CurrentWorldEdgesPoints;
-  PointCloud::Ptr CurrentWorldPlanarsPoints;
-  PointCloud::Ptr CurrentWorldBlobsPoints;
+  std::map<Keypoint, PointCloud::Ptr> CurrentWorldKeypoints;
 
   // keypoints local map
-  std::shared_ptr<RollingGrid> EdgesPointsLocalMap;
-  std::shared_ptr<RollingGrid> PlanarPointsLocalMap;
-  std::shared_ptr<RollingGrid> BlobsPointsLocalMap;
+  std::map<Keypoint, std::shared_ptr<RollingGrid>> LocalMaps;
 
   // ---------------------------------------------------------------------------
   //   Optimization data

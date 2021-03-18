@@ -97,6 +97,14 @@ vtkSlam::vtkSlam()
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
+{
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting VoxelGridLeafSize to " << _arg);
+  this->SlamAlgo->SetVoxelGridLeafSize(k, s);
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::Reset()
 {
   this->SlamAlgo->Reset(true);
@@ -202,9 +210,9 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     static vtkPolyData* cacheBlobMap = vtkPolyData::New();
     if ((this->SlamAlgo->GetNbrFrameProcessed() - 1) % this->MapsUpdateStep == 0)
     {
-      this->PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), cacheEdgeMap);
-      this->PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), cachePlanarMap);
-      this->PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), cacheBlobMap);
+      this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::EDGE), cacheEdgeMap);
+      this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::PLANE), cachePlanarMap);
+      this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::BLOB), cacheBlobMap);
     }
 
     // Fill outputs from cache
@@ -227,13 +235,13 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : output current keypoints"));
     // Output : Current edge keypoints
     auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
-    this->PointCloudToPolyData(this->SlamAlgo->GetEdgesKeypoints(this->OutputKeypointsInWorldCoordinates), edgePoints);
+    this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(LidarSlam::EDGE, this->OutputKeypointsInWorldCoordinates), edgePoints);
     // Output : Current planar keypoints
     auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
-    this->PointCloudToPolyData(this->SlamAlgo->GetPlanarsKeypoints(this->OutputKeypointsInWorldCoordinates), planarPoints);
+    this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(LidarSlam::PLANE, this->OutputKeypointsInWorldCoordinates), planarPoints);
     // Output : Current blob keypoints
     auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
-    this->PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(this->OutputKeypointsInWorldCoordinates), blobPoints);
+    this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(LidarSlam::BLOB, this->OutputKeypointsInWorldCoordinates), blobPoints);
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : output current keypoints"));
   }
 

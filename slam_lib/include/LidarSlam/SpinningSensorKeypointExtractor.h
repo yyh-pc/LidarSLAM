@@ -27,6 +27,7 @@
 
 #include <unordered_map>
 #include <bitset>
+#include <map>
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
@@ -69,9 +70,9 @@ public:
 
   GetMacro(NbLaserRings, int)
 
-  PointCloud::Ptr GetEdgePoints() const { return this->EdgesPoints; }
-  PointCloud::Ptr GetPlanarPoints() const { return this->PlanarsPoints; }
-  PointCloud::Ptr GetBlobPoints() const { return this->BlobsPoints; }
+  std::map<Keypoint, PointCloud::Ptr> GetKeypoints() const {return this->Keypoints;}
+
+  PointCloud::Ptr GetKeypoints(Keypoint k) const { return this->Keypoints.at(k); }
 
   // Extract keypoints from the pointcloud. The key points
   // will be separated in two classes : Edges keypoints which
@@ -175,9 +176,7 @@ private:
   std::vector<std::vector<KeypointFlags>> Label;
 
   // Extracted keypoints of current frame
-  PointCloud::Ptr EdgesPoints;
-  PointCloud::Ptr PlanarsPoints;
-  PointCloud::Ptr BlobsPoints;
+  std::map<Keypoint, PointCloud::Ptr> Keypoints;
 
   // Current point cloud stored in two differents formats
   PointCloud::Ptr Scan;

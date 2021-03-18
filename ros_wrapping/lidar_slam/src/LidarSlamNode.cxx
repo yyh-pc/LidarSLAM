@@ -512,14 +512,14 @@ void LidarSlamNode::PublishOutput()
       this->Publishers[publisher].publish(pc);
 
   // Keypoints maps
-  publishPointCloud(EDGES_MAP,  this->LidarSlam.GetEdgesMap());
-  publishPointCloud(PLANES_MAP, this->LidarSlam.GetPlanarsMap());
-  publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetBlobsMap());
+  publishPointCloud(EDGES_MAP,  this->LidarSlam.GetMap(LidarSlam::EDGE));
+  publishPointCloud(PLANES_MAP, this->LidarSlam.GetMap(LidarSlam::PLANE));
+  publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetMap(LidarSlam::BLOB));
 
   // Current keypoints
-  publishPointCloud(EDGES_KEYPOINTS,  this->LidarSlam.GetEdgesKeypoints());
-  publishPointCloud(PLANES_KEYPOINTS, this->LidarSlam.GetPlanarsKeypoints());
-  publishPointCloud(BLOBS_KEYPOINTS,  this->LidarSlam.GetBlobsKeypoints());
+  publishPointCloud(EDGES_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::EDGE));
+  publishPointCloud(PLANES_KEYPOINTS, this->LidarSlam.GetKeypoints(LidarSlam::PLANE));
+  publishPointCloud(BLOBS_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::BLOB));
 
   // debug cloud
   publishPointCloud(SLAM_REGISTERED_POINTS, this->LidarSlam.GetOutputFrame());
@@ -614,9 +614,13 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/localization/final_saturation_distance", LocalizationFinalSaturationDistance)
 
   // Rolling grids
-  SetSlamParam(double, "slam/voxel_grid/leaf_size_edges", VoxelGridLeafSizeEdges)
-  SetSlamParam(double, "slam/voxel_grid/leaf_size_planes", VoxelGridLeafSizePlanes)
-  SetSlamParam(double, "slam/voxel_grid/leaf_size_blobs", VoxelGridLeafSizeBlobs)
+  double size;
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_edges", size))
+    this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::EDGE, size);
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_planes", size))
+    this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::PLANE, size);
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_blobs", size))
+    this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::BLOB, size);
   SetSlamParam(double, "slam/voxel_grid/resolution", VoxelGridResolution)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
 

@@ -137,16 +137,15 @@ Slam::Slam()
   this->KeyPointsExtractors[0] = std::make_shared<SpinningSensorKeypointExtractor>();
 
   // Allocate maps
-  this->EdgesPointsLocalMap = std::make_shared<RollingGrid>();
-  this->PlanarPointsLocalMap = std::make_shared<RollingGrid>();
-  this->BlobsPointsLocalMap = std::make_shared<RollingGrid>();
+  for (auto k : KeypointTypes)
+    this->LocalMaps[k] = std::make_shared<RollingGrid>();
 
   // Set default maps parameters
   this->SetVoxelGridResolution(10.);
   this->SetVoxelGridSize(50);
-  this->SetVoxelGridLeafSizeEdges(0.30);
-  this->SetVoxelGridLeafSizePlanes(0.60);
-  this->SetVoxelGridLeafSizeBlobs(0.30);
+  this->SetVoxelGridLeafSize(EDGE, 0.30);
+  this->SetVoxelGridLeafSize(PLANE, 0.60);
+  this->SetVoxelGridLeafSize(BLOB, 0.30);
 
   // Reset SLAM internal state
   this->Reset();
@@ -170,15 +169,12 @@ void Slam::Reset(bool resetLog)
   // Reset point clouds
   this->CurrentFrames.clear();
   this->CurrentFrames.emplace_back(new PointCloud);
-  this->CurrentRawEdgesPoints.reset(new PointCloud);
-  this->CurrentRawPlanarsPoints.reset(new PointCloud);
-  this->CurrentRawBlobsPoints.reset(new PointCloud);
-  this->CurrentEdgesPoints.reset(new PointCloud);
-  this->CurrentPlanarsPoints.reset(new PointCloud);
-  this->CurrentBlobsPoints.reset(new PointCloud);
-  this->CurrentWorldEdgesPoints.reset(new PointCloud);
-  this->CurrentWorldPlanarsPoints.reset(new PointCloud);
-  this->CurrentWorldBlobsPoints.reset(new PointCloud);
+  for (auto k : KeypointTypes)
+  {
+    this->CurrentRawKeypoints[k].reset(new PointCloud);
+    this->CurrentUndistortedKeypoints[k].reset(new PointCloud);
+    this->CurrentWorldKeypoints[k].reset(new PointCloud);
+  }
 
   // Reset keypoints matching results
   this->EgoMotionMatchingResults[EDGE] = KeypointsRegistration::MatchingResults();
@@ -193,9 +189,7 @@ void Slam::Reset(bool resetLog)
     // Reset logged keypoints
     this->NbrFrameProcessed = 0;
     this->LogTrajectory.clear();
-    this->LogEdgesPoints.clear();
-    this->LogPlanarsPoints.clear();
-    this->LogBlobsPoints.clear();
+    this->LogKeypoints.clear();
 
     // Reset processing duration timers
     Utils::Timer::Reset();
@@ -271,22 +265,24 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   {
     SET_COUT_FIXED_PRECISION(3);
     std::cout << "========== Memory usage ==========\n";
-    // SLAM maps
-    PointCloud::Ptr edgesMap   = this->GetEdgesMap(),
-                    planarsMap = this->GetPlanarsMap(),
-                    blobsMap   = this->GetBlobsMap();
-    std::cout << "Edges map   : " << edgesMap->size()   << " points, " << Utils::PointCloudMemorySize(*edgesMap)   * 1e-6 << " MB\n";
-    std::cout << "Planars map : " << planarsMap->size() << " points, " << Utils::PointCloudMemorySize(*planarsMap) * 1e-6 << " MB\n";
-    std::cout << "Blobs map   : " << blobsMap->size()   << " points, " << Utils::PointCloudMemorySize(*blobsMap)   * 1e-6 << " MB\n";
+    auto PrintMemoryConsumption = [&](Keypoint kp, const std::string& kpName)
+    {
+      PointCloud::Ptr map = this->GetMap(kp);
+      std::cout << kpName << " map: " << map->size() << " points, " << Utils::PointCloudMemorySize(*map) * 1e-6 << " MB\n";
+    };
+
+    PrintMemoryConsumption(EDGE,  "Edges");
+    PrintMemoryConsumption(PLANE, "Planes");
+    PrintMemoryConsumption(BLOB,  "Blobs");
 
     // Logged keypoints
     size_t memory, points;
-    Utils::LoggedKeypointsSize(this->LogEdgesPoints, memory, points);
-    std::cout << "Edges log   : " << this->LogEdgesPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
-    Utils::LoggedKeypointsSize(this->LogPlanarsPoints, memory, points);
-    std::cout << "Planars log : " << this->LogPlanarsPoints.size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
-    Utils::LoggedKeypointsSize(this->LogBlobsPoints, memory, points);
-    std::cout << "Blobs log   : " << this->LogBlobsPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+    Utils::LoggedKeypointsSize(this->LogKeypoints[EDGE], memory, points);
+    std::cout << "Edges log  : " << this->LogKeypoints[EDGE].size()  << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
+    Utils::LoggedKeypointsSize(this->LogKeypoints[PLANE], memory, points);
+    std::cout << "Planes log : " << this->LogKeypoints[PLANE].size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
+    Utils::LoggedKeypointsSize(this->LogKeypoints[BLOB], memory, points);
+    std::cout << "Blobs log  : " << this->LogKeypoints[BLOB].size()  << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
     RESET_COUT_FIXED_PRECISION;
   }
 
@@ -353,19 +349,21 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   this->Reset(false);
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : SLAM reset"));
   IF_VERBOSE(3, Utils::Timer::Init("PGO : frames keypoints aggregation"));
-  PointCloud edgesKeypoints, planarsKeypoints, blobsKeypoints;
-  PointCloud::Ptr aggregatedEdgesMap(new PointCloud),
-                  aggregatedPlanarsMap(new PointCloud),
-                  aggregatedBlobsMap(new PointCloud);
+  std::map<Keypoint, PointCloud> keypoints;
+  std::map<Keypoint, PointCloud::Ptr> aggregatedKeypointsMap;
+  for (auto k : KeypointTypes)
+    aggregatedKeypointsMap[k].reset(new PointCloud);
+
   for (unsigned int i = 0; i < nbSlamPoses; i++)
   {
     // Update SLAM pose
     this->LogTrajectory[i].SetIsometry(gpsToSensorOffset.inverse() * optimizedSlamPoses[i].GetIsometry());
 
     // Transform frame keypoints to world coordinates
-    const auto& logEdges = this->LogEdgesPoints[i].GetCloud();
-    const auto& logPlanes = this->LogPlanarsPoints[i].GetCloud();
-    const auto& logBlobs = !this->FastSlam ? this->LogBlobsPoints[i].GetCloud() : PointCloud::Ptr(new PointCloud);
+    std::map<Keypoint, PointCloud::Ptr> logKeypoints;
+    logKeypoints[EDGE] = this->LogKeypoints[EDGE][i].GetCloud();
+    logKeypoints[PLANE] = this->LogKeypoints[PLANE][i].GetCloud();
+    logKeypoints[BLOB]  = !this->FastSlam ? this->LogKeypoints[BLOB][i].GetCloud() : PointCloud::Ptr(new PointCloud);
     if (this->Undistortion && i >= 1)
     {
       // Init the undistortion interpolator
@@ -381,22 +379,19 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
         for (const Point& p : in)
           out.push_back(Utils::TransformPoint(p, interpolator(p.time)));
       };
-      undistortAndTransform(*logEdges, edgesKeypoints);
-      undistortAndTransform(*logPlanes, planarsKeypoints);
-      undistortAndTransform(*logBlobs, blobsKeypoints);
+      for (auto k : KeypointTypes)
+        undistortAndTransform(*logKeypoints[k],  keypoints[k]);
     }
     else
     {
       Eigen::Matrix4d currentTransform = this->LogTrajectory[i].GetMatrix();
-      pcl::transformPointCloud(*logEdges, edgesKeypoints, currentTransform);
-      pcl::transformPointCloud(*logPlanes, planarsKeypoints, currentTransform);
-      pcl::transformPointCloud(*logBlobs, blobsKeypoints, currentTransform);
+      for (auto k : KeypointTypes)
+        pcl::transformPointCloud(*logKeypoints[k],  keypoints[k],  currentTransform);
     }
 
     // Aggregate new keypoints to maps
-    *aggregatedEdgesMap += edgesKeypoints;
-    *aggregatedPlanarsMap += planarsKeypoints;
-    *aggregatedBlobsMap += blobsKeypoints;
+    for (auto k : KeypointTypes)
+      *aggregatedKeypointsMap[k] += keypoints[k];
   }
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : frames keypoints aggregation"));
@@ -420,10 +415,10 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     map.Roll(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
     map.Add(aggregatedPoints, false);
   };
-  updateMap(*this->EdgesPointsLocalMap, edgesKeypoints, aggregatedEdgesMap);
-  updateMap(*this->PlanarPointsLocalMap, planarsKeypoints, aggregatedPlanarsMap);
+  updateMap(*this->LocalMaps[EDGE], keypoints[EDGE], aggregatedKeypointsMap[EDGE]);
+  updateMap(*this->LocalMaps[PLANE], keypoints[PLANE], aggregatedKeypointsMap[PLANE]);
   if (!this->FastSlam)
-    updateMap(*this->BlobsPointsLocalMap, blobsKeypoints, aggregatedBlobsMap);
+    updateMap(*this->LocalMaps[BLOB], keypoints[BLOB], aggregatedKeypointsMap[BLOB]);
 
   // Processing duration
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : final SLAM map update"));
@@ -445,9 +440,8 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
   // We reset previous pose so that previous ego-motion extrapolation results in Identity matrix.
   // We reset current frame keypoints so that ego-motion registration will be skipped for next frame.
   this->PreviousTworld = this->Tworld;
-  this->CurrentRawEdgesPoints.reset(new PointCloud);
-  this->CurrentRawPlanarsPoints.reset(new PointCloud);
-  this->CurrentRawBlobsPoints.reset(new PointCloud);
+  for (auto k : KeypointTypes)
+    this->CurrentRawKeypoints[k].reset(new PointCloud);
 }
 
 //-----------------------------------------------------------------------------
@@ -456,9 +450,9 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) con
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
 
   // Save keypoints maps
-  savePointCloudToPCD(filePrefix + "edges.pcd",   *this->GetEdgesMap(), pcdFormat, true);
-  savePointCloudToPCD(filePrefix + "planars.pcd", *this->GetPlanarsMap(), pcdFormat, true);
-  savePointCloudToPCD(filePrefix + "blobs.pcd",   *this->GetBlobsMap(), pcdFormat, true);
+  savePointCloudToPCD(filePrefix + "edges.pcd",  *this->GetMap(EDGE),  pcdFormat, true);
+  savePointCloudToPCD(filePrefix + "planes.pcd", *this->GetMap(PLANE), pcdFormat, true);
+  savePointCloudToPCD(filePrefix + "blobs.pcd",  *this->GetMap(BLOB),  pcdFormat, true);
 
   // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
 
@@ -485,9 +479,9 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
     }
   };
 
-  loadMapFromPCD(filePrefix + "edges.pcd",   this->EdgesPointsLocalMap);
-  loadMapFromPCD(filePrefix + "planars.pcd", this->PlanarPointsLocalMap);
-  loadMapFromPCD(filePrefix + "blobs.pcd",   this->BlobsPointsLocalMap);
+  loadMapFromPCD(filePrefix + "edges.pcd",  this->LocalMaps[EDGE]);
+  loadMapFromPCD(filePrefix + "planes.pcd", this->LocalMaps[PLANE]);
+  loadMapFromPCD(filePrefix + "blobs.pcd",  this->LocalMaps[BLOB]);
 
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
 
@@ -638,9 +632,9 @@ Slam::PointCloud::Ptr Slam::GetOutputFrame()
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetEdgesMap() const
+Slam::PointCloud::Ptr Slam::GetMap(Keypoint k) const
 {
-  PointCloud::Ptr map = this->EdgesPointsLocalMap->Get();
+  PointCloud::Ptr map = this->LocalMaps.at(k)->Get();
   map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
                                       this->WorldFrameId,
                                       this->NbrFrameProcessed);
@@ -648,41 +642,9 @@ Slam::PointCloud::Ptr Slam::GetEdgesMap() const
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
+Slam::PointCloud::Ptr Slam::GetKeypoints(Keypoint k, bool worldCoordinates) const
 {
-  PointCloud::Ptr map = this->PlanarPointsLocalMap->Get();
-  map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
-                                      this->WorldFrameId,
-                                      this->NbrFrameProcessed);
-  return map;
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetBlobsMap() const
-{
-  PointCloud::Ptr map = this->BlobsPointsLocalMap->Get();
-  map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
-                                      this->WorldFrameId,
-                                      this->NbrFrameProcessed);
-  return map;
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetEdgesKeypoints(bool worldCoordinates) const
-{
-  return worldCoordinates ? this->CurrentWorldEdgesPoints : this->CurrentEdgesPoints;
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetPlanarsKeypoints(bool worldCoordinates) const
-{
-  return worldCoordinates ? this->CurrentWorldPlanarsPoints : this->CurrentPlanarsPoints;
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetBlobsKeypoints(bool worldCoordinates) const
-{
-  return worldCoordinates ? this->CurrentWorldBlobsPoints : this->CurrentBlobsPoints;
+  return worldCoordinates ? this->CurrentWorldKeypoints.at(k) : this->CurrentUndistortedKeypoints.at(k);
 }
 
 //==============================================================================
@@ -732,17 +694,15 @@ void Slam::ExtractKeypoints()
   PRINT_VERBOSE(2, "========== Keypoints extraction ==========");
 
   // Current keypoints become previous ones
-  this->PreviousRawEdgesPoints = this->CurrentRawEdgesPoints;
-  this->PreviousRawPlanarsPoints = this->CurrentRawPlanarsPoints;
+  this->PreviousRawKeypoints = this->CurrentRawKeypoints;
 
-  // Reset current keypoints
-  this->CurrentRawEdgesPoints.reset(new PointCloud);
-  this->CurrentRawPlanarsPoints.reset(new PointCloud);
-  this->CurrentRawBlobsPoints.reset(new PointCloud);
+  // Reset current keypoints and adapt header
   pcl::PCLHeader header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp, this->BaseFrameId, this->NbrFrameProcessed);
-  this->CurrentRawEdgesPoints->header = header;
-  this->CurrentRawPlanarsPoints->header = header;
-  this->CurrentRawBlobsPoints->header = header;
+  for (auto& typeKeypts : this->CurrentRawKeypoints)
+  {
+    typeKeypts.second.reset(new PointCloud);
+    typeKeypts.second->header = header;
+  }
 
   // Transform pointcloud to BASE coordinates system and correct time offset
   auto AddBaseKeypoints = [this](Slam::PointCloud::Ptr& allKp, const Slam::PointCloud::Ptr& kp, const Eigen::Isometry3d& baseToLidar)
@@ -799,15 +759,15 @@ void Slam::ExtractKeypoints()
 
     // Transform them from LIDAR to BASE coordinates, and aggregate them
     Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(lidarDevice);
-    AddBaseKeypoints(this->CurrentRawEdgesPoints,   ke->GetEdgePoints(),   baseToLidar);
-    AddBaseKeypoints(this->CurrentRawPlanarsPoints, ke->GetPlanarPoints(), baseToLidar);
+    AddBaseKeypoints(this->CurrentRawKeypoints[EDGE],  ke->GetKeypoints(EDGE),  baseToLidar);
+    AddBaseKeypoints(this->CurrentRawKeypoints[PLANE], ke->GetKeypoints(PLANE), baseToLidar);
     if (!this->FastSlam)
-      AddBaseKeypoints(this->CurrentRawBlobsPoints, ke->GetBlobPoints(),   baseToLidar);
+      AddBaseKeypoints(this->CurrentRawKeypoints[BLOB], ke->GetKeypoints(BLOB), baseToLidar);
   }
 
-  PRINT_VERBOSE(2, "Extracted features : " << this->CurrentRawEdgesPoints->size()   << " edges, "
-                                           << this->CurrentRawPlanarsPoints->size() << " planes, "
-                                           << this->CurrentRawBlobsPoints->size()   << " blobs.");
+  PRINT_VERBOSE(2, "Extracted features : " << this->CurrentRawKeypoints[EDGE]->size()   << " edges, "
+                                           << this->CurrentRawKeypoints[PLANE]->size()  << " planes, "
+                                           << this->CurrentRawKeypoints[BLOB]->size()   << " blobs.");
 }
 
 //-----------------------------------------------------------------------------
@@ -845,18 +805,23 @@ void Slam::ComputeEgoMotion()
     //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
     // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
     IF_VERBOSE(3, Utils::Timer::Init("EgoMotion : build KD tree"));
-    KDTree kdtreePreviousEdges, kdtreePreviousPlanes;
+    std::map<Keypoint, KDTree> kdtreePrevious;
+    // Kdtrees map initialization to parallelize their 
+    // construction using OMP and avoid concurrency issues
+    for (const auto& k : {EDGE, PLANE})
+      kdtreePrevious[k] = KDTree();
+
     #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
     {
       #pragma omp section
-      kdtreePreviousEdges.Reset(this->PreviousRawEdgesPoints);
+      kdtreePrevious[EDGE].Reset(this->PreviousRawKeypoints[EDGE]);
       #pragma omp section
-      kdtreePreviousPlanes.Reset(this->PreviousRawPlanarsPoints);
+      kdtreePrevious[PLANE].Reset(this->PreviousRawKeypoints[PLANE]);
     }
 
     PRINT_VERBOSE(2, "Keypoints extracted from previous frame : "
-                     << this->PreviousRawEdgesPoints->size() << " edges, "
-                     << this->PreviousRawPlanarsPoints->size() << " planes");
+                     << this->PreviousRawKeypoints[EDGE]->size() << " edges, "
+                     << this->PreviousRawKeypoints[PLANE]->size() << " planes");
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("EgoMotion : build KD tree"));
     IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
@@ -898,10 +863,10 @@ void Slam::ComputeEgoMotion()
       KeypointsRegistration optim(optimParams, this->Trelative);
 
       // Loop over edges to build the point to line residuals
-      this->EgoMotionMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentRawEdgesPoints, kdtreePreviousEdges, Keypoint::EDGE);
+      this->EgoMotionMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentRawKeypoints[EDGE], kdtreePrevious[EDGE], EDGE);
 
       // Loop over surfaces to build the point to plane residuals
-      this->EgoMotionMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentRawPlanarsPoints, kdtreePreviousPlanes, Keypoint::PLANE);
+      this->EgoMotionMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentRawKeypoints[PLANE], kdtreePrevious[PLANE], PLANE);
 
       // Skip this frame if there are too few geometric keypoints matched
       totalMatchedKeypoints = this->EgoMotionMatchingResults[EDGE].NbMatches() + this->EgoMotionMatchingResults[PLANE].NbMatches();
@@ -956,9 +921,8 @@ void Slam::Localization()
   this->Tworld = this->PreviousTworld * this->Trelative;
 
   // Init undistorted keypoints clouds from raw points
-  this->CurrentEdgesPoints = this->CurrentRawEdgesPoints;
-  this->CurrentPlanarsPoints = this->CurrentRawPlanarsPoints;
-  this->CurrentBlobsPoints = this->CurrentRawBlobsPoints;
+  this->CurrentUndistortedKeypoints = this->CurrentRawKeypoints;
+
   // Init and run undistortion if required
   if (this->Undistortion)
   {
@@ -972,8 +936,15 @@ void Slam::Localization()
 
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
-  PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
-  KDTree kdtreeEdges, kdtreePlanes, kdtreeBlobs;
+  std::map<Keypoint, PointCloud::Ptr> subKeypointsLocalMap;
+  std::map<Keypoint, KDTree> kdtrees;
+  // Initialization of std map elements to parallelize 
+  // their construction with OMP avoiding concurrency issues
+  for (auto k : KeypointTypes)
+  {
+    kdtrees[k] = KDTree();
+    subKeypointsLocalMap[k].reset(new PointCloud);
+  }
 
   auto extractMapKeypointsAndBuildKdTree = [this](const PointCloud::Ptr& currKeypoints, RollingGrid& map, PointCloud::Ptr& prevKeypoints, KDTree& kdTree)
   {
@@ -998,18 +969,18 @@ void Slam::Localization()
   #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
   {
     #pragma omp section
-    extractMapKeypointsAndBuildKdTree(this->CurrentEdgesPoints, *this->EdgesPointsLocalMap, subEdgesPointsLocalMap, kdtreeEdges);
+    extractMapKeypointsAndBuildKdTree(this->CurrentUndistortedKeypoints[EDGE], *this->LocalMaps[EDGE], subKeypointsLocalMap[EDGE], kdtrees[EDGE]);
     #pragma omp section
-    extractMapKeypointsAndBuildKdTree(this->CurrentPlanarsPoints, *this->PlanarPointsLocalMap, subPlanarPointsLocalMap, kdtreePlanes);
+    extractMapKeypointsAndBuildKdTree(this->CurrentUndistortedKeypoints[PLANE], *this->LocalMaps[PLANE], subKeypointsLocalMap[PLANE], kdtrees[PLANE]);
     #pragma omp section
     if (!this->FastSlam)
-      extractMapKeypointsAndBuildKdTree(this->CurrentBlobsPoints, *this->BlobsPointsLocalMap, subBlobPointsLocalMap, kdtreeBlobs);
+      extractMapKeypointsAndBuildKdTree(this->CurrentUndistortedKeypoints[BLOB], *this->LocalMaps[BLOB], subKeypointsLocalMap[BLOB], kdtrees[BLOB]);
   }
 
   PRINT_VERBOSE(2, "Keypoints extracted from map : "
-                   << subEdgesPointsLocalMap->size() << " edges, "
-                   << subPlanarPointsLocalMap->size() << " planes, "
-                   << subBlobPointsLocalMap->size() << " blobs");
+                   << subKeypointsLocalMap[EDGE]->size()  << " edges, "
+                   << subKeypointsLocalMap[PLANE]->size() << " planes, "
+                   << subKeypointsLocalMap[BLOB]->size()  << " blobs");
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : keypoints extraction"));
   IF_VERBOSE(3, Utils::Timer::Init("Localization : whole ICP-LM loop"));
@@ -1051,14 +1022,9 @@ void Slam::Localization()
 
     KeypointsRegistration optim(optimParams, this->Tworld);
 
-    // Loop over edges to build the point to line residuals
-    this->LocalizationMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreeEdges, Keypoint::EDGE);
-
-    // Loop over surfaces to build the point to plane residuals
-    this->LocalizationMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePlanes, Keypoint::PLANE);
-
-    // Loop over blobs to build the point to blob residuals
-    this->LocalizationMatchingResults[BLOB] = optim.BuildAndMatchResiduals(this->CurrentBlobsPoints, kdtreeBlobs, Keypoint::BLOB);
+    // Loop over keypoints to build the point to line residuals
+    for (auto k : KeypointTypes)
+      this->LocalizationMatchingResults[k] = optim.BuildAndMatchResiduals(this->CurrentUndistortedKeypoints[k], kdtrees[k], k);
 
     // Skip this frame if there is too few geometric keypoints matched
     totalMatchedKeypoints =   this->LocalizationMatchingResults[EDGE].NbMatches()
@@ -1139,12 +1105,12 @@ void Slam::UpdateMapsUsingTworld()
   #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
   {
     #pragma omp section
-    updateMap(this->EdgesPointsLocalMap, this->CurrentEdgesPoints, this->CurrentWorldEdgesPoints);
+    updateMap(this->LocalMaps[EDGE], this->CurrentUndistortedKeypoints[EDGE], this->CurrentWorldKeypoints[EDGE]);
     #pragma omp section
-    updateMap(this->PlanarPointsLocalMap, this->CurrentPlanarsPoints, this->CurrentWorldPlanarsPoints);
+    updateMap(this->LocalMaps[PLANE], this->CurrentUndistortedKeypoints[PLANE], this->CurrentWorldKeypoints[PLANE]);
     #pragma omp section
     if (!this->FastSlam)
-      updateMap(this->BlobsPointsLocalMap, this->CurrentBlobsPoints, this->CurrentWorldBlobsPoints);
+      updateMap(this->LocalMaps[BLOB], this->CurrentUndistortedKeypoints[BLOB], this->CurrentWorldKeypoints[BLOB]);
   }
 }
 
@@ -1157,10 +1123,10 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
     // Save current frame data to buffer
     this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
     this->LogCovariances.emplace_back(Utils::Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance));
-    this->LogEdgesPoints.emplace_back(this->CurrentRawEdgesPoints, this->LoggingStorage);
-    this->LogPlanarsPoints.emplace_back(this->CurrentRawPlanarsPoints, this->LoggingStorage);
+    this->LogKeypoints[EDGE].emplace_back(this->CurrentRawKeypoints[EDGE], this->LoggingStorage);
+    this->LogKeypoints[PLANE].emplace_back(this->CurrentRawKeypoints[PLANE], this->LoggingStorage);
     if (!this->FastSlam)
-      this->LogBlobsPoints.emplace_back(this->CurrentRawBlobsPoints, this->LoggingStorage);
+      this->LogKeypoints[BLOB].emplace_back(this->CurrentRawKeypoints[BLOB], this->LoggingStorage);
 
     // If a timeout is defined, forget too old data
     if (this->LoggingTimeout > 0)
@@ -1171,10 +1137,10 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
       {
         this->LogTrajectory.pop_front();
         this->LogCovariances.pop_front();
-        this->LogEdgesPoints.pop_front();
-        this->LogPlanarsPoints.pop_front();
+        this->LogKeypoints[EDGE].pop_front();
+        this->LogKeypoints[PLANE].pop_front();
         if (!this->FastSlam)
-          this->LogBlobsPoints.pop_front();
+          this->LogKeypoints[BLOB].pop_front();
       }
     }
   }
@@ -1225,9 +1191,8 @@ void Slam::InitUndistortion()
       frameLastTime  = std::max(frameLastTime, point.time);
     }
   };
-  GetMinMaxTime(this->CurrentEdgesPoints);
-  GetMinMaxTime(this->CurrentPlanarsPoints);
-  GetMinMaxTime(this->CurrentBlobsPoints);
+  for (const auto& typeKeypts : this->CurrentUndistortedKeypoints)
+    GetMinMaxTime(typeKeypts.second);
 
   // Update interpolator timestamps and reset transforms
   this->WithinFrameMotion.SetTimes(frameFirstTime, frameLastTime);
@@ -1269,16 +1234,11 @@ void Slam::RefineUndistortion()
                                       newBaseEnd * previousBaseEnd.inverse());
 
   // Refine undistortion of keypoints clouds
-  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, 3))
+  for (int i = 0; i < nKeypointTypes; ++i)
   {
-    #pragma omp section
-    for (Point& p : *this->CurrentEdgesPoints)
-      Utils::TransformPoint(p, transformInterpolator(p.time));
-    #pragma omp section
-    for (Point& p : *this->CurrentPlanarsPoints)
-      Utils::TransformPoint(p, transformInterpolator(p.time));
-    #pragma omp section
-    for (Point& p : *this->CurrentBlobsPoints)
+    Keypoint k = static_cast<Keypoint>(i); // because of openMP behaviour which needs int iteration
+    for (Point& p : *this->CurrentUndistortedKeypoints[k])
       Utils::TransformPoint(p, transformInterpolator(p.time));
   }
 }
@@ -1324,43 +1284,28 @@ void Slam::SetBaseToLidarOffset(const Eigen::Isometry3d& transform, uint8_t devi
 //-----------------------------------------------------------------------------
 void Slam::ClearMaps()
 {
-  this->EdgesPointsLocalMap->Reset();
-  this->PlanarPointsLocalMap->Reset();
-  this->BlobsPointsLocalMap->Reset();
+  for (auto k : KeypointTypes)
+    this->LocalMaps[k]->Reset();
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SetVoxelGridLeafSizeEdges(double size)
+void Slam::SetVoxelGridLeafSize(Keypoint k, double size)
 {
-  this->EdgesPointsLocalMap->SetLeafSize(size);
-}
-
-//-----------------------------------------------------------------------------
-void Slam::SetVoxelGridLeafSizePlanes(double size)
-{
-  this->PlanarPointsLocalMap->SetLeafSize(size);
-}
-
-//-----------------------------------------------------------------------------
-void Slam::SetVoxelGridLeafSizeBlobs(double size)
-{
-  this->BlobsPointsLocalMap->SetLeafSize(size);
+  this->LocalMaps[k]->SetLeafSize(size);
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetVoxelGridSize(int size)
 {
-  this->EdgesPointsLocalMap->SetGridSize(size);
-  this->PlanarPointsLocalMap->SetGridSize(size);
-  this->BlobsPointsLocalMap->SetGridSize(size);
+  for (auto& typeMap : this->LocalMaps)
+    typeMap.second->SetGridSize(size);
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetVoxelGridResolution(double resolution)
 {
-  this->EdgesPointsLocalMap->SetVoxelResolution(resolution);
-  this->PlanarPointsLocalMap->SetVoxelResolution(resolution);
-  this->BlobsPointsLocalMap->SetVoxelResolution(resolution);
+  for (auto& typeMap : this->LocalMaps)
+    typeMap.second->SetVoxelResolution(resolution);
 }
 
 } // end of LidarSlam namespace

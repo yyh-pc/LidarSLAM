@@ -31,6 +31,8 @@ enum Keypoint
   nKeypointTypes
 };
 
+static const std::vector<Keypoint> KeypointTypes = { EDGE, PLANE, BLOB };
+
 //------------------------------------------------------------------------------
 //! How to deal with undistortion
 enum UndistortionMode
