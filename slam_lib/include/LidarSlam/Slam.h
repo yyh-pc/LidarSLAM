@@ -340,10 +340,10 @@ private:
   // Max number of threads to use for parallel processing
   int NbThreads = 1;
 
-  // If set to true the "Localization" step planars keypoints used
+  // If set to true the "Localization" step planar keypoints used
   // will be the same than the "EgoMotion" step ones. If set to false
   // all points that are not set to invalid will be used
-  // as "Localization" step planars points.
+  // as "Localization" step planar points.
   bool FastSlam = true;
 
   // How to estimate Ego-Motion (approximate relative motion since last frame).

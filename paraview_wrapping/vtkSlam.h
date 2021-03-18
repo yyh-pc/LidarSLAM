@@ -206,7 +206,7 @@ public:
   //   Rolling grid parameters and Keypoints extractor
   // ---------------------------------------------------------------------------
 
-  // Key points extractor
+  // Keypoints extractor
   vtkGetObjectMacro(KeyPointsExtractor, vtkSpinningSensorKeypointExtractor)
   virtual void SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor*);
 

@@ -210,7 +210,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
   PRINT_VERBOSE(2, "#########################################################\n");
 
-  // Compute the edges and planars keypoints
+  // Compute the edge and planar keypoints
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints extraction"));
   this->ExtractKeypoints();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints extraction"));
@@ -371,7 +371,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
       interpolator.SetTransforms(this->LogTrajectory[i - 1].GetIsometry(), this->LogTrajectory[i].GetIsometry());
       interpolator.SetTimes(this->LogTrajectory[i].time - this->LogTrajectory[i - 1].time, 0.);
 
-      // Perform undistortion of keypoints clouds
+      // Perform undistortion of keypoint clouds
       auto undistortAndTransform = [&](const PointCloud& in, PointCloud& out)
       {
         out.clear();
@@ -575,16 +575,16 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
   auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
 
   std::unordered_map<std::string, std::vector<double>> map;
-  map["EgoMotion: edges matches"]  = toDoubleVector(this->EgoMotionMatchingResults.at(EDGE).Rejections);
-  map["EgoMotion: planes matches"] = toDoubleVector(this->EgoMotionMatchingResults.at(PLANE).Rejections);
-  map["EgoMotion: edges weights"]  = this->EgoMotionMatchingResults.at(EDGE).Weights;
-  map["EgoMotion: planes weights"] = this->EgoMotionMatchingResults.at(PLANE).Weights;
-  map["Localization: edges matches"]  = toDoubleVector(this->LocalizationMatchingResults.at(EDGE).Rejections);
-  map["Localization: planes matches"] = toDoubleVector(this->LocalizationMatchingResults.at(PLANE).Rejections);
-  map["Localization: blobs matches"]  = toDoubleVector(this->LocalizationMatchingResults.at(BLOB).Rejections);
-  map["Localization: edges weights"]  = this->LocalizationMatchingResults.at(EDGE).Weights;
-  map["Localization: planes weights"] = this->LocalizationMatchingResults.at(PLANE).Weights;
-  map["Localization: blobs weights"]  = this->LocalizationMatchingResults.at(BLOB).Weights;
+  map["EgoMotion: edge matches"]  = toDoubleVector(this->EgoMotionMatchingResults.at(EDGE).Rejections);
+  map["EgoMotion: plane matches"] = toDoubleVector(this->EgoMotionMatchingResults.at(PLANE).Rejections);
+  map["EgoMotion: edge weights"]  = this->EgoMotionMatchingResults.at(EDGE).Weights;
+  map["EgoMotion: plane weights"] = this->EgoMotionMatchingResults.at(PLANE).Weights;
+  map["Localization: edge matches"]  = toDoubleVector(this->LocalizationMatchingResults.at(EDGE).Rejections);
+  map["Localization: plane matches"] = toDoubleVector(this->LocalizationMatchingResults.at(PLANE).Rejections);
+  map["Localization: blob matches"]  = toDoubleVector(this->LocalizationMatchingResults.at(BLOB).Rejections);
+  map["Localization: edge weights"]  = this->LocalizationMatchingResults.at(EDGE).Weights;
+  map["Localization: plane weights"] = this->LocalizationMatchingResults.at(PLANE).Weights;
+  map["Localization: blob weights"]  = this->LocalizationMatchingResults.at(BLOB).Weights;
   return map;
 }
 
@@ -1231,7 +1231,7 @@ void Slam::RefineUndistortion()
   // Init the interpolator to use to remove previous undistortion and apply updated one
   auto transformInterpolator = this->WithinFrameMotion;
   transformInterpolator.SetTransforms(newBaseBegin * previousBaseBegin.inverse(),
-                                      newBaseEnd * previousBaseEnd.inverse());
+                                      newBaseEnd   * previousBaseEnd.inverse());
 
   // Refine undistortion of keypoints clouds
   #pragma omp parallel for num_threads(std::min(this->NbThreads, 3))
