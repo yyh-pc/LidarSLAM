@@ -93,7 +93,7 @@ namespace Utils
  *         value and the last the smallest.
  */
 template<typename T>
-std::vector<size_t> SortIdx(const std::vector<T>& v, bool ascending=false)
+std::vector<size_t> SortIdx(const std::vector<T>& v, bool ascending=true)
 {
   // Initialize original index locations
   std::vector<size_t> idx(v.size());

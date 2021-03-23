@@ -480,10 +480,10 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     }
 
     // Sort the curvature score in a decreasing order
-    std::vector<size_t> sortedDepthGapIdx  = Utils::SortIdx(this->DepthGap[scanLine]);
-    std::vector<size_t> sortedAnglesIdx    = Utils::SortIdx(this->Angles[scanLine]);
-    std::vector<size_t> sortedSaliencyIdx  = Utils::SortIdx(this->Saliency[scanLine]);
-    std::vector<size_t> sortedIntensityGap = Utils::SortIdx(this->IntensityGap[scanLine]);
+    std::vector<size_t> sortedDepthGapIdx  = Utils::SortIdx(this->DepthGap    [scanLine], false);
+    std::vector<size_t> sortedAnglesIdx    = Utils::SortIdx(this->Angles      [scanLine], false);
+    std::vector<size_t> sortedSaliencyIdx  = Utils::SortIdx(this->Saliency    [scanLine], false);
+    std::vector<size_t> sortedIntensityGap = Utils::SortIdx(this->IntensityGap[scanLine], false);
 
     // Add edge according to criterion
     auto addEdgesUsingCriterion = [this, scanLine, Npts](const std::vector<size_t>& sortedValuesIdx,
