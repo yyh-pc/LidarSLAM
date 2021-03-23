@@ -217,7 +217,7 @@ struct OctreeCompressedPointCloud final : public PointCloudData<PointT>
       {
         compression.decodePointCloud(this->CompressedData, cloud);
       }
-      catch (std::logic_error e)
+      catch (const std::logic_error& e)
       {
         PRINT_ERROR("Decompression failed. Returning empty pointcloud.");
       }

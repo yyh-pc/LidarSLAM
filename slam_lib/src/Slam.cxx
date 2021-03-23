@@ -1216,7 +1216,7 @@ void Slam::InitUndistortion()
 {
   // Get 'time' field range
   double frameFirstTime = std::numeric_limits<double>::max();
-  double frameLastTime  = std::numeric_limits<double>::min();
+  double frameLastTime  = std::numeric_limits<double>::lowest();
   auto GetMinMaxTime = [&](const PointCloud::ConstPtr& cloud)
   {
     for (const Point& point: *cloud)
