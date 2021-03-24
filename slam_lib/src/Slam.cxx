@@ -271,18 +271,18 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
       std::cout << kpName << " map: " << map->size() << " points, " << Utils::PointCloudMemorySize(*map) * 1e-6 << " MB\n";
     };
 
-    PrintMemoryConsumption(EDGE,  "Edges");
-    PrintMemoryConsumption(PLANE, "Planes");
-    PrintMemoryConsumption(BLOB,  "Blobs");
+    PrintMemoryConsumption(EDGE,  Utils::Plural(Utils::FirstUp(KeypointTypeNames.at(EDGE))));
+    PrintMemoryConsumption(PLANE, Utils::Plural(Utils::FirstUp(KeypointTypeNames.at(PLANE))));
+    PrintMemoryConsumption(BLOB,  Utils::Plural(Utils::FirstUp(KeypointTypeNames.at(BLOB))));
 
     // Logged keypoints
     size_t memory, points;
     Utils::LoggedKeypointsSize(this->LogKeypoints[EDGE], memory, points);
-    std::cout << "Edges log  : " << this->LogKeypoints[EDGE].size()  << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
+    std::cout << Utils::FirstUp(Utils::Plural(KeypointTypeNames.at(EDGE)))  << " log  : " << this->LogKeypoints[EDGE].size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
     Utils::LoggedKeypointsSize(this->LogKeypoints[PLANE], memory, points);
-    std::cout << "Planes log : " << this->LogKeypoints[PLANE].size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
+    std::cout << Utils::FirstUp(Utils::Plural(KeypointTypeNames.at(PLANE))) << " log : " << this->LogKeypoints[PLANE].size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
     Utils::LoggedKeypointsSize(this->LogKeypoints[BLOB], memory, points);
-    std::cout << "Blobs log  : " << this->LogKeypoints[BLOB].size()  << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+    std::cout << Utils::FirstUp(Utils::Plural(KeypointTypeNames.at(BLOB)))  << " log  : " << this->LogKeypoints[BLOB].size() << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
     RESET_COUT_FIXED_PRECISION;
   }
 
@@ -363,7 +363,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     std::map<Keypoint, PointCloud::Ptr> logKeypoints;
     logKeypoints[EDGE] = this->LogKeypoints[EDGE][i].GetCloud();
     logKeypoints[PLANE] = this->LogKeypoints[PLANE][i].GetCloud();
-    logKeypoints[BLOB]  = !this->FastSlam ? this->LogKeypoints[BLOB][i].GetCloud() : PointCloud::Ptr(new PointCloud);
+    logKeypoints[BLOB]  = this->UseKeypoints[BLOB] ? this->LogKeypoints[BLOB][i].GetCloud() : PointCloud::Ptr(new PointCloud);
     if (this->Undistortion && i >= 1)
     {
       // Init the undistortion interpolator
@@ -417,7 +417,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   };
   updateMap(*this->LocalMaps[EDGE], keypoints[EDGE], aggregatedKeypointsMap[EDGE]);
   updateMap(*this->LocalMaps[PLANE], keypoints[PLANE], aggregatedKeypointsMap[PLANE]);
-  if (!this->FastSlam)
+  if (this->UseKeypoints[BLOB])
     updateMap(*this->LocalMaps[BLOB], keypoints[BLOB], aggregatedKeypointsMap[BLOB]);
 
   // Processing duration
@@ -450,9 +450,9 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) con
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
 
   // Save keypoints maps
-  savePointCloudToPCD(filePrefix + "edges.pcd",  *this->GetMap(EDGE),  pcdFormat, true);
-  savePointCloudToPCD(filePrefix + "planes.pcd", *this->GetMap(PLANE), pcdFormat, true);
-  savePointCloudToPCD(filePrefix + "blobs.pcd",  *this->GetMap(BLOB),  pcdFormat, true);
+  savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(EDGE))  + ".pcd", *this->GetMap(EDGE),  pcdFormat, true);
+  savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(PLANE)) + ".pcd", *this->GetMap(PLANE), pcdFormat, true);
+  savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(BLOB))  + ".pcd", *this->GetMap(BLOB),  pcdFormat, true);
 
   // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
 
@@ -479,9 +479,9 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
     }
   };
 
-  loadMapFromPCD(filePrefix + "edges.pcd",  this->LocalMaps[EDGE]);
-  loadMapFromPCD(filePrefix + "planes.pcd", this->LocalMaps[PLANE]);
-  loadMapFromPCD(filePrefix + "blobs.pcd",  this->LocalMaps[BLOB]);
+  loadMapFromPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(EDGE))  + ".pcd",  this->LocalMaps[EDGE]);
+  loadMapFromPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(PLANE)) + ".pcd", this->LocalMaps[PLANE]);
+  loadMapFromPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(BLOB))  + ".pcd",  this->LocalMaps[BLOB]);
 
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
 
@@ -761,7 +761,7 @@ void Slam::ExtractKeypoints()
     Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(lidarDevice);
     AddBaseKeypoints(this->CurrentRawKeypoints[EDGE],  ke->GetKeypoints(EDGE),  baseToLidar);
     AddBaseKeypoints(this->CurrentRawKeypoints[PLANE], ke->GetKeypoints(PLANE), baseToLidar);
-    if (!this->FastSlam)
+    if (this->UseKeypoints[BLOB])
       AddBaseKeypoints(this->CurrentRawKeypoints[BLOB], ke->GetKeypoints(BLOB), baseToLidar);
   }
 
@@ -973,7 +973,7 @@ void Slam::Localization()
     #pragma omp section
     extractMapKeypointsAndBuildKdTree(this->CurrentUndistortedKeypoints[PLANE], *this->LocalMaps[PLANE], subKeypointsLocalMap[PLANE], kdtrees[PLANE]);
     #pragma omp section
-    if (!this->FastSlam)
+    if (this->UseKeypoints[BLOB])
       extractMapKeypointsAndBuildKdTree(this->CurrentUndistortedKeypoints[BLOB], *this->LocalMaps[BLOB], subKeypointsLocalMap[BLOB], kdtrees[BLOB]);
   }
 
@@ -1109,7 +1109,7 @@ void Slam::UpdateMapsUsingTworld()
     #pragma omp section
     updateMap(this->LocalMaps[PLANE], this->CurrentUndistortedKeypoints[PLANE], this->CurrentWorldKeypoints[PLANE]);
     #pragma omp section
-    if (!this->FastSlam)
+    if (this->UseKeypoints[BLOB])
       updateMap(this->LocalMaps[BLOB], this->CurrentUndistortedKeypoints[BLOB], this->CurrentWorldKeypoints[BLOB]);
   }
 }
@@ -1125,7 +1125,7 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
     this->LogCovariances.emplace_back(Utils::Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance));
     this->LogKeypoints[EDGE].emplace_back(this->CurrentRawKeypoints[EDGE], this->LoggingStorage);
     this->LogKeypoints[PLANE].emplace_back(this->CurrentRawKeypoints[PLANE], this->LoggingStorage);
-    if (!this->FastSlam)
+    if (this->UseKeypoints[BLOB])
       this->LogKeypoints[BLOB].emplace_back(this->CurrentRawKeypoints[BLOB], this->LoggingStorage);
 
     // If a timeout is defined, forget too old data
@@ -1139,7 +1139,7 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
         this->LogCovariances.pop_front();
         this->LogKeypoints[EDGE].pop_front();
         this->LogKeypoints[PLANE].pop_front();
-        if (!this->FastSlam)
+        if (this->UseKeypoints[BLOB])
           this->LogKeypoints[BLOB].pop_front();
       }
     }

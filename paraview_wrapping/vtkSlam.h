@@ -98,8 +98,8 @@ public:
   vtkGetMacro(OutputKeypointsInWorldCoordinates, bool)
   vtkSetMacro(OutputKeypointsInWorldCoordinates, bool)
 
-  vtkCustomGetMacro(FastSlam, bool)
-  vtkCustomSetMacro(FastSlam, bool)
+  vtkCustomGetMacro(UseBlobs, bool)
+  vtkCustomSetMacro(UseBlobs, bool)
 
   vtkCustomGetMacro(Verbosity, int)
   vtkCustomSetMacro(Verbosity, int)

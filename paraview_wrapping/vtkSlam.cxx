@@ -97,14 +97,6 @@ vtkSlam::vtkSlam()
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
-{
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting VoxelGridLeafSize to " << _arg);
-  this->SlamAlgo->SetVoxelGridLeafSize(k, s);
-  this->ParametersModificationTime.Modified();
-}
-
-//-----------------------------------------------------------------------------
 void vtkSlam::Reset()
 {
   this->SlamAlgo->Reset(true);
@@ -329,7 +321,7 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   vtkIndent paramIndent = indent.GetNextIndent();
   #define PrintParameter(param) os << paramIndent << #param << "\t" << this->SlamAlgo->Get##param() << std::endl;
 
-  PrintParameter(FastSlam)
+  PrintParameter(UseBlobs)
   PrintParameter(Undistortion)
   PrintParameter(NbThreads)
   PrintParameter(Verbosity)
@@ -698,5 +690,13 @@ void vtkSlam::SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor* _arg)
 {
   vtkSetObjectBodyMacro(KeyPointsExtractor, vtkSpinningSensorKeypointExtractor, _arg);
   this->SlamAlgo->SetKeyPointsExtractor(this->KeyPointsExtractor->GetExtractor());
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
+{
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting VoxelGridLeafSize to " << s);
+  this->SlamAlgo->SetVoxelGridLeafSize(k, s);
   this->ParametersModificationTime.Modified();
 }

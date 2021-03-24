@@ -289,13 +289,13 @@
       <!-- ==================== General ==================== -->
 
       <IntVectorProperty
-          name="Fast Slam"
-          command="SetFastSlam"
-          default_values="1"
+          name="Use blobs"
+          command="SetUseBlobs"
+          default_values="0"
           number_of_elements="1">
         <BooleanDomain name="bool" />
         <Documentation>
-          If enabled, blobs keypoints are not used.
+          If enabled, blob keypoints are used in localization step.
         </Documentation>
       </IntVectorProperty>
 
@@ -398,7 +398,7 @@
       </IntVectorProperty>
 
       <PropertyGroup label="General Parameters">
-        <Property name="Fast Slam" />
+        <Property name="Use blobs" />
         <Property name="Verbosity level" />
         <Property name="Ego-Motion mode" />
         <Property name="Undistortion mode" />
@@ -895,8 +895,8 @@
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator"
                                    mode="visibility"
-                                   property="Fast Slam"
-                                   value="0" />
+                                   property="Use blobs"
+                                   value="1" />
         </Hints>
       </DoubleVectorProperty>
 

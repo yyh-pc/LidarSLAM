@@ -194,8 +194,8 @@ public:
   SetMacro(Verbosity, int)
   GetMacro(Verbosity, int)
 
-  GetMacro(FastSlam, bool)
-  SetMacro(FastSlam, bool)
+  void SetUseBlobs(bool ub) { this->UseKeypoints[BLOB] = ub; }
+  bool GetUseBlobs() const { return this->UseKeypoints.at(BLOB); }
 
   SetMacro(EgoMotion, EgoMotionMode)
   GetMacro(EgoMotion, EgoMotionMode)
@@ -340,11 +340,8 @@ private:
   // Max number of threads to use for parallel processing
   int NbThreads = 1;
 
-  // If set to true the "Localization" step planar keypoints used
-  // will be the same than the "EgoMotion" step ones. If set to false
-  // all points that are not set to invalid will be used
-  // as "Localization" step planar points.
-  bool FastSlam = true;
+  // Booleans to decide whether to extract the keypoints of the relative type or not
+  std::map<Keypoint, bool> UseKeypoints= {{EDGE, true}, {PLANE, true}, {BLOB, false}};
 
   // How to estimate Ego-Motion (approximate relative motion since last frame).
   // The ego-motion step aims to give a fast and approximate initialization of
