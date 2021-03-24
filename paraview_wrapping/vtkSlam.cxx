@@ -370,6 +370,7 @@ int vtkSlam::FillInputPortInformation(int port, vtkInformation* info)
   if (port == CALIBRATION_INPUT_PORT)
   {
     info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkTable");
+    info->Set(vtkAlgorithm::INPUT_IS_OPTIONAL(), 1);
     return 1;
   }
   return 0;

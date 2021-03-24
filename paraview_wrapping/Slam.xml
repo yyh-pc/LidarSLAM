@@ -46,7 +46,11 @@
       <InputProperty
          name="Calibration"
          port_index="1"
-         command="SetInputConnection">
+         command="SetInputConnection"
+         null_on_empty="1">
+        <Hints>
+          <Optional /> <!-- No input selection dialog at instantiation -->
+        </Hints>
         <ProxyGroupDomain name="groups">
           <Group name="sources"/>
           <Group name="filters"/>
@@ -55,7 +59,7 @@
           <DataType value="vtkTable"/>
         </DataTypeDomain>
         <Documentation>
-          Set the LiDAR sensor calibration to use.
+          Optional LiDAR sensor calibration to use to correct laser rings' IDs.
         </Documentation>
       </InputProperty>
 
