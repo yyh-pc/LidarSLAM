@@ -108,6 +108,17 @@ std::vector<size_t> SortIdx(const std::vector<T>& v, bool ascending=true)
   return idx;
 }
 
+//------------------------------------------------------------------------------
+/*!
+ * @brief Convert first char to upper case
+ */
+std::string Capitalize(std::string st);
+//------------------------------------------------------------------------------
+/*!
+ * @brief Make the string plural (add 's')
+ */
+std::string Plural(std::string st);
+
 //==============================================================================
 //   Geometry helpers
 //==============================================================================

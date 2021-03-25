@@ -33,13 +33,13 @@ enum Output
   POSE_PREDICTION_ODOM,  // Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
   POSE_PREDICTION_TF,    // Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
 
-  EDGES_MAP,             // Publish edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
-  PLANES_MAP,            // Publish planes keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
-  BLOBS_MAP,             // Publish blobs keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
+  EDGES_MAP,             // Publish edge keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
+  PLANES_MAP,            // Publish plane keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
+  BLOBS_MAP,             // Publish blob keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
 
-  EDGES_KEYPOINTS,       // Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
-  PLANES_KEYPOINTS,      // Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
-  BLOBS_KEYPOINTS,       // Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
+  EDGE_KEYPOINTS,       // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
+  PLANE_KEYPOINTS,      // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
+  BLOB_KEYPOINTS,       // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
 
   SLAM_REGISTERED_POINTS,// Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_registered_points'.
 
@@ -81,9 +81,9 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   initPublisher(PLANES_MAP, "maps/planes", CloudS, "output/maps/planes", true, 1, false);
   initPublisher(BLOBS_MAP,  "maps/blobs",  CloudS, "output/maps/blobs",  true, 1, false);
 
-  initPublisher(EDGES_KEYPOINTS,  "keypoints/edges",  CloudS, "output/keypoints/edges",  true, 1, false);
-  initPublisher(PLANES_KEYPOINTS, "keypoints/planes", CloudS, "output/keypoints/planes", true, 1, false);
-  initPublisher(BLOBS_KEYPOINTS,  "keypoints/blobs",  CloudS, "output/keypoints/blobs",  true, 1, false);
+  initPublisher(EDGE_KEYPOINTS,  "keypoints/edges",  CloudS, "output/keypoints/edges",  true, 1, false);
+  initPublisher(PLANE_KEYPOINTS, "keypoints/planes", CloudS, "output/keypoints/planes", true, 1, false);
+  initPublisher(BLOB_KEYPOINTS,  "keypoints/blobs",  CloudS, "output/keypoints/blobs",  true, 1, false);
 
   initPublisher(SLAM_REGISTERED_POINTS, "slam_registered_points", CloudS, "output/registered_points", true, 1, false);
 
@@ -512,14 +512,14 @@ void LidarSlamNode::PublishOutput()
       this->Publishers[publisher].publish(pc);
 
   // Keypoints maps
-  publishPointCloud(EDGES_MAP,  this->LidarSlam.GetEdgesMap());
-  publishPointCloud(PLANES_MAP, this->LidarSlam.GetPlanarsMap());
-  publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetBlobsMap());
+  publishPointCloud(EDGES_MAP,  this->LidarSlam.GetMap(LidarSlam::EDGE));
+  publishPointCloud(PLANES_MAP, this->LidarSlam.GetMap(LidarSlam::PLANE));
+  publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetMap(LidarSlam::BLOB));
 
   // Current keypoints
-  publishPointCloud(EDGES_KEYPOINTS,  this->LidarSlam.GetEdgesKeypoints());
-  publishPointCloud(PLANES_KEYPOINTS, this->LidarSlam.GetPlanarsKeypoints());
-  publishPointCloud(BLOBS_KEYPOINTS,  this->LidarSlam.GetBlobsKeypoints());
+  publishPointCloud(EDGE_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::EDGE));
+  publishPointCloud(PLANE_KEYPOINTS, this->LidarSlam.GetKeypoints(LidarSlam::PLANE));
+  publishPointCloud(BLOB_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::BLOB));
 
   // debug cloud
   publishPointCloud(SLAM_REGISTERED_POINTS, this->LidarSlam.GetOutputFrame());
@@ -531,7 +531,7 @@ void LidarSlamNode::SetSlamParameters()
   #define SetSlamParam(type, rosParam, slamParam) { type val; if (this->PrivNh.getParam(rosParam, val)) this->LidarSlam.Set##slamParam(val); }
 
   // General
-  SetSlamParam(bool,   "slam/fast_slam", FastSlam)
+  SetSlamParam(bool,   "slam/use_blobs", UseBlobs)
   SetSlamParam(int,    "slam/verbosity", Verbosity)
   SetSlamParam(int,    "slam/n_threads", NbThreads)
   SetSlamParam(double, "slam/logging_timeout", LoggingTimeout)
@@ -614,9 +614,13 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/localization/final_saturation_distance", LocalizationFinalSaturationDistance)
 
   // Rolling grids
-  SetSlamParam(double, "slam/voxel_grid/leaf_size_edges", VoxelGridLeafSizeEdges)
-  SetSlamParam(double, "slam/voxel_grid/leaf_size_planes", VoxelGridLeafSizePlanes)
-  SetSlamParam(double, "slam/voxel_grid/leaf_size_blobs", VoxelGridLeafSizeBlobs)
+  double size;
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_edges", size))
+    this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::EDGE, size);
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_planes", size))
+    this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::PLANE, size);
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_blobs", size))
+    this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::BLOB, size);
   SetSlamParam(double, "slam/voxel_grid/resolution", VoxelGridResolution)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
 

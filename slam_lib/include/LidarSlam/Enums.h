@@ -18,6 +18,10 @@
 
 #pragma once
 
+#include <vector>
+#include <string>
+#include <map>
+
 namespace LidarSlam
 {
 
@@ -30,6 +34,9 @@ enum Keypoint
   BLOB  = 2,   ///< blob keypoint (spherical local structure)
   nKeypointTypes
 };
+
+static const std::vector<Keypoint> KeypointTypes = { EDGE, PLANE, BLOB };
+static const std::map<Keypoint, std::string> KeypointTypeNames = { {EDGE, "edge"}, {PLANE, "plane"}, {BLOB, "blob"} };
 
 //------------------------------------------------------------------------------
 //! How to deal with undistortion

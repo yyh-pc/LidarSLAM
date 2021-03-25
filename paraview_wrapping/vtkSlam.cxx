@@ -202,13 +202,13 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     static vtkPolyData* cacheBlobMap = vtkPolyData::New();
     if ((this->SlamAlgo->GetNbrFrameProcessed() - 1) % this->MapsUpdateStep == 0)
     {
-      this->PointCloudToPolyData(this->SlamAlgo->GetEdgesMap(), cacheEdgeMap);
-      this->PointCloudToPolyData(this->SlamAlgo->GetPlanarsMap(), cachePlanarMap);
-      this->PointCloudToPolyData(this->SlamAlgo->GetBlobsMap(), cacheBlobMap);
+      this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::EDGE), cacheEdgeMap);
+      this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::PLANE), cachePlanarMap);
+      this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::BLOB), cacheBlobMap);
     }
 
     // Fill outputs from cache
-    // Output : Edges points map
+    // Output : Edge points map
     auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
     edgeMap->ShallowCopy(cacheEdgeMap);
     // Output : Planar points map
@@ -227,13 +227,13 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : output current keypoints"));
     // Output : Current edge keypoints
     auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
-    this->PointCloudToPolyData(this->SlamAlgo->GetEdgesKeypoints(this->OutputKeypointsInWorldCoordinates), edgePoints);
+    this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(LidarSlam::EDGE, this->OutputKeypointsInWorldCoordinates), edgePoints);
     // Output : Current planar keypoints
     auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
-    this->PointCloudToPolyData(this->SlamAlgo->GetPlanarsKeypoints(this->OutputKeypointsInWorldCoordinates), planarPoints);
+    this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(LidarSlam::PLANE, this->OutputKeypointsInWorldCoordinates), planarPoints);
     // Output : Current blob keypoints
     auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
-    this->PointCloudToPolyData(this->SlamAlgo->GetBlobsKeypoints(this->OutputKeypointsInWorldCoordinates), blobPoints);
+    this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(LidarSlam::BLOB, this->OutputKeypointsInWorldCoordinates), blobPoints);
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : output current keypoints"));
   }
 
@@ -287,14 +287,14 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
       auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
       auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
       std::unordered_map<std::string, vtkPolyData*> outputMap;
-      outputMap["EgoMotion: edges matches"] = edgePoints;
-      outputMap["EgoMotion: edges weights"] = edgePoints;
-      outputMap["Localization: edges matches"] = edgePoints;
-      outputMap["Localization: edges weights"] = edgePoints;
-      outputMap["EgoMotion: planes matches"] = planarPoints;
-      outputMap["EgoMotion: planes weights"] = planarPoints;
-      outputMap["Localization: planes matches"] = planarPoints;
-      outputMap["Localization: planes weights"] = planarPoints;
+      outputMap["EgoMotion: edge matches"] = edgePoints;
+      outputMap["EgoMotion: edge weights"] = edgePoints;
+      outputMap["Localization: edge matches"] = edgePoints;
+      outputMap["Localization: edge weights"] = edgePoints;
+      outputMap["EgoMotion: plane matches"] = planarPoints;
+      outputMap["EgoMotion: plane weights"] = planarPoints;
+      outputMap["Localization: plane matches"] = planarPoints;
+      outputMap["Localization: plane weights"] = planarPoints;
       auto debugArray = this->SlamAlgo->GetDebugArray();
       for (const auto& it : outputMap)
       {
@@ -321,7 +321,7 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   vtkIndent paramIndent = indent.GetNextIndent();
   #define PrintParameter(param) os << paramIndent << #param << "\t" << this->SlamAlgo->Get##param() << std::endl;
 
-  PrintParameter(FastSlam)
+  PrintParameter(UseBlobs)
   PrintParameter(Undistortion)
   PrintParameter(NbThreads)
   PrintParameter(Verbosity)
@@ -690,5 +690,13 @@ void vtkSlam::SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor* _arg)
 {
   vtkSetObjectBodyMacro(KeyPointsExtractor, vtkSpinningSensorKeypointExtractor, _arg);
   this->SlamAlgo->SetKeyPointsExtractor(this->KeyPointsExtractor->GetExtractor());
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
+{
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting VoxelGridLeafSize to " << s);
+  this->SlamAlgo->SetVoxelGridLeafSize(k, s);
   this->ParametersModificationTime.Modified();
 }

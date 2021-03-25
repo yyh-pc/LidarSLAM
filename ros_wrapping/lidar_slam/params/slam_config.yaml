@@ -73,7 +73,7 @@ gps:
 slam:
 
   n_threads: 8      # Max number of threads to use for parallel processing (default: 1)
-  fast_slam: true   # Use only edge and planar keypoints (do not use blob keypoints)
+  use_blobs: false  # Use only edge and planar keypoints (do not use blob keypoints)
 
   # How to estimate Ego-Motion (approximate relative motion since last frame).
   # The ego-motion step aims to give a fast and approximate initialization of new

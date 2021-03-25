@@ -171,14 +171,13 @@ void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 {
-  // Do not use clear(), otherwise weird things could happen if outer program
-  // uses these pointers
-  this->EdgesPoints.reset(new PointCloud);
-  this->PlanarsPoints.reset(new PointCloud);
-  this->BlobsPoints.reset(new PointCloud);
-  Utils::CopyPointCloudMetadata(*this->Scan, *this->EdgesPoints);
-  Utils::CopyPointCloudMetadata(*this->Scan, *this->PlanarsPoints);
-  Utils::CopyPointCloudMetadata(*this->Scan, *this->BlobsPoints);
+  // Do not use clear(), otherwise weird things could happen
+  // if outer program uses these pointers
+  for (auto k : KeypointTypes)
+  {
+    this->Keypoints[k].reset(new PointCloud);
+    Utils::CopyPointCloudMetadata(*this->Scan, *this->Keypoints[k]);
+  }
 
   // Initialize the features vectors with the correct length
   this->Angles.resize(this->NbLaserRings);
@@ -562,24 +561,21 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     }
   }
 
-  auto addKeypoints = [this](Keypoint type, PointCloud::Ptr& keypoints)
+  for (unsigned int scanLine = 0; scanLine < this->NbLaserRings; ++scanLine)
   {
-    for (unsigned int scanLine = 0; scanLine < this->NbLaserRings; ++scanLine)
+    const PointCloud& scanLineCloud = *(this->ScanLines[scanLine]);
+    for (unsigned int index = 0; index < scanLineCloud.size(); ++index)
     {
-      const PointCloud& scanLineCloud = *(this->ScanLines[scanLine]);
-      for (unsigned int index = 0; index < scanLineCloud.size(); ++index)
+      for (const auto& k : KeypointTypes)
       {
-        if (this->Label[scanLine][index][type])
+        if (this->Label[scanLine][index][k])
         {
-          this->IsPointValid[scanLine][index].set(type);
-          keypoints->push_back(scanLineCloud[index]);
+          this->IsPointValid[scanLine][index].set(k);
+          this->Keypoints[k]->push_back(scanLineCloud[index]);
         }
       }
     }
-  };
-  addKeypoints(Keypoint::EDGE, this->EdgesPoints);
-  addKeypoints(Keypoint::PLANE, this->PlanarsPoints);
-  addKeypoints(Keypoint::BLOB, this->BlobsPoints);
+  }
 }
 
 //-----------------------------------------------------------------------------

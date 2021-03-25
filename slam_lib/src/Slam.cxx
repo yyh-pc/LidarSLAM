@@ -137,16 +137,15 @@ Slam::Slam()
   this->KeyPointsExtractors[0] = std::make_shared<SpinningSensorKeypointExtractor>();
 
   // Allocate maps
-  this->EdgesPointsLocalMap = std::make_shared<RollingGrid>();
-  this->PlanarPointsLocalMap = std::make_shared<RollingGrid>();
-  this->BlobsPointsLocalMap = std::make_shared<RollingGrid>();
+  for (auto k : KeypointTypes)
+    this->LocalMaps[k] = std::make_shared<RollingGrid>();
 
   // Set default maps parameters
   this->SetVoxelGridResolution(10.);
   this->SetVoxelGridSize(50);
-  this->SetVoxelGridLeafSizeEdges(0.30);
-  this->SetVoxelGridLeafSizePlanes(0.60);
-  this->SetVoxelGridLeafSizeBlobs(0.30);
+  this->SetVoxelGridLeafSize(EDGE, 0.30);
+  this->SetVoxelGridLeafSize(PLANE, 0.60);
+  this->SetVoxelGridLeafSize(BLOB, 0.30);
 
   // Reset SLAM internal state
   this->Reset();
@@ -170,22 +169,18 @@ void Slam::Reset(bool resetLog)
   // Reset point clouds
   this->CurrentFrames.clear();
   this->CurrentFrames.emplace_back(new PointCloud);
-  this->CurrentRawEdgesPoints.reset(new PointCloud);
-  this->CurrentRawPlanarsPoints.reset(new PointCloud);
-  this->CurrentRawBlobsPoints.reset(new PointCloud);
-  this->CurrentEdgesPoints.reset(new PointCloud);
-  this->CurrentPlanarsPoints.reset(new PointCloud);
-  this->CurrentBlobsPoints.reset(new PointCloud);
-  this->CurrentWorldEdgesPoints.reset(new PointCloud);
-  this->CurrentWorldPlanarsPoints.reset(new PointCloud);
-  this->CurrentWorldBlobsPoints.reset(new PointCloud);
+  for (auto k : KeypointTypes)
+  {
+    this->CurrentRawKeypoints[k].reset(new PointCloud);
+    this->CurrentUndistortedKeypoints[k].reset(new PointCloud);
+    this->CurrentWorldKeypoints[k].reset(new PointCloud);
+  }
 
   // Reset keypoints matching results
-  this->EgoMotionMatchingResults[EDGE] = KeypointsRegistration::MatchingResults();
-  this->EgoMotionMatchingResults[PLANE] = KeypointsRegistration::MatchingResults();
-  this->LocalizationMatchingResults[EDGE] = KeypointsRegistration::MatchingResults();
-  this->LocalizationMatchingResults[PLANE] = KeypointsRegistration::MatchingResults();
-  this->LocalizationMatchingResults[BLOB] = KeypointsRegistration::MatchingResults();
+  for (auto k : {EDGE, PLANE})
+    this->EgoMotionMatchingResults[k] = KeypointsRegistration::MatchingResults();
+  for (auto k : KeypointTypes)
+    this->LocalizationMatchingResults[k] = KeypointsRegistration::MatchingResults();
 
   // Reset log history
   if (resetLog)
@@ -193,9 +188,7 @@ void Slam::Reset(bool resetLog)
     // Reset logged keypoints
     this->NbrFrameProcessed = 0;
     this->LogTrajectory.clear();
-    this->LogEdgesPoints.clear();
-    this->LogPlanarsPoints.clear();
-    this->LogBlobsPoints.clear();
+    this->LogKeypoints.clear();
 
     // Reset processing duration timers
     Utils::Timer::Reset();
@@ -216,7 +209,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
   PRINT_VERBOSE(2, "#########################################################\n");
 
-  // Compute the edges and planars keypoints
+  // Compute the edge and planar keypoints
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints extraction"));
   this->ExtractKeypoints();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints extraction"));
@@ -271,22 +264,21 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   {
     SET_COUT_FIXED_PRECISION(3);
     std::cout << "========== Memory usage ==========\n";
-    // SLAM maps
-    PointCloud::Ptr edgesMap   = this->GetEdgesMap(),
-                    planarsMap = this->GetPlanarsMap(),
-                    blobsMap   = this->GetBlobsMap();
-    std::cout << "Edges map   : " << edgesMap->size()   << " points, " << Utils::PointCloudMemorySize(*edgesMap)   * 1e-6 << " MB\n";
-    std::cout << "Planars map : " << planarsMap->size() << " points, " << Utils::PointCloudMemorySize(*planarsMap) * 1e-6 << " MB\n";
-    std::cout << "Blobs map   : " << blobsMap->size()   << " points, " << Utils::PointCloudMemorySize(*blobsMap)   * 1e-6 << " MB\n";
+    for (auto k : KeypointTypes)
+    {
+      PointCloud::Ptr map = this->GetMap(k);
+      std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k)))
+                << " map: " << map->size() << " points, " << Utils::PointCloudMemorySize(*map) * 1e-6 << " MB\n";
+    }
 
     // Logged keypoints
     size_t memory, points;
-    Utils::LoggedKeypointsSize(this->LogEdgesPoints, memory, points);
-    std::cout << "Edges log   : " << this->LogEdgesPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
-    Utils::LoggedKeypointsSize(this->LogPlanarsPoints, memory, points);
-    std::cout << "Planars log : " << this->LogPlanarsPoints.size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
-    Utils::LoggedKeypointsSize(this->LogBlobsPoints, memory, points);
-    std::cout << "Blobs log   : " << this->LogBlobsPoints.size()   << " frames, " << points << " points, " << memory * 1e-6 << " MB" << std::endl;
+    for (auto k : KeypointTypes)
+    {
+      Utils::LoggedKeypointsSize(this->LogKeypoints[k], memory, points);
+      std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k)))
+                << " log  : " << this->LogKeypoints[k].size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
+    }
     RESET_COUT_FIXED_PRECISION;
   }
 
@@ -353,19 +345,21 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   this->Reset(false);
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : SLAM reset"));
   IF_VERBOSE(3, Utils::Timer::Init("PGO : frames keypoints aggregation"));
-  PointCloud edgesKeypoints, planarsKeypoints, blobsKeypoints;
-  PointCloud::Ptr aggregatedEdgesMap(new PointCloud),
-                  aggregatedPlanarsMap(new PointCloud),
-                  aggregatedBlobsMap(new PointCloud);
+  std::map<Keypoint, PointCloud> keypoints;
+  std::map<Keypoint, PointCloud::Ptr> aggregatedKeypointsMap;
+  for (auto k : KeypointTypes)
+    aggregatedKeypointsMap[k].reset(new PointCloud);
+
   for (unsigned int i = 0; i < nbSlamPoses; i++)
   {
     // Update SLAM pose
     this->LogTrajectory[i].SetIsometry(gpsToSensorOffset.inverse() * optimizedSlamPoses[i].GetIsometry());
 
     // Transform frame keypoints to world coordinates
-    const auto& logEdges = this->LogEdgesPoints[i].GetCloud();
-    const auto& logPlanes = this->LogPlanarsPoints[i].GetCloud();
-    const auto& logBlobs = !this->FastSlam ? this->LogBlobsPoints[i].GetCloud() : PointCloud::Ptr(new PointCloud);
+    std::map<Keypoint, PointCloud::Ptr> logKeypoints;
+    for (auto k : KeypointTypes)
+        logKeypoints[k] = this->UseKeypoints[k] ? this->LogKeypoints[k][i].GetCloud() : PointCloud::Ptr(new PointCloud);
+
     if (this->Undistortion && i >= 1)
     {
       // Init the undistortion interpolator
@@ -373,30 +367,25 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
       interpolator.SetTransforms(this->LogTrajectory[i - 1].GetIsometry(), this->LogTrajectory[i].GetIsometry());
       interpolator.SetTimes(this->LogTrajectory[i].time - this->LogTrajectory[i - 1].time, 0.);
 
-      // Perform undistortion of keypoints clouds
-      auto undistortAndTransform = [&](const PointCloud& in, PointCloud& out)
+      // Perform undistortion of keypoint clouds
+      for (auto k : KeypointTypes)
       {
-        out.clear();
-        out.reserve(in.size());
-        for (const Point& p : in)
-          out.push_back(Utils::TransformPoint(p, interpolator(p.time)));
-      };
-      undistortAndTransform(*logEdges, edgesKeypoints);
-      undistortAndTransform(*logPlanes, planarsKeypoints);
-      undistortAndTransform(*logBlobs, blobsKeypoints);
+        keypoints[k].clear();
+        keypoints[k].reserve(logKeypoints[k]->size());
+        for (const Point& p : *logKeypoints[k])
+          keypoints[k].push_back(Utils::TransformPoint(p, interpolator(p.time)));
+      }
     }
     else
     {
       Eigen::Matrix4d currentTransform = this->LogTrajectory[i].GetMatrix();
-      pcl::transformPointCloud(*logEdges, edgesKeypoints, currentTransform);
-      pcl::transformPointCloud(*logPlanes, planarsKeypoints, currentTransform);
-      pcl::transformPointCloud(*logBlobs, blobsKeypoints, currentTransform);
+      for (auto k : KeypointTypes)
+        pcl::transformPointCloud(*logKeypoints[k],  keypoints[k],  currentTransform);
     }
 
     // Aggregate new keypoints to maps
-    *aggregatedEdgesMap += edgesKeypoints;
-    *aggregatedPlanarsMap += planarsKeypoints;
-    *aggregatedBlobsMap += blobsKeypoints;
+    for (auto k : KeypointTypes)
+      *aggregatedKeypointsMap[k] += keypoints[k];
   }
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : frames keypoints aggregation"));
@@ -407,7 +396,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   this->PreviousTworld = this->LogTrajectory[nbSlamPoses - 2].GetIsometry();
 
   // Update SLAM maps
-  auto updateMap = [&](RollingGrid& map, const PointCloud& lastPoints, const PointCloud::Ptr& aggregatedPoints)
+  for (auto k : KeypointTypes)
   {
     // We do not do map.Add(aggregatedPoints) as this would try to roll the map
     // so that the entire aggregatedPoints can best fit into map. But if this
@@ -415,15 +404,14 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     // centered on the aggregatedPoints bounding box center.
     // Instead, we prefer to roll so that the last frame keypoints can fit,
     // ensuring that next frame will be matched efficiently to rolled map.
-    Eigen::Vector4f minPoint, maxPoint;
-    pcl::getMinMax3D(lastPoints, minPoint, maxPoint);
-    map.Roll(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
-    map.Add(aggregatedPoints, false);
-  };
-  updateMap(*this->EdgesPointsLocalMap, edgesKeypoints, aggregatedEdgesMap);
-  updateMap(*this->PlanarPointsLocalMap, planarsKeypoints, aggregatedPlanarsMap);
-  if (!this->FastSlam)
-    updateMap(*this->BlobsPointsLocalMap, blobsKeypoints, aggregatedBlobsMap);
+    if (this->UseKeypoints[k])
+    {
+      Eigen::Vector4f minPoint, maxPoint;
+      pcl::getMinMax3D(keypoints[k], minPoint, maxPoint);
+      this->LocalMaps[k]->Roll(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+      this->LocalMaps[k]->Add(aggregatedKeypointsMap[k], false);
+    }
+  }
 
   // Processing duration
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : final SLAM map update"));
@@ -445,9 +433,8 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
   // We reset previous pose so that previous ego-motion extrapolation results in Identity matrix.
   // We reset current frame keypoints so that ego-motion registration will be skipped for next frame.
   this->PreviousTworld = this->Tworld;
-  this->CurrentRawEdgesPoints.reset(new PointCloud);
-  this->CurrentRawPlanarsPoints.reset(new PointCloud);
-  this->CurrentRawBlobsPoints.reset(new PointCloud);
+  for (auto k : KeypointTypes)
+    this->CurrentRawKeypoints[k].reset(new PointCloud);
 }
 
 //-----------------------------------------------------------------------------
@@ -456,9 +443,11 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) con
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
 
   // Save keypoints maps
-  savePointCloudToPCD(filePrefix + "edges.pcd",   *this->GetEdgesMap(), pcdFormat, true);
-  savePointCloudToPCD(filePrefix + "planars.pcd", *this->GetPlanarsMap(), pcdFormat, true);
-  savePointCloudToPCD(filePrefix + "blobs.pcd",   *this->GetBlobsMap(), pcdFormat, true);
+  for (auto k : KeypointTypes)
+  {
+    if (this->UseKeypoints.at(k))
+      savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k),  pcdFormat, true);
+  }
 
   // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
 
@@ -475,22 +464,17 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
   if (resetMaps)
     this->ClearMaps();
 
-  auto loadMapFromPCD = [](const std::string& path, std::shared_ptr<RollingGrid>& map)
+  for (auto k : KeypointTypes)
   {
+    std::string path = filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd";
     PointCloud::Ptr keypoints(new PointCloud);
     if (pcl::io::loadPCDFile(path, *keypoints) == 0)
     {
       std::cout << "SLAM keypoints map successfully loaded from " << path << std::endl;
-      map->Add(keypoints);
+      this->LocalMaps[k]->Add(keypoints);
     }
-  };
-
-  loadMapFromPCD(filePrefix + "edges.pcd",   this->EdgesPointsLocalMap);
-  loadMapFromPCD(filePrefix + "planars.pcd", this->PlanarPointsLocalMap);
-  loadMapFromPCD(filePrefix + "blobs.pcd",   this->BlobsPointsLocalMap);
-
+  }
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
-
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints maps loading from PCD"));
 }
 
@@ -565,11 +549,18 @@ std::vector<std::array<double, 36>> Slam::GetCovariances() const
 std::unordered_map<std::string, double> Slam::GetDebugInformation() const
 {
   std::unordered_map<std::string, double> map;
-  map["EgoMotion: edges used"]           = this->EgoMotionMatchingResults.at(EDGE).NbMatches();
-  map["EgoMotion: planes used"]          = this->EgoMotionMatchingResults.at(PLANE).NbMatches();
-  map["Localization: edges used"]        = this->LocalizationMatchingResults.at(EDGE).NbMatches();
-  map["Localization: planes used"]       = this->LocalizationMatchingResults.at(PLANE).NbMatches();
-  map["Localization: blobs used"]        = this->LocalizationMatchingResults.at(BLOB).NbMatches();
+  for (auto k : {EDGE, PLANE})
+  {
+    std::string name = "EgoMotion: " + Utils::Plural(KeypointTypeNames.at(k)) + " used";
+    map[name] = this->EgoMotionMatchingResults.at(k).NbMatches();
+  }
+
+  for (auto k : KeypointTypes)
+  {
+    std::string name = "Localization: " + Utils::Plural(KeypointTypeNames.at(k)) + " used";
+    map[name] = this->LocalizationMatchingResults.at(k).NbMatches();
+  }
+
   map["Localization: position error"]    = this->LocalizationUncertainty.PositionError;
   map["Localization: orientation error"] = this->LocalizationUncertainty.OrientationError;
   return map;
@@ -581,16 +572,22 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
   auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
 
   std::unordered_map<std::string, std::vector<double>> map;
-  map["EgoMotion: edges matches"]  = toDoubleVector(this->EgoMotionMatchingResults.at(EDGE).Rejections);
-  map["EgoMotion: planes matches"] = toDoubleVector(this->EgoMotionMatchingResults.at(PLANE).Rejections);
-  map["EgoMotion: edges weights"]  = this->EgoMotionMatchingResults.at(EDGE).Weights;
-  map["EgoMotion: planes weights"] = this->EgoMotionMatchingResults.at(PLANE).Weights;
-  map["Localization: edges matches"]  = toDoubleVector(this->LocalizationMatchingResults.at(EDGE).Rejections);
-  map["Localization: planes matches"] = toDoubleVector(this->LocalizationMatchingResults.at(PLANE).Rejections);
-  map["Localization: blobs matches"]  = toDoubleVector(this->LocalizationMatchingResults.at(BLOB).Rejections);
-  map["Localization: edges weights"]  = this->LocalizationMatchingResults.at(EDGE).Weights;
-  map["Localization: planes weights"] = this->LocalizationMatchingResults.at(PLANE).Weights;
-  map["Localization: blobs weights"]  = this->LocalizationMatchingResults.at(BLOB).Weights;
+  for (auto k : {EDGE, PLANE})
+  {
+    std::string name = "EgoMotion: " + KeypointTypeNames.at(k) + " matches";
+    map[name]  = toDoubleVector(this->EgoMotionMatchingResults.at(k).Rejections);
+    name = "EgoMotion: " + KeypointTypeNames.at(k) + " weights";
+    map[name]  = this->EgoMotionMatchingResults.at(k).Weights;
+  }
+
+  for (auto k : KeypointTypes)
+  {
+    std::string name = "Localization: " + KeypointTypeNames.at(k) + " matches";
+    map[name]  = toDoubleVector(this->EgoMotionMatchingResults.at(k).Rejections);
+    name = "Localization: " + KeypointTypeNames.at(k) + " weights";
+    map[name]  = this->LocalizationMatchingResults.at(k).Weights;
+  }
+
   return map;
 }
 
@@ -638,9 +635,9 @@ Slam::PointCloud::Ptr Slam::GetOutputFrame()
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetEdgesMap() const
+Slam::PointCloud::Ptr Slam::GetMap(Keypoint k) const
 {
-  PointCloud::Ptr map = this->EdgesPointsLocalMap->Get();
+  PointCloud::Ptr map = this->LocalMaps.at(k)->Get();
   map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
                                       this->WorldFrameId,
                                       this->NbrFrameProcessed);
@@ -648,41 +645,9 @@ Slam::PointCloud::Ptr Slam::GetEdgesMap() const
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetPlanarsMap() const
+Slam::PointCloud::Ptr Slam::GetKeypoints(Keypoint k, bool worldCoordinates) const
 {
-  PointCloud::Ptr map = this->PlanarPointsLocalMap->Get();
-  map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
-                                      this->WorldFrameId,
-                                      this->NbrFrameProcessed);
-  return map;
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetBlobsMap() const
-{
-  PointCloud::Ptr map = this->BlobsPointsLocalMap->Get();
-  map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
-                                      this->WorldFrameId,
-                                      this->NbrFrameProcessed);
-  return map;
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetEdgesKeypoints(bool worldCoordinates) const
-{
-  return worldCoordinates ? this->CurrentWorldEdgesPoints : this->CurrentEdgesPoints;
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetPlanarsKeypoints(bool worldCoordinates) const
-{
-  return worldCoordinates ? this->CurrentWorldPlanarsPoints : this->CurrentPlanarsPoints;
-}
-
-//-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetBlobsKeypoints(bool worldCoordinates) const
-{
-  return worldCoordinates ? this->CurrentWorldBlobsPoints : this->CurrentBlobsPoints;
+  return worldCoordinates ? this->CurrentWorldKeypoints.at(k) : this->CurrentUndistortedKeypoints.at(k);
 }
 
 //==============================================================================
@@ -732,40 +697,15 @@ void Slam::ExtractKeypoints()
   PRINT_VERBOSE(2, "========== Keypoints extraction ==========");
 
   // Current keypoints become previous ones
-  this->PreviousRawEdgesPoints = this->CurrentRawEdgesPoints;
-  this->PreviousRawPlanarsPoints = this->CurrentRawPlanarsPoints;
+  this->PreviousRawKeypoints = this->CurrentRawKeypoints;
 
-  // Reset current keypoints
-  this->CurrentRawEdgesPoints.reset(new PointCloud);
-  this->CurrentRawPlanarsPoints.reset(new PointCloud);
-  this->CurrentRawBlobsPoints.reset(new PointCloud);
+  // Reset current keypoints and adapt header
   pcl::PCLHeader header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp, this->BaseFrameId, this->NbrFrameProcessed);
-  this->CurrentRawEdgesPoints->header = header;
-  this->CurrentRawPlanarsPoints->header = header;
-  this->CurrentRawBlobsPoints->header = header;
-
-  // Transform pointcloud to BASE coordinates system and correct time offset
-  auto AddBaseKeypoints = [this](Slam::PointCloud::Ptr& allKp, const Slam::PointCloud::Ptr& kp, const Eigen::Isometry3d& baseToLidar)
+  for (auto k : KeypointTypes)
   {
-    PointCloud::Ptr baseCloud;
-    // If transform to apply is identity, avoid much work
-    if (baseToLidar.isApprox(Eigen::Isometry3d::Identity()))
-      baseCloud = kp;
-    // If transform is set and non trivial, run transformation
-    else
-    {
-      baseCloud.reset(new PointCloud);
-      pcl::transformPointCloud(*kp, *baseCloud, baseToLidar.matrix());
-    }
-
-    // Add to current keypoints
-    *allKp += *baseCloud;
-
-    // Modify point-wise time offsets to match header.stamp
-    double timeOffset = Utils::PclStampToSec(kp->header.stamp) - Utils::PclStampToSec(allKp->header.stamp);
-    for (unsigned int i = allKp->size() - kp->size(); i < allKp->size(); i++)
-      allKp->at(i).time += timeOffset;
-  };
+    this->CurrentRawKeypoints[k].reset(new PointCloud);
+    this->CurrentRawKeypoints[k]->header = header;
+  }
 
   // Extract keypoints from each input cloud
   for (const PointCloud::Ptr& frame: this->CurrentFrames)
@@ -797,17 +737,39 @@ void Slam::ExtractKeypoints()
     // Compute keypoints from this device frame
     ke->ComputeKeyPoints(frame);
 
-    // Transform them from LIDAR to BASE coordinates, and aggregate them
+    // Transform ke keypoints from LIDAR to BASE coordinates, 
+    // aggregate them in CurrentRawKeypoints, and correct time offset
     Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(lidarDevice);
-    AddBaseKeypoints(this->CurrentRawEdgesPoints,   ke->GetEdgePoints(),   baseToLidar);
-    AddBaseKeypoints(this->CurrentRawPlanarsPoints, ke->GetPlanarPoints(), baseToLidar);
-    if (!this->FastSlam)
-      AddBaseKeypoints(this->CurrentRawBlobsPoints, ke->GetBlobPoints(),   baseToLidar);
+    for (auto k : KeypointTypes)
+    {
+      PointCloud::Ptr baseCloud;
+      // If transform to apply is identity, avoid much work
+      if (baseToLidar.isApprox(Eigen::Isometry3d::Identity()))
+        baseCloud = ke->GetKeypoints(k);
+      // If transform is set and non trivial, run transformation
+      else
+      {
+        baseCloud.reset(new PointCloud);
+        pcl::transformPointCloud(*ke->GetKeypoints(k), *baseCloud, baseToLidar.matrix());
+      }
+
+      // Add to current keypoints
+      *this->CurrentRawKeypoints[k] += *baseCloud;
+
+      // Modify point-wise time offsets to match header.stamp
+      double timeOffset = Utils::PclStampToSec(ke->GetKeypoints(k)->header.stamp) - Utils::PclStampToSec(this->CurrentRawKeypoints[k]->header.stamp);
+      for (unsigned int i = this->CurrentRawKeypoints[k]->size() - ke->GetKeypoints(k)->size(); i < this->CurrentRawKeypoints[k]->size(); i++)
+        this->CurrentRawKeypoints[k]->at(i).time += timeOffset;
+    }
   }
 
-  PRINT_VERBOSE(2, "Extracted features : " << this->CurrentRawEdgesPoints->size()   << " edges, "
-                                           << this->CurrentRawPlanarsPoints->size() << " planes, "
-                                           << this->CurrentRawBlobsPoints->size()   << " blobs.");
+  if (this->Verbosity >= 2)
+  {
+    std::cout << "Extracted features : ";
+    for (auto k : KeypointTypes)
+      std::cout << this->CurrentRawKeypoints[k]->size() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+    std::cout << std::endl;
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -845,18 +807,29 @@ void Slam::ComputeEgoMotion()
     //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
     // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
     IF_VERBOSE(3, Utils::Timer::Init("EgoMotion : build KD tree"));
-    KDTree kdtreePreviousEdges, kdtreePreviousPlanes;
-    #pragma omp parallel sections num_threads(std::min(this->NbThreads, 2))
+    std::map<Keypoint, KDTree> kdtreePrevious;
+    // Kdtrees map initialization to parallelize their 
+    // construction using OMP and avoid concurrency issues
+    for (auto k : {EDGE, PLANE})
+      kdtreePrevious[k] = KDTree();
+
+    #pragma omp parallel for num_threads(std::min(this->NbThreads, 2))
+    // The iteration is not directly on Keypoint types
+    // because of openMP behaviour which needs int iteration
+    for (int i = 0; i < static_cast<int>(KeypointTypes.size()); ++i)
     {
-      #pragma omp section
-      kdtreePreviousEdges.Reset(this->PreviousRawEdgesPoints);
-      #pragma omp section
-      kdtreePreviousPlanes.Reset(this->PreviousRawPlanarsPoints);
+      Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
+      if (this->PreviousRawKeypoints.count(k))
+        kdtreePrevious[k].Reset(this->PreviousRawKeypoints[k]);
     }
 
-    PRINT_VERBOSE(2, "Keypoints extracted from previous frame : "
-                     << this->PreviousRawEdgesPoints->size() << " edges, "
-                     << this->PreviousRawPlanarsPoints->size() << " planes");
+    if (this->Verbosity >= 2)
+    {
+      std::cout << "Keypoints extracted from previous frame : ";
+      for (auto k : {EDGE, PLANE})
+        std::cout << this->PreviousRawKeypoints[k]->size() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+      std::cout << std::endl;
+    }
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("EgoMotion : build KD tree"));
     IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
@@ -897,14 +870,16 @@ void Slam::ComputeEgoMotion()
 
       KeypointsRegistration optim(optimParams, this->Trelative);
 
-      // Loop over edges to build the point to line residuals
-      this->EgoMotionMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentRawEdgesPoints, kdtreePreviousEdges, Keypoint::EDGE);
+      // Loop over keypoints to build the residuals
+      for (auto k : {EDGE, PLANE})
+        this->EgoMotionMatchingResults[k] = optim.BuildAndMatchResiduals(this->CurrentRawKeypoints[k], kdtreePrevious[k], k);
 
-      // Loop over surfaces to build the point to plane residuals
-      this->EgoMotionMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentRawPlanarsPoints, kdtreePreviousPlanes, Keypoint::PLANE);
+      // Count matches and skip this frame
+      // if there are too few geometric keypoints matched
+      totalMatchedKeypoints = 0;
+      for (auto k : {EDGE, PLANE})
+        totalMatchedKeypoints += this->EgoMotionMatchingResults[k].NbMatches();
 
-      // Skip this frame if there are too few geometric keypoints matched
-      totalMatchedKeypoints = this->EgoMotionMatchingResults[EDGE].NbMatches() + this->EgoMotionMatchingResults[PLANE].NbMatches();
       if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
       {
         PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
@@ -932,10 +907,13 @@ void Slam::ComputeEgoMotion()
     }
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion : whole ICP-LM loop"));
-
-    PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
-                      << this->EgoMotionMatchingResults[EDGE].NbMatches()  << " edges, "
-                      << this->EgoMotionMatchingResults[PLANE].NbMatches() << " planes).");
+    if (this->Verbosity >= 2)
+    {
+      std::cout << "Matched keypoints: " << totalMatchedKeypoints << " (";
+      for (auto k : {EDGE, PLANE})
+        std::cout << this->EgoMotionMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+      std::cout << ")" << std::endl;
+    }
   }
 
   // Print EgoMotion results
@@ -956,9 +934,8 @@ void Slam::Localization()
   this->Tworld = this->PreviousTworld * this->Trelative;
 
   // Init undistorted keypoints clouds from raw points
-  this->CurrentEdgesPoints = this->CurrentRawEdgesPoints;
-  this->CurrentPlanarsPoints = this->CurrentRawPlanarsPoints;
-  this->CurrentBlobsPoints = this->CurrentRawBlobsPoints;
+  this->CurrentUndistortedKeypoints = this->CurrentRawKeypoints;
+
   // Init and run undistortion if required
   if (this->Undistortion)
   {
@@ -972,21 +949,15 @@ void Slam::Localization()
 
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
-  PointCloud::Ptr subEdgesPointsLocalMap, subPlanarPointsLocalMap, subBlobPointsLocalMap(new PointCloud);
-  KDTree kdtreeEdges, kdtreePlanes, kdtreeBlobs;
-
-  auto extractMapKeypointsAndBuildKdTree = [this](const PointCloud::Ptr& currKeypoints, RollingGrid& map, PointCloud::Ptr& prevKeypoints, KDTree& kdTree)
+  std::map<Keypoint, PointCloud::Ptr> subKeypointsLocalMap;
+  std::map<Keypoint, KDTree> kdtrees;
+  // Initialization of std map elements to parallelize 
+  // their construction with OMP avoiding concurrency issues
+  for (auto k : KeypointTypes)
   {
-    // Estimate current keypoints bounding box
-    PointCloud currWordKeypoints;
-    pcl::transformPointCloud(*currKeypoints, currWordKeypoints, this->Tworld.matrix());
-    Eigen::Vector4f minPoint, maxPoint;
-    pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
-
-    // Extract all points in maps lying in this bounding box
-    prevKeypoints = map.Get(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
-    kdTree.Reset(prevKeypoints);
-  };
+    kdtrees[k] = KDTree();
+    subKeypointsLocalMap[k].reset(new PointCloud);
+  }
 
   // CHECK : This step behaves strangely much slower when using OpenMP.
   // This section processing duration (arbitrary unit) :
@@ -995,21 +966,33 @@ void Slam::Localization()
   //  3. with OpenMP, globally used with 3 threads                          : time ~ 2.
   //  4. with OpenMP used in other parts but removing here parallel section : time ~ 2.2 ?!
   // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
-  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, 3))
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration
+  for (int i = 0; i < static_cast<int>(KeypointTypes.size()); ++i)
   {
-    #pragma omp section
-    extractMapKeypointsAndBuildKdTree(this->CurrentEdgesPoints, *this->EdgesPointsLocalMap, subEdgesPointsLocalMap, kdtreeEdges);
-    #pragma omp section
-    extractMapKeypointsAndBuildKdTree(this->CurrentPlanarsPoints, *this->PlanarPointsLocalMap, subPlanarPointsLocalMap, kdtreePlanes);
-    #pragma omp section
-    if (!this->FastSlam)
-      extractMapKeypointsAndBuildKdTree(this->CurrentBlobsPoints, *this->BlobsPointsLocalMap, subBlobPointsLocalMap, kdtreeBlobs);
+    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
+    if (this->UseKeypoints[k])
+    {
+      // Estimate current keypoints bounding box
+      PointCloud currWordKeypoints;
+      pcl::transformPointCloud(*this->CurrentUndistortedKeypoints[k], currWordKeypoints, this->Tworld.matrix());
+      Eigen::Vector4f minPoint, maxPoint;
+      pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
+
+      // Extract all points in maps lying in this bounding box
+      subKeypointsLocalMap[k] = this->LocalMaps[k]->Get(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+      kdtrees[k].Reset(subKeypointsLocalMap[k]);
+    }
   }
 
-  PRINT_VERBOSE(2, "Keypoints extracted from map : "
-                   << subEdgesPointsLocalMap->size() << " edges, "
-                   << subPlanarPointsLocalMap->size() << " planes, "
-                   << subBlobPointsLocalMap->size() << " blobs");
+  if (this->Verbosity >= 2)
+  {
+    std::cout << "Keypoints extracted from map : ";
+    for (auto k : KeypointTypes)
+      std::cout << subKeypointsLocalMap[k]->size() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+    std::cout << std::endl;
+  }
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : keypoints extraction"));
   IF_VERBOSE(3, Utils::Timer::Init("Localization : whole ICP-LM loop"));
@@ -1051,19 +1034,16 @@ void Slam::Localization()
 
     KeypointsRegistration optim(optimParams, this->Tworld);
 
-    // Loop over edges to build the point to line residuals
-    this->LocalizationMatchingResults[EDGE] = optim.BuildAndMatchResiduals(this->CurrentEdgesPoints, kdtreeEdges, Keypoint::EDGE);
+    // Loop over keypoints to build the point to line residuals
+    for (auto k : KeypointTypes)
+      this->LocalizationMatchingResults[k] = optim.BuildAndMatchResiduals(this->CurrentUndistortedKeypoints[k], kdtrees[k], k);
 
-    // Loop over surfaces to build the point to plane residuals
-    this->LocalizationMatchingResults[PLANE] = optim.BuildAndMatchResiduals(this->CurrentPlanarsPoints, kdtreePlanes, Keypoint::PLANE);
+    // Count matches and skip this frame
+    // if there is too few geometric keypoints matched
+    totalMatchedKeypoints = 0;
+    for (auto k : KeypointTypes)
+      totalMatchedKeypoints += this->LocalizationMatchingResults[k].NbMatches();
 
-    // Loop over blobs to build the point to blob residuals
-    this->LocalizationMatchingResults[BLOB] = optim.BuildAndMatchResiduals(this->CurrentBlobsPoints, kdtreeBlobs, Keypoint::BLOB);
-
-    // Skip this frame if there is too few geometric keypoints matched
-    totalMatchedKeypoints =   this->LocalizationMatchingResults[EDGE].NbMatches()
-                            + this->LocalizationMatchingResults[PLANE].NbMatches()
-                            + this->LocalizationMatchingResults[BLOB].NbMatches();
     if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
     {
       // Reset state to previous one to avoid instability
@@ -1106,45 +1086,42 @@ void Slam::Localization()
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
 
   // Optionally print localization optimization summary
-  SET_COUT_FIXED_PRECISION(3);
-  PRINT_VERBOSE(2, "Matched keypoints: " << totalMatchedKeypoints << " ("
-                   << this->LocalizationMatchingResults[EDGE].NbMatches()  << " edges, "
-                   << this->LocalizationMatchingResults[PLANE].NbMatches() << " planes, "
-                   << this->LocalizationMatchingResults[BLOB].NbMatches()  << " blobs)."
-                   "\nPosition uncertainty    = " << this->LocalizationUncertainty.PositionError    << " m"
-                   " (along [" << this->LocalizationUncertainty.PositionErrorDirection.transpose()    << "])"
-                   "\nOrientation uncertainty = " << this->LocalizationUncertainty.OrientationError << " °"
-                   " (along [" << this->LocalizationUncertainty.OrientationErrorDirection.transpose() << "])");
-  RESET_COUT_FIXED_PRECISION;
+  if (this->Verbosity >= 2)
+  {
+    SET_COUT_FIXED_PRECISION(3);
+    std::cout << "Matched keypoints: " << totalMatchedKeypoints << " (";
+    for (auto k : KeypointTypes)
+      std::cout << this->LocalizationMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+    std::cout << ")"
+              << "\nPosition uncertainty    = " << this->LocalizationUncertainty.PositionError    << " m"
+              << " (along [" << this->LocalizationUncertainty.PositionErrorDirection.transpose()    << "])"
+              << "\nOrientation uncertainty = " << this->LocalizationUncertainty.OrientationError << " °"
+              << " (along [" << this->LocalizationUncertainty.OrientationErrorDirection.transpose() << "])";
+    RESET_COUT_FIXED_PRECISION;
+  }
 }
 
 //-----------------------------------------------------------------------------
 void Slam::UpdateMapsUsingTworld()
 {
-  // Helper to transform points to WORLD coordinates and add them to map
-  auto updateMap = [this](std::shared_ptr<RollingGrid> map, PointCloud::Ptr baseFrame, PointCloud::Ptr worldFrame)
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, 3))
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration
+  for (int i = 0; i < static_cast<int>(KeypointTypes.size()); ++i)
   {
-    // Transform keypoints to WORLD coordinates
-    worldFrame->clear();
-    worldFrame->points.reserve(baseFrame->size());
-    worldFrame->header = baseFrame->header;
-    worldFrame->header.frame_id = this->WorldFrameId;
-    for (const Point& p : *baseFrame)
-      worldFrame->push_back(Utils::TransformPoint(p, this->Tworld));
-    // Add new keypoints to rolling grid
-    map->Add(worldFrame);
-  };
-
-  // run maps update
-  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
-  {
-    #pragma omp section
-    updateMap(this->EdgesPointsLocalMap, this->CurrentEdgesPoints, this->CurrentWorldEdgesPoints);
-    #pragma omp section
-    updateMap(this->PlanarPointsLocalMap, this->CurrentPlanarsPoints, this->CurrentWorldPlanarsPoints);
-    #pragma omp section
-    if (!this->FastSlam)
-      updateMap(this->BlobsPointsLocalMap, this->CurrentBlobsPoints, this->CurrentWorldBlobsPoints);
+    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
+    if (this->UseKeypoints[k])
+    {
+      // Transform keypoints to WORLD coordinates
+      this->CurrentWorldKeypoints[k]->clear();
+      this->CurrentWorldKeypoints[k]->points.reserve(this->CurrentUndistortedKeypoints[k]->size());
+      this->CurrentWorldKeypoints[k]->header = this->CurrentUndistortedKeypoints[k]->header;
+      this->CurrentWorldKeypoints[k]->header.frame_id = this->WorldFrameId;
+      for (const Point& p : *this->CurrentUndistortedKeypoints[k])
+        this->CurrentWorldKeypoints[k]->push_back(Utils::TransformPoint(p, this->Tworld));
+      // Add new keypoints to rolling grid
+      this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k]);
+    }
   }
 }
 
@@ -1157,10 +1134,11 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
     // Save current frame data to buffer
     this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
     this->LogCovariances.emplace_back(Utils::Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance));
-    this->LogEdgesPoints.emplace_back(this->CurrentRawEdgesPoints, this->LoggingStorage);
-    this->LogPlanarsPoints.emplace_back(this->CurrentRawPlanarsPoints, this->LoggingStorage);
-    if (!this->FastSlam)
-      this->LogBlobsPoints.emplace_back(this->CurrentRawBlobsPoints, this->LoggingStorage);
+    for (auto k : KeypointTypes)
+    {
+      if (this->UseKeypoints[k])
+        this->LogKeypoints[k].emplace_back(this->CurrentRawKeypoints[k], this->LoggingStorage);
+    }
 
     // If a timeout is defined, forget too old data
     if (this->LoggingTimeout > 0)
@@ -1171,10 +1149,11 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
       {
         this->LogTrajectory.pop_front();
         this->LogCovariances.pop_front();
-        this->LogEdgesPoints.pop_front();
-        this->LogPlanarsPoints.pop_front();
-        if (!this->FastSlam)
-          this->LogBlobsPoints.pop_front();
+        for (auto k : KeypointTypes)
+        {
+          if (this->UseKeypoints[k])
+            this->LogKeypoints[k].pop_front();
+        }
       }
     }
   }
@@ -1217,17 +1196,14 @@ void Slam::InitUndistortion()
   // Get 'time' field range
   double frameFirstTime = std::numeric_limits<double>::max();
   double frameLastTime  = std::numeric_limits<double>::lowest();
-  auto GetMinMaxTime = [&](const PointCloud::ConstPtr& cloud)
+  for (auto k : KeypointTypes)
   {
-    for (const Point& point: *cloud)
+    for (const Point& point: *this->CurrentUndistortedKeypoints[k])
     {
       frameFirstTime = std::min(frameFirstTime, point.time);
       frameLastTime  = std::max(frameLastTime, point.time);
     }
-  };
-  GetMinMaxTime(this->CurrentEdgesPoints);
-  GetMinMaxTime(this->CurrentPlanarsPoints);
-  GetMinMaxTime(this->CurrentBlobsPoints);
+  }
 
   // Update interpolator timestamps and reset transforms
   this->WithinFrameMotion.SetTimes(frameFirstTime, frameLastTime);
@@ -1266,19 +1242,16 @@ void Slam::RefineUndistortion()
   // Init the interpolator to use to remove previous undistortion and apply updated one
   auto transformInterpolator = this->WithinFrameMotion;
   transformInterpolator.SetTransforms(newBaseBegin * previousBaseBegin.inverse(),
-                                      newBaseEnd * previousBaseEnd.inverse());
+                                      newBaseEnd   * previousBaseEnd.inverse());
 
   // Refine undistortion of keypoints clouds
-  #pragma omp parallel sections num_threads(std::min(this->NbThreads, 3))
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, 3))
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration
+  for (int i = 0; i < static_cast<int>(KeypointTypes.size()); ++i)
   {
-    #pragma omp section
-    for (Point& p : *this->CurrentEdgesPoints)
-      Utils::TransformPoint(p, transformInterpolator(p.time));
-    #pragma omp section
-    for (Point& p : *this->CurrentPlanarsPoints)
-      Utils::TransformPoint(p, transformInterpolator(p.time));
-    #pragma omp section
-    for (Point& p : *this->CurrentBlobsPoints)
+    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]); // because of openMP behaviour which needs int iteration
+    for (Point& p : *this->CurrentUndistortedKeypoints[k])
       Utils::TransformPoint(p, transformInterpolator(p.time));
   }
 }
@@ -1324,43 +1297,28 @@ void Slam::SetBaseToLidarOffset(const Eigen::Isometry3d& transform, uint8_t devi
 //-----------------------------------------------------------------------------
 void Slam::ClearMaps()
 {
-  this->EdgesPointsLocalMap->Reset();
-  this->PlanarPointsLocalMap->Reset();
-  this->BlobsPointsLocalMap->Reset();
+  for (auto k : KeypointTypes)
+    this->LocalMaps[k]->Reset();
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SetVoxelGridLeafSizeEdges(double size)
+void Slam::SetVoxelGridLeafSize(Keypoint k, double size)
 {
-  this->EdgesPointsLocalMap->SetLeafSize(size);
-}
-
-//-----------------------------------------------------------------------------
-void Slam::SetVoxelGridLeafSizePlanes(double size)
-{
-  this->PlanarPointsLocalMap->SetLeafSize(size);
-}
-
-//-----------------------------------------------------------------------------
-void Slam::SetVoxelGridLeafSizeBlobs(double size)
-{
-  this->BlobsPointsLocalMap->SetLeafSize(size);
+  this->LocalMaps[k]->SetLeafSize(size);
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetVoxelGridSize(int size)
 {
-  this->EdgesPointsLocalMap->SetGridSize(size);
-  this->PlanarPointsLocalMap->SetGridSize(size);
-  this->BlobsPointsLocalMap->SetGridSize(size);
+  for (auto k : KeypointTypes)
+    this->LocalMaps[k]->SetGridSize(size);
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetVoxelGridResolution(double resolution)
 {
-  this->EdgesPointsLocalMap->SetVoxelResolution(resolution);
-  this->PlanarPointsLocalMap->SetVoxelResolution(resolution);
-  this->BlobsPointsLocalMap->SetVoxelResolution(resolution);
+  for (auto k : KeypointTypes)
+    this->LocalMaps[k]->SetVoxelResolution(resolution);
 }
 
 } // end of LidarSlam namespace

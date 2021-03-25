@@ -84,6 +84,19 @@ Eigen::Vector6d IsometryToRPYXYZ(const Eigen::Isometry3d& transform)
   return rpyxyz;
 }
 
+//------------------------------------------------------------------------------
+std::string Capitalize(std::string st)
+{
+  st[0] = std::toupper(st[0]);
+  return st;
+}
+
+//------------------------------------------------------------------------------
+std::string Plural(std::string st)
+{
+  return st + 's';
+}
+
 //==============================================================================
 //   Processing duration measurements
 //==============================================================================
