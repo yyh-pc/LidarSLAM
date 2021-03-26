@@ -16,15 +16,15 @@
 // limitations under the License.
 //==============================================================================
 
-#include "LidarSlam/KeypointsRegistration.h"
+#include "LidarSlam/KeypointsMatcher.h"
 #include "LidarSlam/CeresCostFunctions.h"
 
 namespace LidarSlam
 {
 
 //-----------------------------------------------------------------------------
-KeypointsRegistration::KeypointsRegistration(const KeypointsRegistration::Parameters& params,
-                                             const Eigen::Isometry3d& posePrior)
+KeypointsMatcher::KeypointsMatcher(const KeypointsMatcher::Parameters& params,
+                                   const Eigen::Isometry3d& posePrior)
   : Params(params)
   , PosePrior(posePrior)
 {
@@ -33,12 +33,12 @@ KeypointsRegistration::KeypointsRegistration(const KeypointsRegistration::Parame
 }
 
 //-----------------------------------------------------------------------------
-KeypointsRegistration::MatchingResults KeypointsRegistration::BuildAndMatchResiduals(const PointCloud::Ptr& currPoints,
-                                                                                     const KDTree& prevPoints,
-                                                                                     Keypoint keypointType)
+KeypointsMatcher::MatchingResults KeypointsMatcher::BuildMatchResiduals(const PointCloud::Ptr& currPoints,
+                                                                        const KDTree& prevPoints,
+                                                                        Keypoint keypointType)
 {
   // Call the correct point-to-neighborhood method
-  auto BuildAndMatchSingleResidual = [&](const Point& currentPoint)
+  auto BuildMatchResidual = [&](const Point& currentPoint)
   {
     switch(keypointType)
     {
@@ -49,15 +49,13 @@ KeypointsRegistration::MatchingResults KeypointsRegistration::BuildAndMatchResid
       case Keypoint::BLOB:
         return this->BuildBlobMatch(prevPoints, currentPoint);
       default:
-        return MatchingResults::MatchInfo{ MatchingResults::MatchStatus::UNKOWN, 0. };
+        return MatchingResults::MatchInfo{ MatchingResults::MatchStatus::UNKOWN, 0., CeresTools::Residual() };
     }
   };
 
   // Reset matching results
   MatchingResults matchingResults;
-  matchingResults.Weights.assign(currPoints->size(), 0.);
-  matchingResults.Rejections.assign(currPoints->size(), MatchingResults::MatchStatus::UNKOWN);
-  matchingResults.RejectionsHistogram.fill(0);
+  matchingResults.Reset(currPoints->size());
 
   // Loop over keypoints and try to build residuals
   if (!currPoints->empty() && prevPoints.GetInputCloud() && !prevPoints.GetInputCloud()->empty())
@@ -66,9 +64,10 @@ KeypointsRegistration::MatchingResults KeypointsRegistration::BuildAndMatchResid
     for (int ptIndex = 0; ptIndex < static_cast<int>(currPoints->size()); ++ptIndex)
     {
       const Point& currentPoint = currPoints->points[ptIndex];
-      const auto& match = BuildAndMatchSingleResidual(currentPoint);
+      const auto& match = BuildMatchResidual(currentPoint);
       matchingResults.Rejections[ptIndex] = match.Status;
       matchingResults.Weights[ptIndex] = match.Weight;
+      matchingResults.Residuals[ptIndex] = match.Cost;
       #pragma omp atomic
       matchingResults.RejectionsHistogram[match.Status]++;
     }
@@ -77,70 +76,24 @@ KeypointsRegistration::MatchingResults KeypointsRegistration::BuildAndMatchResid
   return matchingResults;
 }
 
-//----------------------------------------------------------------------------
-ceres::Solver::Summary KeypointsRegistration::Solve()
-{
-  ceres::Solver::Options options;
-  options.max_num_iterations = this->Params.LMMaxIter;
-  options.linear_solver_type = ceres::DENSE_QR;  // TODO : try also DENSE_NORMAL_CHOLESKY or SPARSE_NORMAL_CHOLESKY
-  options.minimizer_progress_to_stdout = false;
-  options.num_threads = this->Params.NbThreads;
-
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, &(this->Problem), &summary);
-  return summary;
-}
 
 //----------------------------------------------------------------------------
-KeypointsRegistration::RegistrationError KeypointsRegistration::EstimateRegistrationError()
+CeresTools::Residual KeypointsMatcher::BuildResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double weight)
 {
-  RegistrationError err;
-
-  // Covariance computation options
-  ceres::Covariance::Options covOptions;
-  covOptions.apply_loss_function = true;
-  covOptions.algorithm_type = ceres::CovarianceAlgorithmType::DENSE_SVD;
-  covOptions.null_space_rank = -1;
-  covOptions.num_threads = this->Params.NbThreads;
-
-  // Computation of the variance-covariance matrix
-  ceres::Covariance covarianceSolver(covOptions);
-  std::vector<std::pair<const double*, const double*>> covarianceBlocks;
-  const double* paramBlock = this->PoseArray.data();
-  covarianceBlocks.emplace_back(paramBlock, paramBlock);
-  covarianceSolver.Compute(covarianceBlocks, &this->Problem);
-  covarianceSolver.GetCovarianceBlock(paramBlock, paramBlock, err.Covariance.data());
-
-  // Estimate max position/orientation errors and directions from covariance
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigPosition(err.Covariance.topLeftCorner<3, 3>());
-  err.PositionError = std::sqrt(eigPosition.eigenvalues()(2));
-  err.PositionErrorDirection = eigPosition.eigenvectors().col(2);
-  Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> eigOrientation(err.Covariance.bottomRightCorner<3, 3>());
-  err.OrientationError = Utils::Rad2Deg(std::sqrt(eigOrientation.eigenvalues()(2)));
-  err.OrientationErrorDirection = eigOrientation.eigenvectors().col(2);
-
-  return err;
-}
-
-//----------------------------------------------------------------------------
-void KeypointsRegistration::AddIcpResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double weight)
-{
+  CeresTools::Residual res;
   // Create the point-to-line/plane/blob cost function
-  using Residual = CeresCostFunctions::MahalanobisDistanceAffineIsometryResidual;
-  ceres::CostFunction* costFunction = new ceres::AutoDiffCostFunction<Residual, 3, 6>(new Residual(A, P, X));
+  using Distance = CeresCostFunctions::MahalanobisDistanceAffineIsometryResidual;
+  res.Cost = new ceres::AutoDiffCostFunction<Distance, 3, 6>(new Distance(A, P, X));
 
   // Use a robustifier to limit the contribution of an outlier match
   auto* robustifier = new ceres::TukeyLoss(std::sqrt(this->Params.SaturationDistance));
   // Weight the contribution of the given match by its reliability
-  auto* loss = new ceres::ScaledLoss(robustifier, weight, ceres::TAKE_OWNERSHIP);
-
-  // Add weighted constraint to the problem
-  #pragma omp critical(addIcpResidual)
-  this->Problem.AddResidualBlock(costFunction, loss, this->PoseArray.data());
+  res.Robustifier = new ceres::ScaledLoss(robustifier, weight, ceres::TAKE_OWNERSHIP);
+  return res;
 }
 
 //-----------------------------------------------------------------------------
-KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p)
+KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -164,14 +117,14 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildLi
   unsigned int neighborhoodSize = knnIndices.size();
   if (neighborhoodSize < this->Params.MinimumLineNeighborRejection)
   {
-    return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0. };
+    return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0., CeresTools::Residual() };
   }
 
   // If the nearest edges are too far from the current edge keypoint,
   // we skip this point.
   if (knnSqDist.back() > this->Params.MaxDistanceForICPMatching * this->Params.MaxDistanceForICPMatching)
   {
-    return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0. };
+    return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0., CeresTools::Residual() };
   }
 
   // Shortcut to keypoints cloud
@@ -193,7 +146,7 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildLi
   // Otherwise, discard this bad unstructured neighborhood.
   if (eigVals(2) < this->Params.LineDistancefactor * eigVals(1))
   {
-    return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0. };
+    return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0., CeresTools::Residual() };
   }
 
   // =============================================
@@ -215,7 +168,7 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildLi
   // returns that hit the same point.
   if (!std::isfinite(A(0, 0)))
   {
-    return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0. };
+    return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0., CeresTools::Residual() };
   }
 
   // Evaluate the distance from the fitted line distribution of the neighborhood
@@ -229,7 +182,7 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildLi
     // CHECK invalidate all neighborhood even if only one point is bad?
     if (squaredDist > squaredMaxDist)
     {
-      return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0. };
+      return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0., CeresTools::Residual() };
     }
     meanSquaredDist += squaredDist;
   }
@@ -240,15 +193,12 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildLi
 
   // Quality score of the point-to-line match
   double fitQualityCoeff = 1.0 - std::sqrt(meanSquaredDist / squaredMaxDist);
-
-  // Store the distance parameters values
-  this->AddIcpResidual(A, mean, localPoint, fitQualityCoeff);
-
-  return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff };
+  CeresTools::Residual res = this->BuildResidual(A, mean, localPoint, fitQualityCoeff);
+  return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff, res };
 }
 
 //-----------------------------------------------------------------------------
-KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p)
+KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -268,14 +218,14 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildPl
   // It means that there is not enough keypoints in the neighborhood
   if (neighborhoodSize < this->Params.PlaneDistanceNbrNeighbors)
   {
-    return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0. };
+    return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0., CeresTools::Residual() };
   }
 
   // If the nearest planar points are too far from the current keypoint,
   // we skip this point.
   if (knnSqDist.back() > this->Params.MaxDistanceForICPMatching * this->Params.MaxDistanceForICPMatching)
   {
-    return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0. };
+    return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0., CeresTools::Residual() };
   }
 
   // Shortcut to keypoints cloud
@@ -298,7 +248,7 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildPl
   if (this->Params.PlaneDistancefactor2 * eigVals(1) < eigVals(2) ||
       eigVals(1) < this->Params.PlaneDistancefactor1 * eigVals(0))
   {
-    return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0. };
+    return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0., CeresTools::Residual() };
   }
 
   // ==============================================
@@ -312,7 +262,7 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildPl
   // sensor has some dual returns that hit the same point.
   if (!std::isfinite(A(0, 0)))
   {
-    return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0. };
+    return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0., CeresTools::Residual() };
   }
 
   // Evaluate the distance from the fitted plane distribution of the neighborhood
@@ -326,7 +276,7 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildPl
     // CHECK invalidate all neighborhood even if only one point is bad?
     if (squaredDist > squaredMaxDist)
     {
-      return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0. };
+      return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0., CeresTools::Residual() };
     }
     meanSquaredDist += squaredDist;
   }
@@ -337,15 +287,12 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildPl
 
   // Quality score of the point-to-plane match
   double fitQualityCoeff = 1.0 - std::sqrt(meanSquaredDist / squaredMaxDist);
-
-  // Store the distance parameters values
-  this->AddIcpResidual(A, mean, localPoint, fitQualityCoeff);
-
-  return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff };
+  CeresTools::Residual res = this->BuildResidual(A, mean, localPoint, fitQualityCoeff);
+  return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff, res };
 }
 
 //-----------------------------------------------------------------------------
-KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p)
+KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p)
 {
   // =====================================================
   // Transform the point using the current pose estimation
@@ -368,14 +315,14 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildBl
   // It means that there is not enough keypoints in the neighborhood
   if (neighborhoodSize < this->Params.BlobDistanceNbrNeighbors)
   {
-    return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0. };
+    return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0., CeresTools::Residual() };
   }
 
   // If the nearest blob points are too far from the current keypoint,
   // we skip this point.
   if (knnSqDist.back() > this->Params.MaxDistanceForICPMatching * this->Params.MaxDistanceForICPMatching)
   {
-    return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0. };
+    return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0., CeresTools::Residual() };
   }
 
   // Shortcut to keypoints cloud
@@ -400,7 +347,7 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildBl
   }
   if (squaredDiameter > maxDiameter * maxDiameter)
   {
-    return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0. };
+    return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0., CeresTools::Residual() };
   }
 
   // ======================================================
@@ -428,7 +375,7 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildBl
   // Check the determinant of the matrix
   if (!std::isfinite(eigValsSqrtInv.prod()))
   {
-    return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0. };
+    return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0., CeresTools::Residual() };
   }
 
   // ===========================================
@@ -437,15 +384,12 @@ KeypointsRegistration::MatchingResults::MatchInfo KeypointsRegistration::BuildBl
   // Quality score of the point-to-blob match
   // The aim is to prevent wrong matching pulling the pointcloud in a bad direction.
   double fitQualityCoeff = 1.0;//1.0 - knnSqDist.back() / maxDist;
-
-  // store the distance parameters values
-  this->AddIcpResidual(A, mean, localPoint, fitQualityCoeff);
-
-  return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff };
+  CeresTools::Residual res = this->BuildResidual(A, mean, localPoint, fitQualityCoeff);
+  return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff, res };
 }
 
 //-----------------------------------------------------------------------------
-void KeypointsRegistration::GetPerRingLineNeighbors(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest,
+void KeypointsMatcher::GetPerRingLineNeighbors(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest,
                                                     std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const
 {
   // Get nearest neighbors of the query point
@@ -504,8 +448,8 @@ void KeypointsRegistration::GetPerRingLineNeighbors(const KDTree& kdtreePrevious
 }
 
 //-----------------------------------------------------------------------------
-void KeypointsRegistration::GetRansacLineNeighbors(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest, double maxDistInlier,
-                                                   std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const
+void KeypointsMatcher::GetRansacLineNeighbors(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest, double maxDistInlier,
+                                              std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const
 {
   // Get nearest neighbors of the query point
   std::vector<int> knnIndices;

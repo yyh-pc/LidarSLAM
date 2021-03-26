@@ -164,7 +164,7 @@ void Slam::Reset(bool resetLog)
   this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
 
   // Reset pose uncertainty
-  this->LocalizationUncertainty = KeypointsRegistration::RegistrationError();
+  this->LocalizationUncertainty = LocalOptimizer::RegistrationError();
 
   // Reset point clouds
   this->CurrentFrames.clear();
@@ -178,9 +178,9 @@ void Slam::Reset(bool resetLog)
 
   // Reset keypoints matching results
   for (auto k : {EDGE, PLANE})
-    this->EgoMotionMatchingResults[k] = KeypointsRegistration::MatchingResults();
+    this->EgoMotionMatchingResults[k] = KeypointsMatcher::MatchingResults();
   for (auto k : KeypointTypes)
-    this->LocalizationMatchingResults[k] = KeypointsRegistration::MatchingResults();
+    this->LocalizationMatchingResults[k] = KeypointsMatcher::MatchingResults();
 
   // Reset log history
   if (resetLog)
@@ -193,6 +193,16 @@ void Slam::Reset(bool resetLog)
     // Reset processing duration timers
     Utils::Timer::Reset();
   }
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetNbThreads(int n)
+{
+  // Set number of threads for main processes
+  this->NbThreads = n;
+  // Set number of threads for keypoints extraction
+  for (const auto& kv : this->KeyPointsExtractors) 
+    kv.second->SetNbThreads(n); 
 }
 
 //-----------------------------------------------------------------------------
@@ -837,6 +847,27 @@ void Slam::ComputeEgoMotion()
     // Reset ICP results
     unsigned int totalMatchedKeypoints = 0;
 
+    LocalOptimizer optimizer;
+    // Set number of optimization iterations for a set of matches
+    optimizer.SetLMMaxIter(this->EgoMotionLMMaxIter);
+    // Set number of threads for optimization
+    optimizer.SetNbThreads(this->NbThreads);
+
+    // Init matching parameters
+    KeypointsMatcher::Parameters matchingParams;
+    matchingParams.NbThreads = this->NbThreads;
+    matchingParams.SingleEdgePerRing = true;
+    matchingParams.MaxDistanceForICPMatching = this->MaxDistanceForICPMatching;
+    matchingParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
+    matchingParams.LineDistanceNbrNeighbors = this->EgoMotionLineDistanceNbrNeighbors;
+    matchingParams.MinimumLineNeighborRejection = this->EgoMotionMinimumLineNeighborRejection;
+    matchingParams.LineDistancefactor = this->EgoMotionLineDistancefactor;
+    matchingParams.MaxLineDistance = this->EgoMotionMaxLineDistance;
+    matchingParams.PlaneDistanceNbrNeighbors = this->EgoMotionPlaneDistanceNbrNeighbors;
+    matchingParams.PlaneDistancefactor1 = this->EgoMotionPlaneDistancefactor1;
+    matchingParams.PlaneDistancefactor2 = this->EgoMotionPlaneDistancefactor2;
+    matchingParams.MaxPlaneDistance = this->EgoMotionMaxPlaneDistance;
+
     // ICP - Levenberg-Marquardt loop
     // At each step of this loop an ICP matching is performed. Once the keypoints
     // are matched, we estimate the the 6-DOF parameters by minimizing the
@@ -851,28 +882,16 @@ void Slam::ComputeEgoMotion()
       // First, we need to build the point-to-line, point-to-plane and
       // point-to-blob ICP matches that will be optimized.
       // Then, we use CERES Levenberg-Marquardt optimization to minimize the problem.
-      KeypointsRegistration::Parameters optimParams;
-      optimParams.NbThreads = this->NbThreads;
-      optimParams.SingleEdgePerRing = true;
-      optimParams.MaxDistanceForICPMatching = this->MaxDistanceForICPMatching;
-      optimParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
-      optimParams.LineDistanceNbrNeighbors = this->EgoMotionLineDistanceNbrNeighbors;
-      optimParams.MinimumLineNeighborRejection = this->EgoMotionMinimumLineNeighborRejection;
-      optimParams.LineDistancefactor = this->EgoMotionLineDistancefactor;
-      optimParams.MaxLineDistance = this->EgoMotionMaxLineDistance;
-      optimParams.PlaneDistanceNbrNeighbors = this->EgoMotionPlaneDistanceNbrNeighbors;
-      optimParams.PlaneDistancefactor1 = this->EgoMotionPlaneDistancefactor1;
-      optimParams.PlaneDistancefactor2 = this->EgoMotionPlaneDistancefactor2;
-      optimParams.MaxPlaneDistance = this->EgoMotionMaxPlaneDistance;
-      optimParams.LMMaxIter = this->EgoMotionLMMaxIter;
-      double iterRatio = icpIter / static_cast<double>(this->EgoMotionICPMaxIter - 1);
-      optimParams.SaturationDistance = (1 - iterRatio) * this->EgoMotionInitSaturationDistance + iterRatio * this->EgoMotionFinalSaturationDistance;
 
-      KeypointsRegistration optim(optimParams, this->Trelative);
+      // Create a keypoints matcher
+      // At each ICP iteration, the outliers removal is refined to be stricter
+      double iterRatio = icpIter / static_cast<double>(this->EgoMotionICPMaxIter - 1);
+      matchingParams.SaturationDistance = (1 - iterRatio) * this->EgoMotionInitSaturationDistance + iterRatio * this->EgoMotionFinalSaturationDistance;
+      KeypointsMatcher matcher(matchingParams, this->Trelative);
 
       // Loop over keypoints to build the residuals
       for (auto k : {EDGE, PLANE})
-        this->EgoMotionMatchingResults[k] = optim.BuildAndMatchResiduals(this->CurrentRawKeypoints[k], kdtreePrevious[k], k);
+        this->EgoMotionMatchingResults[k] = matcher.BuildMatchResiduals(this->CurrentRawKeypoints[k], kdtreePrevious[k], k);
 
       // Count matches and skip this frame
       // if there are too few geometric keypoints matched
@@ -889,12 +908,18 @@ void Slam::ComputeEgoMotion()
       IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : ICP"));
       IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : LM optim"));
 
+      // Set pose prior
+      optimizer.SetPosePrior(this->Trelative);
+      // Reset Lidar part of optimizer
+      optimizer.ClearLidarResiduals();
+      for (auto k : {EDGE, PLANE})
+        optimizer.AddResiduals(this->EgoMotionMatchingResults[k].Residuals);
       // Run LM optimization
-      ceres::Solver::Summary summary = optim.Solve();
+      ceres::Solver::Summary summary = optimizer.Solve();
       PRINT_VERBOSE(4, summary.BriefReport());
 
       // Get back optimized Trelative
-      this->Trelative = optim.GetOptimizedPose();
+      this->Trelative = optimizer.GetOptimizedPose();
 
       IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : LM optim"));
 
@@ -1000,6 +1025,30 @@ void Slam::Localization()
   // Reset ICP results
   unsigned int totalMatchedKeypoints = 0;
 
+  LocalOptimizer optimizer;
+  // Set number of optimization iterations for a set of matches
+  optimizer.SetLMMaxIter(this->LocalizationLMMaxIter);
+  // Set number of threads for optimization
+  optimizer.SetNbThreads(this->NbThreads);
+
+  // *********************Add sensor constraints here*********************
+
+  // Init matching parameters
+  KeypointsMatcher::Parameters matchingParams;
+  matchingParams.NbThreads = this->NbThreads;
+  matchingParams.SingleEdgePerRing = false;
+  matchingParams.MaxDistanceForICPMatching = this->MaxDistanceForICPMatching;
+  matchingParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
+  matchingParams.LineDistanceNbrNeighbors = this->LocalizationLineDistanceNbrNeighbors;
+  matchingParams.MinimumLineNeighborRejection = this->LocalizationMinimumLineNeighborRejection;
+  matchingParams.LineDistancefactor = this->LocalizationLineDistancefactor;
+  matchingParams.MaxLineDistance = this->LocalizationMaxLineDistance;
+  matchingParams.PlaneDistanceNbrNeighbors = this->LocalizationPlaneDistanceNbrNeighbors;
+  matchingParams.PlaneDistancefactor1 = this->LocalizationPlaneDistancefactor1;
+  matchingParams.PlaneDistancefactor2 = this->LocalizationPlaneDistancefactor2;
+  matchingParams.MaxPlaneDistance = this->LocalizationMaxPlaneDistance;
+  matchingParams.BlobDistanceNbrNeighbors = this->LocalizationBlobDistanceNbrNeighbors;
+
   // ICP - Levenberg-Marquardt loop
   // At each step of this loop an ICP matching is performed. Once the keypoints
   // are matched, we estimate the the 6-DOF parameters by minimizing the
@@ -1014,29 +1063,16 @@ void Slam::Localization()
     // First, we need to build the point-to-line, point-to-plane and
     // point-to-blob ICP matches that will be optimized.
     // Then, we use CERES Levenberg-Marquardt optimization to minimize problem.
-    KeypointsRegistration::Parameters optimParams;
-    optimParams.NbThreads = this->NbThreads;
-    optimParams.SingleEdgePerRing = false;
-    optimParams.MaxDistanceForICPMatching = this->MaxDistanceForICPMatching;
-    optimParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
-    optimParams.LineDistanceNbrNeighbors = this->LocalizationLineDistanceNbrNeighbors;
-    optimParams.MinimumLineNeighborRejection = this->LocalizationMinimumLineNeighborRejection;
-    optimParams.LineDistancefactor = this->LocalizationLineDistancefactor;
-    optimParams.MaxLineDistance = this->LocalizationMaxLineDistance;
-    optimParams.PlaneDistanceNbrNeighbors = this->LocalizationPlaneDistanceNbrNeighbors;
-    optimParams.PlaneDistancefactor1 = this->LocalizationPlaneDistancefactor1;
-    optimParams.PlaneDistancefactor2 = this->LocalizationPlaneDistancefactor2;
-    optimParams.MaxPlaneDistance = this->LocalizationMaxPlaneDistance;
-    optimParams.BlobDistanceNbrNeighbors = this->LocalizationBlobDistanceNbrNeighbors;
-    optimParams.LMMaxIter = this->LocalizationLMMaxIter;
-    double iterRatio = icpIter / static_cast<double>(this->LocalizationICPMaxIter - 1);
-    optimParams.SaturationDistance = (1 - iterRatio) * this->LocalizationInitSaturationDistance + iterRatio * this->LocalizationFinalSaturationDistance;
 
-    KeypointsRegistration optim(optimParams, this->Tworld);
+    // Create a keypoints matcher
+    // At each ICP iteration, the outliers removal is refined to be stricter
+    double iterRatio = icpIter / static_cast<double>(this->LocalizationICPMaxIter - 1);
+    matchingParams.SaturationDistance = (1 - iterRatio) * this->LocalizationInitSaturationDistance + iterRatio * this->LocalizationFinalSaturationDistance;
+    KeypointsMatcher matcher(matchingParams, this->Tworld);
 
     // Loop over keypoints to build the point to line residuals
     for (auto k : KeypointTypes)
-      this->LocalizationMatchingResults[k] = optim.BuildAndMatchResiduals(this->CurrentUndistortedKeypoints[k], kdtrees[k], k);
+      this->LocalizationMatchingResults[k] = matcher.BuildMatchResiduals(this->CurrentUndistortedKeypoints[k], kdtrees[k], k);
 
     // Count matches and skip this frame
     // if there is too few geometric keypoints matched
@@ -1058,12 +1094,19 @@ void Slam::Localization()
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : ICP"));
     IF_VERBOSE(3, Utils::Timer::Init("  Localization : LM optim"));
 
+    // Set pose prior
+    optimizer.SetPosePrior(this->Tworld);
+    // Reset Lidar part of optimizer
+    optimizer.ClearLidarResiduals();
+    for (auto k : KeypointTypes)
+      optimizer.AddLidarResiduals(this->LocalizationMatchingResults[k].Residuals);
+
     // Run LM optimization
-    ceres::Solver::Summary summary = optim.Solve();
+    ceres::Solver::Summary summary = optimizer.Solve();
     PRINT_VERBOSE(4, summary.BriefReport());
 
     // Update Tworld and Trelative from optimization results
-    this->Tworld = optim.GetOptimizedPose();
+    this->Tworld = optimizer.GetOptimizedPose();
     this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
 
     // Optionally refine undistortion
@@ -1078,7 +1121,7 @@ void Slam::Localization()
     // computation of the variance covariance matrix.
     if ((summary.num_successful_steps == 1) || (icpIter == this->LocalizationICPMaxIter - 1))
     {
-      this->LocalizationUncertainty = optim.EstimateRegistrationError();
+      this->LocalizationUncertainty = optimizer.EstimateRegistrationError();
       break;
     }
   }
