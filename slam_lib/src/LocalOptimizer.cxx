@@ -47,45 +47,29 @@ void LocalOptimizer::SetPosePrior(const Eigen::Isometry3d& posePrior)
 // Set residuals
 //----------------------------------------------------------------------------
 
-void LocalOptimizer::AddLidarResiduals(std::vector<CeresTools::Residual>& lidarRes)
+void LocalOptimizer::AddResiduals(std::vector<CeresTools::Residual>& lidarRes)
 {
-  this->LidarResiduals.insert(this->LidarResiduals.end(), lidarRes.begin(), lidarRes.end());
+  this->Residuals.insert(this->Residuals.end(), lidarRes.begin(), lidarRes.end());
 }
 
 //----------------------------------------------------------------------------
-void LocalOptimizer::AddSensorResiduals(std::vector<CeresTools::Residual>& sensorRes)
-{
-  this->SensorResiduals.insert(this->SensorResiduals.end(), sensorRes.begin(), sensorRes.end());
-}
-
-//----------------------------------------------------------------------------
-// Clear
-//----------------------------------------------------------------------------
-// Clear LiDAR residuals at each ICP iteration
-void LocalOptimizer::ClearLidarResiduals()
-{
-  this->LidarResiduals.clear();
-}
-
-//----------------------------------------------------------------------------
-// Clear all residuals at each new frame entry
+// Clear all residuals at each ICP step
 void LocalOptimizer::Clear()
 {
-  this->LidarResiduals.clear();
-  this->SensorResiduals.clear();
+  this->Residuals.clear();
 }
 
 //----------------------------------------------------------------------------
 ceres::Solver::Summary LocalOptimizer::Solve()
 {
   this->Problem = std::make_unique<ceres::Problem>();
-  for (CeresTools::Residual& res : this->LidarResiduals)
+  for (CeresTools::Residual& res : this->Residuals)
   {
     if (res.Cost)
       this->Problem->AddResidualBlock(res.Cost, res.Robustifier, this->PoseArray.data());
   }
-  
-  for (CeresTools::Residual& res : this->SensorResiduals)
+
+  for (CeresTools::Residual& res : this->Residuals)
   {
     if (res.Cost)
       this->Problem->AddResidualBlock(res.Cost, res.Robustifier, this->PoseArray.data());

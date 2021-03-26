@@ -847,12 +847,6 @@ void Slam::ComputeEgoMotion()
     // Reset ICP results
     unsigned int totalMatchedKeypoints = 0;
 
-    LocalOptimizer optimizer;
-    // Set number of optimization iterations for a set of matches
-    optimizer.SetLMMaxIter(this->EgoMotionLMMaxIter);
-    // Set number of threads for optimization
-    optimizer.SetNbThreads(this->NbThreads);
-
     // Init matching parameters
     KeypointsMatcher::Parameters matchingParams;
     matchingParams.NbThreads = this->NbThreads;
@@ -908,10 +902,13 @@ void Slam::ComputeEgoMotion()
       IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : ICP"));
       IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : LM optim"));
 
+      LocalOptimizer optimizer;
+      // Set number of optimization iterations for a set of matches
+      optimizer.SetLMMaxIter(this->EgoMotionLMMaxIter);
+      // Set number of threads for optimization
+      optimizer.SetNbThreads(this->NbThreads);
       // Set pose prior
       optimizer.SetPosePrior(this->Trelative);
-      // Reset Lidar part of optimizer
-      optimizer.ClearLidarResiduals();
       for (auto k : {EDGE, PLANE})
         optimizer.AddResiduals(this->EgoMotionMatchingResults[k].Residuals);
       // Run LM optimization
@@ -1025,14 +1022,6 @@ void Slam::Localization()
   // Reset ICP results
   unsigned int totalMatchedKeypoints = 0;
 
-  LocalOptimizer optimizer;
-  // Set number of optimization iterations for a set of matches
-  optimizer.SetLMMaxIter(this->LocalizationLMMaxIter);
-  // Set number of threads for optimization
-  optimizer.SetNbThreads(this->NbThreads);
-
-  // *********************Add sensor constraints here*********************
-
   // Init matching parameters
   KeypointsMatcher::Parameters matchingParams;
   matchingParams.NbThreads = this->NbThreads;
@@ -1094,12 +1083,17 @@ void Slam::Localization()
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : ICP"));
     IF_VERBOSE(3, Utils::Timer::Init("  Localization : LM optim"));
 
+    LocalOptimizer optimizer;
+    // Set number of optimization iterations for a set of matches
+    optimizer.SetLMMaxIter(this->LocalizationLMMaxIter);
+    // Set number of threads for optimization
+    optimizer.SetNbThreads(this->NbThreads);
     // Set pose prior
     optimizer.SetPosePrior(this->Tworld);
-    // Reset Lidar part of optimizer
-    optimizer.ClearLidarResiduals();
     for (auto k : KeypointTypes)
-      optimizer.AddLidarResiduals(this->LocalizationMatchingResults[k].Residuals);
+      optimizer.AddResiduals(this->LocalizationMatchingResults[k].Residuals);
+
+    // *********************Add sensor constraints here*********************
 
     // Run LM optimization
     ceres::Solver::Summary summary = optimizer.Solve();

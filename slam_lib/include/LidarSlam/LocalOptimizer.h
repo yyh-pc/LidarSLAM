@@ -59,16 +59,10 @@ public:
   // Set prior pose
   void SetPosePrior(const Eigen::Isometry3d& posePrior);
 
-  // Add Lidar residuals to residuals vector
-  void AddLidarResiduals(std::vector<CeresTools::Residual>& lidarRes);
+  // Add Sensor residuals to residuals vector
+  void AddResiduals(std::vector<CeresTools::Residual>& sensorRes);
 
-  // Add Lidar residuals to residuals vector
-  void AddSensorResiduals(std::vector<CeresTools::Residual>& sensorRes);
-
-  // Clear Lidar residuals (at each ICP iteration)
-  void ClearLidarResiduals();
-
-  // Clear all residuals (at each new frame)
+  // Clear all residuals
   void Clear();
 
   // Build and optimize the Ceres problem
@@ -92,10 +86,9 @@ private:
   // DoF to optimize (= output)
   Eigen::Vector6d PoseArray;  ///< Pose parameters to optimize (XYZRPY)
 
-  // Residual vectors
+  // Residuals vector
   // These residuals must involve the full 6D pose array (X, Y, Z, rX, rY, rZ)
-  std::vector<CeresTools::Residual> LidarResiduals;
-  std::vector<CeresTools::Residual> SensorResiduals;
+  std::vector<CeresTools::Residual> Residuals;
   
   std::unique_ptr<ceres::Problem> Problem;
 };
