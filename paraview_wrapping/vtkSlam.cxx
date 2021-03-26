@@ -92,7 +92,7 @@ vtkSlam::vtkSlam()
   this->SetInputArrayToProcess(0, LIDAR_FRAME_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
   this->SetInputArrayToProcess(1, LIDAR_FRAME_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
   this->SetInputArrayToProcess(2, LIDAR_FRAME_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
-  this->SetInputArrayToProcess(3, CALIBRATION_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
+  this->SetInputArrayToProcess(3, CALIBRATION_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_ROWS,   vtkDataSetAttributes::SCALARS);
   this->Reset();
 }
 
@@ -370,6 +370,7 @@ int vtkSlam::FillInputPortInformation(int port, vtkInformation* info)
   if (port == CALIBRATION_INPUT_PORT)
   {
     info->Set(vtkDataObject::DATA_TYPE_NAME(), "vtkTable");
+    info->Set(vtkAlgorithm::INPUT_IS_OPTIONAL(), 1);
     return 1;
   }
   return 0;
@@ -391,20 +392,32 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
   // Try to auto-detect LiDAR model by checking available arrays
   if (this->AutoDetectInputArrays)
   {
-    // Check if requested arrays exist and set them if they are valid
-    auto checkAndSetArrays = [&](const char* time, const char* intensity, const char* laserId, const char* angles)
+    // Check if requested lidar scan arrays exist and set them if they are valid
+    auto CheckAndSetScanArrays = [&](const char* time, const char* intensity, const char* laserId)
     {
       bool valid = poly->GetPointData()->HasArray(time) &&
                    poly->GetPointData()->HasArray(intensity) &&
-                   poly->GetPointData()->HasArray(laserId) &&
-                   calib->GetRowData()->HasArray(angles);
-      if (valid)
-      {
-        this->TimeArrayName = time;
-        this->IntensityArrayName = intensity;
-        this->LaserIdArrayName = laserId;
-        this->VerticalCalibArrayName = angles;
-      }
+                   poly->GetPointData()->HasArray(laserId);
+      this->TimeArrayName      = valid ? time      : "";
+      this->IntensityArrayName = valid ? intensity : "";
+      this->LaserIdArrayName   = valid ? laserId   : "";
+      return valid;
+    };
+
+    // Check if requested calib array exists and set it if it is valid
+    auto CheckAndSetCalibArray = [&](const char* vendor, const char* verticalAngles)
+    {
+      bool valid = calib && calib->GetRowData() && calib->GetRowData()->HasArray(verticalAngles);
+      this->VerticalCalibArrayName = valid ? verticalAngles : "";
+      // NOTE: This warning is currently disabled as the calibration is
+      // actually totally useless. Indeed, the laser ring ID is only used during
+      // keypoints extraction (KE), but since current KE only consider each ring
+      // independently from the others, we don't care about the actual ordering
+      // or value of these IDs. However, this will need to be restored if the
+      // ordering becomes important, for example using a range image / vertex map.
+      // if (!valid && this->Trajectory->GetNumberOfPoints() == 0)
+      //   vtkWarningMacro(<< "SLAM detected " << vendor << " data but failed to load '"
+      //                   << verticalAngles << "' calibration array: laser rings' IDs won't be modified.");
       return valid;
     };
 
@@ -415,16 +428,18 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
         { vtkWarningMacro(<< "SLAM run with " vendor " data: consider using " #parameter " " #condition); }
 
     // Test if LiDAR data is Velodyne
-    if (checkAndSetArrays("adjustedtime", "intensity", "laser_id", "verticalCorrection"))
+    if (CheckAndSetScanArrays("adjustedtime", "intensity", "laser_id"))
     {
       this->TimeToSecondsFactor = 1e-6;
+      CheckAndSetCalibArray("Velodyne", "verticalCorrection");
       CheckKEParameter("Velodyne", EdgeIntensityGapThreshold, < 100);
     }
 
     // Test if LiDAR data is Ouster
-    else if (checkAndSetArrays("Raw Timestamp", "Signal Photons", "Channel", "Altitude Angles"))
+    else if (CheckAndSetScanArrays("Raw Timestamp", "Signal Photons", "Channel"))
     {
       this->TimeToSecondsFactor = 1e-9;
+      CheckAndSetCalibArray("Ouster", "Altitude Angles");
       CheckKEParameter("Ouster", EdgeIntensityGapThreshold, >= 100);
       CheckKEParameter("Ouster", NeighborWidth, > 4);
     }
@@ -437,11 +452,12 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
   // Otherwise, user needs to specify which arrays to use
   else
   {
+    this->TimeToSecondsFactor    = this->TimeToSecondsFactorSetting;
     this->TimeArrayName          = this->GetInputArrayToProcess(0, poly)->GetName();
     this->IntensityArrayName     = this->GetInputArrayToProcess(1, poly)->GetName();
     this->LaserIdArrayName       = this->GetInputArrayToProcess(2, poly)->GetName();
-    this->VerticalCalibArrayName = this->GetInputArrayToProcess(3, calib)->GetName();
-    this->TimeToSecondsFactor    = this->TimeToSecondsFactorSetting;
+    auto angleCalibArray = calib ? this->GetInputArrayToProcess(3, calib) : nullptr;
+    this->VerticalCalibArrayName = angleCalibArray ? angleCalibArray->GetName() : "";
   }
 }
 
@@ -449,7 +465,7 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
 std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
 {
   std::vector<size_t> laserIdMapping;
-  auto array = vtkDataArray::SafeDownCast(calib->GetColumnByName(this->VerticalCalibArrayName.c_str()));
+  auto array = calib ? vtkDataArray::SafeDownCast(calib->GetColumnByName(this->VerticalCalibArrayName.c_str())) : nullptr;
   if (array)
   {
     std::vector<double> verticalAngle(array->GetNumberOfTuples());
