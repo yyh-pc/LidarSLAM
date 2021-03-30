@@ -277,8 +277,8 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     for (auto k : KeypointTypes)
     {
       PointCloud::Ptr map = this->GetMap(k);
-      std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k)))
-                << " map: " << map->size() << " points, " << Utils::PointCloudMemorySize(*map) * 1e-6 << " MB\n";
+      std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k))) << " map: "
+                << map->size() << " points, " << Utils::PointCloudMemorySize(*map) * 1e-6 << " MB\n";
     }
 
     // Logged keypoints
@@ -286,8 +286,8 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     for (auto k : KeypointTypes)
     {
       Utils::LoggedKeypointsSize(this->LogKeypoints[k], memory, points);
-      std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k)))
-                << " log  : " << this->LogKeypoints[k].size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
+      std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k))) << " log  : "
+                << this->LogKeypoints[k].size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
     }
     RESET_COUT_FIXED_PRECISION;
   }
@@ -896,15 +896,16 @@ void Slam::ComputeEgoMotion()
       IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : ICP"));
       IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : LM optim"));
 
+      // Init the optimizer with initial pose and parameters
       LocalOptimizer optimizer;
-      // Set number of optimization iterations for a set of matches
-      optimizer.SetLMMaxIter(this->EgoMotionLMMaxIter);
-      // Set number of threads for optimization
-      optimizer.SetNbThreads(this->NbThreads);
-      // Set pose prior
       optimizer.SetPosePrior(this->Trelative);
+      optimizer.SetLMMaxIter(this->EgoMotionLMMaxIter);
+      optimizer.SetNbThreads(this->NbThreads);
+
+      // Add LiDAR ICP matches
       for (auto k : {EDGE, PLANE})
         optimizer.AddResiduals(this->EgoMotionMatchingResults[k].Residuals);
+
       // Run LM optimization
       ceres::Solver::Summary summary = optimizer.Solve();
       PRINT_VERBOSE(4, summary.BriefReport());
@@ -965,15 +966,12 @@ void Slam::Localization()
 
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
-  std::map<Keypoint, PointCloud::Ptr> subKeypointsLocalMap;
+
   std::map<Keypoint, KDTree> kdtrees;
   // Initialization of std map elements to parallelize 
   // their construction with OMP avoiding concurrency issues
   for (auto k : KeypointTypes)
-  {
     kdtrees[k] = KDTree();
-    subKeypointsLocalMap[k].reset(new PointCloud);
-  }
 
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
@@ -991,8 +989,8 @@ void Slam::Localization()
       pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
 
       // Extract all points in maps lying in this bounding box
-      subKeypointsLocalMap[k] = this->LocalMaps[k]->Get(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
-      kdtrees[k].Reset(subKeypointsLocalMap[k]);
+      PointCloud::Ptr localSubMap = this->LocalMaps[k]->Get(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+      kdtrees[k].Reset(localSubMap);
     }
   }
 
@@ -1000,7 +998,7 @@ void Slam::Localization()
   {
     std::cout << "Keypoints extracted from map : ";
     for (auto k : KeypointTypes)
-      std::cout << subKeypointsLocalMap[k]->size() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+      std::cout << kdtrees[k].GetInputCloud()->size() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
     std::cout << std::endl;
   }
 
@@ -1071,13 +1069,13 @@ void Slam::Localization()
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : ICP"));
     IF_VERBOSE(3, Utils::Timer::Init("  Localization : LM optim"));
 
+    // Init the optimizer with initial pose and parameters
     LocalOptimizer optimizer;
-    // Set number of optimization iterations for a set of matches
-    optimizer.SetLMMaxIter(this->LocalizationLMMaxIter);
-    // Set number of threads for optimization
-    optimizer.SetNbThreads(this->NbThreads);
-    // Set pose prior
     optimizer.SetPosePrior(this->Tworld);
+    optimizer.SetLMMaxIter(this->LocalizationLMMaxIter);
+    optimizer.SetNbThreads(this->NbThreads);
+
+    // Add LiDAR ICP matches
     for (auto k : KeypointTypes)
       optimizer.AddResiduals(this->LocalizationMatchingResults[k].Residuals);
 
@@ -1121,7 +1119,8 @@ void Slam::Localization()
               << "\nPosition uncertainty    = " << this->LocalizationUncertainty.PositionError    << " m"
               << " (along [" << this->LocalizationUncertainty.PositionErrorDirection.transpose()    << "])"
               << "\nOrientation uncertainty = " << this->LocalizationUncertainty.OrientationError << " °"
-              << " (along [" << this->LocalizationUncertainty.OrientationErrorDirection.transpose() << "])";
+              << " (along [" << this->LocalizationUncertainty.OrientationErrorDirection.transpose() << "])"
+              << std::endl;
     RESET_COUT_FIXED_PRECISION;
   }
 }
