@@ -79,7 +79,8 @@
 #include "LidarSlam/Enums.h"
 #include "LidarSlam/SpinningSensorKeypointExtractor.h"
 #include "LidarSlam/KDTreePCLAdaptor.h"
-#include "LidarSlam/KeypointsRegistration.h"
+#include "LidarSlam/KeypointsMatcher.h"
+#include "LidarSlam/LocalOptimizer.h"
 #include "LidarSlam/MotionModel.h"
 #include "LidarSlam/RollingGrid.h"
 #include "LidarSlam/PointCloudStorage.h"
@@ -189,7 +190,7 @@ public:
   // ---------------------------------------------------------------------------
 
   GetMacro(NbThreads, int)
-  void SetNbThreads(int n) { this->NbThreads = n; for (const auto& kv : this->KeyPointsExtractors) kv.second->SetNbThreads(n); }
+  void SetNbThreads(int n);
 
   SetMacro(Verbosity, int)
   GetMacro(Verbosity, int)
@@ -469,13 +470,13 @@ private:
   // ---------------------------------------------------------------------------
 
   //! Matching results
-  std::map<Keypoint, KeypointsRegistration::MatchingResults> EgoMotionMatchingResults;
-  std::map<Keypoint, KeypointsRegistration::MatchingResults> LocalizationMatchingResults;
+  std::map<Keypoint, KeypointsMatcher::MatchingResults> EgoMotionMatchingResults;
+  std::map<Keypoint, KeypointsMatcher::MatchingResults> LocalizationMatchingResults;
 
   // Optimization results
   // Variance-Covariance matrix that estimates the localization error about the
   // 6-DoF parameters (DoF order : X, Y, Z, rX, rY, rZ)
-  KeypointsRegistration::RegistrationError LocalizationUncertainty;
+  LocalOptimizer::RegistrationError LocalizationUncertainty;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters

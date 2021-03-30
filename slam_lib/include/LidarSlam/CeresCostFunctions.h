@@ -22,12 +22,20 @@
 // LOCAL
 #include "LidarSlam/MotionModel.h"
 // CERES
-#include <ceres/jet.h>
+#include <ceres/ceres.h>
 // EIGEN
 #include <Eigen/Geometry>
 
 namespace LidarSlam
 {
+namespace CeresTools
+{
+struct Residual
+{
+  ceres::CostFunction* Cost = nullptr;
+  ceres::LossFunction* Robustifier = nullptr;
+};
+}
 namespace CeresCostFunctions
 {
 

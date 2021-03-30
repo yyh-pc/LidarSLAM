@@ -11,8 +11,9 @@ set(LidarSlam_PUBLIC_HEADERS
   include/LidarSlam/Enums.h
   include/LidarSlam/GlobalTrajectoriesRegistration.h
   include/LidarSlam/KDTreePCLAdaptor.h
-  include/LidarSlam/KeypointsRegistration.h
+  include/LidarSlam/KeypointsMatcher.h
   include/LidarSlam/LidarPoint.h
+  include/LidarSlam/LocalOptimizer.h
   include/LidarSlam/MotionModel.h
   include/LidarSlam/PointCloudStorage.h
   include/LidarSlam/RollingGrid.h
@@ -28,7 +29,8 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 add_library(LidarSlam SHARED
   src/GlobalTrajectoriesRegistration.cxx
-  src/KeypointsRegistration.cxx
+  src/KeypointsMatcher.cxx
+  src/LocalOptimizer.cxx
   src/MotionModel.cxx
   src/RollingGrid.cxx
   src/Slam.cxx
