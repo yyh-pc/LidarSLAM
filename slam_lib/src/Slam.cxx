@@ -809,13 +809,6 @@ void Slam::ComputeEgoMotion()
   {
     // kd-tree to process fast nearest neighbor
     // among the keypoints of the previous pointcloud
-    // CHECK : This step behaves strangely much slower when using OpenMP.
-    // This section processing duration (arbitrary unit) :
-    //  1. without OpenMP included nor used in any code (nor in Slam or SSKE) : time = 1.
-    //  2. with OpenMP, globally used with only 1 thread : time = 1.
-    //  3. with OpenMP, globally used with 2 threads : time = 2.
-    //  4. with OpenMP used in other parts but removing here parallel section : time = 2. ???
-    // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
     IF_VERBOSE(3, Utils::Timer::Init("EgoMotion : build KD tree"));
     std::map<Keypoint, KDTree> kdtreePrevious;
     // Kdtrees map initialization to parallelize their 
@@ -823,13 +816,14 @@ void Slam::ComputeEgoMotion()
     for (auto k : {EDGE, PLANE})
       kdtreePrevious[k] = KDTree();
 
-    #pragma omp parallel for num_threads(std::min(this->NbThreads, 2))
     // The iteration is not directly on Keypoint types
-    // because of openMP behaviour which needs int iteration
-    for (int i = 0; i < static_cast<int>(KeypointTypes.size()); ++i)
+    // because of openMP behaviour which needs int iteration on MSVC
+    int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
+    #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+    for (int i = 0; i < nbKeypointTypes; ++i)
     {
       Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
-      if (this->PreviousRawKeypoints.count(k))
+      if (kdtreePrevious.count(k))
         kdtreePrevious[k].Reset(this->PreviousRawKeypoints[k]);
     }
 
@@ -981,17 +975,11 @@ void Slam::Localization()
     subKeypointsLocalMap[k].reset(new PointCloud);
   }
 
-  // CHECK : This step behaves strangely much slower when using OpenMP.
-  // This section processing duration (arbitrary unit) :
-  //  1. without OpenMP included nor used in any code (nor in Slam or SSKE) : time = 1.
-  //  2. with OpenMP, globally used with only 1 thread                      : time ~ 1.
-  //  3. with OpenMP, globally used with 3 threads                          : time ~ 2.
-  //  4. with OpenMP used in other parts but removing here parallel section : time ~ 2.2 ?!
-  // => Even if we don't use OpenMP, it is slower ! We expect (4) to behaves at similarly as (1) or (2)...
-  #pragma omp parallel for num_threads(std::min(this->NbThreads, 3))
   // The iteration is not directly on Keypoint types
-  // because of openMP behaviour which needs int iteration
-  for (int i = 0; i < static_cast<int>(KeypointTypes.size()); ++i)
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
   {
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
     if (this->UseKeypoints[k])
@@ -1141,19 +1129,20 @@ void Slam::Localization()
 //-----------------------------------------------------------------------------
 void Slam::UpdateMapsUsingTworld()
 {
-  #pragma omp parallel for num_threads(std::min(this->NbThreads, 3))
   // The iteration is not directly on Keypoint types
-  // because of openMP behaviour which needs int iteration
-  for (int i = 0; i < static_cast<int>(KeypointTypes.size()); ++i)
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
   {
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
+    this->CurrentWorldKeypoints[k]->clear();
+    this->CurrentWorldKeypoints[k]->header = this->CurrentUndistortedKeypoints[k]->header;
+    this->CurrentWorldKeypoints[k]->header.frame_id = this->WorldFrameId;
     if (this->UseKeypoints[k])
     {
       // Transform keypoints to WORLD coordinates
-      this->CurrentWorldKeypoints[k]->clear();
       this->CurrentWorldKeypoints[k]->points.reserve(this->CurrentUndistortedKeypoints[k]->size());
-      this->CurrentWorldKeypoints[k]->header = this->CurrentUndistortedKeypoints[k]->header;
-      this->CurrentWorldKeypoints[k]->header.frame_id = this->WorldFrameId;
       for (const Point& p : *this->CurrentUndistortedKeypoints[k])
         this->CurrentWorldKeypoints[k]->push_back(Utils::TransformPoint(p, this->Tworld));
       // Add new keypoints to rolling grid
@@ -1282,12 +1271,13 @@ void Slam::RefineUndistortion()
                                       newBaseEnd   * previousBaseEnd.inverse());
 
   // Refine undistortion of keypoints clouds
-  #pragma omp parallel for num_threads(std::min(this->NbThreads, 3))
   // The iteration is not directly on Keypoint types
-  // because of openMP behaviour which needs int iteration
-  for (int i = 0; i < static_cast<int>(KeypointTypes.size()); ++i)
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
   {
-    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]); // because of openMP behaviour which needs int iteration
+    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
     for (Point& p : *this->CurrentUndistortedKeypoints[k])
       Utils::TransformPoint(p, transformInterpolator(p.time));
   }

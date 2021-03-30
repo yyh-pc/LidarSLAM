@@ -27,10 +27,7 @@ KeypointsMatcher::KeypointsMatcher(const KeypointsMatcher::Parameters& params,
                                    const Eigen::Isometry3d& posePrior)
   : Params(params)
   , PosePrior(posePrior)
-{
-  // Convert isometry to 6D state vector : X, Y, Z, rX, rY, rZ
-  this->PoseArray = Utils::IsometryToXYZRPY(posePrior);
-}
+{}
 
 //-----------------------------------------------------------------------------
 KeypointsMatcher::MatchingResults KeypointsMatcher::BuildMatchResiduals(const PointCloud::Ptr& currPoints,

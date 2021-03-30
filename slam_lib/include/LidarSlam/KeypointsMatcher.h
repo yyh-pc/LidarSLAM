@@ -189,9 +189,6 @@ private:
 
   // Initialization of DoF to optimize
   const Eigen::Isometry3d PosePrior;  ///< Initial guess of the pose to optimize
-
-  // DoF to optimize (= output)
-  Eigen::Vector6d PoseArray;  ///< Pose parameters to optimize (XYZRPY)
 };
 
 } // end of LidarSlam namespace

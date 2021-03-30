@@ -69,12 +69,6 @@ ceres::Solver::Summary LocalOptimizer::Solve()
       this->Problem->AddResidualBlock(res.Cost, res.Robustifier, this->PoseArray.data());
   }
 
-  for (CeresTools::Residual& res : this->Residuals)
-  {
-    if (res.Cost)
-      this->Problem->AddResidualBlock(res.Cost, res.Robustifier, this->PoseArray.data());
-  }
-
   ceres::Solver::Options options;
   options.max_num_iterations = this->LMMaxIter;
   options.linear_solver_type = ceres::DENSE_QR;  // TODO : try also DENSE_NORMAL_CHOLESKY or SPARSE_NORMAL_CHOLESKY
