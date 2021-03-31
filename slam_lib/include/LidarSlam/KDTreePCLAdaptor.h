@@ -37,15 +37,13 @@ class KDTreePCLAdaptor
 
 public:
 
-  KDTreePCLAdaptor() = default;
-
   /**
     * \brief Build a Kd-tree from a given pointcloud.
     * \param cloud The pointcloud to encode in the kd-tree.
     * \param leafMaxSize The maximum size of a leaf of the tree (refer to
     * https://github.com/jlblancoc/nanoflann#21-kdtreesingleindexadaptorparamsleaf_max_size)
     */
-  KDTreePCLAdaptor(PointCloudPtr cloud, int leafMaxSize = 16)
+  KDTreePCLAdaptor(PointCloudPtr cloud = PointCloudPtr(new PointCloud), int leafMaxSize = 16)
   {
     this->Reset(cloud, leafMaxSize);
   }

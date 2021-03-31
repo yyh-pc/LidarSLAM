@@ -18,10 +18,10 @@
 
 #pragma once
 
+#include "LidarSlam/CeresCostFunctions.h"
+#include "LidarSlam/Utilities.h"
 #include <Eigen/Geometry>
 #include <ceres/ceres.h>
-#include "LidarSlam/Utilities.h"
-#include "LidarSlam/CeresCostFunctions.h"
 
 namespace LidarSlam
 {
@@ -49,18 +49,21 @@ public:
   };
 
   //----------------------------------------------------------------------------
-  // Set params
+
   // Set Levenberg Marquardt maximum number of iterations
-  void SetLMMaxIter(unsigned int iter);
+  void SetLMMaxIter(unsigned int maxIt);
 
   // Set number of threads
-  void SetNbThreads(unsigned int n);
+  void SetNbThreads(unsigned int nbThreads);
 
   // Set prior pose
   void SetPosePrior(const Eigen::Isometry3d& posePrior);
 
+  //----------------------------------------------------------------------------
+
   // Add Sensor residuals to residuals vector
-  void AddResiduals(std::vector<CeresTools::Residual>& sensorRes);
+  void AddResidual(const CeresTools::Residual& sensorRes);
+  void AddResiduals(const std::vector<CeresTools::Residual>& sensorRes);
 
   // Clear all residuals
   void Clear();
@@ -69,14 +72,14 @@ public:
   ceres::Solver::Summary Solve();
 
   // Get optimization results
-  Eigen::Isometry3d GetOptimizedPose()  const { return Utils::XYZRPYtoIsometry(this->PoseArray); }
+  Eigen::Isometry3d GetOptimizedPose() const;
 
   // Estimate registration error
   RegistrationError EstimateRegistrationError();
-  //----------------------------------------------------------------------------
 
+  //----------------------------------------------------------------------------
 private:
-  
+
   // Max number of threads to use to parallelize computations
   unsigned int NbThreads = 1;
 
@@ -89,7 +92,8 @@ private:
   // Residuals vector
   // These residuals must involve the full 6D pose array (X, Y, Z, rX, rY, rZ)
   std::vector<CeresTools::Residual> Residuals;
-  
+
+  // The Ceres problem to optimize
   std::unique_ptr<ceres::Problem> Problem;
 };
 

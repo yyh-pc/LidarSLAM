@@ -25,14 +25,13 @@ namespace LidarSlam
 //----------------------------------------------------------------------------
 // Set params
 //----------------------------------------------------------------------------
-// Set Levenberg Marquardt maximum number of iterations
-void LocalOptimizer::SetLMMaxIter(const unsigned int maxIt)
+
+void LocalOptimizer::SetLMMaxIter(unsigned int maxIt)
 {
   this->LMMaxIter = maxIt;
 }
 
-// Set maximum number of iterations for Levenberg Marquardt algorithm
-void LocalOptimizer::SetNbThreads(const unsigned int nbThreads)
+void LocalOptimizer::SetNbThreads(unsigned int nbThreads)
 {
   this->NbThreads = nbThreads;
 }
@@ -47,43 +46,53 @@ void LocalOptimizer::SetPosePrior(const Eigen::Isometry3d& posePrior)
 // Set residuals
 //----------------------------------------------------------------------------
 
-void LocalOptimizer::AddResiduals(std::vector<CeresTools::Residual>& lidarRes)
+void LocalOptimizer::AddResidual(const CeresTools::Residual& lidarRes)
+{
+  this->Residuals.push_back(lidarRes);
+}
+
+void LocalOptimizer::AddResiduals(const std::vector<CeresTools::Residual>& lidarRes)
 {
   this->Residuals.insert(this->Residuals.end(), lidarRes.begin(), lidarRes.end());
 }
 
-//----------------------------------------------------------------------------
-// Clear all residuals at each ICP step
 void LocalOptimizer::Clear()
 {
   this->Residuals.clear();
 }
 
 //----------------------------------------------------------------------------
+// Run optimization
+//----------------------------------------------------------------------------
+
+//----------------------------------------------------------------------------
 ceres::Solver::Summary LocalOptimizer::Solve()
 {
+  // Clear problem and add residuals to optimize
   this->Problem = std::make_unique<ceres::Problem>();
-  for (CeresTools::Residual& res : this->Residuals)
+  for (const CeresTools::Residual& res : this->Residuals)
   {
     if (res.Cost)
       this->Problem->AddResidualBlock(res.Cost, res.Robustifier, this->PoseArray.data());
   }
 
-  for (CeresTools::Residual& res : this->Residuals)
-  {
-    if (res.Cost)
-      this->Problem->AddResidualBlock(res.Cost, res.Robustifier, this->PoseArray.data());
-  }
-
+  // LM solver options
   ceres::Solver::Options options;
-  options.max_num_iterations = this->LMMaxIter;
   options.linear_solver_type = ceres::DENSE_QR;  // TODO : try also DENSE_NORMAL_CHOLESKY or SPARSE_NORMAL_CHOLESKY
-  options.minimizer_progress_to_stdout = false;
+  options.max_num_iterations = this->LMMaxIter;
   options.num_threads = this->NbThreads;
 
+  // Run optimization
   ceres::Solver::Summary summary;
-  ceres::Solve(options, &(*this->Problem), &summary);
+  ceres::Solve(options, this->Problem.get(), &summary);
   return summary;
+}
+
+//----------------------------------------------------------------------------
+Eigen::Isometry3d LocalOptimizer::GetOptimizedPose() const
+{
+  // Convert 6D state vector (X, Y, Z, rX, rY, rZ) to isometry
+  return Utils::XYZRPYtoIsometry(this->PoseArray);
 }
 
 //----------------------------------------------------------------------------
