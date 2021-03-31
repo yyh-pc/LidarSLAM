@@ -593,7 +593,7 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
   for (auto k : KeypointTypes)
   {
     std::string name = "Localization: " + KeypointTypeNames.at(k) + " matches";
-    map[name]  = toDoubleVector(this->EgoMotionMatchingResults.at(k).Rejections);
+    map[name]  = toDoubleVector(this->LocalizationMatchingResults.at(k).Rejections);
     name = "Localization: " + KeypointTypeNames.at(k) + " weights";
     map[name]  = this->LocalizationMatchingResults.at(k).Weights;
   }
