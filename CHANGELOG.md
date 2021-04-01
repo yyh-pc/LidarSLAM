@@ -1,5 +1,62 @@
 # SLAM changes history
 
+## *v1.4 (2021/04/01)*
+
+This release brings important changes in code architecture (change SLAM point definition, add namespaces, reorganize ROS wrapping),
+and adds new LiDAR sensors support (Velodyne and Ouster on PV, Velodyne and RoboSense on ROS).
+It also focuses on improved performance and eases user experience.
+
+Major changes are sumarized below.
+
+### Core lib
+
+**Major new features:**
+
+* Change SLAM point definition to add more point-wise fields (!64 and !65)
+* Use real point wise time and compute output pose at frame timestamp (!82)
+* Add multi lidar support, currently only available from ROS wrapping (!83 and !84)
+
+**Refactoring and code architecture changes:**
+
+* Standardize convention for pose formatting to XYZRPY (!66)
+* Add `LidarSlam` and `Utils` namespaces and reorganize code structure (!72 and !73)
+* Laser ID mapping arg becomes optional (!77)
+* Move laser ID mapping parameter to wrappings (!79)
+* Add `Utilities.cxx` to avoid defining entire helpers functions in header (!74 and !89)
+* SLAM steps refactoring (!81)
+* Major undistortion refactoring, remove `OPTIMIZED` mode and split `APPROXIMATED` to `ONCE` and `REFINED` (!87)
+
+**Performance improvements:**
+
+* Accelerate PCA computation and use float precision in keypoints extraction and registration (!86)
+* Accelerate x3 linear transform interpolation (!88)
+* Improve residuals weighting: fix duplicated weighting, use TukeyLoss robustifier, add debug info (!90)
+* Simplify auto diff ceres (!95)
+
+**Bug fixes:**
+
+* Correct nb of laser rings detection (!70)
+* Fix Ceres residuals conflict with LV's and deprecate unused residuals (!71)
+* Fix ICP saturation range (!94)
+
+### ROS wrapping
+
+The ROS wrapping is adapted to the core lib improvements, such as the SLAM point definition, the optional laser ID mapping setting and other modified parameters and options.
+It also now supports the multi-lidar mode to SLAM with several LiDAR devices.
+
+- Update ROS wrapping to use ROS Velodyne driver 1.6 (!67)
+- Allow inheritance from LidarSlamNode (!69)
+- Add independent `lidar_conversions` package to perform pointclouds conversion to the expected SLAM point type (!68 and !75)
+- Add Robosense RSLidar conversion node, and improve approximate point-wise timestamp computation (!76)
+- Set point-wise `device_id` field in lidar_conversions nodes (!80)
+- Update ROS params, doc and rename output frame topic (!85)
+
+### ParaView wrapping
+
+The PV wrapping is adapted to the core lib improvements, such as the SLAM point definition, the optional laser ID mapping setting and other modified parameters and options.
+
+- Adapt PV wrapping to Ouster, and add manual setting for other LiDAR data (!56)
+
 ## *v1.3 (2020/11/20)*
 
 This release brings various minor fixes or features to improve stability, performance or code readibility.
