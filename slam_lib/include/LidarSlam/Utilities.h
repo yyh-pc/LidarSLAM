@@ -26,6 +26,7 @@
 #include <iomanip>
 #include <math.h>
 #include <numeric>
+#include <cctype>
 
 //==============================================================================
 //   Usefull macros or typedefs
