@@ -453,8 +453,9 @@ void KeypointsMatcher::GetRansacLineNeighbors(const KDTree& kdtreePreviousEdges,
   std::vector<float> knnSqDist;
   unsigned int neighborhoodSize = kdtreePreviousEdges.KnnSearch(pos, knearest, knnIndices, knnSqDist);
 
-  // If empty neighborhood, return
-  if (neighborhoodSize == 0)
+  // If neighborhood contains less than 2 neighbors
+  // no line can be fitted
+  if (neighborhoodSize < 2)
     return;
 
   // Shortcut to keypoints cloud
