@@ -46,14 +46,14 @@ void LocalOptimizer::SetPosePrior(const Eigen::Isometry3d& posePrior)
 // Set residuals
 //----------------------------------------------------------------------------
 
-void LocalOptimizer::AddResidual(const CeresTools::Residual& lidarRes)
+void LocalOptimizer::AddResidual(const CeresTools::Residual& res)
 {
-  this->Residuals.push_back(lidarRes);
+  this->Residuals.push_back(res);
 }
 
-void LocalOptimizer::AddResiduals(const std::vector<CeresTools::Residual>& lidarRes)
+void LocalOptimizer::AddResiduals(const std::vector<CeresTools::Residual>& residuals)
 {
-  this->Residuals.insert(this->Residuals.end(), lidarRes.begin(), lidarRes.end());
+  this->Residuals.insert(this->Residuals.end(), residuals.begin(), residuals.end());
 }
 
 void LocalOptimizer::Clear()
