@@ -15,15 +15,25 @@
 - [ParaView wrapping](#paraview-wrapping)
   - [Dependencies](#dependencies-2)
   - [Installation](#installation-2)
-  - [Download LidarView pre-built binaries with SLAM](#download-lidarview-pre-built-binaries-with-slam)
   - [Usage](#usage-1)
+  - [Use SLAM in LidarView](#use-slam-in-lidarview)
 
 ## Introduction and contents
 
 This repo contains LiDAR-only visual SLAM developped by Kitware, as well as ROS and ParaView wrappings for easier use.
 
+It has been successfully tested on data from several common LiDAR sensors:
+- Velodyne (VLP-16, VLP-32c, HDL-32, HDL-64, VLS-128)
+- Ouster (OS0/1/2-32/64/128)
+- RoboSense (RS-LiDAR-16)
+- Hesai (Pandar128)
+
+Have a look at our [SLAM demo video](https://drive.google.com/file/d/1r74UKsQBaHpn1uugsH7_ZndLtfh5aMyE/view?usp=sharing)!
+
+This codebase is under active development. If you're interested by new features, new sensors' support or any project that could be using this SLAM, do not hesitate to contact us at kitware@kitware.com.
+
 Repo contents :
-- `slam_lib/` : core library containing SLAM algorithm and other utilities.
+- `slam_lib/` : core *LidarSlam* library containing SLAM algorithm and other utilities.
 - `ros_wrapping/` : ROS packages to enable SLAM use on a ROS system.
 - `paraview_wrapping/` : ParaView plugin to enable SLAM use with ParaView/LidarView.
 - `ci/` : continuous integration files to automatically build and check *LidarSlam* lib.
@@ -37,12 +47,12 @@ Dependencies are listed in the table below along with the version used during de
 
 | Dependency | Minimum tested Version |
 | :--------: | :--------------------: |
-| nanoflann  | 1.3.0                  |
 | Eigen3     | 3.3.4                  |
 | Ceres      | 1.13.0                 |
 | PCL        | 1.8                    |
+| nanoflann  | 1.3.0                  |
 | g2o*       | 1.0.0 (master)         |
-| OpenMP*    | 4.5                    |
+| OpenMP*    | 2.0                    |
 
 (*) optional dependencies :
 
@@ -60,6 +70,8 @@ cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
 make
 make install
 ```
+
+The *LidarSlam* lib has been tested on Linux, Windows and OS X.
 
 ## ROS wrapping
 
@@ -82,6 +94,8 @@ If running on previous versions of Ubuntu/ROS (18/Melodic and below), you need t
 ### Installation
 
 Clone this git repo directly into your catkin directory, and run `catkin_make -DCMAKE_BUILD_TYPE=RelWithDebInfo` or `catkin_make -DCMAKE_BUILD_TYPE=Release` (to turn on optimizations, highly recommended when using Eigen). It will automatically build *LidarSlam* lib before ROS packages.
+
+The ROS wrapping has been tested on Linux only.
 
 ### Usage
 
@@ -116,18 +130,20 @@ make
 make install
 ```
 
-### Download LidarView pre-built binaries with SLAM
-
-Pre-build binaries of LidarView with this SLAM plugin are also available for download [here](https://drive.google.com/drive/folders/1etSkoaR_863MYyRNXgv6PFTiUcggBAcx?usp=sharing).
+The *LidarSlamPlugin* Paraview wrapping has been tested on Linux, Windows and OS X.
 
 ### Usage
 
 - Open ParaView
 - **Tools** tab > **Manage Plugins** > **Load New**
-- Browse to the `<install>/lib/` dir and select `libLidarSlamPlugin.so`
+- Browse to the `<install>/lib/` dir and select `libLidarSlamPlugin.so` or `LidarSlamPlugin.dll`
 - Load LiDAR frames and LiDAR calibration to use
 - Select the frames in the Pipeline Browser, instantiate a SLAM filter, and apply it.
 
-Currently, all features are not available in ParaView plugin. Features such as GPS/LiDAR calibration, pose graph optimization or temporal logging are only supported in ROS wrapping. However, ParaView plugin is useful to play with SLAM, load it in LidarView, and interactively try out parameters.
+Currently, all features are not available in ParaView plugin. Features such as GPS/LiDAR calibration, pose graph optimization or temporal logging are only supported in ROS wrapping. However, ParaView plugin is useful to play with SLAM, interactively try out parameters, visualize and export results.
+
+### Use SLAM in LidarView
 
 This *LidarSlamPlugin* is natively included in [LidarView](https://www.paraview.org/lidarview/). For more detailed information on how to enable and use SLAM filter in LidarView, see [paraview_wrapping/doc/How_to_SLAM_with_LidarView.md](paraview_wrapping/doc/How_to_SLAM_with_LidarView.md).
+
+Pre-built binaries of LidarView with this SLAM plugin are available for download [here](https://drive.google.com/drive/folders/1etSkoaR_863MYyRNXgv6PFTiUcggBAcx?usp=sharing).
