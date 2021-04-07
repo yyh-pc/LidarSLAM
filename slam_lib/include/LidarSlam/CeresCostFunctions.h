@@ -32,8 +32,8 @@ namespace CeresTools
 {
 struct Residual
 {
-  ceres::CostFunction* Cost = nullptr;
-  ceres::LossFunction* Robustifier = nullptr;
+  std::shared_ptr<ceres::CostFunction> Cost;
+  std::shared_ptr<ceres::LossFunction> Robustifier;
 };
 }
 namespace CeresCostFunctions
@@ -124,6 +124,18 @@ struct MahalanobisDistanceAffineIsometryResidual
     return true;
   }
 
+  // Factory to hide the construction of the CostFunction object from
+  // the client code.
+  static std::shared_ptr<ceres::CostFunction> Create(const Eigen::Matrix3d& argA,
+                                                     const Eigen::Vector3d& argP,
+                                                     const Eigen::Vector3d& argX)
+  {
+    return std::shared_ptr<ceres::AutoDiffCostFunction<MahalanobisDistanceAffineIsometryResidual, 3, 6>>(
+                       new ceres::AutoDiffCostFunction<MahalanobisDistanceAffineIsometryResidual, 3, 6>
+                       (new MahalanobisDistanceAffineIsometryResidual(argA, argP, argX))
+                       );
+  }
+
 private:
   const Eigen::Matrix3d A;
   const Eigen::Vector3d P;
@@ -211,6 +223,19 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     residualVec = A * (Y - P);
 
     return true;
+  }
+
+  // Factory to hide the construction of the CostFunction object from
+  // the client code.
+  static std::shared_ptr<ceres::CostFunction> Create(const Eigen::Matrix3d& argA,
+                                                     const Eigen::Vector3d& argP,
+                                                     const Eigen::Vector3d& argX,
+                                                     double argTime)
+  {
+    return std::shared_ptr<ceres::AutoDiffCostFunction<MahalanobisDistanceInterpolatedMotionResidual, 3, 6, 6>>(
+                       new ceres::AutoDiffCostFunction<MahalanobisDistanceInterpolatedMotionResidual, 3, 6, 6>
+                       (new MahalanobisDistanceInterpolatedMotionResidual(argA, argP, argX, argTime))
+                       );
   }
 
 private:
