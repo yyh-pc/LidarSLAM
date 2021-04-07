@@ -245,5 +245,111 @@ private:
   const double Time;
 };
 
+
+//------------------------------------------------------------------------------
+/**
+ * \class OdometerDistanceResidual
+ * \brief Cost function to optimize the translation of the affine isometry
+ *        transformation (rotation and translation) so that the distance 
+ *        from a previous known pose corresponds to an external sensor odometry measure.
+ *
+ * This function takes one 6D parameters block :
+ *   - 3 first parameters to encode translation : X, Y, Z
+ *   - [unused] 3 last parameters to encode rotation with euler angles : rX, rY, rZ
+ * 
+ * It outputs a 1D residual block.
+ */
+struct OdometerDistanceResidual
+{
+  OdometerDistanceResidual(const Eigen::Vector3d& previousPos,
+                           double distanceToPreviousPose)
+    : PreviousPos(previousPos)
+    , DistanceToPreviousPose(distanceToPreviousPose)
+  {}
+
+  template <typename T>
+  bool operator()(const T* const t, T* residual) const
+  {
+    // Get translation part
+    using Vector3T = Eigen::Matrix<T, 3, 1>;
+    Eigen::Map<const Vector3T> pos(t);
+
+    // Compute residual
+    T motionSqNorm = (pos - PreviousPos).squaredNorm();
+    T motionNorm = (motionSqNorm < 1e-6) ? T(0) : ceres::sqrt(motionSqNorm);
+    residual[0] = motionNorm - DistanceToPreviousPose;
+    return true;
+  }
+
+  // Factory to hide the construction of the CostFunction
+  // object from the client code.
+  static std::shared_ptr<ceres::CostFunction> Create(const Eigen::Vector3d& previousPos,
+                                                     double distanceToPreviousPose)
+  {
+    return std::shared_ptr<ceres::AutoDiffCostFunction<OdometerDistanceResidual, 1, 6>>(
+                       new ceres::AutoDiffCostFunction<OdometerDistanceResidual, 1, 6>
+                       (new OdometerDistanceResidual(previousPos, distanceToPreviousPose))
+                       );
+  }
+
+private:
+  const Eigen::Vector3d PreviousPos;
+  const double DistanceToPreviousPose;
+};
+
+//------------------------------------------------------------------------------
+/**
+ * \class ImuGravityAlignmentResidual
+ * \brief Cost function to optimize the orientation of the affine
+ *        isometry transformation (rotation and translation) so
+ *        that the gravity vector corresponds to a reference.
+ *        This gravity vector is usually supplied by an IMU.
+ *
+ * This function takes one 6D parameters block :
+ *   - [unused] 3 first parameters to encode translation : X, Y, Z
+ *   - 3 last parameters to encode rotation with euler angles : rX, rY, rZ
+ * 
+ * It outputs a 3D residual block.
+ */
+struct ImuGravityAlignmentResidual
+{
+  ImuGravityAlignmentResidual(const Eigen::Vector3d& refGravityDir,
+                              const Eigen::Vector3d& currGravityDir)
+    : ReferenceGravityDirection(refGravityDir)
+    , CurrentGravityDirection(currGravityDir)
+  {}
+
+  template <typename T>
+  bool operator()(const T* const w, T* residual) const
+  {
+    using Matrix3T = Eigen::Matrix<T, 3, 3>;
+    using Vector3T = Eigen::Matrix<T, 3, 1>;
+
+    // Get rotation part 
+    Matrix3T rot = Utils::RotationMatrixFromRPY(w[3], w[4], w[5]);
+
+    // Compute residual
+    Eigen::Map<Vector3T> residualVec(residual);
+    residualVec = rot * CurrentGravityDirection - ReferenceGravityDirection;
+
+    return true;
+  }
+
+  // Factory to hide the construction of the CostFunction object from
+  // the client code.
+  static std::shared_ptr<ceres::CostFunction> Create(const Eigen::Vector3d& referenceGravityDirection,
+                                                     const Eigen::Vector3d& currentGravityDirection)
+  {
+    return std::shared_ptr<ceres::AutoDiffCostFunction<ImuGravityAlignmentResidual, 3, 6>>(
+                       new ceres::AutoDiffCostFunction<ImuGravityAlignmentResidual, 3, 6>
+                       (new ImuGravityAlignmentResidual(referenceGravityDirection, currentGravityDirection))
+                       );
+  }
+
+private:
+  const Eigen::Vector3d ReferenceGravityDirection;
+  const Eigen::Vector3d CurrentGravityDirection;
+};
+
 } // end of namespace CeresCostFunctions
 } // end of LidarSlam namespace
