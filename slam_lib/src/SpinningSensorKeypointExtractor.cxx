@@ -235,7 +235,7 @@ void SpinningSensorKeypointExtractor::InvalidateNotUsablePoints()
     }
 
     // Loop over remaining points of the scan line
-    for (int index = this->NeighborWidth; index < Npts - 1 - this->NeighborWidth; ++index)
+    for (int index = this->NeighborWidth; index < Npts - this->NeighborWidth; ++index)
     {
       const auto& currentPoint = scanLineCloud[index].getVector3fMap();
       const float L = currentPoint.norm();

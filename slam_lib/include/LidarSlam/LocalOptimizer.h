@@ -61,9 +61,10 @@ public:
 
   //----------------------------------------------------------------------------
 
-  // Add Sensor residuals to residuals vector
-  void AddResidual(const CeresTools::Residual& sensorRes);
-  void AddResiduals(const std::vector<CeresTools::Residual>& sensorRes);
+  // Add sensor residuals (from Lidar or other
+  // external sensor) to residuals vector
+  void AddResidual(const CeresTools::Residual& res);
+  void AddResiduals(const std::vector<CeresTools::Residual>& residuals);
 
   // Clear all residuals
   void Clear();
