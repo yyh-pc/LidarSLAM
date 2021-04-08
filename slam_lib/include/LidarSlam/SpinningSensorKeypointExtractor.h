@@ -50,6 +50,9 @@ public:
   GetMacro(MinDistanceToSensor, float)
   SetMacro(MinDistanceToSensor, float)
 
+  GetMacro(MinBeamSurfaceAngle, float)
+  SetMacro(MinBeamSurfaceAngle, float)
+
   GetMacro(PlaneSinAngleThreshold, float)
   SetMacro(PlaneSinAngleThreshold, float)
 
@@ -127,6 +130,9 @@ private:
 
   // Minimal point/sensor sensor to consider a point as valid
   float MinDistanceToSensor = 3.0;  // [m]
+
+  // Minimum angle between laser beam and surface to consider a point as valid
+  float MinBeamSurfaceAngle = 10; // [°]
 
   // Sharpness threshold to select a planar keypoint
   float PlaneSinAngleThreshold = 0.5;  // sin(30°) (selected if sin angle is less than threshold)

@@ -1079,6 +1079,20 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
+          name="Min laser beam to surface angle"
+          command="SetMinBeamSurfaceAngle"
+          default_values="10"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          Minimum angle between the laser beam and the surface on which
+          a point is laying to consider it as a potential keypoint.
+          In other words, all points laying on too oblique surfaces
+          relatively to the sensor are automatically rejected.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
           name="Plane max sinus angle"
           command="SetPlaneSinAngleThreshold"
           default_values="0.5"
@@ -1150,6 +1164,7 @@
       <PropertyGroup label="Spinning Sensor Keypoints Extractor parameters">
         <Property name="Neighborhood width" />
         <Property name="Min distance to sensor" />
+        <Property name="Min laser beam to surface angle" />
         <Property name="Plane max sinus angle" />
         <Property name="Edge min sinus angle" />
         <Property name="Edge min saliency distance" />
