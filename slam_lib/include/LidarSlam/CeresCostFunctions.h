@@ -77,9 +77,12 @@ Eigen::Matrix<T, 3, 3> RotationMatrixFromRPY(const T& rx, const T& ry, const T& 
  * cost(x) = (x - P)^T C^{-1} (x - P) where, P is a mean and C is a covariance matrix,
  * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the covariance, 
  * also known as the stiffness matrix.
+ *
  * This function takes one 6D parameters block :
  *   - 3 first parameters to encode translation : X, Y, Z
  *   - 3 last parameters to encode rotation with euler angles : rX, rY, rZ
+ *
+ * It outputs a 3D residual block.
  */
 struct MahalanobisDistanceAffineIsometryResidual
 {
@@ -139,6 +142,7 @@ private:
  * cost(x) = (x - P)^T C^{-1} (x - P) where, P is a mean vector and C is a covariance matrix,
  * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the covariance, 
  * also known as the stiffness matrix.
+ *
  * This function takes two 6D parameters blocks :
  *  1) First isometry H0 :
  *   - 3 parameters (0, 1, 2) to encode translation T0 : X, Y, Z
@@ -146,6 +150,8 @@ private:
  *  2) Second isometry H1 :
  *   - 3 parameters (6, 7, 8) to encode translation T1 : X, Y, Z
  *   - 3 parameters (9, 10, 11) to encode rotation R1 with euler angles : rX, rY, rZ
+ *
+ * It outputs a 3D residual block.
  */
 struct MahalanobisDistanceInterpolatedMotionResidual
 {
