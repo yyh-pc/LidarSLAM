@@ -84,6 +84,7 @@
 #include "LidarSlam/MotionModel.h"
 #include "LidarSlam/RollingGrid.h"
 #include "LidarSlam/PointCloudStorage.h"
+#include "LidarSlam/SensorConstraints.h"
 
 #include <Eigen/Geometry>
 
@@ -324,8 +325,14 @@ public:
   GetMacro(LocalizationFinalSaturationDistance, double)
   SetMacro(LocalizationFinalSaturationDistance, double)
 
-  void AddGravityMeasurement(const GravityMeasurement& gm);
-  void AddOdomMeasurement(const WheelOdomMeasurement& om);
+  SetMacro(OdomWeight, double)
+  GetMacro(OdomWeight, double)
+
+  SetMacro(GravityWeight, double)
+  GetMacro(GravityWeight, double)
+
+  void AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm);
+  void AddOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om);
   void ClearSensorMeasurements();
 
   // ---------------------------------------------------------------------------
@@ -505,10 +512,24 @@ private:
   LocalOptimizer::RegistrationError LocalizationUncertainty;
 
   // Odometry measurements
-  std::vector<WheelOdomMeasurement> OdomMeasurements;
+  std::vector<SensorConstraints::WheelOdomMeasurement> OdomMeasurements;
+  // Odometry weight (default is 0. : odometry is not used)
+  double OdomWeight = 0.;
+  // Boolean to notify the odometry constraint has been successfully computed
+  bool OdomEnabled = false;
+  // Odometry residual
+  CeresTools::Residual OdomResidual;
 
   // Gravity measurements
-  std::vector<GravityMeasurement> GravityMeasurements;
+  std::vector<SensorConstraints::GravityMeasurement> GravityMeasurements;
+  // Reference gravity
+  Eigen::Vector3d GravityRef = {0., 0., 0.};
+  // Gravity weight (default is 0. : gravity is not used)
+  double GravityWeight = 0.;
+  // Boolean to notify the gravity constraint has been successfully computed
+  bool GravityEnabled = false;
+  // Gravity residual
+  CeresTools::Residual GravityResidual;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -593,6 +614,9 @@ private:
   // Extract keypoints from input pointclouds,
   // and transform them from LIDAR to BASE coordinate system.
   void ExtractKeypoints();
+
+  // Compute constraints provided by external sensors
+  void ComputeSensorConstraints();  
 
   // Estimate the ego motion since last frame.
   // Extrapolate new pose with a constant velocity model and/or

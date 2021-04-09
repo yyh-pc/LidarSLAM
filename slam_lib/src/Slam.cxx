@@ -74,6 +74,7 @@
 // LOCAL
 #include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
+
 #ifdef USE_G2O
 #include "LidarSlam/PoseGraphOptimization.h"
 #endif  // USE_G2O
@@ -154,6 +155,8 @@ Slam::Slam()
 //-----------------------------------------------------------------------------
 void Slam::Reset(bool resetLog)
 {
+  this->GravityRef = {0., 0., 0.};
+
   // Reset keypoints maps
   this->ClearMaps();
 
@@ -234,6 +237,10 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->ComputeEgoMotion();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
 
+  IF_VERBOSE(3, Utils::Timer::Init("Sensor constraints computation"));
+  this->ComputeSensorConstraints();
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Sensor constraints computation"));
+
   // Perform Localization : update Tworld from map and current frame keypoints
   // and optionally undistort keypoints clouds based on ego-motion
   IF_VERBOSE(3, Utils::Timer::Init("Localization"));
@@ -300,6 +307,32 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->Latency = Utils::Timer::Stop("SLAM frame processing");
   this->NbrFrameProcessed++;
   IF_VERBOSE(1, Utils::Timer::StopAndDisplay("SLAM frame processing"));
+}
+
+//-----------------------------------------------------------------------------
+void Slam::ComputeSensorConstraints()
+{
+  this->OdomEnabled = false;
+  this->GravityEnabled = false;
+
+  double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
+  if (this->OdomWeight > 1e-6 && !this->OdomMeasurements.empty())
+  {
+    if (SensorConstraints::GetWheelAbsoluteConstraint(currLidarTime, this->OdomWeight, this->OdomMeasurements, this->OdomResidual))
+      this->OdomEnabled = true;
+    else
+      PRINT_WARNING("Can not use odometry measurements for current frame.");
+  }
+
+  if (this->GravityWeight > 1e-6 && !this->GravityMeasurements.empty())
+  {
+    if (this->GravityRef.norm() < 1e-6)
+      this->GravityRef = SensorConstraints::ComputeGravityRef(this->GravityMeasurements, Utils::Deg2Rad(5.f));
+    if (SensorConstraints::GetGravityConstraint(currLidarTime, this->GravityWeight, this->GravityMeasurements, this->GravityRef, this->GravityResidual))
+      this->GravityEnabled = true;
+    else
+      PRINT_WARNING("Can not use IMU measurements for current frame.");
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -1085,7 +1118,15 @@ void Slam::Localization()
     for (auto k : KeypointTypes)
       optimizer.AddResiduals(this->LocalizationMatchingResults[k].Residuals);
 
-    // *********************Add sensor constraints here*********************
+    // Add odometry constraint
+    // if constraint has been successfully created
+    if (this->OdomEnabled)
+      optimizer.AddResidual(this->OdomResidual);
+
+    // Add gravity alignment constraint
+    // if constraint has been successfully created
+    if (this->GravityEnabled)
+      optimizer.AddResidual(this->GravityResidual);
 
     // Run LM optimization
     ceres::Solver::Summary summary = optimizer.Solve();
@@ -1318,12 +1359,12 @@ void Slam::RefineUndistortion()
 //   Sensor data setting
 //==============================================================================
 
-void Slam::AddGravityMeasurement(const GravityMeasurement& gm)
+void Slam::AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm)
 {
   this->GravityMeasurements.emplace_back(gm);
 }
 
-void Slam::AddOdomMeasurement(const WheelOdomMeasurement& om)
+void Slam::AddOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om)
 {
   this->OdomMeasurements.emplace_back(om);
 }
