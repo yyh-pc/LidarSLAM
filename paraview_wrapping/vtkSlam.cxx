@@ -24,6 +24,7 @@
 // VTK
 #include <vtkCellArray.h>
 #include <vtkDataArray.h>
+#include <vtkDelimitedTextReader.h>
 #include <vtkDoubleArray.h>
 #include <vtkFloatArray.h>
 #include <vtkInformation.h>
@@ -314,6 +315,63 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::SetSensorData(const std::string& fileName)
+{
+  double timeOffset = 4435169098 * 1e-6 - 1615986214.198827;
+
+  this->SlamAlgo->ClearSensorMeasurements();
+
+  if (fileName.empty())
+    return;
+
+  vtkNew<vtkDelimitedTextReader> reader;
+  reader->SetFileName(fileName.c_str());
+  reader->DetectNumericColumnsOn();
+  reader->SetHaveHeaders(true);
+  reader->SetFieldDelimiterCharacters(" ;,");
+  reader->Update();
+
+  // Extract the table.
+  vtkTable* csvTable = reader->GetOutput();
+  if (csvTable->GetRowData()->HasArray("time")
+   && csvTable->GetRowData()->HasArray("odom"))
+  {
+    auto arrayTime = csvTable->GetRowData()->GetArray("time");
+    auto arrayOdom = csvTable->GetRowData()->GetArray("odom");
+    for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
+    {
+      odomMeasurement.Time = arrayTime->GetTuple1(i) + timeOffset;
+      LidarSlam::SensorConstraints::WheelOdomMeasurement odomMeasurement;
+      odomMeasurement.Distance = arrayOdom->GetTuple1(i);
+      this->SlamAlgo->AddOdomMeasurement(odomMeasurement);
+    }
+    if (arrayTime->GetNumberOfTuples() > 0)
+      std::cout << "Odometry data successfully loaded " << std::endl;
+  }
+  if (csvTable->GetRowData()->HasArray("time")
+   && csvTable->GetRowData()->HasArray("acc_x")
+   && csvTable->GetRowData()->HasArray("acc_y")
+   && csvTable->GetRowData()->HasArray("acc_z"))
+  {
+    auto arrayTime = csvTable->GetRowData()->GetArray("time");
+    auto arrayAccX = csvTable->GetRowData()->GetArray("acc_x");
+    auto arrayAccY = csvTable->GetRowData()->GetArray("acc_y");
+    auto arrayAccZ = csvTable->GetRowData()->GetArray("acc_z");
+    for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
+    {
+      gravityMeasurement.Time = arrayTime->GetTuple1(i) + timeOffset;
+      LidarSlam::SensorConstraints::GravityMeasurement gravityMeasurement;
+      gravityMeasurement.Acceleration.x() = arrayAccX->GetTuple1(i);
+      gravityMeasurement.Acceleration.y() = arrayAccY->GetTuple1(i);
+      gravityMeasurement.Acceleration.z() = arrayAccZ->GetTuple1(i);
+      this->SlamAlgo->AddGravityMeasurement(gravityMeasurement);
+    }
+    if (arrayTime->GetNumberOfTuples() > 0)
+      std::cout << "IMU data successfully loaded " << std::endl;
+  }
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os, indent);
@@ -521,7 +579,7 @@ bool vtkSlam::PolyDataToPointCloud(vtkPolyData* poly,
 {
   const vtkIdType nbPoints = poly->GetNumberOfPoints();
   const bool useLaserIdMapping = !laserIdMapping.empty();
-  
+
   // Get pointers to arrays
   auto arrayTime = poly->GetPointData()->GetArray(this->TimeArrayName.c_str());
   auto arrayLaserId = poly->GetPointData()->GetArray(this->LaserIdArrayName.c_str());

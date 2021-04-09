@@ -1315,6 +1315,26 @@ void Slam::RefineUndistortion()
 }
 
 //==============================================================================
+//   Sensor data setting
+//==============================================================================
+
+void Slam::AddGravityMeasurement(const GravityMeasurement& gm)
+{
+  this->GravityMeasurements.emplace_back(gm);
+}
+
+void Slam::AddOdomMeasurement(const WheelOdomMeasurement& om)
+{
+  this->OdomMeasurements.emplace_back(om);
+}
+
+void Slam::ClearSensorMeasurements()
+{
+  this->OdomMeasurements.clear();
+  this->GravityMeasurements.clear();
+}
+
+//==============================================================================
 //   Keypoints extraction parameters setting
 //==============================================================================
 

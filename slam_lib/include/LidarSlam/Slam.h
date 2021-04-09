@@ -324,6 +324,10 @@ public:
   GetMacro(LocalizationFinalSaturationDistance, double)
   SetMacro(LocalizationFinalSaturationDistance, double)
 
+  void AddGravityMeasurement(const GravityMeasurement& gm);
+  void AddOdomMeasurement(const WheelOdomMeasurement& om);
+  void ClearSensorMeasurements();
+
   // ---------------------------------------------------------------------------
   //   Key frames and Maps parameters
   // ---------------------------------------------------------------------------
@@ -499,6 +503,12 @@ private:
   // Variance-Covariance matrix that estimates the localization error about the
   // 6-DoF parameters (DoF order : X, Y, Z, rX, rY, rZ)
   LocalOptimizer::RegistrationError LocalizationUncertainty;
+
+  // Odometry measurements
+  std::vector<WheelOdomMeasurement> OdomMeasurements;
+
+  // Gravity measurements
+  std::vector<GravityMeasurement> GravityMeasurements;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters

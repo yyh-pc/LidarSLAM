@@ -86,6 +86,32 @@
 
       <!--~~~~~~~~~~~~~~~~~~~~~~~ Inputs options ~~~~~~~~~~~~~~~~~~~~~~~-->
 
+      <!-- Sensor data file must be csv.
+           A field time in POSIX format is necessary
+           Possible sensor fields are : odom, [acc_x, acc_y, acc_z].
+           This file is loaded in PV wrapping.
+           It is used to add constraints to the SLAM optimization -->
+      <StringVectorProperty
+        name="SensorDataFile"
+        animateable="0"
+        command="SetSensorData"
+        number_of_elements="1"
+        panel_visibility="advanced">
+        <FileListDomain name="files"/>
+        <Documentation>
+          The path of the external sensor data file to use.
+
+          This CSV file can have the following columns:
+
+          *time*: Posix time, in seconds
+
+          *odom*: Wheel odometry, in meters
+
+          *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second
+
+        </Documentation>
+      </StringVectorProperty>
+
       <IntVectorProperty
           name="Auto detect input arrays"
           command="SetAutoDetectInputArrays"
@@ -277,6 +303,7 @@
 
       <PropertyGroup label="Filter inputs/outputs options">
         <Property name="Reset state" />
+        <Property name="SensorDataFile" />
         <Property name="Auto detect input arrays" />
         <Property name="Time array" />
         <Property name="Intensity array" />

@@ -23,6 +23,7 @@
 // VTK
 #include <vtkPolyDataAlgorithm.h>
 #include <vtkSmartPointer.h>
+#include <vtkDelimitedTextReader.h>
 
 // LOCAL
 #include <LidarSlam/Slam.h>
@@ -112,6 +113,9 @@ public:
 
   virtual int GetUndistortion();
   virtual void SetUndistortion(int mode);
+
+  // Set measurements to Slam algo
+  virtual void SetSensorData(const std::string& fileName);
 
   // ---------------------------------------------------------------------------
   //   BASE to LIDAR transform
