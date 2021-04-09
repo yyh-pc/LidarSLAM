@@ -209,6 +209,12 @@ public:
   vtkCustomGetMacro(LocalizationFinalSaturationDistance, double)
   vtkCustomSetMacro(LocalizationFinalSaturationDistance, double)
 
+  vtkCustomGetMacro(OdomWeight, double)
+  vtkCustomSetMacro(OdomWeight, double)
+
+  vtkCustomGetMacro(GravityWeight, double)
+  vtkCustomSetMacro(GravityWeight, double)
+
   // ---------------------------------------------------------------------------
   //   Keypoints extractor, Key frames and Maps parameters
   // ---------------------------------------------------------------------------
