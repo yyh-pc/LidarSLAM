@@ -205,10 +205,10 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 void SpinningSensorKeypointExtractor::InvalidateNotUsablePoints()
 {
   // Max angle between Lidar Ray and hyptothetic plane normal
-  constexpr float MAX_ANGLE_TO_NORMAL = Utils::Deg2Rad(70.);
+  const float angleBeamNormal = Utils::Deg2Rad(90 - this->MinBeamSurfaceAngle);
   // Coeff to multiply to point depth, in order to obtain the maximal distance
   // between two neighbors of the same Lidar ray on a plane
-  const float maxPosDiffCoeff = std::sin(this->AzimuthalResolution) / std::cos(this->AzimuthalResolution + MAX_ANGLE_TO_NORMAL);
+  const float maxPosDiffCoeff = std::sin(this->AzimuthalResolution) / std::cos(this->AzimuthalResolution + angleBeamNormal);
 
   // Loop over scan lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) firstprivate(maxPosDiffCoeff)
