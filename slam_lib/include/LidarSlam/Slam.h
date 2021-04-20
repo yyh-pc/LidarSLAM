@@ -514,8 +514,6 @@ private:
   // 6-DoF parameters (DoF order : X, Y, Z, rX, rY, rZ)
   LocalOptimizer::RegistrationError LocalizationUncertainty;
 
-  // Boolean to notify the odometry constraint has been successfully computed
-  bool OdomEnabled = false;
   // Odometry residual
   CeresTools::Residual OdomResidual;
   // Odometry manager
@@ -523,8 +521,6 @@ private:
   // taking account of the acquisition time correspondance
   SensorConstraints::WheelOdometryManager OdomManager;
 
-  // Boolean to notify the gravity constraint has been successfully computed
-  bool GravityEnabled = false;
   // Gravity residual
   CeresTools::Residual GravityResidual;
   // IMU manager

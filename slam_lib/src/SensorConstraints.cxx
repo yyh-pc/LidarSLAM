@@ -5,17 +5,17 @@ namespace LidarSlam
 namespace SensorConstraints
 {
 
-bool WheelOdometryManager::GetWheelAbsoluteConstraint(double lidarTime, CeresTools::Residual& residual)
+void WheelOdometryManager::GetWheelAbsoluteConstraint(double lidarTime, CeresTools::Residual& residual)
 {
   if (!this->CanBeUsed())
-    return false;
+    return;
 
   lidarTime -= this->TimeOffset;
   // Check if odometry measurements were taken around Lidar Frame acquisition
   if (lidarTime < this->Measures.front().Time || lidarTime > this->Measures.back().Time)
   {
     PRINT_WARNING("No odometry measure corresponds to the current frame acquisition (times don't match)");
-    return false;
+    return;
   }
 
   // Reset if the timeline has been modified
@@ -50,13 +50,12 @@ bool WheelOdometryManager::GetWheelAbsoluteConstraint(double lidarTime, CeresToo
 
   // Update index for next frame
   this->PreviousIdx = currIdx;
-  return true;
 }
 
-bool WheelOdometryManager::GetWheelOdomConstraint(double lidarTime, CeresTools::Residual& residual)
+void WheelOdometryManager::GetWheelOdomConstraint(double lidarTime, CeresTools::Residual& residual)
 {
   if (!this->CanBeUsed())
-    return false;
+    return;
   // Index of measurements used for this frame
   lidarTime -= this->TimeOffset;
 
@@ -64,7 +63,7 @@ bool WheelOdometryManager::GetWheelOdomConstraint(double lidarTime, CeresTools::
   if (lidarTime < this->Measures.front().Time || lidarTime > this->Measures.back().Time)
   {
     PRINT_WARNING("No odometry measure corresponds to the current frame acquisition (times don't match)");
-    return false;
+    return;
   }
 
   // Reset if the timeline has been modified
@@ -100,20 +99,18 @@ bool WheelOdometryManager::GetWheelOdomConstraint(double lidarTime, CeresTools::
   // Update index and distance for next frame
   this->PreviousIdx = currIdx;
   this->PreviousDistance = currDistance;
-
-  return true;
 }
 
-bool ImuManager::GetGravityConstraint(double lidarTime, CeresTools::Residual& residual)
+void ImuManager::GetGravityConstraint(double lidarTime, CeresTools::Residual& residual)
 {
   if (!this->CanBeUsed())
-    return false;
+    return;
 
   lidarTime -= this->TimeOffset;
   if (lidarTime < this->Measures.front().Time || lidarTime > this->Measures.back().Time)
   {
     PRINT_WARNING("No IMU measure corresponds to the current frame acquisition (times don't match)");
-    return false;
+    return;
   }
 
   // Compute reference gravity vector
@@ -138,14 +135,13 @@ bool ImuManager::GetGravityConstraint(double lidarTime, CeresTools::Residual& re
   if (gravityDirection.norm() > 1e-6) // Check to insure consistent IMU measure
     gravityDirection.normalize();
   else
-    return false;
+    return;
 
   // Build gravity constraint
   residual.Cost = CeresCostFunctions::ImuGravityAlignmentResidual::Create(this->GravityRef, gravityDirection);
   residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
 
   this->PreviousIdx = currIdx;
-  return true;
 }
 
 void ImuManager::ComputeGravityRef(double deltaAngle)

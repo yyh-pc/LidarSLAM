@@ -68,9 +68,9 @@ public:
   SetSensorMacro(PreviousPose, const Eigen::Isometry3d&)
 
   // Wheel odometry constraint (unoriented)
-  bool GetWheelOdomConstraint(double lidarTime, CeresTools::Residual& residual);
+  void GetWheelOdomConstraint(double lidarTime, CeresTools::Residual& residual);
   // Wheel absolute abscisse constraint (unoriented)
-  bool GetWheelAbsoluteConstraint(double lidarTime, CeresTools::Residual& residual);
+  void GetWheelAbsoluteConstraint(double lidarTime, CeresTools::Residual& residual);
 
 private:
   // Members used when using the relative distance with last estimated pose
@@ -86,7 +86,7 @@ public:
   SetSensorMacro(GravityRef, const Eigen::Vector3d&)
 
   // IMU constraint (gravity)
-  bool GetGravityConstraint(double lidarTime, CeresTools::Residual& residual);
+  void GetGravityConstraint(double lidarTime, CeresTools::Residual& residual);
   // Compute Reference gravity vector from IMU measurements
   void ComputeGravityRef(double deltaAngle);
 
