@@ -26,6 +26,20 @@
 // EIGEN
 #include <Eigen/Geometry>
 
+//------------------------------------------------------------------------------
+/**
+ * \brief Factory to ease the construction of the auto-diff residual objects
+ * 
+ * Type: the residual functor type
+ * ResidualSize: int, the size of the output residual block
+ * ...: int(s), the size(s) of the input parameter block(s)
+ */
+#define RESIDUAL_FACTORY(Type, ResidualSize, ...) \
+  template<typename ...Args> \
+  static std::shared_ptr<ceres::CostFunction> Create(Args&& ...args) \
+  { return std::make_shared<ceres::AutoDiffCostFunction<Type, ResidualSize, __VA_ARGS__>>(new Type(args...));}
+
+
 namespace LidarSlam
 {
 namespace CeresTools
@@ -124,17 +138,8 @@ struct MahalanobisDistanceAffineIsometryResidual
     return true;
   }
 
-  // Factory to hide the construction of the CostFunction object from
-  // the client code.
-  static std::shared_ptr<ceres::CostFunction> Create(const Eigen::Matrix3d& argA,
-                                                     const Eigen::Vector3d& argP,
-                                                     const Eigen::Vector3d& argX)
-  {
-    return std::shared_ptr<ceres::AutoDiffCostFunction<MahalanobisDistanceAffineIsometryResidual, 3, 6>>(
-                       new ceres::AutoDiffCostFunction<MahalanobisDistanceAffineIsometryResidual, 3, 6>
-                       (new MahalanobisDistanceAffineIsometryResidual(argA, argP, argX))
-                       );
-  }
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(MahalanobisDistanceAffineIsometryResidual, 3, 6)
 
 private:
   const Eigen::Matrix3d A;
@@ -225,18 +230,9 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     return true;
   }
 
-  // Factory to hide the construction of the CostFunction object from
-  // the client code.
-  static std::shared_ptr<ceres::CostFunction> Create(const Eigen::Matrix3d& argA,
-                                                     const Eigen::Vector3d& argP,
-                                                     const Eigen::Vector3d& argX,
-                                                     double argTime)
-  {
-    return std::shared_ptr<ceres::AutoDiffCostFunction<MahalanobisDistanceInterpolatedMotionResidual, 3, 6, 6>>(
-                       new ceres::AutoDiffCostFunction<MahalanobisDistanceInterpolatedMotionResidual, 3, 6, 6>
-                       (new MahalanobisDistanceInterpolatedMotionResidual(argA, argP, argX, argTime))
-                       );
-  }
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(MahalanobisDistanceInterpolatedMotionResidual, 3, 6, 6)
+
 
 private:
   const Eigen::Matrix3d A;
@@ -281,16 +277,8 @@ struct OdometerDistanceResidual
     return true;
   }
 
-  // Factory to hide the construction of the CostFunction
-  // object from the client code.
-  static std::shared_ptr<ceres::CostFunction> Create(const Eigen::Vector3d& previousPos,
-                                                     double distanceToPreviousPose)
-  {
-    return std::shared_ptr<ceres::AutoDiffCostFunction<OdometerDistanceResidual, 1, 6>>(
-                       new ceres::AutoDiffCostFunction<OdometerDistanceResidual, 1, 6>
-                       (new OdometerDistanceResidual(previousPos, distanceToPreviousPose))
-                       );
-  }
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(OdometerDistanceResidual, 1, 6)
 
 private:
   const Eigen::Vector3d PreviousPos;
@@ -335,16 +323,8 @@ struct ImuGravityAlignmentResidual
     return true;
   }
 
-  // Factory to hide the construction of the CostFunction object from
-  // the client code.
-  static std::shared_ptr<ceres::CostFunction> Create(const Eigen::Vector3d& referenceGravityDirection,
-                                                     const Eigen::Vector3d& currentGravityDirection)
-  {
-    return std::shared_ptr<ceres::AutoDiffCostFunction<ImuGravityAlignmentResidual, 3, 6>>(
-                       new ceres::AutoDiffCostFunction<ImuGravityAlignmentResidual, 3, 6>
-                       (new ImuGravityAlignmentResidual(referenceGravityDirection, currentGravityDirection))
-                       );
-  }
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(ImuGravityAlignmentResidual, 3, 6)
 
 private:
   const Eigen::Vector3d ReferenceGravityDirection;
