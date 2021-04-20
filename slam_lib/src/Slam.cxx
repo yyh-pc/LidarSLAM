@@ -155,8 +155,6 @@ Slam::Slam()
 //-----------------------------------------------------------------------------
 void Slam::Reset(bool resetLog)
 {
-  this->GravityRef = {0., 0., 0.};
-
   // Reset keypoints maps
   this->ClearMaps();
 
@@ -211,6 +209,13 @@ void Slam::SetNbThreads(int n)
   for (const auto& kv : this->KeyPointsExtractors) 
     kv.second->SetNbThreads(n); 
 }
+
+//-----------------------------------------------------------------------------
+void Slam::SetSensorTimeOffset(double timeOffset) 
+{
+  this->OdomManager.SetTimeOffset(timeOffset);
+  this->ImuManager.SetTimeOffset(timeOffset);
+} 
 
 //-----------------------------------------------------------------------------
 void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
@@ -316,23 +321,11 @@ void Slam::ComputeSensorConstraints()
   this->GravityEnabled = false;
 
   double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  if (this->OdomWeight > 1e-6 && !this->OdomMeasurements.empty())
-  {
-    if (SensorConstraints::GetWheelAbsoluteConstraint(currLidarTime, this->OdomWeight, this->OdomMeasurements, this->OdomResidual, this->SensorTimeOffset))
-      this->OdomEnabled = true;
-    else
-      PRINT_WARNING("Can not use odometry measurements for current frame.");
-  }
+  if (this->OdomManager.GetWheelAbsoluteConstraint(currLidarTime, this->OdomResidual))
+    this->OdomEnabled = true;
 
-  if (this->GravityWeight > 1e-6 && !this->GravityMeasurements.empty())
-  {
-    if (this->GravityRef.norm() < 1e-6)
-      this->GravityRef = SensorConstraints::ComputeGravityRef(this->GravityMeasurements, Utils::Deg2Rad(5.f));
-    if (SensorConstraints::GetGravityConstraint(currLidarTime, this->GravityWeight, this->GravityMeasurements, this->GravityRef, this->GravityResidual, this->SensorTimeOffset))
-      this->GravityEnabled = true;
-    else
-      PRINT_WARNING("Can not use IMU measurements for current frame.");
-  }
+  if (this->ImuManager.GetGravityConstraint(currLidarTime, this->GravityResidual))
+    this->GravityEnabled = true;
 }
 
 //-----------------------------------------------------------------------------
@@ -1361,18 +1354,18 @@ void Slam::RefineUndistortion()
 
 void Slam::AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm)
 {
-  this->GravityMeasurements.emplace_back(gm);
+  this->ImuManager.AddMeasurement(gm);
 }
 
 void Slam::AddOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om)
 {
-  this->OdomMeasurements.emplace_back(om);
+  this->OdomManager.AddMeasurement(om);
 }
 
 void Slam::ClearSensorMeasurements()
 {
-  this->OdomMeasurements.clear();
-  this->GravityMeasurements.clear();
+  this->OdomManager.Reset();
+  this->ImuManager.Reset();
 }
 
 //==============================================================================

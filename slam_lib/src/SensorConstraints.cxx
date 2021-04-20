@@ -5,172 +5,150 @@ namespace LidarSlam
 namespace SensorConstraints
 {
 
-bool GetWheelAbsoluteConstraint(double lidarTime, double weight, const std::vector<WheelOdomMeasurement>& measures,
-                                CeresTools::Residual& residual, double timeOffset)
+bool WheelOdometryManager::GetWheelAbsoluteConstraint(double lidarTime, CeresTools::Residual& residual)
 {
-  static int prevIdx = 0;   // Index of measurements used for previous frame
-                            // (interpolation between prevIdx and prevIdx + 1 values)
-  static double firstDistance = measures[0].Distance; // interpolation used for the previous frame
-  unsigned int currIdx = 0; // Index of measurements used for this frame
-                            // (interpolation between currIdx and currIdx + 1 values)
-  double currDistance = firstDistance; // interpolation used for the current frame
+  if (!this->CanBeUsed())
+    return false;
 
-  lidarTime -= timeOffset;
+  lidarTime -= this->TimeOffset;
+  // Check if odometry measurements were taken around Lidar Frame acquisition
+  if (lidarTime < this->Measures.front().Time || lidarTime > this->Measures.back().Time)
+  {
+    PRINT_WARNING("No odometry measure corresponds to the current frame acquisition (times don't match)");
+    return false;
+  }
+
+  // Reset if the timeline has been modified
+  if (this->PreviousIdx >= 0 && this->Measures[this->PreviousIdx].Time > lidarTime)
+    this->PreviousIdx = -1;
+
+  // Get index of last odometry measurement before LiDAR time
+  int currIdx = this->PreviousIdx;
+  while (this->Measures[currIdx + 1].Time < lidarTime)
+    currIdx++;
+
+  // Interpolate odometry measurement at LiDAR timestamp (between currIdx and currIdx + 1 measures)
+  double rt = (lidarTime - this->Measures[currIdx].Time) / (this->Measures[currIdx + 1].Time - this->Measures[currIdx].Time);
+  double currDistance = (1 - rt) * this->Measures[currIdx].Distance + rt * this->Measures[currIdx + 1].Distance;
+
+  // Build odometry residual
+
+  // If there is no memory of previous poses
+  if (this->PreviousIdx == -1)
+  {
+    std::cout << "No previous wheel odometry measure : no constraint added to optimization" << std::endl;
+    // Update index and distance for next frame
+    this->PreviousIdx = currIdx;
+    this->PreviousDistance = currDistance;
+    return;
+  }
+
+  // If there is memory of a previous pose
+  residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(this->PreviousPose.translation(), currDistance - this->PreviousDistance);
+  residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
+  std::cout << "Adding wheel odometry residual : " << currDistance - this->PreviousDistance << " m travelled since first frame." << std::endl;
+
+  // Update index for next frame
+  this->PreviousIdx = currIdx;
+  return true;
+}
+
+bool WheelOdometryManager::GetWheelOdomConstraint(double lidarTime, CeresTools::Residual& residual)
+{
+  if (!this->CanBeUsed())
+    return false;
+  // Index of measurements used for this frame
+  lidarTime -= this->TimeOffset;
 
   // Check if odometry measurements were taken around Lidar Frame acquisition
-  if (measures.front().Time < lidarTime && lidarTime < measures.back().Time)
+  if (lidarTime < this->Measures.front().Time || lidarTime > this->Measures.back().Time)
   {
-    // Reset if needed
-    if (measures[prevIdx].Time > lidarTime)
-      prevIdx = 0;
-
-    currIdx = prevIdx;
-    // Get index of last odometry measurement before LiDAR time
-    while (measures[currIdx + 1].Time < lidarTime)
-      currIdx++;
-
-    // Interpolate odometry measurement at LiDAR timestamp
-    double rt = (lidarTime - measures[currIdx].Time) / (measures[currIdx + 1].Time - measures[currIdx].Time);
-    currDistance = (1 - rt) * measures[currIdx].Distance + rt * measures[currIdx + 1].Distance;
-
-    // Build odometry residual
-    // if it is not first frame
-    if (prevIdx > 0)
-    {
-      residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(Eigen::Vector3d::Zero(), currDistance - firstDistance);
-      residual.Robustifier.reset(new ceres::ScaledLoss(NULL, weight, ceres::TAKE_OWNERSHIP));
-      std::cout << "Adding odometry residual : " << currDistance - firstDistance << " m travelled since first frame." << std::endl;
-    }
-    else
-    {
-      firstDistance = currDistance;
-      residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(Eigen::Vector3d::Zero(), 0.);
-      residual.Robustifier.reset(new ceres::ScaledLoss(NULL, 0., ceres::TAKE_OWNERSHIP));
-      std::cout << "First frame => no odometry" << std::endl;
-    }
-  }
-  else
-  {
-    PRINT_WARNING("Odometry does not correspond to the current frame acquisition (times don't match)");
+    PRINT_WARNING("No odometry measure corresponds to the current frame acquisition (times don't match)");
     return false;
   }
 
-  prevIdx = currIdx;
+  // Reset if the timeline has been modified
+  if (this->PreviousIdx >= 0 && this->Measures[this->PreviousIdx].Time > lidarTime)
+    this->PreviousIdx = -1;
+
+  unsigned int currIdx = this->PreviousIdx;
+  // Get index of last odometry measurement before LiDAR time
+  while (this->Measures[currIdx + 1].Time < lidarTime)
+    currIdx++;
+
+  // Interpolate odometry measurement at LiDAR timestamp (between currIdx and currIdx + 1)
+  double rt = (lidarTime - this->Measures[currIdx].Time) / (this->Measures[currIdx + 1].Time - this->Measures[currIdx].Time);
+  double currDistance = (1 - rt) * this->Measures[currIdx].Distance + rt * this->Measures[currIdx + 1].Distance;
+
+  // Build odometry residual
+  // If there is no memory of previous poses
+  if (this->PreviousIdx == -1)
+  {
+    std::cout << "No previous wheel odometry measure : no constraint added to optimization" << std::endl;
+    // Update index and distance for next frame
+    this->PreviousIdx = currIdx;
+    this->PreviousDistance = currDistance;
+    return;
+  }
+
+  // If there is memory of a previous pose
+  double distDiff = std::abs(currDistance - this->PreviousDistance);
+  residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(this->PreviousPose.translation(), distDiff);
+  residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
+  std::cout << "Adding relative wheel odometry residual : " << distDiff << " m travelled since last frame." << std::endl;
+
+  // Update index and distance for next frame
+  this->PreviousIdx = currIdx;
+  this->PreviousDistance = currDistance;
+
   return true;
 }
 
-bool GetWheelOdomConstraint(double lidarTime, double weight, const std::vector<WheelOdomMeasurement>& measures,
-                            const Eigen::Isometry3d& previousTworld, CeresTools::Residual& residual, double timeOffset)
+bool ImuManager::GetGravityConstraint(double lidarTime, CeresTools::Residual& residual)
 {
-  static int prevIdx = 0;   // Index of measurements used for previous frame
-                            // (interpolation between prevIdx and prevIdx + 1 values)
-  static double prevDistance = measures[0].Distance; // interpolation used for the previous frame
-  unsigned int currIdx = 0; // Index of measurements used for this frame
-                            // (interpolation between currIdx and currIdx + 1 values)
-  double currDistance = 0.; // interpolation used for the current frame
+  if (!this->CanBeUsed())
+    return false;
 
-  lidarTime -= timeOffset;
-
-  // Check if odometry measurements were taken around Lidar Frame acquisition
-  if (measures.front().Time < lidarTime && lidarTime < measures.back().Time)
+  lidarTime -= this->TimeOffset;
+  if (lidarTime < this->Measures.front().Time || lidarTime > this->Measures.back().Time)
   {
-    // Reset if the timeline has been modified
-    if (measures[prevIdx].Time > lidarTime)
-    {
-      prevIdx = 0;
-      prevDistance = measures[0].Distance;
-    }
-
-    currIdx = prevIdx;
-    // Get index of last odometry measurement before LiDAR time
-    while (measures[currIdx + 1].Time < lidarTime)
-      currIdx++;
-
-    // If we got to the end of measures
-    // no measure corresponds to Lidar time
-    if (currIdx + 1 == measures.size())
-      return false;
-
-    // Interpolate odometry measurement at LiDAR timestamp
-    double rt = (lidarTime - measures[currIdx].Time) / (measures[currIdx + 1].Time - measures[currIdx].Time);
-    currDistance = (1 - rt) * measures[currIdx].Distance + rt * measures[currIdx + 1].Distance;
-
-    // Build odometry residual
-    // if there is memory of a previous pose
-    if (prevIdx > 0)
-    {
-      double distDiff = std::abs(currDistance - prevDistance);
-
-      residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(previousTworld.translation(), distDiff);
-      residual.Robustifier.reset(new ceres::ScaledLoss(NULL, weight, ceres::TAKE_OWNERSHIP));
-      std::cout << "Adding odometry residual : " << distDiff << " m travelled since last frame." << std::endl;
-    }
-    else
-    {
-      residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(previousTworld.translation(), 0.);
-      residual.Robustifier.reset(new ceres::ScaledLoss(NULL, 0., ceres::TAKE_OWNERSHIP));
-      std::cout << "First frame = no odometry" << std::endl;
-    }
-  }
-  else
-  {
-    std::cout << "Odom does not correspond to the current frame acquisition (times don't match)" << std::endl;
+    PRINT_WARNING("No IMU measure corresponds to the current frame acquisition (times don't match)");
     return false;
   }
 
-  prevDistance = currDistance;
-  prevIdx = currIdx;
-  return true;
-}
+  // Compute reference gravity vector
+  if (this->GravityRef.norm() < 1e-6)
+    this->ComputeGravityRef(Utils::Deg2Rad(5.f));
 
-bool GetGravityConstraint(double lidarTime, double weight, const std::vector<GravityMeasurement>& measures,
-                          const Eigen::Vector3d& gravityRef, CeresTools::Residual& residual, double timeOffset)
-{
-  static int prevIdx = 0;   // Index of measurements used for previous frame
-                            // (measures from 0 to prevIdx)
-  unsigned int currIdx = 0; // Index of measurement used for this frame
-                            // (measures from 0 to currIdx)
+  // Reset if the timeline has been modified
+  if (this->PreviousIdx >= 0 && this->Measures[this->PreviousIdx].Time > lidarTime)
+    this->PreviousIdx = -1;
 
-  lidarTime -= timeOffset;
+  // Index of measurement used for this frame
+  int currIdx = this->PreviousIdx;
 
-  if (measures.front().Time < lidarTime && lidarTime < measures.back().Time)
-  {
-    currIdx = prevIdx;
-    // Reset if the timeline has been modified
-    if (measures[currIdx].Time > lidarTime)
-    {
-      prevIdx = 0;
-      currIdx = 0;
-    }
+  // Get index of last IMU measurement before LiDAR time
+  while (this->Measures[currIdx + 1].Time <= lidarTime)
+    currIdx++;
 
-    // Get index of last IMU measurement before LiDAR time
-    while (measures[currIdx + 1].Time < lidarTime)
-      currIdx++;
-
-    // Interpolate gravity measurement at LiDAR timestamp
-    double rt = (lidarTime - measures[currIdx].Time) / (measures[currIdx + 1].Time - measures[currIdx].Time);
-    Eigen::Vector3d gravityDirection = (1 - rt) * measures[currIdx].Acceleration.normalized() + rt * measures[currIdx + 1].Acceleration.normalized();
-    // Normalize interpolated gravity vector
-    if (gravityDirection.norm() > 1e-6) // Check to insure consistent IMU measure
-      gravityDirection.normalize();
-    else 
-      return false;
-
-    // Build gravity constraint
-    residual.Cost = CeresCostFunctions::ImuGravityAlignmentResidual::Create(gravityRef, gravityDirection);
-    residual.Robustifier.reset(new ceres::ScaledLoss(NULL, weight, ceres::TAKE_OWNERSHIP));
-  }
+  // Interpolate gravity measurement at LiDAR timestamp
+  double rt = (lidarTime - this->Measures[currIdx].Time) / (this->Measures[currIdx + 1].Time - this->Measures[currIdx].Time);
+  Eigen::Vector3d gravityDirection = (1 - rt) * this->Measures[currIdx].Acceleration.normalized() + rt * this->Measures[currIdx + 1].Acceleration.normalized();
+  // Normalize interpolated gravity vector
+  if (gravityDirection.norm() > 1e-6) // Check to insure consistent IMU measure
+    gravityDirection.normalize();
   else
-  {
-    PRINT_WARNING("IMU does not correspond to the current frame acquisition (times don't match)");
     return false;
-  }
 
-  prevIdx = currIdx;
+  // Build gravity constraint
+  residual.Cost = CeresCostFunctions::ImuGravityAlignmentResidual::Create(this->GravityRef, gravityDirection);
+  residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
+
+  this->PreviousIdx = currIdx;
   return true;
 }
 
-Eigen::Vector3d ComputeGravityRef(const std::vector<GravityMeasurement>& measures, double deltaAngle)
+void ImuManager::ComputeGravityRef(double deltaAngle)
 {
   // Init histogram 2D (phi and theta)
   int NPhi = std::ceil(2 * M_PI / deltaAngle);
@@ -178,9 +156,9 @@ Eigen::Vector3d ComputeGravityRef(const std::vector<GravityMeasurement>& measure
   std::vector<std::vector<std::vector<int>>> histogram(NPhi, std::vector<std::vector<int>>(NTheta));
 
   // Store acceleration vector indices in histogram
-  for (unsigned int idxAcc = 0; idxAcc < measures.size(); ++idxAcc)
+  for (unsigned int idxAcc = 0; idxAcc < this->Measures.size(); ++idxAcc)
   {
-    Eigen::Vector3d AccelDirection = measures[idxAcc].Acceleration.normalized();
+    Eigen::Vector3d AccelDirection = this->Measures[idxAcc].Acceleration.normalized();
     int idxPhi = ( std::atan2(AccelDirection.y(), AccelDirection.x()) + M_PI ) / deltaAngle;
     int idxTheta = ( std::acos(AccelDirection.z()) ) / deltaAngle;
     histogram[idxPhi][idxTheta].push_back(idxAcc);
@@ -201,13 +179,11 @@ Eigen::Vector3d ComputeGravityRef(const std::vector<GravityMeasurement>& measure
   }
 
   // Compute mean of acceleration vectors in this bin 
-  Eigen::Vector3d gravityRef = Eigen::Vector3d::Zero();
+  this->GravityRef = Eigen::Vector3d::Zero();
   for (int idxAcc : histogram[bestPhi][bestTheta])
-    gravityRef += measures[idxAcc].Acceleration.normalized();
-  gravityRef.normalize();
-  std::cout << "Gravity vector : " << gravityRef.transpose() << std::endl;
-
-  return gravityRef;
+    this->GravityRef += this->Measures[idxAcc].Acceleration.normalized();
+  this->GravityRef.normalize();
+  std::cout << "Gravity vector : " << this->GravityRef.transpose() << std::endl;
 }
 
 } // end of SensorConstraints namespace

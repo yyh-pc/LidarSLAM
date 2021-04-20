@@ -325,14 +325,14 @@ public:
   GetMacro(LocalizationFinalSaturationDistance, double)
   SetMacro(LocalizationFinalSaturationDistance, double)
 
-  SetMacro(OdomWeight, double)
-  GetMacro(OdomWeight, double)
+  void SetOdomWeight(double weight) {this->OdomManager.SetWeight(weight);} 
+  double GetOdomWeight() {return this->OdomManager.GetWeight();}
 
-  SetMacro(GravityWeight, double)
-  GetMacro(GravityWeight, double)
+  void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);} 
+  double GetGravityWeight() {return this->ImuManager.GetWeight();}
 
-  SetMacro(SensorTimeOffset, double)
-  GetMacro(SensorTimeOffset, double)
+  void SetSensorTimeOffset(double timeOffset);
+  double GetSensorTimeOffset() {return this->ImuManager.GetTimeOffset();}
 
   void AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm);
   void AddOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om);
@@ -514,25 +514,23 @@ private:
   // 6-DoF parameters (DoF order : X, Y, Z, rX, rY, rZ)
   LocalOptimizer::RegistrationError LocalizationUncertainty;
 
-  // Odometry measurements
-  std::vector<SensorConstraints::WheelOdomMeasurement> OdomMeasurements;
-  // Odometry weight (default is 0. : odometry is not used)
-  double OdomWeight = 0.;
   // Boolean to notify the odometry constraint has been successfully computed
   bool OdomEnabled = false;
   // Odometry residual
   CeresTools::Residual OdomResidual;
+  // Odometry manager
+  // Compute the residual with a weight, a measurements list and
+  // taking account of the acquisition time correspondance
+  SensorConstraints::WheelOdometryManager OdomManager;
 
-  // Gravity measurements
-  std::vector<SensorConstraints::GravityMeasurement> GravityMeasurements;
-  // Reference gravity
-  Eigen::Vector3d GravityRef = {0., 0., 0.};
-  // Gravity weight (default is 0. : gravity is not used)
-  double GravityWeight = 0.;
   // Boolean to notify the gravity constraint has been successfully computed
   bool GravityEnabled = false;
   // Gravity residual
   CeresTools::Residual GravityResidual;
+  // IMU manager
+  // Compute the residual with a weight, a measurements list and
+  // taking account of the acquisition time correspondance
+  SensorConstraints::ImuManager ImuManager;
 
   // Time offset to make a correspondance
   // between the frame timestamps and POSIX acquisition times
