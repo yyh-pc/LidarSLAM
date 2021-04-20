@@ -331,6 +331,9 @@ public:
   SetMacro(GravityWeight, double)
   GetMacro(GravityWeight, double)
 
+  SetMacro(SensorTimeOffset, double)
+  GetMacro(SensorTimeOffset, double)
+
   void AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm);
   void AddOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om);
   void ClearSensorMeasurements();
@@ -530,6 +533,12 @@ private:
   bool GravityEnabled = false;
   // Gravity residual
   CeresTools::Residual GravityResidual;
+
+  // Time offset to make a correspondance
+  // between the frame timestamps and POSIX acquisition times
+  // which can be linked with external sensors acquisition times
+  // It must be computed as FrameFirstPointTimestamp - FrameReceptionPOSIXTime
+  double SensorTimeOffset = 0.;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters

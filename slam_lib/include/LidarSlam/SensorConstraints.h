@@ -20,15 +20,15 @@ struct GravityMeasurement
 
 // Wheel odometry constraint (unoriented)
 bool GetWheelOdomConstraint(double lidarTime, double weight, const std::vector<WheelOdomMeasurement>& measures,
-                            const Eigen::Isometry3d& previousTworld, CeresTools::Residual& residual);
+                            const Eigen::Isometry3d& previousTworld, CeresTools::Residual& residual, double timeOffset = 0.);
 
 // Wheel absolute abscisse constraint (unoriented)
 bool GetWheelAbsoluteConstraint(double lidarTime, double weight, const std::vector<WheelOdomMeasurement>& measures,
-                                CeresTools::Residual& residual);
+                                CeresTools::Residual& residual, double timeOffset = 0.);
 
 // IMU constraint (gravity)
 bool GetGravityConstraint(double lidarTime, double weight, const std::vector<GravityMeasurement>& measures,
-                          const Eigen::Vector3d& gravityRef, CeresTools::Residual& residual);
+                          const Eigen::Vector3d& gravityRef, CeresTools::Residual& residual, double timeOffset = 0.);
 
 Eigen::Vector3d ComputeGravityRef(const std::vector<GravityMeasurement>& measures, double deltaAngle);
 

@@ -23,7 +23,6 @@
 // VTK
 #include <vtkPolyDataAlgorithm.h>
 #include <vtkSmartPointer.h>
-#include <vtkDelimitedTextReader.h>
 
 // LOCAL
 #include <LidarSlam/Slam.h>

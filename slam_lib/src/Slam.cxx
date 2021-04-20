@@ -318,7 +318,7 @@ void Slam::ComputeSensorConstraints()
   double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
   if (this->OdomWeight > 1e-6 && !this->OdomMeasurements.empty())
   {
-    if (SensorConstraints::GetWheelAbsoluteConstraint(currLidarTime, this->OdomWeight, this->OdomMeasurements, this->OdomResidual))
+    if (SensorConstraints::GetWheelAbsoluteConstraint(currLidarTime, this->OdomWeight, this->OdomMeasurements, this->OdomResidual, this->SensorTimeOffset))
       this->OdomEnabled = true;
     else
       PRINT_WARNING("Can not use odometry measurements for current frame.");
@@ -328,7 +328,7 @@ void Slam::ComputeSensorConstraints()
   {
     if (this->GravityRef.norm() < 1e-6)
       this->GravityRef = SensorConstraints::ComputeGravityRef(this->GravityMeasurements, Utils::Deg2Rad(5.f));
-    if (SensorConstraints::GetGravityConstraint(currLidarTime, this->GravityWeight, this->GravityMeasurements, this->GravityRef, this->GravityResidual))
+    if (SensorConstraints::GetGravityConstraint(currLidarTime, this->GravityWeight, this->GravityMeasurements, this->GravityRef, this->GravityResidual, this->SensorTimeOffset))
       this->GravityEnabled = true;
     else
       PRINT_WARNING("Can not use IMU measurements for current frame.");

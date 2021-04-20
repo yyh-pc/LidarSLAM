@@ -36,7 +36,7 @@
 #include <vtkPointData.h>
 #include <vtkPoints.h>
 #include <vtkPolyData.h>
-#include <vtkSmartPointer.h>
+#include <vtkStreamingDemandDrivenPipeline.h>
 #include <vtkTable.h>
 
 // PCL
@@ -144,6 +144,18 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // Conversion vtkPolyData -> PCL pointcloud
   LidarSlam::Slam::PointCloud::Ptr pc(new LidarSlam::Slam::PointCloud);
   bool allPointsAreValid = this->PolyDataToPointCloud(input, pc, laserMapping);
+
+  auto arrayTime = input->GetPointData()->GetArray(this->TimeArrayName.c_str());
+  // Get frame first point time in vendor format
+  double frameFirstPointTime = arrayTime->GetRange()[0] * this->TimeToSecondsFactor;
+  // Get first frame packet reception time
+  vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
+  double frameReceptionPOSIXTime = inInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
+  double absCurrentOffset = std::abs(this->SlamAlgo->GetSensorTimeOffset());
+  double potentialOffset = frameFirstPointTime - frameReceptionPOSIXTime;
+  // We exclude the first frame cause frameReceptionPOSIXTime can be badly set 
+  if (this->SlamAlgo->GetNbrFrameProcessed() > 0 && (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset))
+    this->SlamAlgo->SetSensorTimeOffset(potentialOffset);
 
   // Run SLAM
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : input conversions"));
@@ -317,8 +329,6 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 //-----------------------------------------------------------------------------
 void vtkSlam::SetSensorData(const std::string& fileName)
 {
-  double timeOffset = 4435169098 * 1e-6 - 1615986214.198827;
-
   this->SlamAlgo->ClearSensorMeasurements();
 
   if (fileName.empty())
@@ -340,8 +350,8 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     auto arrayOdom = csvTable->GetRowData()->GetArray("odom");
     for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
     {
-      odomMeasurement.Time = arrayTime->GetTuple1(i) + timeOffset;
       LidarSlam::SensorConstraints::WheelOdomMeasurement odomMeasurement;
+      odomMeasurement.Time = arrayTime->GetTuple1(i);
       odomMeasurement.Distance = arrayOdom->GetTuple1(i);
       this->SlamAlgo->AddOdomMeasurement(odomMeasurement);
     }
@@ -359,8 +369,8 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     auto arrayAccZ = csvTable->GetRowData()->GetArray("acc_z");
     for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
     {
-      gravityMeasurement.Time = arrayTime->GetTuple1(i) + timeOffset;
       LidarSlam::SensorConstraints::GravityMeasurement gravityMeasurement;
+      gravityMeasurement.Time = arrayTime->GetTuple1(i);
       gravityMeasurement.Acceleration.x() = arrayAccX->GetTuple1(i);
       gravityMeasurement.Acceleration.y() = arrayAccY->GetTuple1(i);
       gravityMeasurement.Acceleration.z() = arrayAccZ->GetTuple1(i);

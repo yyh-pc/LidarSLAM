@@ -6,7 +6,7 @@ namespace SensorConstraints
 {
 
 bool GetWheelAbsoluteConstraint(double lidarTime, double weight, const std::vector<WheelOdomMeasurement>& measures,
-                                CeresTools::Residual& residual)
+                                CeresTools::Residual& residual, double timeOffset)
 {
   static int prevIdx = 0;   // Index of measurements used for previous frame
                             // (interpolation between prevIdx and prevIdx + 1 values)
@@ -14,6 +14,8 @@ bool GetWheelAbsoluteConstraint(double lidarTime, double weight, const std::vect
   unsigned int currIdx = 0; // Index of measurements used for this frame
                             // (interpolation between currIdx and currIdx + 1 values)
   double currDistance = firstDistance; // interpolation used for the current frame
+
+  lidarTime -= timeOffset;
 
   // Check if odometry measurements were taken around Lidar Frame acquisition
   if (measures.front().Time < lidarTime && lidarTime < measures.back().Time)
@@ -58,7 +60,7 @@ bool GetWheelAbsoluteConstraint(double lidarTime, double weight, const std::vect
 }
 
 bool GetWheelOdomConstraint(double lidarTime, double weight, const std::vector<WheelOdomMeasurement>& measures,
-                            const Eigen::Isometry3d& previousTworld, CeresTools::Residual& residual)
+                            const Eigen::Isometry3d& previousTworld, CeresTools::Residual& residual, double timeOffset)
 {
   static int prevIdx = 0;   // Index of measurements used for previous frame
                             // (interpolation between prevIdx and prevIdx + 1 values)
@@ -66,6 +68,8 @@ bool GetWheelOdomConstraint(double lidarTime, double weight, const std::vector<W
   unsigned int currIdx = 0; // Index of measurements used for this frame
                             // (interpolation between currIdx and currIdx + 1 values)
   double currDistance = 0.; // interpolation used for the current frame
+
+  lidarTime -= timeOffset;
 
   // Check if odometry measurements were taken around Lidar Frame acquisition
   if (measures.front().Time < lidarTime && lidarTime < measures.back().Time)
@@ -120,12 +124,14 @@ bool GetWheelOdomConstraint(double lidarTime, double weight, const std::vector<W
 }
 
 bool GetGravityConstraint(double lidarTime, double weight, const std::vector<GravityMeasurement>& measures,
-                          const Eigen::Vector3d& gravityRef, CeresTools::Residual& residual)
+                          const Eigen::Vector3d& gravityRef, CeresTools::Residual& residual, double timeOffset)
 {
   static int prevIdx = 0;   // Index of measurements used for previous frame
                             // (measures from 0 to prevIdx)
   unsigned int currIdx = 0; // Index of measurement used for this frame
                             // (measures from 0 to currIdx)
+
+  lidarTime -= timeOffset;
 
   if (measures.front().Time < lidarTime && lidarTime < measures.back().Time)
   {
