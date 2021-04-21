@@ -80,7 +80,7 @@
         <Documentation>
           Reset SLAM internal state : maps and trajectory are cleared, and
           current pose is set back to origin.
-          This keeps parameters unchanged.
+          This keeps parameters and sensor data unchanged.
         </Documentation>
       </Property>
 

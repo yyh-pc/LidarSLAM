@@ -111,6 +111,9 @@ public:
 
   // Initialization
   Slam();
+  // Reset internal state : maps and trajectory are cleared
+  // and current pose is set back to origin.
+  // This keeps parameters and sensor data unchanged.
   void Reset(bool resetLog = true);
 
   // ---------------------------------------------------------------------------
@@ -519,6 +522,7 @@ private:
   // Odometry manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
+  // The sensor measurements must be filled and cleared from outside this lib
   SensorConstraints::WheelOdometryManager WheelOdomManager;
 
   // Gravity residual
@@ -526,6 +530,7 @@ private:
   // IMU manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
+  // The sensor measurements must be filled and cleared from outside this lib
   SensorConstraints::ImuManager ImuManager;
 
   // Time offset to make a correspondance
