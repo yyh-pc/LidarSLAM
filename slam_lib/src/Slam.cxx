@@ -242,9 +242,12 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->ComputeEgoMotion();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
 
-  IF_VERBOSE(3, Utils::Timer::Init("Sensor constraints computation"));
-  this->ComputeSensorConstraints();
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Sensor constraints computation"));
+  if (this->WheelOdomManager.CanBeUsed() || this->ImuManager.CanBeUsed())
+  {
+    IF_VERBOSE(3, Utils::Timer::Init("Sensor constraints computation"));
+    this->ComputeSensorConstraints();
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Sensor constraints computation"));
+  }
 
   // Perform Localization : update Tworld from map and current frame keypoints
   // and optionally undistort keypoints clouds based on ego-motion
