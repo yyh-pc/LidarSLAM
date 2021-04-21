@@ -151,11 +151,10 @@ public:
   // Get keypoints maps
   PointCloud::Ptr GetMap(Keypoint k) const;
 
-  // Get extracted keypoints from current frame.
-  // If worldCoordinates=false, it returns raw keypoints in BASE coordinates,
-  // without undistortion. If worldCoordinates=true, it returns undistorted
-  // keypoints in WORLD coordinates.
-  PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = true) const;
+  // Get extracted and optionally undistorted keypoints from current frame.
+  // If worldCoordinates=false, it returns keypoints in BASE coordinates,
+  // If worldCoordinates=true, it returns keypoints in WORLD coordinates.
+  PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = false) const;
 
   // Get current frame
   PointCloud::Ptr GetOutputFrame();
@@ -594,9 +593,8 @@ private:
   // current frame keypoints on keypoints from maps
   void Localization();
 
-  // Update the maps by adding to the rolling grids the current keypoints
-  // expressed in the world reference frame coordinate system.
-  // Only keypoints from keyframes are added.
+  // Transform current keypoints to WORLD coordinates,
+  // and add points to the maps if we are dealing with a new keyframe.
   void UpdateMapsUsingTworld();
 
   // Log current frame processing results : pose, covariance and keypoints.
