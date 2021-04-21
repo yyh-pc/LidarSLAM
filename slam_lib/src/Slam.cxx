@@ -213,7 +213,7 @@ void Slam::SetNbThreads(int n)
 //-----------------------------------------------------------------------------
 void Slam::SetSensorTimeOffset(double timeOffset) 
 {
-  this->OdomManager.SetTimeOffset(timeOffset);
+  this->WheelOdomManager.SetTimeOffset(timeOffset);
   this->ImuManager.SetTimeOffset(timeOffset);
 } 
 
@@ -317,11 +317,11 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 //-----------------------------------------------------------------------------
 void Slam::ComputeSensorConstraints()
 {
-  this->OdomResidual.Cost.reset();
+  this->WheelOdomResidual.Cost.reset();
   this->GravityResidual.Cost.reset();
 
   double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  this->OdomManager.GetWheelAbsoluteConstraint(currLidarTime, this->OdomResidual);
+  this->WheelOdomManager.GetWheelAbsoluteConstraint(currLidarTime, this->WheelOdomResidual);
   this->ImuManager.GetGravityConstraint(currLidarTime, this->GravityResidual);
 }
 
@@ -1110,8 +1110,8 @@ void Slam::Localization()
 
     // Add odometry constraint
     // if constraint has been successfully created
-    if (this->OdomResidual.Cost)
-      optimizer.AddResidual(this->OdomResidual);
+    if (this->WheelOdomResidual.Cost)
+      optimizer.AddResidual(this->WheelOdomResidual);
 
     // Add gravity alignment constraint
     // if constraint has been successfully created
@@ -1354,14 +1354,14 @@ void Slam::AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm
   this->ImuManager.AddMeasurement(gm);
 }
 
-void Slam::AddOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om)
+void Slam::AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om)
 {
-  this->OdomManager.AddMeasurement(om);
+  this->WheelOdomManager.AddMeasurement(om);
 }
 
 void Slam::ClearSensorMeasurements()
 {
-  this->OdomManager.Reset();
+  this->WheelOdomManager.Reset();
   this->ImuManager.Reset();
 }
 

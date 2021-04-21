@@ -208,8 +208,8 @@ public:
   vtkCustomGetMacro(LocalizationFinalSaturationDistance, double)
   vtkCustomSetMacro(LocalizationFinalSaturationDistance, double)
 
-  vtkCustomGetMacro(OdomWeight, double)
-  vtkCustomSetMacro(OdomWeight, double)
+  vtkCustomGetMacro(WheelOdomWeight, double)
+  vtkCustomSetMacro(WheelOdomWeight, double)
 
   vtkCustomGetMacro(GravityWeight, double)
   vtkCustomSetMacro(GravityWeight, double)

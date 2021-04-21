@@ -325,8 +325,8 @@ public:
   GetMacro(LocalizationFinalSaturationDistance, double)
   SetMacro(LocalizationFinalSaturationDistance, double)
 
-  void SetOdomWeight(double weight) {this->OdomManager.SetWeight(weight);} 
-  double GetOdomWeight() {return this->OdomManager.GetWeight();}
+  void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);} 
+  double GetWheelOdomWeight() {return this->WheelOdomManager.GetWeight();}
 
   void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);} 
   double GetGravityWeight() {return this->ImuManager.GetWeight();}
@@ -335,7 +335,7 @@ public:
   double GetSensorTimeOffset() {return this->ImuManager.GetTimeOffset();}
 
   void AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm);
-  void AddOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om);
+  void AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om);
   void ClearSensorMeasurements();
 
   // ---------------------------------------------------------------------------
@@ -515,11 +515,11 @@ private:
   LocalOptimizer::RegistrationError LocalizationUncertainty;
 
   // Odometry residual
-  CeresTools::Residual OdomResidual;
+  CeresTools::Residual WheelOdomResidual;
   // Odometry manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
-  SensorConstraints::WheelOdometryManager OdomManager;
+  SensorConstraints::WheelOdometryManager WheelOdomManager;
 
   // Gravity residual
   CeresTools::Residual GravityResidual;

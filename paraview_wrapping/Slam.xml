@@ -698,8 +698,8 @@
       <!-- ==================== Localization Parameters ==================== -->
 
       <DoubleVectorProperty
-          name="Odometry weight"
-          command="SetOdomWeight"
+          name="Wheel odometry weight"
+          command="SetWheelOdomWeight"
           default_values="0."
           number_of_elements="1"
           panel_visibility="advanced">
@@ -894,7 +894,7 @@
       </DoubleVectorProperty>
 
       <PropertyGroup label="Localization ICP matching and optimization parameters">
-        <Property name="Odometry weight" />
+        <Property name="Wheel odometry weight" />
         <Property name="IMU gravity weight" />
         <Property name="ICP-Optimization iterations" />
         <Property name="Lev-Mardt max iterations" />

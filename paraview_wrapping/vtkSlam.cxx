@@ -353,7 +353,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       LidarSlam::SensorConstraints::WheelOdomMeasurement odomMeasurement;
       odomMeasurement.Time = arrayTime->GetTuple1(i);
       odomMeasurement.Distance = arrayOdom->GetTuple1(i);
-      this->SlamAlgo->AddOdomMeasurement(odomMeasurement);
+      this->SlamAlgo->AddWheelOdomMeasurement(odomMeasurement);
     }
     if (arrayTime->GetNumberOfTuples() > 0)
       std::cout << "Odometry data successfully loaded " << std::endl;
