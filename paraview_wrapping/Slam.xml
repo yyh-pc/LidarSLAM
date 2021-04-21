@@ -856,6 +856,30 @@
       <!-- ==================== Map Parameters ==================== -->
 
       <DoubleVectorProperty
+          name="Keyframe distance threshold"
+          command="SetKfDistanceThreshold"
+          default_values="0.5"
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          Minimum distance to travel since last keyframe to add a new one.
+          Only keyframes' points are added to the map.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
+          name="Keyframe angle threshold"
+          command="SetKfAngleThreshold"
+          default_values="5."
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          Minimum angle (in degrees) to rotate since last keyframe to add a new one.
+          Only keyframes' points are added to the map.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
           name="Edges map resolution"
           command="SetVoxelGridLeafSizeEdges"
           default_values="0.3"
@@ -940,6 +964,8 @@
       </DoubleVectorProperty>
 
       <PropertyGroup label="Map parameters">
+        <Property name="Keyframe distance threshold" />
+        <Property name="Keyframe angle threshold" />
         <Property name="Edges map resolution" />
         <Property name="Planes map resolution" />
         <Property name="Blobs map resolution" />

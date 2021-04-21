@@ -614,6 +614,10 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/localization/init_saturation_distance", LocalizationInitSaturationDistance)
   SetSlamParam(double, "slam/localization/final_saturation_distance", LocalizationFinalSaturationDistance)
 
+  // Keyframes
+  SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
+  SetSlamParam(double, "slam/keyframes/angle_threshold", KfAngleThreshold)
+
   // Rolling grids
   double size;
   if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_edges", size))
