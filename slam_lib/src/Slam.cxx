@@ -157,6 +157,10 @@ void Slam::Reset(bool resetLog)
   // Reset keypoints maps
   this->ClearMaps();
 
+  // Reset keyframes
+  this->KfLastPose = Eigen::Isometry3d::Identity();
+  this->KfCounter = 0;
+
   // n-DoF parameters
   this->Tworld = Eigen::Isometry3d::Identity();
   this->PreviousTworld = Eigen::Isometry3d::Identity();
@@ -1130,6 +1134,28 @@ void Slam::Localization()
 //-----------------------------------------------------------------------------
 void Slam::UpdateMapsUsingTworld()
 {
+  // Compute motion since last keyframe
+  Eigen::Isometry3d motionSinceLastKf = this->KfLastPose.inverse() * this->Tworld;
+  double transSinceLastKf = motionSinceLastKf.translation().norm();
+  double rotSinceLastKf = Eigen::AngleAxisd(motionSinceLastKf.linear()).angle();
+  PRINT_VERBOSE(3, "Motion since last keyframe " << this->KfCounter << ": "
+                                                 << transSinceLastKf << " m, "
+                                                 << Utils::Rad2Deg(rotSinceLastKf) << " °");
+
+  // Check if current frame is a new keyframe
+  // If we don't have enough keyframes yet, the threshold is linearly lowered
+  constexpr double MIN_KF_NB = 10.;
+  double thresholdCoef = std::min(this->KfCounter / MIN_KF_NB, 1.);
+  if (transSinceLastKf < thresholdCoef * this->KfDistanceThreshold &&
+      rotSinceLastKf < Utils::Deg2Rad(thresholdCoef * this->KfAngleThreshold))
+    return;
+
+  // Notify current frame to be a new keyframe
+  this->KfCounter++;
+  this->KfLastPose = this->Tworld;
+  PRINT_VERBOSE(3, "Adding new keyframe " << this->KfCounter);
+
+  // Add keyframe points to map
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
   int nbKeypointTypes = static_cast<int>(KeypointTypes.size());

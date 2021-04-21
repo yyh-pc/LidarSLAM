@@ -326,8 +326,14 @@ public:
   SetMacro(LocalizationFinalSaturationDistance, double)
 
   // ---------------------------------------------------------------------------
-  //   Rolling grid parameters
+  //   Key frames and Maps parameters
   // ---------------------------------------------------------------------------
+
+  GetMacro(KfDistanceThreshold, double)
+  SetMacro(KfDistanceThreshold, double)
+
+  GetMacro(KfAngleThreshold, double)
+  SetMacro(KfAngleThreshold, double)
 
   // Set RollingGrid Parameters
   void ClearMaps();
@@ -449,7 +455,7 @@ private:
   std::map<uint8_t, Eigen::UnalignedIsometry3d> BaseToLidarOffsets;
 
   // ---------------------------------------------------------------------------
-  //   Keypoints and Maps
+  //   Keypoints from current frame
   // ---------------------------------------------------------------------------
 
   // Current frames (all input frames)
@@ -464,6 +470,20 @@ private:
 
   // Extracted keypoints, in WORLD coordinates (with undistortion if enabled)
   std::map<Keypoint, PointCloud::Ptr> CurrentWorldKeypoints;
+
+  // ---------------------------------------------------------------------------
+  //   Key frames and Maps
+  // ---------------------------------------------------------------------------
+
+  // Last keyframe pose
+  Eigen::Isometry3d KfLastPose = Eigen::Isometry3d::Identity();
+
+  // Min distance or angle to travel since last keyframe to add a new one
+  double KfDistanceThreshold = 0.5;  ///< [m] Min distance to travel since last KF to add a new one
+  double KfAngleThreshold = 5.;      ///< [°] Min angle to rotate since last KF to add a new one
+
+  // Number of keyrames
+  int KfCounter = 0;
 
   // keypoints local map
   std::map<Keypoint, std::shared_ptr<RollingGrid>> LocalMaps;
@@ -575,7 +595,8 @@ private:
   void Localization();
 
   // Update the maps by adding to the rolling grids the current keypoints
-  // expressed in the world reference frame coordinate system
+  // expressed in the world reference frame coordinate system.
+  // Only keypoints from keyframes are added.
   void UpdateMapsUsingTworld();
 
   // Log current frame processing results : pose, covariance and keypoints.
