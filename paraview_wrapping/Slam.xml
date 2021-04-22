@@ -464,7 +464,6 @@
 
       <IntVectorProperty
           name="ICP-Optimization iterations EM"
-          label="ICP-Optimization iterations"
           command="SetEgoMotionICPMaxIter"
           default_values="4"
           number_of_elements="1"
@@ -479,7 +478,6 @@
 
       <IntVectorProperty
           name="Lev-Mardt max iterations EM"
-          label="Lev-Mardt max iterations"
           command="SetEgoMotionLMMaxIter"
           default_values="15"
           number_of_elements="1"
@@ -493,7 +491,6 @@
 
       <IntVectorProperty
           name="Nb edges neighbors minimum after Ransac EM"
-          label="Nb edges neighbors minimum after Ransac"
           command="SetEgoMotionMinimumLineNeighborRejection"
           default_values="3"
           number_of_elements="1"
@@ -507,7 +504,6 @@
 
       <IntVectorProperty
           name="Nb edge neighbors EM"
-          label="Nb edge neighbors"
           command="SetEgoMotionLineDistanceNbrNeighbors"
           default_values="8"
           number_of_elements="1"
@@ -520,7 +516,6 @@
 
       <IntVectorProperty
           name="Nb plane neighbors EM"
-          label="Nb plane neighbors"
           command="SetEgoMotionPlaneDistanceNbrNeighbors"
           default_values="5"
           number_of_elements="1"
@@ -533,7 +528,6 @@
 
       <DoubleVectorProperty
           name="Linearity factor EM"
-          label="Linearity factor"
           command="SetEgoMotionLineDistancefactor"
           default_values="5"
           number_of_elements="1"
@@ -548,7 +542,6 @@
 
       <DoubleVectorProperty
           name="Planarity factor 1 EM"
-          label="Planarity factor 1"
           command="SetEgoMotionPlaneDistancefactor1"
           default_values="35"
           number_of_elements="1"
@@ -565,7 +558,6 @@
 
       <DoubleVectorProperty
           name="Planarity factor 2 EM"
-          label="Planarity factor 2"
           command="SetEgoMotionPlaneDistancefactor2"
           default_values="8"
           number_of_elements="1"
@@ -582,7 +574,6 @@
 
       <DoubleVectorProperty
           name="Max edge neighbors distance to fitted line EM"
-          label="Max edge neighbors distance to fitted line"
           command="SetEgoMotionMaxLineDistance"
           default_values="0.2"
           number_of_elements="1"
@@ -595,7 +586,6 @@
 
       <DoubleVectorProperty
           name="Max plane neighbors distance to fitted plane EM"
-          label="Max plane neighbors distance to fitted plane"
           command="SetEgoMotionMaxPlaneDistance"
           default_values="0.2"
           number_of_elements="1"
@@ -608,7 +598,6 @@
 
       <DoubleVectorProperty
           name="Init saturation distance EM"
-          label="Init saturation distance"
           command="SetEgoMotionInitSaturationDistance"
           default_values="5."
           number_of_elements="1"
@@ -626,7 +615,6 @@
 
       <DoubleVectorProperty
           name="Final saturation distance EM"
-          label="Final saturation distance"
           command="SetEgoMotionFinalSaturationDistance"
           default_values="1."
           number_of_elements="1"
