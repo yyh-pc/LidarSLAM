@@ -245,6 +245,9 @@ public:
   //   Optimization parameters
   // ---------------------------------------------------------------------------
 
+  GetMacro(TwoDMode, bool)
+  SetMacro(TwoDMode, bool)
+
   GetMacro(MaxDistanceForICPMatching, double)
   SetMacro(MaxDistanceForICPMatching, double)
 
@@ -481,6 +484,11 @@ private:
   // ---------------------------------------------------------------------------
   //   Optimization parameters
   // ---------------------------------------------------------------------------
+
+  // Optimize only 2D pose in BASE coordinates.
+  // This will only optimize X, Y (ground coordinates) and yaw (rZ).
+  // This will hold Z (elevation), rX (roll) and rY (pitch) constant.
+  bool TwoDMode = false;
 
   // The max distance allowed between a keypoint from the current frame and its
   // neighborhood from the map (or previous frame) to build an ICP match.

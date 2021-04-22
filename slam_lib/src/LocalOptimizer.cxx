@@ -26,6 +26,11 @@ namespace LidarSlam
 // Set params
 //----------------------------------------------------------------------------
 
+void LocalOptimizer::SetTwoDMode(bool twoDMode)
+{
+  this->TwoDMode = twoDMode;
+}
+
 void LocalOptimizer::SetLMMaxIter(unsigned int maxIt)
 {
   this->LMMaxIter = maxIt;
@@ -75,6 +80,10 @@ ceres::Solver::Summary LocalOptimizer::Solve()
     if (res.Cost)
       this->Problem->AddResidualBlock(res.Cost, res.Robustifier, this->PoseArray.data());
   }
+
+  // If 2D mode is enabled, hold Z, rX and rY constant
+  if (this->TwoDMode)
+    this->Problem->SetParameterization(this->PoseArray.data(), new ceres::SubsetParameterization(6, {2, 3, 4}));
 
   // LM solver options
   ceres::Solver::Options options;
