@@ -49,6 +49,8 @@ public:
   };
 
   //----------------------------------------------------------------------------
+  // Optimize 2D state (X, Y, rZ) only
+  void SetTwoDMode(bool twoDMode);
 
   // Set Levenberg Marquardt maximum number of iterations
   void SetLMMaxIter(unsigned int maxIt);
@@ -80,6 +82,11 @@ public:
 
   //----------------------------------------------------------------------------
 private:
+
+  // Optimize 2D pose only.
+  // This will only optimize X, Y (ground coordinates) and yaw (rZ).
+  // This will hold Z (elevation), rX (roll) and rY (pitch) constant.
+  bool TwoDMode = false;
 
   // Max number of threads to use to parallelize computations
   unsigned int NbThreads = 1;

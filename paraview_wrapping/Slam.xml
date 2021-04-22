@@ -293,6 +293,19 @@
       <!-- ==================== General ==================== -->
 
       <IntVectorProperty
+          name="2d mode"
+          command="SetTwoDMode"
+          default_values="0"
+          number_of_elements="1">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          Optimize only 2D pose in BASE coordinates.
+          Only X, Y (ground coordinates) and yaw (rZ) will be optimized,
+          whereas Z (elevation), rX (roll) and rY (pitch) will be held constant.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty
           name="Use blobs"
           command="SetUseBlobs"
           default_values="0"
@@ -402,6 +415,7 @@
       </IntVectorProperty>
 
       <PropertyGroup label="General Parameters">
+        <Property name="2d mode" />
         <Property name="Use blobs" />
         <Property name="Verbosity level" />
         <Property name="Ego-Motion mode" />

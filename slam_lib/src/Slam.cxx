@@ -898,6 +898,7 @@ void Slam::ComputeEgoMotion()
 
       // Init the optimizer with initial pose and parameters
       LocalOptimizer optimizer;
+      optimizer.SetTwoDMode(this->TwoDMode);
       optimizer.SetPosePrior(this->Trelative);
       optimizer.SetLMMaxIter(this->EgoMotionLMMaxIter);
       optimizer.SetNbThreads(this->NbThreads);
@@ -1071,6 +1072,7 @@ void Slam::Localization()
 
     // Init the optimizer with initial pose and parameters
     LocalOptimizer optimizer;
+    optimizer.SetTwoDMode(this->TwoDMode);
     optimizer.SetPosePrior(this->Tworld);
     optimizer.SetLMMaxIter(this->LocalizationLMMaxIter);
     optimizer.SetNbThreads(this->NbThreads);
