@@ -531,6 +531,7 @@ void LidarSlamNode::SetSlamParameters()
   #define SetSlamParam(type, rosParam, slamParam) { type val; if (this->PrivNh.getParam(rosParam, val)) this->LidarSlam.Set##slamParam(val); }
 
   // General
+  SetSlamParam(bool,   "slam/2d_mode", TwoDMode)
   SetSlamParam(bool,   "slam/use_blobs", UseBlobs)
   SetSlamParam(int,    "slam/verbosity", Verbosity)
   SetSlamParam(int,    "slam/n_threads", NbThreads)

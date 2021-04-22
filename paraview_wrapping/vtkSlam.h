@@ -125,6 +125,9 @@ public:
   //   Optimization parameters
   // ---------------------------------------------------------------------------
 
+  vtkCustomGetMacro(TwoDMode, bool)
+  vtkCustomSetMacro(TwoDMode, bool)
+
   vtkCustomGetMacro(MaxDistanceForICPMatching, double)
   vtkCustomSetMacro(MaxDistanceForICPMatching, double)
 
