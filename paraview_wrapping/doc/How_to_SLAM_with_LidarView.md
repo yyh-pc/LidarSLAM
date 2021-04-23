@@ -152,12 +152,15 @@ Here are some hints to help you tune some of the main parameters. These are some
 The type of environment influences a lot the number and quality of extracted keypoints. A feature-poor scene will need more and denser keypoints to give nice results. However, we want to keep this number of keypoints as small as possible to reduce memory consumption and problem dimensionality.
 
 - ***Outdoor scene***
+  + **Keyframe distance/angle threshold**: 0.5-1 m distance, 2-5° angle.
   + **Edges/Planes map resolution**: 30 cm for edges, 60 cm for planes.
 - ***Indoor scene***
+  + **Keyframe distance/angle threshold**: 0.1-0.5 m distance, 5° angle.
   + **Minimum distance to sensor**: 0.5 m
   + **Edges/Planes map resolution**: 20 cm for edges, 30 cm for planes
   + **Rolling grid resolution**: 3 m.
 - ***Poor geometric scene or scene with some strong invariance***: corridor, fields, highway, forest...
+  + **Keyframe distance/angle threshold**: 0 m distance, 0° angle (disabled).
   + **Use Blobs**: enabled
   + **ICP-Optimization iterations**: 4
   + **Edges/Planes map resolution**: 20 cm for edges, 30 cm for planes

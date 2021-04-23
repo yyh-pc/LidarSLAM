@@ -206,12 +206,19 @@ public:
   vtkCustomSetMacro(LocalizationFinalSaturationDistance, double)
 
   // ---------------------------------------------------------------------------
-  //   Rolling grid parameters and Keypoints extractor
+  //   Keypoints extractor, Key frames and Maps parameters
   // ---------------------------------------------------------------------------
 
   // Keypoints extractor
   vtkGetObjectMacro(KeyPointsExtractor, vtkSpinningSensorKeypointExtractor)
   virtual void SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor*);
+
+  // Key frames
+  vtkCustomGetMacro(KfDistanceThreshold, double)
+  vtkCustomSetMacro(KfDistanceThreshold, double)
+
+  vtkCustomGetMacro(KfAngleThreshold, double)
+  vtkCustomSetMacro(KfAngleThreshold, double)
 
   // Set RollingGrid Parameters
   virtual void SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s);

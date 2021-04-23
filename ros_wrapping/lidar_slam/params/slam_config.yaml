@@ -168,6 +168,11 @@ slam:
     init_saturation_distance: 2.        # Initial distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.
     final_saturation_distance: 0.5      # Final distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.
 
+  # Keyframes parameters. Only keyframes points are added to the maps.
+  keyframes:
+    distance_threshold: 0.5  # [m] Min distance to travel since last KF to add a new one
+    angle_threshold: 5.      # [°] Min angle to rotate since last KF to add a new one
+
   # Keypoints maps, saved as downsampled voxel grids
   voxel_grid:
     leaf_size_edges: 0.30   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.

@@ -157,6 +157,10 @@ void Slam::Reset(bool resetLog)
   // Reset keypoints maps
   this->ClearMaps();
 
+  // Reset keyframes
+  this->KfLastPose = Eigen::Isometry3d::Identity();
+  this->KfCounter = 0;
+
   // n-DoF parameters
   this->Tworld = Eigen::Isometry3d::Identity();
   this->PreviousTworld = Eigen::Isometry3d::Identity();
@@ -1130,6 +1134,31 @@ void Slam::Localization()
 //-----------------------------------------------------------------------------
 void Slam::UpdateMapsUsingTworld()
 {
+  // Compute motion since last keyframe
+  Eigen::Isometry3d motionSinceLastKf = this->KfLastPose.inverse() * this->Tworld;
+  double transSinceLastKf = motionSinceLastKf.translation().norm();
+  double rotSinceLastKf = Eigen::AngleAxisd(motionSinceLastKf.linear()).angle();
+  PRINT_VERBOSE(3, "Motion since last keyframe " << this->KfCounter << ": "
+                                                 << transSinceLastKf << " m, "
+                                                 << Utils::Rad2Deg(rotSinceLastKf) << " °");
+
+  // Check if current frame is a new keyframe
+  // If we don't have enough keyframes yet, the threshold is linearly lowered
+  constexpr double MIN_KF_NB = 10.;
+  double thresholdCoef = std::min(this->KfCounter / MIN_KF_NB, 1.);
+  bool isNewKeyFrame = transSinceLastKf >= thresholdCoef * this->KfDistanceThreshold ||
+                       rotSinceLastKf >= Utils::Deg2Rad(thresholdCoef * this->KfAngleThreshold);
+
+  // Notify current frame to be a new keyframe
+  if (isNewKeyFrame)
+  {
+    this->KfCounter++;
+    this->KfLastPose = this->Tworld;
+    PRINT_VERBOSE(3, "Adding new keyframe " << this->KfCounter);
+  }
+
+  // Transform current keypoints to WORLD coordinates,
+  // and add points to map if we are dealing with a new keyframe.
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
   int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
@@ -1137,7 +1166,7 @@ void Slam::UpdateMapsUsingTworld()
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
-    this->CurrentWorldKeypoints[k]->clear();
+    this->CurrentWorldKeypoints[k].reset(new PointCloud);
     this->CurrentWorldKeypoints[k]->header = this->CurrentUndistortedKeypoints[k]->header;
     this->CurrentWorldKeypoints[k]->header.frame_id = this->WorldFrameId;
     if (this->UseKeypoints[k])
@@ -1146,8 +1175,9 @@ void Slam::UpdateMapsUsingTworld()
       this->CurrentWorldKeypoints[k]->points.reserve(this->CurrentUndistortedKeypoints[k]->size());
       for (const Point& p : *this->CurrentUndistortedKeypoints[k])
         this->CurrentWorldKeypoints[k]->push_back(Utils::TransformPoint(p, this->Tworld));
-      // Add new keypoints to rolling grid
-      this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k]);
+      // Add new keypoints to rolling grid if we are dealing with a new keyframe
+      if (isNewKeyFrame)
+        this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k]);
     }
   }
 }

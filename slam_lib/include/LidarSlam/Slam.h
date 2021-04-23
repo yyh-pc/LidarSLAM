@@ -151,11 +151,10 @@ public:
   // Get keypoints maps
   PointCloud::Ptr GetMap(Keypoint k) const;
 
-  // Get extracted keypoints from current frame.
-  // If worldCoordinates=false, it returns raw keypoints in BASE coordinates,
-  // without undistortion. If worldCoordinates=true, it returns undistorted
-  // keypoints in WORLD coordinates.
-  PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = true) const;
+  // Get extracted and optionally undistorted keypoints from current frame.
+  // If worldCoordinates=false, it returns keypoints in BASE coordinates,
+  // If worldCoordinates=true, it returns keypoints in WORLD coordinates.
+  PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = false) const;
 
   // Get current frame
   PointCloud::Ptr GetOutputFrame();
@@ -326,8 +325,14 @@ public:
   SetMacro(LocalizationFinalSaturationDistance, double)
 
   // ---------------------------------------------------------------------------
-  //   Rolling grid parameters
+  //   Key frames and Maps parameters
   // ---------------------------------------------------------------------------
+
+  GetMacro(KfDistanceThreshold, double)
+  SetMacro(KfDistanceThreshold, double)
+
+  GetMacro(KfAngleThreshold, double)
+  SetMacro(KfAngleThreshold, double)
 
   // Set RollingGrid Parameters
   void ClearMaps();
@@ -449,7 +454,7 @@ private:
   std::map<uint8_t, Eigen::UnalignedIsometry3d> BaseToLidarOffsets;
 
   // ---------------------------------------------------------------------------
-  //   Keypoints and Maps
+  //   Keypoints from current frame
   // ---------------------------------------------------------------------------
 
   // Current frames (all input frames)
@@ -464,6 +469,20 @@ private:
 
   // Extracted keypoints, in WORLD coordinates (with undistortion if enabled)
   std::map<Keypoint, PointCloud::Ptr> CurrentWorldKeypoints;
+
+  // ---------------------------------------------------------------------------
+  //   Key frames and Maps
+  // ---------------------------------------------------------------------------
+
+  // Last keyframe pose
+  Eigen::Isometry3d KfLastPose = Eigen::Isometry3d::Identity();
+
+  // Min distance or angle to travel since last keyframe to add a new one
+  double KfDistanceThreshold = 0.5;  ///< [m] Min distance to travel since last KF to add a new one
+  double KfAngleThreshold = 5.;      ///< [°] Min angle to rotate since last KF to add a new one
+
+  // Number of keyrames
+  int KfCounter = 0;
 
   // keypoints local map
   std::map<Keypoint, std::shared_ptr<RollingGrid>> LocalMaps;
@@ -574,8 +593,8 @@ private:
   // current frame keypoints on keypoints from maps
   void Localization();
 
-  // Update the maps by adding to the rolling grids the current keypoints
-  // expressed in the world reference frame coordinate system
+  // Transform current keypoints to WORLD coordinates,
+  // and add points to the maps if we are dealing with a new keyframe.
   void UpdateMapsUsingTworld();
 
   // Log current frame processing results : pose, covariance and keypoints.
