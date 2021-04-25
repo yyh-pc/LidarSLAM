@@ -329,13 +329,14 @@ public:
   SetMacro(LocalizationFinalSaturationDistance, double)
 
   void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);} 
-  double GetWheelOdomWeight() {return this->WheelOdomManager.GetWeight();}
+  double GetWheelOdomWeight() const {return this->WheelOdomManager.GetWeight();}
 
   void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);} 
-  double GetGravityWeight() {return this->ImuManager.GetWeight();}
+  double GetGravityWeight() const {return this->ImuManager.GetWeight();}
 
+  // The time offset must be computed as FrameFirstPointTimestamp - FrameReceptionPOSIXTime
   void SetSensorTimeOffset(double timeOffset);
-  double GetSensorTimeOffset() {return this->ImuManager.GetTimeOffset();}
+  double GetSensorTimeOffset() const {return this->ImuManager.GetTimeOffset();}
 
   void AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm);
   void AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om);
@@ -517,27 +518,17 @@ private:
   // 6-DoF parameters (DoF order : X, Y, Z, rX, rY, rZ)
   LocalOptimizer::RegistrationError LocalizationUncertainty;
 
-  // Odometry residual
-  CeresTools::Residual WheelOdomResidual;
   // Odometry manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
   // The sensor measurements must be filled and cleared from outside this lib
   SensorConstraints::WheelOdometryManager WheelOdomManager;
 
-  // Gravity residual
-  CeresTools::Residual GravityResidual;
   // IMU manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
   // The sensor measurements must be filled and cleared from outside this lib
   SensorConstraints::ImuManager ImuManager;
-
-  // Time offset to make a correspondance
-  // between the frame timestamps and POSIX acquisition times
-  // which can be linked with external sensors acquisition times
-  // It must be computed as FrameFirstPointTimestamp - FrameReceptionPOSIXTime
-  double SensorTimeOffset = 0.;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters

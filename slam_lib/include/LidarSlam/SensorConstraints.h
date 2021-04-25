@@ -36,10 +36,18 @@ public:
   GetSensorMacro(Measures, std::vector<T>)
   SetSensorMacro(Measures, const std::vector<T>&)
 
+  GetSensorMacro(Residual, CeresTools::Residual)
+  void ResetResidual()
+  {
+    this->Residual.Cost.reset();
+    this->Residual.Robustifier.reset();
+  }
+
   // Add one measure at a time in measures vector
   void AddMeasurement(const T& m) {this->Measures.emplace_back(m);}
   void Reset()
   {
+    this->ResetResidual();
     this->Measures.clear();
     this->PreviousIdx = -1;
     this->TimeOffset = 0.;
@@ -56,8 +64,10 @@ protected:
   std::vector<T> Measures;
   // Weight to apply to sensor constraint
   double Weight = 0.;
-  // Time offset to make sensor/Lidar correspondance
+  // Time offset to make external sensors/Lidar correspondance
   double TimeOffset = 0.;
+  // Resulting residual
+  CeresTools::Residual Residual;
 };
 
 class WheelOdometryManager : public SensorManager<WheelOdomMeasurement>
@@ -68,9 +78,9 @@ public:
   SetSensorMacro(PreviousPose, const Eigen::Isometry3d&)
 
   // Wheel odometry constraint (unoriented)
-  void GetWheelOdomConstraint(double lidarTime, CeresTools::Residual& residual);
+  void ComputeWheelOdomConstraint(double lidarTime);
   // Wheel absolute abscisse constraint (unoriented)
-  void GetWheelAbsoluteConstraint(double lidarTime, CeresTools::Residual& residual);
+  void ComputeWheelAbsoluteConstraint(double lidarTime);
 
 private:
   // Members used when using the relative distance with last estimated pose
@@ -86,7 +96,7 @@ public:
   SetSensorMacro(GravityRef, const Eigen::Vector3d&)
 
   // IMU constraint (gravity)
-  void GetGravityConstraint(double lidarTime, CeresTools::Residual& residual);
+  void ComputeGravityConstraint(double lidarTime);
   // Compute Reference gravity vector from IMU measurements
   void ComputeGravityRef(double deltaAngle);
 

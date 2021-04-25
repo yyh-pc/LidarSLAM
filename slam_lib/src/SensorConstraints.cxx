@@ -5,8 +5,10 @@ namespace LidarSlam
 namespace SensorConstraints
 {
 
-void WheelOdometryManager::GetWheelAbsoluteConstraint(double lidarTime, CeresTools::Residual& residual)
+void WheelOdometryManager::ComputeWheelAbsoluteConstraint(double lidarTime)
 {
+  this->ResetResidual();
+
   if (!this->CanBeUsed())
     return;
 
@@ -44,16 +46,18 @@ void WheelOdometryManager::GetWheelAbsoluteConstraint(double lidarTime, CeresToo
   }
 
   // If there is memory of a previous pose
-  residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(this->PreviousPose.translation(), currDistance - this->PreviousDistance);
-  residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
+  this->Residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(this->PreviousPose.translation(), currDistance - this->PreviousDistance);
+  this->Residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
   std::cout << "Adding wheel odometry residual : " << currDistance - this->PreviousDistance << " m travelled since first frame." << std::endl;
 
   // Update index for next frame
   this->PreviousIdx = currIdx;
 }
 
-void WheelOdometryManager::GetWheelOdomConstraint(double lidarTime, CeresTools::Residual& residual)
+void WheelOdometryManager::ComputeWheelOdomConstraint(double lidarTime)
 {
+  this->ResetResidual();
+
   if (!this->CanBeUsed())
     return;
   // Index of measurements used for this frame
@@ -92,8 +96,8 @@ void WheelOdometryManager::GetWheelOdomConstraint(double lidarTime, CeresTools::
 
   // If there is memory of a previous pose
   double distDiff = std::abs(currDistance - this->PreviousDistance);
-  residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(this->PreviousPose.translation(), distDiff);
-  residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
+  this->Residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(this->PreviousPose.translation(), distDiff);
+  this->Residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
   std::cout << "Adding relative wheel odometry residual : " << distDiff << " m travelled since last frame." << std::endl;
 
   // Update index and distance for next frame
@@ -101,8 +105,10 @@ void WheelOdometryManager::GetWheelOdomConstraint(double lidarTime, CeresTools::
   this->PreviousDistance = currDistance;
 }
 
-void ImuManager::GetGravityConstraint(double lidarTime, CeresTools::Residual& residual)
+void ImuManager::ComputeGravityConstraint(double lidarTime)
 {
+  this->ResetResidual();
+
   if (!this->CanBeUsed())
     return;
 
@@ -125,7 +131,7 @@ void ImuManager::GetGravityConstraint(double lidarTime, CeresTools::Residual& re
   int currIdx = this->PreviousIdx;
 
   // Get index of last IMU measurement before LiDAR time
-  while (this->Measures[currIdx + 1].Time <= lidarTime)
+  while (this->Measures[currIdx + 1].Time < lidarTime)
     currIdx++;
 
   // Interpolate gravity measurement at LiDAR timestamp
@@ -138,8 +144,8 @@ void ImuManager::GetGravityConstraint(double lidarTime, CeresTools::Residual& re
     return;
 
   // Build gravity constraint
-  residual.Cost = CeresCostFunctions::ImuGravityAlignmentResidual::Create(this->GravityRef, gravityDirection);
-  residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
+  this->Residual.Cost = CeresCostFunctions::ImuGravityAlignmentResidual::Create(this->GravityRef, gravityDirection);
+  this->Residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
 
   this->PreviousIdx = currIdx;
 }

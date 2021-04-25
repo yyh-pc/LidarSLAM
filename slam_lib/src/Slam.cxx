@@ -320,12 +320,9 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 //-----------------------------------------------------------------------------
 void Slam::ComputeSensorConstraints()
 {
-  this->WheelOdomResidual.Cost.reset();
-  this->GravityResidual.Cost.reset();
-
   double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  this->WheelOdomManager.GetWheelAbsoluteConstraint(currLidarTime, this->WheelOdomResidual);
-  this->ImuManager.GetGravityConstraint(currLidarTime, this->GravityResidual);
+  this->WheelOdomManager.ComputeWheelAbsoluteConstraint(currLidarTime);
+  this->ImuManager.ComputeGravityConstraint(currLidarTime);
 }
 
 //-----------------------------------------------------------------------------
@@ -1113,13 +1110,13 @@ void Slam::Localization()
 
     // Add odometry constraint
     // if constraint has been successfully created
-    if (this->WheelOdomResidual.Cost)
-      optimizer.AddResidual(this->WheelOdomResidual);
+    if (this->WheelOdomManager.GetResidual().Cost)
+      optimizer.AddResidual(this->WheelOdomManager.GetResidual());
 
     // Add gravity alignment constraint
     // if constraint has been successfully created
-    if (this->GravityResidual.Cost)
-      optimizer.AddResidual(this->GravityResidual);
+    if (this->ImuManager.GetResidual().Cost)
+      optimizer.AddResidual(this->ImuManager.GetResidual());
 
     // Run LM optimization
     ceres::Solver::Summary summary = optimizer.Solve();
