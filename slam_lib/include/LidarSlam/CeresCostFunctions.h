@@ -26,14 +26,28 @@
 // EIGEN
 #include <Eigen/Geometry>
 
+//------------------------------------------------------------------------------
+/**
+ * \brief Factory to ease the construction of the auto-diff residual objects
+ * 
+ * Type: the residual functor type
+ * ResidualSize: int, the size of the output residual block
+ * ...: int(s), the size(s) of the input parameter block(s)
+ */
+#define RESIDUAL_FACTORY(Type, ResidualSize, ...) \
+  template<typename ...Args> \
+  static std::shared_ptr<ceres::CostFunction> Create(Args&& ...args) \
+  { return std::make_shared<ceres::AutoDiffCostFunction<Type, ResidualSize, __VA_ARGS__>>(new Type(args...));}
+
+
 namespace LidarSlam
 {
 namespace CeresTools
 {
 struct Residual
 {
-  ceres::CostFunction* Cost = nullptr;
-  ceres::LossFunction* Robustifier = nullptr;
+  std::shared_ptr<ceres::CostFunction> Cost;
+  std::shared_ptr<ceres::LossFunction> Robustifier;
 };
 }
 namespace CeresCostFunctions
@@ -77,9 +91,12 @@ Eigen::Matrix<T, 3, 3> RotationMatrixFromRPY(const T& rx, const T& ry, const T& 
  * cost(x) = (x - P)^T C^{-1} (x - P) where, P is a mean and C is a covariance matrix,
  * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the covariance, 
  * also known as the stiffness matrix.
+ *
  * This function takes one 6D parameters block :
  *   - 3 first parameters to encode translation : X, Y, Z
  *   - 3 last parameters to encode rotation with euler angles : rX, rY, rZ
+ *
+ * It outputs a 3D residual block.
  */
 struct MahalanobisDistanceAffineIsometryResidual
 {
@@ -121,6 +138,9 @@ struct MahalanobisDistanceAffineIsometryResidual
     return true;
   }
 
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(MahalanobisDistanceAffineIsometryResidual, 3, 6)
+
 private:
   const Eigen::Matrix3d A;
   const Eigen::Vector3d P;
@@ -139,6 +159,7 @@ private:
  * cost(x) = (x - P)^T C^{-1} (x - P) where, P is a mean vector and C is a covariance matrix,
  * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the covariance, 
  * also known as the stiffness matrix.
+ *
  * This function takes two 6D parameters blocks :
  *  1) First isometry H0 :
  *   - 3 parameters (0, 1, 2) to encode translation T0 : X, Y, Z
@@ -146,6 +167,8 @@ private:
  *  2) Second isometry H1 :
  *   - 3 parameters (6, 7, 8) to encode translation T1 : X, Y, Z
  *   - 3 parameters (9, 10, 11) to encode rotation R1 with euler angles : rX, rY, rZ
+ *
+ * It outputs a 3D residual block.
  */
 struct MahalanobisDistanceInterpolatedMotionResidual
 {
@@ -207,11 +230,105 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     return true;
   }
 
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(MahalanobisDistanceInterpolatedMotionResidual, 3, 6, 6)
+
+
 private:
   const Eigen::Matrix3d A;
   const Eigen::Vector3d P;
   const Eigen::Vector3d X;
   const double Time;
+};
+
+
+//------------------------------------------------------------------------------
+/**
+ * \class OdometerDistanceResidual
+ * \brief Cost function to optimize the translation of the affine isometry
+ *        transformation (rotation and translation) so that the distance 
+ *        from a previous known pose corresponds to an external sensor odometry measure.
+ *
+ * This function takes one 6D parameters block :
+ *   - 3 first parameters to encode translation : X, Y, Z
+ *   - [unused] 3 last parameters to encode rotation with euler angles : rX, rY, rZ
+ * 
+ * It outputs a 1D residual block.
+ */
+struct OdometerDistanceResidual
+{
+  OdometerDistanceResidual(const Eigen::Vector3d& previousPos,
+                           double distanceToPreviousPose)
+    : PreviousPos(previousPos)
+    , DistanceToPreviousPose(distanceToPreviousPose)
+  {}
+
+  template <typename T>
+  bool operator()(const T* const t, T* residual) const
+  {
+    // Get translation part
+    using Vector3T = Eigen::Matrix<T, 3, 1>;
+    Eigen::Map<const Vector3T> pos(t);
+
+    // Compute residual
+    T motionSqNorm = (pos - PreviousPos).squaredNorm();
+    T motionNorm = (motionSqNorm < 1e-6) ? T(0) : ceres::sqrt(motionSqNorm);
+    residual[0] = motionNorm - DistanceToPreviousPose;
+    return true;
+  }
+
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(OdometerDistanceResidual, 1, 6)
+
+private:
+  const Eigen::Vector3d PreviousPos;
+  const double DistanceToPreviousPose;
+};
+
+//------------------------------------------------------------------------------
+/**
+ * \class ImuGravityAlignmentResidual
+ * \brief Cost function to optimize the orientation of the affine
+ *        isometry transformation (rotation and translation) so
+ *        that the gravity vector corresponds to a reference.
+ *        This gravity vector is usually supplied by an IMU.
+ *
+ * This function takes one 6D parameters block :
+ *   - [unused] 3 first parameters to encode translation : X, Y, Z
+ *   - 3 last parameters to encode rotation with euler angles : rX, rY, rZ
+ * 
+ * It outputs a 3D residual block.
+ */
+struct ImuGravityAlignmentResidual
+{
+  ImuGravityAlignmentResidual(const Eigen::Vector3d& refGravityDir,
+                              const Eigen::Vector3d& currGravityDir)
+    : ReferenceGravityDirection(refGravityDir)
+    , CurrentGravityDirection(currGravityDir)
+  {}
+
+  template <typename T>
+  bool operator()(const T* const w, T* residual) const
+  {
+    using Matrix3T = Eigen::Matrix<T, 3, 3>;
+    using Vector3T = Eigen::Matrix<T, 3, 1>;
+
+    // Get rotation part 
+    Matrix3T rot = Utils::RotationMatrixFromRPY(w[3], w[4], w[5]);
+
+    // Compute residual
+    Eigen::Map<Vector3T> residualVec(residual);
+    residualVec = rot * CurrentGravityDirection - ReferenceGravityDirection;
+
+    return true;
+  }
+
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(ImuGravityAlignmentResidual, 3, 6)
+
+private:
+  const Eigen::Vector3d ReferenceGravityDirection;
+  const Eigen::Vector3d CurrentGravityDirection;
 };
 
 } // end of namespace CeresCostFunctions

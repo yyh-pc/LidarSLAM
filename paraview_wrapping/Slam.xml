@@ -80,11 +80,37 @@
         <Documentation>
           Reset SLAM internal state : maps and trajectory are cleared, and
           current pose is set back to origin.
-          This keeps parameters unchanged.
+          This keeps parameters and sensor data unchanged.
         </Documentation>
       </Property>
 
       <!--~~~~~~~~~~~~~~~~~~~~~~~ Inputs options ~~~~~~~~~~~~~~~~~~~~~~~-->
+
+      <!-- Sensor data file must be csv.
+           A field time in POSIX format is necessary
+           Possible sensor fields are : odom, [acc_x, acc_y, acc_z].
+           This file is loaded in PV wrapping.
+           It is used to add constraints to the SLAM optimization -->
+      <StringVectorProperty
+        name="SensorDataFile"
+        animateable="0"
+        command="SetSensorData"
+        number_of_elements="1"
+        panel_visibility="advanced">
+        <FileListDomain name="files"/>
+        <Documentation>
+          The path of the external sensor data file to use.
+
+          This CSV file can have the following columns:
+
+          *time*: Posix time, in seconds
+
+          *odom*: Wheel odometry, in meters
+
+          *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second
+
+        </Documentation>
+      </StringVectorProperty>
 
       <IntVectorProperty
           name="Auto detect input arrays"
@@ -277,6 +303,7 @@
 
       <PropertyGroup label="Filter inputs/outputs options">
         <Property name="Reset state" />
+        <Property name="SensorDataFile" />
         <Property name="Auto detect input arrays" />
         <Property name="Time array" />
         <Property name="Intensity array" />
@@ -670,6 +697,34 @@
 
       <!-- ==================== Localization Parameters ==================== -->
 
+      <DoubleVectorProperty
+          name="Wheel odometry weight"
+          command="SetWheelOdomWeight"
+          default_values="0."
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          Wheel odometry weight.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="SensorDataFile" value="" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
+          name="IMU gravity weight"
+          command="SetGravityWeight"
+          default_values="0."
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          IMU gravity alignment weight.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility"  inverse="1" property="SensorDataFile" value="" />
+        </Hints>
+      </DoubleVectorProperty>
+
       <IntVectorProperty
           name="ICP-Optimization iterations"
           command="SetLocalizationICPMaxIter"
@@ -839,6 +894,8 @@
       </DoubleVectorProperty>
 
       <PropertyGroup label="Localization ICP matching and optimization parameters">
+        <Property name="Wheel odometry weight" />
+        <Property name="IMU gravity weight" />
         <Property name="ICP-Optimization iterations" />
         <Property name="Lev-Mardt max iterations" />
         <Property name="Nb edges neighbors minimum after Ransac" />

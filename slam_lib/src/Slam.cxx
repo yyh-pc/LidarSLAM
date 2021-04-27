@@ -74,6 +74,7 @@
 // LOCAL
 #include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
+
 #ifdef USE_G2O
 #include "LidarSlam/PoseGraphOptimization.h"
 #endif  // USE_G2O
@@ -210,6 +211,13 @@ void Slam::SetNbThreads(int n)
 }
 
 //-----------------------------------------------------------------------------
+void Slam::SetSensorTimeOffset(double timeOffset) 
+{
+  this->WheelOdomManager.SetTimeOffset(timeOffset);
+  this->ImuManager.SetTimeOffset(timeOffset);
+} 
+
+//-----------------------------------------------------------------------------
 void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 {
   Utils::Timer::Init("SLAM frame processing");
@@ -233,6 +241,13 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion"));
   this->ComputeEgoMotion();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
+
+  if (this->WheelOdomManager.CanBeUsed() || this->ImuManager.CanBeUsed())
+  {
+    IF_VERBOSE(3, Utils::Timer::Init("Sensor constraints computation"));
+    this->ComputeSensorConstraints();
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Sensor constraints computation"));
+  }
 
   // Perform Localization : update Tworld from map and current frame keypoints
   // and optionally undistort keypoints clouds based on ego-motion
@@ -300,6 +315,14 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->Latency = Utils::Timer::Stop("SLAM frame processing");
   this->NbrFrameProcessed++;
   IF_VERBOSE(1, Utils::Timer::StopAndDisplay("SLAM frame processing"));
+}
+
+//-----------------------------------------------------------------------------
+void Slam::ComputeSensorConstraints()
+{
+  double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
+  this->WheelOdomManager.ComputeWheelAbsoluteConstraint(currLidarTime);
+  this->ImuManager.ComputeGravityConstraint(currLidarTime);
 }
 
 //-----------------------------------------------------------------------------
@@ -1085,7 +1108,15 @@ void Slam::Localization()
     for (auto k : KeypointTypes)
       optimizer.AddResiduals(this->LocalizationMatchingResults[k].Residuals);
 
-    // *********************Add sensor constraints here*********************
+    // Add odometry constraint
+    // if constraint has been successfully created
+    if (this->WheelOdomManager.GetResidual().Cost)
+      optimizer.AddResidual(this->WheelOdomManager.GetResidual());
+
+    // Add gravity alignment constraint
+    // if constraint has been successfully created
+    if (this->ImuManager.GetResidual().Cost)
+      optimizer.AddResidual(this->ImuManager.GetResidual());
 
     // Run LM optimization
     ceres::Solver::Summary summary = optimizer.Solve();
@@ -1312,6 +1343,26 @@ void Slam::RefineUndistortion()
     for (Point& p : *this->CurrentUndistortedKeypoints[k])
       Utils::TransformPoint(p, transformInterpolator(p.time));
   }
+}
+
+//==============================================================================
+//   Sensor data setting
+//==============================================================================
+
+void Slam::AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm)
+{
+  this->ImuManager.AddMeasurement(gm);
+}
+
+void Slam::AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om)
+{
+  this->WheelOdomManager.AddMeasurement(om);
+}
+
+void Slam::ClearSensorMeasurements()
+{
+  this->WheelOdomManager.Reset();
+  this->ImuManager.Reset();
 }
 
 //==============================================================================

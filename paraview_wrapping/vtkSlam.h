@@ -113,6 +113,9 @@ public:
   virtual int GetUndistortion();
   virtual void SetUndistortion(int mode);
 
+  // Set measurements to Slam algo
+  virtual void SetSensorData(const std::string& fileName);
+
   // ---------------------------------------------------------------------------
   //   BASE to LIDAR transform
   // ---------------------------------------------------------------------------
@@ -204,6 +207,12 @@ public:
 
   vtkCustomGetMacro(LocalizationFinalSaturationDistance, double)
   vtkCustomSetMacro(LocalizationFinalSaturationDistance, double)
+
+  vtkCustomGetMacro(WheelOdomWeight, double)
+  vtkCustomSetMacro(WheelOdomWeight, double)
+
+  vtkCustomGetMacro(GravityWeight, double)
+  vtkCustomSetMacro(GravityWeight, double)
 
   // ---------------------------------------------------------------------------
   //   Keypoints extractor, Key frames and Maps parameters

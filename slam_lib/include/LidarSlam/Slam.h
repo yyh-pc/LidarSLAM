@@ -84,6 +84,7 @@
 #include "LidarSlam/MotionModel.h"
 #include "LidarSlam/RollingGrid.h"
 #include "LidarSlam/PointCloudStorage.h"
+#include "LidarSlam/SensorConstraints.h"
 
 #include <Eigen/Geometry>
 
@@ -110,6 +111,9 @@ public:
 
   // Initialization
   Slam();
+  // Reset internal state : maps and trajectory are cleared
+  // and current pose is set back to origin.
+  // This keeps parameters and sensor data unchanged.
   void Reset(bool resetLog = true);
 
   // ---------------------------------------------------------------------------
@@ -324,6 +328,20 @@ public:
   GetMacro(LocalizationFinalSaturationDistance, double)
   SetMacro(LocalizationFinalSaturationDistance, double)
 
+  void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);} 
+  double GetWheelOdomWeight() const {return this->WheelOdomManager.GetWeight();}
+
+  void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);} 
+  double GetGravityWeight() const {return this->ImuManager.GetWeight();}
+
+  // The time offset must be computed as FrameFirstPointTimestamp - FrameReceptionPOSIXTime
+  void SetSensorTimeOffset(double timeOffset);
+  double GetSensorTimeOffset() const {return this->ImuManager.GetTimeOffset();}
+
+  void AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm);
+  void AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om);
+  void ClearSensorMeasurements();
+
   // ---------------------------------------------------------------------------
   //   Key frames and Maps parameters
   // ---------------------------------------------------------------------------
@@ -500,6 +518,18 @@ private:
   // 6-DoF parameters (DoF order : X, Y, Z, rX, rY, rZ)
   LocalOptimizer::RegistrationError LocalizationUncertainty;
 
+  // Odometry manager
+  // Compute the residual with a weight, a measurements list and
+  // taking account of the acquisition time correspondance
+  // The sensor measurements must be filled and cleared from outside this lib
+  SensorConstraints::WheelOdometryManager WheelOdomManager;
+
+  // IMU manager
+  // Compute the residual with a weight, a measurements list and
+  // taking account of the acquisition time correspondance
+  // The sensor measurements must be filled and cleared from outside this lib
+  SensorConstraints::ImuManager ImuManager;
+
   // ---------------------------------------------------------------------------
   //   Optimization parameters
   // ---------------------------------------------------------------------------
@@ -583,6 +613,9 @@ private:
   // Extract keypoints from input pointclouds,
   // and transform them from LIDAR to BASE coordinate system.
   void ExtractKeypoints();
+
+  // Compute constraints provided by external sensors
+  void ComputeSensorConstraints();  
 
   // Estimate the ego motion since last frame.
   // Extrapolate new pose with a constant velocity model and/or

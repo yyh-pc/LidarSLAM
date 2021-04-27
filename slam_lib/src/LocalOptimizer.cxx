@@ -73,12 +73,16 @@ void LocalOptimizer::Clear()
 //----------------------------------------------------------------------------
 ceres::Solver::Summary LocalOptimizer::Solve()
 {
+  ceres::Problem::Options  option;
+  option.loss_function_ownership = ceres::Ownership::DO_NOT_TAKE_OWNERSHIP;
+  option.cost_function_ownership = ceres::Ownership::DO_NOT_TAKE_OWNERSHIP;
+
   // Clear problem and add residuals to optimize
-  this->Problem = std::make_unique<ceres::Problem>();
+  this->Problem = std::make_unique<ceres::Problem>(option);
   for (const CeresTools::Residual& res : this->Residuals)
   {
     if (res.Cost)
-      this->Problem->AddResidualBlock(res.Cost, res.Robustifier, this->PoseArray.data());
+      this->Problem->AddResidualBlock(res.Cost.get(), res.Robustifier.get(), this->PoseArray.data());
   }
 
   // If 2D mode is enabled, hold Z, rX and rY constant

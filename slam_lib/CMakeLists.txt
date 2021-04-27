@@ -17,6 +17,7 @@ set(LidarSlam_PUBLIC_HEADERS
   include/LidarSlam/MotionModel.h
   include/LidarSlam/PointCloudStorage.h
   include/LidarSlam/RollingGrid.h
+  include/LidarSlam/SensorConstraints.h
   include/LidarSlam/Slam.h
   include/LidarSlam/SpinningSensorKeypointExtractor.h
   include/LidarSlam/Transform.h
@@ -33,6 +34,7 @@ add_library(LidarSlam
   src/LocalOptimizer.cxx
   src/MotionModel.cxx
   src/RollingGrid.cxx
+  src/SensorConstraints.cxx
   src/Slam.cxx
   src/SpinningSensorKeypointExtractor.cxx
   src/Transform.cxx
