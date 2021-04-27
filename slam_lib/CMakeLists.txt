@@ -27,7 +27,7 @@ set(LidarSlam_PUBLIC_HEADERS
 # Generate export symbols on Windows to use this lib
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-add_library(LidarSlam SHARED
+add_library(LidarSlam
   src/GlobalTrajectoriesRegistration.cxx
   src/KeypointsMatcher.cxx
   src/LocalOptimizer.cxx
