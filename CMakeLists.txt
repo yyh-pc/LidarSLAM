@@ -74,7 +74,6 @@ endif()
 #-------------------------
 
 # Build core SLAM lib
-option(BUILD_SHARED_LIBS "Build LidarSlam library as SHARED instead of STATIC" ON)
 add_subdirectory(slam_lib)
 
 # Build optional ParaView plugin
