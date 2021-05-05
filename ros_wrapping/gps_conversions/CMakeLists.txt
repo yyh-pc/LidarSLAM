@@ -23,3 +23,6 @@ target_link_libraries(odom_to_gps ${catkin_LIBRARIES})
 
 add_executable(navsatfix_to_gpsfix src/NavSatFixToGpsFixNode.cxx)
 target_link_libraries(navsatfix_to_gpsfix ${catkin_LIBRARIES})
+
+install(TARGETS gps_to_utm odom_to_gps navsatfix_to_gpsfix
+        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
