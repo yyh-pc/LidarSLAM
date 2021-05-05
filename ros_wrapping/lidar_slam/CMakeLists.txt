@@ -121,8 +121,8 @@ catkin_package(
 ## Build ##
 ###########
 
-# build slamlib (and paraview?)
-add_subdirectory(../.. ../../build/)
+# Build LidarSlam lib which lies in parent directory
+add_subdirectory(../.. ${CMAKE_BINARY_DIR}/slam)
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations

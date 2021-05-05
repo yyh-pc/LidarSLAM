@@ -84,4 +84,4 @@ if (SLAM_PARAVIEW_PLUGIN)
 endif(SLAM_PARAVIEW_PLUGIN)
 
 # To build/use ROS wrapping, just put this entire directory in the catkin src
-# workspace and run catkin_make.
+# workspace and run `catkin_make` or `catkin build`.
