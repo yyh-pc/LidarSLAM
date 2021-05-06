@@ -4,7 +4,7 @@ if (g2o_FOUND)
   set(SLAM_g2o_sources src/PoseGraphOptimization.cxx)
   set(g2o_targets g2o::core g2o::types_slam3d)
   add_definitions(-DUSE_G2O=1)
-endif(g2o_FOUND)
+endif()
 
 set(LidarSlam_PUBLIC_HEADERS
   include/LidarSlam/CeresCostFunctions.h
@@ -23,7 +23,7 @@ set(LidarSlam_PUBLIC_HEADERS
   include/LidarSlam/Transform.h
   include/LidarSlam/Utilities.h
   ${SLAM_g2o_headers}
-  )
+)
 
 # Generate export symbols on Windows to use this lib
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
@@ -41,7 +41,7 @@ add_library(LidarSlam
   src/Utilities.cxx
   ${LidarSlam_PUBLIC_HEADERS}
   ${SLAM_g2o_sources}
-  )
+)
 
 target_link_libraries(LidarSlam
   PUBLIC
@@ -52,7 +52,7 @@ target_link_libraries(LidarSlam
   PRIVATE
     ${Eigen3_target}
     ${OpenMP_target}
-  )
+)
 
 set_target_properties(LidarSlam PROPERTIES PUBLIC_HEADER "${LidarSlam_PUBLIC_HEADERS}")
 

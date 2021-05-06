@@ -6,7 +6,7 @@ set(CMAKE_CXX_STANDARD 14)
 if (NOT CMAKE_BUILD_TYPE)
     message(STATUS "No build type selected, default to RelWithDebInfo")
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
-endif(NOT CMAKE_BUILD_TYPE)
+endif()
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -104,6 +104,7 @@ generate_messages(
 ###################################
 ## catkin specific configuration ##
 ###################################
+
 ## The catkin_package macro generates cmake config files for your package
 ## Declare things to be passed to dependent projects
 ## INCLUDE_DIRS: uncomment this if your package contains header files
@@ -143,8 +144,8 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(lidar_slam_node 
-src/LidarSlamNode.cxx 
-src/LidarSlamNode_main.cxx
+  src/LidarSlamNode.cxx
+  src/LidarSlamNode_main.cxx
 )
 
 ## Rename C++ executable without prefix
@@ -155,12 +156,12 @@ src/LidarSlamNode_main.cxx
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-# add_dependencies(lidar_slam_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} slamlib)
+# add_dependencies(lidar_slam_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS} LidarSlam)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(lidar_slam_node
-  ${catkin_LIBRARIES}
   LidarSlam
+  ${catkin_LIBRARIES}
 )
 
 #############
