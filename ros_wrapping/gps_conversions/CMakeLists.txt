@@ -11,7 +11,8 @@ find_package(catkin REQUIRED COMPONENTS
   )
 
 catkin_package(
-  )
+  CATKIN_DEPENDS roscpp geodesy tf2_ros tf2_geometry_msgs nav_msgs gps_common
+)
 
 include_directories(${catkin_INCLUDE_DIRS})
 

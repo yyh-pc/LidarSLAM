@@ -27,9 +27,15 @@ catkin_package(
 ## Build ##
 ###########
 
+# This package needs LidarPoint definition in LidarSlam lib.
+# Sadly, adding lidar_slam dependency will create a circular dependency:
+# - lidar_conversions needs a header file from LidarSlam, exported with lidar_slam: build dependency
+# - lidar_slam uses lidar_conversions in its launchfiles: exec dependency
+# These "soft" circular dependencies (build/exec) are not supported by catkin tools.
+# To avoid this, we directly include the correct headers.
 include_directories(
+  "../../slam_lib/include/"
   ${catkin_INCLUDE_DIRS}
-  "../../slam_lib/include/"  # this package needs LidarPoint definition which is a header file in slam library
 )
 
 # Velodyne Lidar
