@@ -1,16 +1,18 @@
 cmake_minimum_required(VERSION 3.9)
 project(lidar_conversions)
 
-## Compile as C++14, supported in ROS Kinetic and newer
+# Compile as C++14, supported in ROS Kinetic and newer
 set(CMAKE_CXX_STANDARD 14)
 if (NOT CMAKE_BUILD_TYPE)
     message(STATUS "No build type selected, default to RelWithDebInfo")
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
+##################
+## Dependencies ##
+##################
+
+# Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   pcl_ros
