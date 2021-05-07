@@ -58,8 +58,26 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   , PrivNh(priv_nh)
   , TfListener(TfBuffer)
 {
+  // ***************************************************************************
+  // Init SLAM state
+
   // Get SLAM params
   this->SetSlamParameters();
+
+  // Load initial SLAM maps if requested
+  std::string mapsPathPrefix = priv_nh.param<std::string>("maps/initial_maps", "");
+  if (!mapsPathPrefix.empty())
+  {
+    ROS_INFO_STREAM("Loading initial keypoints maps from PCD.");
+    this->LidarSlam.LoadMapsFromPCD(mapsPathPrefix);
+  }
+
+  // Freeze SLAM maps if requested
+  if (!priv_nh.param("maps/update_maps", true))
+  {
+    this->LidarSlam.SetUpdateMap(false);
+    ROS_WARN_STREAM("Disabling SLAM maps update.");
+  }
 
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   priv_nh.getParam("gps/use_gps", this->UseGps);
@@ -248,7 +266,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
     {
       ROS_INFO_STREAM("Saving keypoints maps to PCD.");
-      int pcdFormatInt = this->PrivNh.param("maps_saving/pcd_format", static_cast<int>(LidarSlam::PCDFormat::BINARY_COMPRESSED));
+      int pcdFormatInt = this->PrivNh.param("maps/export_pcd_format", static_cast<int>(LidarSlam::PCDFormat::BINARY_COMPRESSED));
       LidarSlam::PCDFormat pcdFormat = static_cast<LidarSlam::PCDFormat>(pcdFormatInt);
       if (pcdFormat != LidarSlam::PCDFormat::ASCII &&
           pcdFormat != LidarSlam::PCDFormat::BINARY &&
