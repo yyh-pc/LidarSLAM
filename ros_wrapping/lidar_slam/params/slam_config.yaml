@@ -44,6 +44,10 @@ maps:
   # This is equivalent to publishing SlamCommand::LOAD_KEYPOINTS_MAPS to 'slam_command' topic at startup.
   initial_maps: ""
 
+  # Initial SLAM pose in odometry_frame X, Y, Z, roll, pitch, yaw [m, rad] (default: 0, 0, 0, 0, 0, 0)
+  # This could be useful to set if you're using an initial map estimate, but without starting at the map origin
+  initial_pose: [0., 0., 0., 0., 0., 0.]
+
   # Allow to update SLAM maps with keypoints from new scans.
   # This is equivalent to publishing SlamCommand::DISABLE_SLAM_MAP_UPDATE/ENABLE_SLAM_MAP_UPDATE to 'slam_command' topic at startup.
   # WARNING: Do not set this parameter to false if no initial maps have been loaded!

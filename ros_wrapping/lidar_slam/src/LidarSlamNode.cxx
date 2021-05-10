@@ -79,6 +79,15 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     ROS_WARN_STREAM("Disabling SLAM maps update.");
   }
 
+  // Set initial SLAM pose if requested
+  std::vector<double> initialPose;
+  if (priv_nh.getParam("maps/initial_pose", initialPose) && initialPose.size() == 6)
+  {
+    LidarSlam::Transform pose(Eigen::Map<const Eigen::Vector6d>(initialPose.data()));
+    this->LidarSlam.SetWorldTransformFromGuess(pose);
+    ROS_INFO_STREAM("Setting initial SLAM pose to:\n" << pose.GetMatrix());
+  }
+
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   priv_nh.getParam("gps/use_gps", this->UseGps);
 
