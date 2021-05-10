@@ -20,6 +20,7 @@
 
 #include <pcl/point_cloud.h>
 #include <cmath>
+#include <map>
 
 namespace lidar_conversions
 {

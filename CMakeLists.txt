@@ -39,7 +39,7 @@ if (TARGET Eigen3::Eigen)
 else()
   message(STATUS "Lidar SLAM : using Eigen3 header files (version ${EIGEN3_VERSION})")
   include_directories(${EIGEN3_INCLUDE_DIR})
-endif ()
+endif()
 
 find_package(Ceres REQUIRED)
 
@@ -53,8 +53,8 @@ if (ENABLE_g2o)
   find_package(g2o QUIET)
   if (NOT g2o_FOUND)
     message("Lidar SLAM : G2O requested but not found, pose graph optimization will be ignored.")
-  endif(NOT g2o_FOUND)
-endif (ENABLE_g2o)
+  endif()
+endif()
 
 # Find optional OpenMP
 find_package(OpenMP)
@@ -81,7 +81,7 @@ option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
 if (SLAM_PARAVIEW_PLUGIN)
   set(SLAM_INSTALL_PARAVIEW_PLUGIN_DIR ${SLAM_INSTALL_LIBRARY_DIR} CACHE STRING "Directory where to install Paraview LidarSlamPlugin")
   add_subdirectory(paraview_wrapping)
-endif(SLAM_PARAVIEW_PLUGIN)
+endif()
 
 # To build/use ROS wrapping, just put this entire directory in the catkin src
-# workspace and run catkin_make.
+# workspace and run `catkin_make` or `catkin build`.

@@ -1,16 +1,18 @@
 cmake_minimum_required(VERSION 3.9)
 project(lidar_conversions)
 
-## Compile as C++14, supported in ROS Kinetic and newer
+# Compile as C++14, supported in ROS Kinetic and newer
 set(CMAKE_CXX_STANDARD 14)
 if (NOT CMAKE_BUILD_TYPE)
     message(STATUS "No build type selected, default to RelWithDebInfo")
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
-endif(NOT CMAKE_BUILD_TYPE)
+endif()
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
+##################
+## Dependencies ##
+##################
+
+# Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   pcl_ros
@@ -27,9 +29,15 @@ catkin_package(
 ## Build ##
 ###########
 
+# This package needs LidarPoint definition in LidarSlam lib.
+# Sadly, adding lidar_slam dependency will create a circular dependency:
+# - lidar_conversions needs a header file from LidarSlam, exported with lidar_slam: build dependency
+# - lidar_slam uses lidar_conversions in its launchfiles: exec dependency
+# These "soft" circular dependencies (build/exec) are not supported by catkin tools.
+# To avoid this, we directly include the correct headers.
 include_directories(
+  "../../slam_lib/include/"
   ${catkin_INCLUDE_DIRS}
-  "../../slam_lib/include/"  # this package needs LidarPoint definition which is a header file in slam library
 )
 
 # Velodyne Lidar
@@ -39,3 +47,10 @@ target_link_libraries(velodyne_conversion_node ${catkin_LIBRARIES})
 # Robosense RSLidar
 add_executable(robosense_conversion_node src/RobosenseToLidarNode.cxx)
 target_link_libraries(robosense_conversion_node ${catkin_LIBRARIES})
+
+#############
+## Install ##
+#############
+
+install(TARGETS velodyne_conversion_node robosense_conversion_node
+        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
