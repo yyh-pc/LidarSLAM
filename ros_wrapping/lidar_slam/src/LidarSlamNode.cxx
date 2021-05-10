@@ -136,8 +136,11 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     ROS_INFO_STREAM("Using secondary LiDAR frames on topic '" << lidarTopics[lidarTopicId] << "'");
   }
 
+  // Set SLAM pose from external guess
+  this->SetPoseSub = nh.subscribe("set_slam_pose", 1, &LidarSlamNode::SetPoseCallback, this);
+
   // SLAM commands
-  this->SlamCommandSub = nh.subscribe("slam_command", 1,  &LidarSlamNode::SlamCommandCallback, this);
+  this->SlamCommandSub = nh.subscribe("slam_command", 1, &LidarSlamNode::SlamCommandCallback, this);
 
   // Init logging of GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   if (this->UseGps)
@@ -185,7 +188,6 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
   this->Frames.push_back(cloudS_ptr);
 }
 
-
 //------------------------------------------------------------------------------
 void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
 {
@@ -215,6 +217,21 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
     // Update BASE to GPS offset
     // Get the latest transform (we expect a static transform, so timestamp does not matter)
     Utils::Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
+  }
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::SetPoseCallback(const geometry_msgs::PoseWithCovarianceStamped& msg)
+{
+  // Get transform between msg frame and odometry frame
+  Eigen::Isometry3d msgFrameToOdom;
+  if (Utils::Tf2LookupTransform(msgFrameToOdom, this->TfBuffer, msg.header.frame_id, this->OdometryFrameId, msg.header.stamp))
+  {
+    // Compute pose in odometry frame and set SLAM pose
+    Eigen::Isometry3d odomToBase = msgFrameToOdom.inverse() * Utils::PoseMsgToTransform(msg.pose.pose).GetIsometry();
+    this->LidarSlam.SetWorldTransformFromGuess(LidarSlam::Transform(odomToBase));
+    ROS_WARN_STREAM("SLAM pose set to :\n" << odomToBase.matrix());
+    // TODO: properly deal with covariance: rotate it, pass it to SLAM, notify trajectory jump?
   }
 }
 
