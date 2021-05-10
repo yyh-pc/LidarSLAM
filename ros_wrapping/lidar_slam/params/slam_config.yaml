@@ -37,10 +37,25 @@ output:
     planes: true           # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
     blobs: true            # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
 
-# Pointclouds saving to PCD files.
-# To save keypoints maps, send command SlamCommand::SAVE_KEYPOINTS_MAPS to 'slam_command' topic.
-maps_saving:
-  pcd_format: 2  # Save with given PCD file format : 0) ascii,  1) binary,  2) binary_compressed.
+# Save/load SLAM maps for reuse
+maps:
+
+  # Path prefix of SLAM maps that will be loaded at startup (if empty, no map will be loaded).
+  # This is equivalent to publishing SlamCommand::LOAD_KEYPOINTS_MAPS to 'slam_command' topic at startup.
+  initial_maps: ""
+
+  # Initial SLAM pose in odometry_frame X, Y, Z, roll, pitch, yaw [m, rad] (default: 0, 0, 0, 0, 0, 0)
+  # This could be useful to set if you're using an initial map estimate, but without starting at the map origin
+  initial_pose: [0., 0., 0., 0., 0., 0.]
+
+  # Allow to update SLAM maps with keypoints from new scans.
+  # This is equivalent to publishing SlamCommand::DISABLE_SLAM_MAP_UPDATE/ENABLE_SLAM_MAP_UPDATE to 'slam_command' topic at startup.
+  # WARNING: Do not set this parameter to false if no initial maps have been loaded!
+  update_maps: true
+
+  # PCD file format to use to save SLAM maps: 0) ascii, 1) binary, 2) binary_compressed.
+  # To save keypoints maps, send command SlamCommand::SAVE_KEYPOINTS_MAPS to 'slam_command' topic.
+  export_pcd_format: 2
 
 # Optional GPS position use (if 'gps/use_gps'=true), subscribing to Odometry msg on 'gps_odom' topic.
 # It allows to estimate calibration between GPS and SLAM trajectories,

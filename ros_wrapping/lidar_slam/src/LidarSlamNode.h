@@ -26,6 +26,7 @@
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <pcl_ros/point_cloud.h>
 #include <nav_msgs/Odometry.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <lidar_slam/SlamCommand.h>
 
 // SLAM
@@ -91,6 +92,16 @@ public:
 
   //----------------------------------------------------------------------------
   /*!
+   * @brief     Set SLAM pose from external guess.
+   * @param[in] msg The pose to use.
+   *
+   * NOTE: A valid TF tree must link msg.header.frame_id to OdometryFrameId.
+   * NOTE: The covariance is not used yet.
+   */
+  void SetPoseCallback(const geometry_msgs::PoseWithCovarianceStamped& msg);
+
+  //----------------------------------------------------------------------------
+  /*!
    * @brief     Receive an external command to process, such as pose graph
    *            optimization, GPS/SLAM calibration, set SLAM pose etc.
    * @param[in] msg The command message.
@@ -149,7 +160,7 @@ protected:
   // ROS node handles, subscribers and publishers
   ros::NodeHandle &Nh, &PrivNh;
   std::vector<ros::Subscriber> CloudSubs;
-  ros::Subscriber SlamCommandSub;
+  ros::Subscriber SlamCommandSub, SetPoseSub;
   std::unordered_map<int, ros::Publisher> Publishers;
   std::unordered_map<int, bool> Publish;
 

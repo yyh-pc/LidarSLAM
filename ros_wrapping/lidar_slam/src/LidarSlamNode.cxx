@@ -58,8 +58,35 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   , PrivNh(priv_nh)
   , TfListener(TfBuffer)
 {
+  // ***************************************************************************
+  // Init SLAM state
+
   // Get SLAM params
   this->SetSlamParameters();
+
+  // Load initial SLAM maps if requested
+  std::string mapsPathPrefix = priv_nh.param<std::string>("maps/initial_maps", "");
+  if (!mapsPathPrefix.empty())
+  {
+    ROS_INFO_STREAM("Loading initial keypoints maps from PCD.");
+    this->LidarSlam.LoadMapsFromPCD(mapsPathPrefix);
+  }
+
+  // Freeze SLAM maps if requested
+  if (!priv_nh.param("maps/update_maps", true))
+  {
+    this->LidarSlam.SetUpdateMap(false);
+    ROS_WARN_STREAM("Disabling SLAM maps update.");
+  }
+
+  // Set initial SLAM pose if requested
+  std::vector<double> initialPose;
+  if (priv_nh.getParam("maps/initial_pose", initialPose) && initialPose.size() == 6)
+  {
+    LidarSlam::Transform pose(Eigen::Map<const Eigen::Vector6d>(initialPose.data()));
+    this->LidarSlam.SetWorldTransformFromGuess(pose);
+    ROS_INFO_STREAM("Setting initial SLAM pose to:\n" << pose.GetMatrix());
+  }
 
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   priv_nh.getParam("gps/use_gps", this->UseGps);
@@ -109,8 +136,11 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     ROS_INFO_STREAM("Using secondary LiDAR frames on topic '" << lidarTopics[lidarTopicId] << "'");
   }
 
+  // Set SLAM pose from external guess
+  this->SetPoseSub = nh.subscribe("set_slam_pose", 1, &LidarSlamNode::SetPoseCallback, this);
+
   // SLAM commands
-  this->SlamCommandSub = nh.subscribe("slam_command", 1,  &LidarSlamNode::SlamCommandCallback, this);
+  this->SlamCommandSub = nh.subscribe("slam_command", 1, &LidarSlamNode::SlamCommandCallback, this);
 
   // Init logging of GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   if (this->UseGps)
@@ -158,7 +188,6 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
   this->Frames.push_back(cloudS_ptr);
 }
 
-
 //------------------------------------------------------------------------------
 void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
 {
@@ -188,6 +217,21 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
     // Update BASE to GPS offset
     // Get the latest transform (we expect a static transform, so timestamp does not matter)
     Utils::Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
+  }
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::SetPoseCallback(const geometry_msgs::PoseWithCovarianceStamped& msg)
+{
+  // Get transform between msg frame and odometry frame
+  Eigen::Isometry3d msgFrameToOdom;
+  if (Utils::Tf2LookupTransform(msgFrameToOdom, this->TfBuffer, msg.header.frame_id, this->OdometryFrameId, msg.header.stamp))
+  {
+    // Compute pose in odometry frame and set SLAM pose
+    Eigen::Isometry3d odomToBase = msgFrameToOdom.inverse() * Utils::PoseMsgToTransform(msg.pose.pose).GetIsometry();
+    this->LidarSlam.SetWorldTransformFromGuess(LidarSlam::Transform(odomToBase));
+    ROS_WARN_STREAM("SLAM pose set to :\n" << odomToBase.matrix());
+    // TODO: properly deal with covariance: rotate it, pass it to SLAM, notify trajectory jump?
   }
 }
 
@@ -248,7 +292,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
     {
       ROS_INFO_STREAM("Saving keypoints maps to PCD.");
-      int pcdFormatInt = this->PrivNh.param("maps_saving/pcd_format", static_cast<int>(LidarSlam::PCDFormat::BINARY_COMPRESSED));
+      int pcdFormatInt = this->PrivNh.param("maps/export_pcd_format", static_cast<int>(LidarSlam::PCDFormat::BINARY_COMPRESSED));
       LidarSlam::PCDFormat pcdFormat = static_cast<LidarSlam::PCDFormat>(pcdFormatInt);
       if (pcdFormat != LidarSlam::PCDFormat::ASCII &&
           pcdFormat != LidarSlam::PCDFormat::BINARY &&
