@@ -1,14 +1,56 @@
+variables:
+  # `custom_build_dir` must be enabled in the runner’s configuration
+  GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_CONCURRENT_ID/slam
+  WORKDIR: $CI_BUILDS_DIR/$CI_CONCURRENT_ID
+
 stages:
-  - build
+  - slam_lib
+  - ros_wrapping
+  # - paraview_wrapping
 
-# Build stage
+# ------------------------------------------------------------------------------
+#   Build core LidarSlam lib
+# ------------------------------------------------------------------------------
 
-build::linux:
-  stage: build
+# Build core LidarSlam lib on Linux
+slam_lib::linux:
+  stage: slam_lib
+  tags: [linux]
   script:
     - echo Use additional cmake arguments that are defined by the runner $CMAKE_RUNNER_ARGS
-    - rm -rf build
-    - mkdir build
-    - cd build
-    - cmake $CMAKE_RUNNER_ARGS ..
+    - cd $WORKDIR
+    - rm -rf build_slam_lib
+    - mkdir build_slam_lib
+    - cd build_slam_lib
+    - cmake $CMAKE_RUNNER_ARGS $GIT_CLONE_PATH
     - cmake --build . --config Release -- -j 4
+
+# Build core LidarSlam lib on Windows
+# TODO
+
+# ------------------------------------------------------------------------------
+#   Build ROS wrapping
+# ------------------------------------------------------------------------------
+
+# Build ROS wrapping on Linux
+ros_wrapping::linux:
+  stage: ros_wrapping
+  tags: [linux, ros]
+  script:
+    - echo Use additional cmake arguments that are defined by the runner $CMAKE_RUNNER_ARGS
+    - cd $WORKDIR
+    - rm -rf build_ros_wrapping
+    - mkdir -p build_ros_wrapping/src
+    - ln -s $GIT_CLONE_PATH build_ros_wrapping/src/slam
+    - cd build_ros_wrapping
+    - catkin_make $CMAKE_RUNNER_ARGS -DCMAKE_BUILD_TYPE=Release -j 4
+
+# ------------------------------------------------------------------------------
+#   Build PV wrapping
+# ------------------------------------------------------------------------------
+
+# Build PV wrapping on Linux
+# TODO
+
+# Build PV wrapping on Windows
+# TODO
