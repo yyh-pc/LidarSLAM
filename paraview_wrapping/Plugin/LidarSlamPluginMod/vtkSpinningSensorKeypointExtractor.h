@@ -43,7 +43,7 @@ virtual void Set##name(type _arg)                                               
  *  creation of a proxy. This way we get a free GUI.
  *  It should only implement setter for the proxy, and a getter to the underlying keypointExtractor.
  */
-class VTK_EXPORT vtkSpinningSensorKeypointExtractor : public vtkObject
+class vtkSpinningSensorKeypointExtractor : public vtkObject
 {
 public:
   static vtkSpinningSensorKeypointExtractor* New();

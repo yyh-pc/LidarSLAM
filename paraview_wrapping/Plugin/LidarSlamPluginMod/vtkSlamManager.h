@@ -40,7 +40,7 @@ virtual void Set##name(type _arg)                                               
   }                                                                                              \
 }
 
-class VTK_EXPORT vtkSlamManager : public vtkSlam
+class vtkSlamManager : public vtkSlam
 {
 public:
   static vtkSlamManager* New();

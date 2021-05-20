@@ -62,7 +62,7 @@ virtual type Get##name()                                                        
 class vtkSpinningSensorKeypointExtractor;
 class vtkTable;
 
-class VTK_EXPORT vtkSlam : public vtkPolyDataAlgorithm
+class vtkSlam : public vtkPolyDataAlgorithm
 {
 public:
   static vtkSlam* New();
