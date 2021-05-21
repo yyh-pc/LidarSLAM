@@ -116,7 +116,9 @@ Ensure all *LidarSlam* dependencies are respected. Specific dependencies are lis
 | :--------: | :------------: |
 | ParaView   | 5.4 and 5.6    |
 
-Be careful to use and link to the same libraries as ParaView/LidarView (especially with VTK, Eigen, PCL, Ceres, nanoflann, etc.) or it could lead to version mismatch and segfault.
+Be careful to use and link to the same libraries as ParaView/LidarView's (especially with VTK, Eigen, PCL, Ceres, nanoflann, etc.). Otherwise, if different flags or modules were enabled, some troubles may arise at build time, or it could lead to version mismatch and segfault at runtime.
+
+For example, if PCL is built with `pcl_visualization` module, it must link to the same VTK than the one used by ParaView.
 
 ### Installation
 

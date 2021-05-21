@@ -27,6 +27,17 @@ list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_
 #  Find dependencies
 #-------------------------
 
+# If the Paraview plugin needs to be compiled, we must find Paraview before PCL.
+# Otherwise, if PCL is built with pcl_visualization module and uses another VTK
+# than the one provided by Paraview, it may override the correct include
+# directories and libraries.
+option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
+if (SLAM_PARAVIEW_PLUGIN)
+  find_package(ParaView REQUIRED)
+  message(STATUS "PARAVIEW_USE_FILE: ${PARAVIEW_USE_FILE}")
+  include(${PARAVIEW_USE_FILE})
+endif()
+
 find_package(nanoflann REQUIRED)
 
 # Find Eigen3. If it defines the target, this is used. If not,
@@ -77,9 +88,7 @@ endif()
 add_subdirectory(slam_lib)
 
 # Build optional ParaView plugin
-option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
 if (SLAM_PARAVIEW_PLUGIN)
-  set(SLAM_INSTALL_PARAVIEW_PLUGIN_DIR ${SLAM_INSTALL_LIBRARY_DIR} CACHE STRING "Directory where to install Paraview LidarSlamPlugin")
   add_subdirectory(paraview_wrapping)
 endif()
 

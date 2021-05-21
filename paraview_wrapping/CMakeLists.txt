@@ -1,9 +1,5 @@
-# Find ParaView
-find_package(ParaView REQUIRED)
-message(STATUS "PARAVIEW_USE_FILE: ${PARAVIEW_USE_FILE}")
-include(${PARAVIEW_USE_FILE})
+set(SLAM_INSTALL_PARAVIEW_PLUGIN_DIR ${SLAM_INSTALL_LIBRARY_DIR} CACHE STRING "Directory where to install Paraview LidarSlamPlugin")
 
-# construct the plugin
 set(ServerManagerSources
   vtkSlam.cxx
   vtkSlam.h
