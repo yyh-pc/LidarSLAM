@@ -1,29 +1,36 @@
-variables:
-  # `custom_build_dir` must be enabled in the runner’s configuration
-  GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_CONCURRENT_ID/slam
-  WORKDIR: $CI_BUILDS_DIR/$CI_CONCURRENT_ID
-
 stages:
   - slam_lib
   - ros_wrapping
-  # - paraview_wrapping
+  - paraview_wrapping
+
+# Default parameters for all jobs
+default:
+  before_script:
+    - echo "Using additional cmake arguments that are defined by the runner $CMAKE_RUNNER_ARGS"
 
 # ------------------------------------------------------------------------------
 #   Build core LidarSlam lib
 # ------------------------------------------------------------------------------
 
-# Build core LidarSlam lib on Linux
-slam_lib::linux:
+.slam_lib:
   stage: slam_lib
-  tags: [linux]
+  needs: []
+  variables:
+    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_slam_lib
   script:
-    - echo Use additional cmake arguments that are defined by the runner $CMAKE_RUNNER_ARGS
-    - cd $WORKDIR
-    - rm -rf build_slam_lib
-    - mkdir build_slam_lib
-    - cd build_slam_lib
-    - cmake $CMAKE_RUNNER_ARGS $GIT_CLONE_PATH
-    - cmake --build . --config Release -- -j 4
+    - cmake -E remove_directory $build_dir
+    - cmake -E make_directory $build_dir
+    - cd $build_dir
+    - cmake
+      -DCMAKE_BUILD_TYPE=Release
+      -DBUILD_SHARED_LIBS=ON
+      $CMAKE_RUNNER_ARGS $CI_PROJECT_DIR
+    - cmake --build $build_dir -j 4
+
+# Build core LidarSlam lib on Linux
+linux_slam_lib:
+  tags: [linux]
+  extends: .slam_lib
 
 # Build core LidarSlam lib on Windows
 # TODO
@@ -32,25 +39,50 @@ slam_lib::linux:
 #   Build ROS wrapping
 # ------------------------------------------------------------------------------
 
-# Build ROS wrapping on Linux
-ros_wrapping::linux:
+.ros_wrapping:
   stage: ros_wrapping
-  tags: [linux, ros]
+  needs: []
+  variables:
+    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_ros_wrapping
   script:
-    - echo Use additional cmake arguments that are defined by the runner $CMAKE_RUNNER_ARGS
-    - cd $WORKDIR
-    - rm -rf build_ros_wrapping
-    - mkdir -p build_ros_wrapping/src
-    - ln -s $GIT_CLONE_PATH build_ros_wrapping/src/slam
-    - cd build_ros_wrapping
-    - catkin_make $CMAKE_RUNNER_ARGS -DCMAKE_BUILD_TYPE=Release -j 4
+    - cmake -E remove_directory $build_dir
+    - cmake -E make_directory $build_dir/src
+    - cmake -E create_symlink $CI_PROJECT_DIR $build_dir/src/slam
+    - cd $build_dir
+    - catkin_make
+      -DCMAKE_BUILD_TYPE=Release
+      -j 4
+      $CMAKE_RUNNER_ARGS
+
+# Build ROS wrapping on Linux
+linux_ros_wrapping:
+  tags: [linux, ros]
+  extends: .ros_wrapping
 
 # ------------------------------------------------------------------------------
 #   Build PV wrapping
 # ------------------------------------------------------------------------------
 
+.paraview_wrapping:
+  stage: paraview_wrapping
+  needs: []
+  variables:
+    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_paraview_wrapping
+  script:
+    - cmake -E remove_directory $build_dir
+    - cmake -E make_directory $build_dir
+    - cd $build_dir
+    - cmake
+      -DCMAKE_BUILD_TYPE=Release
+      -DBUILD_SHARED_LIBS=OFF
+      -DSLAM_PARAVIEW_PLUGIN=ON
+      $CMAKE_RUNNER_ARGS $CI_PROJECT_DIR
+    - cmake --build $build_dir -j 4
+
 # Build PV wrapping on Linux
-# TODO
+linux_paraview_wrapping:
+  tags: [linux, paraview]
+  extends: .paraview_wrapping
 
 # Build PV wrapping on Windows
 # TODO
