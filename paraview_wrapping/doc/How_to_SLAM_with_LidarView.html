@@ -49,7 +49,7 @@ Follow <a href="https://gitlab.kitware.com/LidarView/lidarview-core/-/blob/maste
 <pre><code>-DENABLE_ceres=True
 -DENABLE_nanoflann=True
 -DENABLE_pcl=True
--DENABLE_slam=True 
+-DLIDARVIEW_BUILD_SLAM=True 
 </code></pre>
 
 <p><code>LidarSlamPlugin</code> should be automatically loaded at LidarView's startup. If not, ensure <strong>Advanced features</strong> are enabled (in <strong>Help</strong> or  <strong>Tools</strong> > <strong>Debugging</strong>), then select <strong>Advance</strong> > <strong>Tools</strong> > <strong>Manage Plugins</strong> > <strong>Load New</strong>. Browse to your LidarView install directory and select the <code>libLidarSlamPlugin.so</code> / <code>LidarSlamPlugin.dll</code> (this file can normally be found under <code>&lt;lv_build&gt;/install/lib/plugins/</code> on Linux or <code>&lt;lv_build&gt;/install/bin/plugins/</code> on Windows).</p>
