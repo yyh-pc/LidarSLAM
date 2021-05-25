@@ -142,6 +142,18 @@ RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Array3d& minPoint, co
 }
 
 //------------------------------------------------------------------------------
+unsigned int RollingGrid::Size() const
+{
+  unsigned int nbPoints = 0;
+  for (int x = 0; x < this->GridSize; x++)
+    for (int y = 0; y < this->GridSize; y++)
+      for (int z = 0; z < this->GridSize; z++)
+        nbPoints += this->Grid[x][y][z]->size();
+
+  return nbPoints;
+}
+
+//------------------------------------------------------------------------------
 RollingGrid::PointCloud::Ptr RollingGrid::Get() const
 {
   // Merge all points into a single pointcloud
