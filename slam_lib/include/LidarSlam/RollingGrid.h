@@ -85,6 +85,9 @@ public:
   //! Get all points
   PointCloud::Ptr Get() const;
 
+  // Get current number of points in rolling grid
+  unsigned int Size() const;
+
   //! Roll the grid so that input bounding box can fit it in rolled map
   void Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
 

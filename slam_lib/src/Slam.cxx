@@ -1173,11 +1173,15 @@ void Slam::UpdateMapsUsingTworld()
                                                  << transSinceLastKf << " m, "
                                                  << Utils::Rad2Deg(rotSinceLastKf) << " °");
 
+  int nbMapKpts = 0;
+  for (auto mapKptsCloud : this->LocalMaps)
+    nbMapKpts += mapKptsCloud.second->Size();
   // Check if current frame is a new keyframe
   // If we don't have enough keyframes yet, the threshold is linearly lowered
   constexpr double MIN_KF_NB = 10.;
   double thresholdCoef = std::min(this->KfCounter / MIN_KF_NB, 1.);
-  bool isNewKeyFrame = transSinceLastKf >= thresholdCoef * this->KfDistanceThreshold ||
+  bool isNewKeyFrame = nbMapKpts < this->MinNbrMatchedKeypoints * 10 ||
+                       transSinceLastKf >= thresholdCoef * this->KfDistanceThreshold ||
                        rotSinceLastKf >= Utils::Deg2Rad(thresholdCoef * this->KfAngleThreshold);
 
   // Notify current frame to be a new keyframe
