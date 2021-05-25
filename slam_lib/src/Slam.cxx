@@ -1090,7 +1090,7 @@ void Slam::Localization()
       this->Tworld = this->PreviousTworld;
       if (this->Undistortion)
         this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
-      PRINT_ERROR("Not enough keypoints, Localization skipped for this frame.");
+      PRINT_ERROR("Not enough keypoints matched, Localization skipped for this frame.");
       break;
     }
 
