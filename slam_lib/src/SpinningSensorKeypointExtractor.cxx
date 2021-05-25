@@ -164,7 +164,9 @@ void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
   this->NbLaserRings = this->ScanLines.size();
 
   // Estimate azimuthal resolution if not already done
-  if (this->AzimuthalResolution < 1e-6)
+  // or if the previous value found is not plausible
+  // (because last scan was badly formed, e.g. lack of points)
+  if (this->AzimuthalResolution < 1e-6 || M_PI/4. < this->AzimuthalResolution)
     this->EstimateAzimuthalResolution();
 }
 
@@ -206,9 +208,18 @@ void SpinningSensorKeypointExtractor::InvalidateNotUsablePoints()
 {
   // Max angle between Lidar Ray and hyptothetic plane normal
   const float angleBeamNormal = Utils::Deg2Rad(90 - this->MinBeamSurfaceAngle);
+  // If the azimuthal angle was estimated and is plausible,
+  // it is used to invalidate points representing occluded areas border.
+  // Otherwise, we use a default angle (Velodyne 10Hz resolution)
+  float azimuthalResolution = this->AzimuthalResolution;
+  if (azimuthalResolution < 1e-6 || M_PI / 4 < azimuthalResolution)
+  {
+    PRINT_WARNING("Unable to estimate the azimuthal resolution angle: using 0.2°");
+    azimuthalResolution = Utils::Deg2Rad(0.2);
+  }
   // Coeff to multiply to point depth, in order to obtain the maximal distance
   // between two neighbors of the same Lidar ray on a plane
-  const float maxPosDiffCoeff = std::sin(this->AzimuthalResolution) / std::cos(this->AzimuthalResolution + angleBeamNormal);
+  const float maxPosDiffCoeff = std::sin(azimuthalResolution) / std::cos(azimuthalResolution + angleBeamNormal);
 
   // Loop over scan lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) firstprivate(maxPosDiffCoeff)
@@ -599,6 +610,13 @@ void SpinningSensorKeypointExtractor::EstimateAzimuthalResolution()
       if (angle > 1e-4)
         angles.push_back(angle);
     }
+  }
+
+  // A minimum number of angles is needed to get a trustable estimator
+  if (angles.size() < 100)
+  {
+    PRINT_WARNING("Not enough points to estimate azimuthal resolution");
+    return;
   }
 
   // Estimate azimuthal resolution from these angles
