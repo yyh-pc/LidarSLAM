@@ -5,8 +5,42 @@ stages:
 
 # Default parameters for all jobs
 default:
-  before_script:
+  before_script: &default_before_script_anchor
     - echo "Using additional cmake arguments that are defined by the runner $CMAKE_RUNNER_ARGS"
+
+# Windows specific configuration
+.windows_runner_config:
+  before_script:
+    - *default_before_script_anchor
+    # To use the Microsoft C++ Toolset from the command line, some environment variables need to be set.
+    # To help with this, Microsoft provides the vcvarsall.bat script that sets different environment vars.
+    # (see https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=vs-2019)
+    # However, the script is made for the command shell and the job run in a powershell.
+    # A powershell can run a command shell script by using the `cmd` executable, but this implies
+    # that environment variables are only set in the child cmd.exe instance. The environment variables need to
+    # be updated in the powershell too. This is why the function Invoke-CmdScript is needed as it invokes
+    # the script and updates the powershell environment.
+    # This is taken from https://stackoverflow.com/a/41399983
+    - | # pipe allows to use multiline command, see https://gitlab.com/gitlab-org/gitlab-runner/issues/166
+      function Invoke-CmdScript {
+        param(
+          [String] $scriptName
+        )
+        $cmdLine = """$scriptName"" $args & set"
+        & $Env:SystemRoot\system32\cmd.exe /c $cmdLine |
+          Select-String '^([^=]*)=(.*)$' |
+          ForEach-Object {
+            $varName = $_.Matches[0].Groups[1].Value
+            $varValue = $_.Matches[0].Groups[2].Value
+            Set-Item Env:$varName $varValue
+        }
+      }
+    - Invoke-CmdScript "${vcvarsall_script_location}/vcvarsall.bat" $architecture
+  variables:
+    # Paraview only supports MSVC 14 (2015) and Ninja generator yet
+    vcvarsall_script_location: 'C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC'
+    architecture: x86_amd64
+    cmake_option_GENERATOR: -GNinja
 
 # ------------------------------------------------------------------------------
 #   Build core LidarSlam lib
@@ -22,6 +56,7 @@ default:
     - cmake -E make_directory $build_dir
     - cd $build_dir
     - cmake
+      $cmake_option_GENERATOR
       -DCMAKE_BUILD_TYPE=Release
       -DBUILD_SHARED_LIBS=ON
       $CMAKE_RUNNER_ARGS $CI_PROJECT_DIR
@@ -33,7 +68,11 @@ linux_slam_lib:
   extends: .slam_lib
 
 # Build core LidarSlam lib on Windows
-# TODO
+windows_slam_lib:
+  tags: [windows]
+  extends:
+  - .windows_runner_config
+  - .slam_lib
 
 # ------------------------------------------------------------------------------
 #   Build ROS wrapping
@@ -73,6 +112,7 @@ linux_ros_wrapping:
     - cmake -E make_directory $build_dir
     - cd $build_dir
     - cmake
+      $cmake_option_GENERATOR
       -DCMAKE_BUILD_TYPE=Release
       -DBUILD_SHARED_LIBS=OFF
       -DSLAM_PARAVIEW_PLUGIN=ON
@@ -85,4 +125,8 @@ linux_paraview_wrapping:
   extends: .paraview_wrapping
 
 # Build PV wrapping on Windows
-# TODO
+windows_paraview_wrapping:
+  tags: [windows, paraview]
+  extends:
+    - .windows_runner_config
+    - .paraview_wrapping
