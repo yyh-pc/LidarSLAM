@@ -36,6 +36,7 @@ output:
     edges: true            # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
     planes: true           # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
     blobs: true            # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
+  confidence: true         # Publish confidence estimators as a confidence msg to topic 'slam_confidence'.
 
 # Save/load SLAM maps for reuse
 maps:
@@ -187,6 +188,11 @@ slam:
   keyframes:
     distance_threshold: 0.5  # [m] Min distance to travel since last KF to add a new one
     angle_threshold: 5.      # [°] Min angle to rotate since last KF to add a new one
+
+  # Confidence estimators on pose output
+  confidence:
+    overlap:
+      enable: false          # Compute estimation of the overlap between the current scan and the keypoint maps
 
   # Keypoints maps, saved as downsampled voxel grids
   voxel_grid:

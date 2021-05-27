@@ -43,6 +43,8 @@ enum Output
 
   SLAM_REGISTERED_POINTS,// Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_registered_points'.
 
+  CONFIDENCE,            // Publish confidence estimators on output pose to topic 'slam_confidence'.
+
   PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'pgo_slam_path' latched topic.
   ICP_CALIB_SLAM_PATH,   // Publish ICP-aligned SLAM trajectory as Path msg to 'icp_slam_path' latched topic.
   ICP_CALIB_GPS_PATH     // Publish ICP-aligned GPS trajectory as Path msg to 'icp_gps_path' latched topic.
@@ -113,6 +115,8 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   initPublisher(BLOB_KEYPOINTS,  "keypoints/blobs",  CloudS, "output/keypoints/blobs",  true, 1, false);
 
   initPublisher(SLAM_REGISTERED_POINTS, "slam_registered_points", CloudS, "output/registered_points", true, 1, false);
+
+  initPublisher(CONFIDENCE, "slam_confidence", lidar_slam::Confidence, "output/confidence", true, 1, false);
 
   if (this->UseGps)
   {
@@ -567,6 +571,14 @@ void LidarSlamNode::PublishOutput()
 
   // debug cloud
   publishPointCloud(SLAM_REGISTERED_POINTS, this->LidarSlam.GetOutputFrame());
+
+  // Overlap estimation
+  if (this->Publish[CONFIDENCE])
+  {
+    lidar_slam::Confidence confidenceMsg;
+    confidenceMsg.overlap = this->LidarSlam.GetOverlapEstimation();
+    this->Publishers[CONFIDENCE].publish(confidenceMsg);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -657,6 +669,10 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/localization/max_plane_distance", LocalizationMaxPlaneDistance)
   SetSlamParam(double, "slam/localization/init_saturation_distance", LocalizationInitSaturationDistance)
   SetSlamParam(double, "slam/localization/final_saturation_distance", LocalizationFinalSaturationDistance)
+
+  // Confidence estimators
+  // Overlap
+  SetSlamParam(bool,   "slam/confidence/overlap/enable", OverlapEnable)
 
   // Keyframes
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
