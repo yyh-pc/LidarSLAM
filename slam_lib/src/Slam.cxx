@@ -1143,6 +1143,13 @@ void Slam::Localization()
     }
   }
 
+  if (this->OverlapEnable)
+  {
+    IF_VERBOSE(3, Utils::Timer::Init("Localization : Overlap estimation"));
+    this->EstimateOverlap(kdtrees);
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : Overlap estimation"));
+  }
+
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
 
   // Optionally print localization optimization summary
@@ -1160,6 +1167,72 @@ void Slam::Localization()
               << std::endl;
     RESET_COUT_FIXED_PRECISION;
   }
+}
+
+//-----------------------------------------------------------------------------
+void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
+{
+  // Init transformed cloud
+  PointCloud::Ptr transformedCloud(new PointCloud);
+  int currentIdx = 0;
+
+  // Transform each input point to BASE coordinates
+  for (const PointCloud::Ptr& frame: this->CurrentFrames)
+  {
+    *transformedCloud += *frame;
+    // Get LiDAR device id
+    int lidarDevice = frame->front().device_id;
+    // Get LiDAR to BASE transform
+    Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(lidarDevice);
+
+    // If distortion is enabled, distort all input points 
+    if (this->Undistortion)
+    {
+      // Extrapolate first and last poses with constant velocity model
+      Eigen::Isometry3d worldToBaseBegin = this->InterpolateScanPose(this->WithinFrameMotion.GetTime0());
+      Eigen::Isometry3d worldToBaseEnd = this->InterpolateScanPose(this->WithinFrameMotion.GetTime1());
+      // Init the interpolator to transform all points
+      auto transformInterpolator = this->WithinFrameMotion;
+      transformInterpolator.SetTransforms(worldToBaseBegin, worldToBaseEnd);
+      // Get time offset of current scan input relatively to device 0 scan
+      double timeOffset = Utils::PclStampToSec(frame->header.stamp) - Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
+
+      // Transform all points taking into account the points' timestamps
+      for (unsigned int idxPt = currentIdx; idxPt < currentIdx + frame->size(); ++idxPt)
+        Utils::TransformPoint(transformedCloud->at(idxPt), transformInterpolator(transformedCloud->at(idxPt).time + timeOffset) * baseToLidar);
+    }
+    else
+    {
+      // Transform all points without taking into account the points' timestamps
+      // they are supposed to have been acquired at the same time
+      for (unsigned int idxPt = currentIdx; idxPt < currentIdx + frame->size(); ++idxPt)
+        Utils::TransformPoint(transformedCloud->at(idxPt), this->Tworld * baseToLidar);
+    }
+    currentIdx += frame->size();
+  }
+  
+  float LCP = 0.f;
+  for (auto& pt: *transformedCloud)
+  {
+    for (auto k : KeypointTypes)
+    {
+      if (this->UseKeypoints[k])
+      {
+        std::vector<int> knnIndices;
+        std::vector<float> knnSqDist;
+        mapKdTrees.at(k).KnnSearch(pt, 1, knnIndices, knnSqDist);
+
+        if (!knnSqDist.empty() && knnSqDist[0] < std::pow(this->LocalMaps[k]->GetLeafSize(), 2) )
+        {
+          LCP += 1.f;
+          break;
+        }
+      }
+    }
+  }
+  LCP /= transformedCloud->size();
+  this->OverlapEstimation = LCP;
+  PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation);
 }
 
 //-----------------------------------------------------------------------------
