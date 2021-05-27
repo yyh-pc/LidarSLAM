@@ -6,7 +6,21 @@ stages:
 # Default parameters for all jobs
 default:
   before_script: &default_before_script_anchor
-    - echo "Using additional cmake arguments that are defined by the runner $CMAKE_RUNNER_ARGS"
+    # To build SLAM, some dependencies are necessary.
+    # If they are not installed system-wide or not visible by CMake, it is
+    # necessary to indicate where to find them on each runner.
+    # The following variables can be defined in the 'environment' field of the
+    # [[runners]] section, defined in the 'config.toml' file.
+    - |
+      echo "Using following cmake arguments that are optionally defined by the runner:"
+      echo "slam_cmake_option_Eigen_DIR=$slam_cmake_option_Eigen_DIR"
+      echo "slam_cmake_option_Ceres_DIR=$slam_cmake_option_Ceres_DIR"
+      echo "slam_cmake_option_nanoflann_DIR=$slam_cmake_option_nanoflann_DIR"
+      echo "slam_cmake_option_Boost_DIR=$slam_cmake_option_Boost_DIR"
+      echo "slam_cmake_option_PCL_DIR=$slam_cmake_option_PCL_DIR"
+      echo "slam_cmake_option_g2o_DIR=$slam_cmake_option_g2o_DIR"
+      echo "slam_cmake_option_ParaView_DIR=$slam_cmake_option_ParaView_DIR"
+      echo "slam_cmake_option_Qt5_DIR=$slam_cmake_option_Qt5_DIR"
 
 # Windows specific configuration
 .windows_runner_config:
@@ -59,7 +73,13 @@ default:
       $cmake_option_GENERATOR
       -DCMAKE_BUILD_TYPE=Release
       -DBUILD_SHARED_LIBS=ON
-      $CMAKE_RUNNER_ARGS $CI_PROJECT_DIR
+      $slam_cmake_option_Eigen_DIR
+      $slam_cmake_option_Ceres_DIR
+      $slam_cmake_option_nanoflann_DIR
+      $slam_cmake_option_Boost_DIR
+      $slam_cmake_option_PCL_DIR
+      $slam_cmake_option_g2o_DIR
+      $CI_PROJECT_DIR
     - cmake --build $build_dir -j 4
 
 # Build core LidarSlam lib on Linux
@@ -90,8 +110,13 @@ windows_slam_lib:
     - cd $build_dir
     - catkin_make
       -DCMAKE_BUILD_TYPE=Release
+      $slam_cmake_option_Eigen_DIR
+      $slam_cmake_option_Ceres_DIR
+      $slam_cmake_option_nanoflann_DIR
+      $slam_cmake_option_Boost_DIR
+      $slam_cmake_option_PCL_DIR
+      $slam_cmake_option_g2o_DIR
       -j 4
-      $CMAKE_RUNNER_ARGS
 
 # Build ROS wrapping on Linux
 linux_ros_wrapping:
@@ -116,7 +141,15 @@ linux_ros_wrapping:
       -DCMAKE_BUILD_TYPE=Release
       -DBUILD_SHARED_LIBS=OFF
       -DSLAM_PARAVIEW_PLUGIN=ON
-      $CMAKE_RUNNER_ARGS $CI_PROJECT_DIR
+      $slam_cmake_option_Eigen_DIR
+      $slam_cmake_option_Ceres_DIR
+      $slam_cmake_option_nanoflann_DIR
+      $slam_cmake_option_Boost_DIR
+      $slam_cmake_option_PCL_DIR
+      $slam_cmake_option_g2o_DIR
+      $slam_cmake_option_ParaView_DIR
+      $slam_cmake_option_Qt5_DIR
+      $CI_PROJECT_DIR
     - cmake --build $build_dir -j 4
 
 # Build PV wrapping on Linux
