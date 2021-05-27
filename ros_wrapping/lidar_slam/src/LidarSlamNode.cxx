@@ -37,9 +37,9 @@ enum Output
   PLANES_MAP,            // Publish plane keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
   BLOBS_MAP,             // Publish blob keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
 
-  EDGE_KEYPOINTS,       // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
-  PLANE_KEYPOINTS,      // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
-  BLOB_KEYPOINTS,       // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
+  EDGE_KEYPOINTS,        // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
+  PLANE_KEYPOINTS,       // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
+  BLOB_KEYPOINTS,        // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
 
   SLAM_REGISTERED_POINTS,// Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_registered_points'.
 
