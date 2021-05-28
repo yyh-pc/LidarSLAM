@@ -29,7 +29,7 @@ Follow [LidarView's Developer Guide](https://gitlab.kitware.com/LidarView/lidarv
 -DENABLE_ceres=True
 -DENABLE_nanoflann=True
 -DENABLE_pcl=True
--DENABLE_slam=True 
+-DLIDARVIEW_BUILD_SLAM=True 
 ```
 
 `LidarSlamPlugin` should be automatically loaded at LidarView's startup. If not, ensure **Advanced features** are enabled (in **Help** or  **Tools** > **Debugging**), then select **Advance** > **Tools** > **Manage Plugins** > **Load New**. Browse to your LidarView install directory and select the `libLidarSlamPlugin.so` / `LidarSlamPlugin.dll` (this file can normally be found under `<lv_build>/install/lib/plugins/` on Linux or `<lv_build>/install/bin/plugins/` on Windows).
