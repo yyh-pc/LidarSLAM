@@ -265,6 +265,10 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Maps update"));
   }
 
+  this->CheckMotionLimits();
+  if (!this->ComplyMotionLimits)
+    PRINT_WARNING("The pose does not comply with the motion limitations. Lidar SLAM may have failed.")
+
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, Utils::Timer::Init("Logging"));
   this->LogCurrentFrameState(Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp), this->WorldFrameId);
@@ -1426,6 +1430,48 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
   // Compute LCP like estimator (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
   this->OverlapEstimation = Confidence::LCPEstimator(transformedCloud, mapKdTrees, leafSizes, this->NbThreads);
   PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << transformedCloud->size() << " points.");
+}
+
+//-----------------------------------------------------------------------------
+void Slam::CheckMotionLimits()
+{
+  this->ComplyMotionLimits = true;
+  if (this->NbrFrameProcessed == 0)
+    return;
+
+  auto thresholding = [](const Eigen::Vector6d& vec, const Eigen::Vector4f& thresholds)
+  {
+    return vec.head(3).squaredNorm() < std::pow(thresholds[0], 2)
+           && std::abs(vec[3]) < Utils::Deg2Rad(thresholds[1])
+           && std::abs(vec[4]) < Utils::Deg2Rad(thresholds[2])
+           && std::abs(vec[5]) < Utils::Deg2Rad(thresholds[3]);
+  };
+
+  float deltaTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp) - this->LogTrajectory.back().time;
+  Eigen::Isometry3d TrelativeBase = this->Tworld.inverse() * this->PreviousTworld;
+  Eigen::Vector6d velocity = Utils::IsometryToXYZRPY(TrelativeBase) / deltaTime;
+  PRINT_VERBOSE(3, "Velocity = " << velocity.head(3).norm()     << " m/s, " 
+                                 << Utils::Rad2Deg(velocity[1]) << " °/s, "
+                                 << Utils::Rad2Deg(velocity[2]) << " °/s, " 
+                                 << Utils::Rad2Deg(velocity[3]) << " °/s");
+
+  this->ComplyLimitations = thresholding(velocity, this->VelocityThresholds);
+  if (!this->ComplyLimitations)
+    return;
+
+  if (this->NbrFrameProcessed >= 2)
+  {
+    Eigen::Vector6d acceleration = (velocity - this->PreviousVelocity) / deltaTime;
+    PRINT_VERBOSE(3, "Acceleration = " << acceleration.head(3).norm()     << " m/s2, " 
+                                       << Utils::Rad2Deg(acceleration[1]) << " °/s2, "
+                                       << Utils::Rad2Deg(acceleration[2]) << " °/s2, " 
+                                       << Utils::Rad2Deg(acceleration[3]) << " °/s2");
+
+    this->ComplyLimitations = thresholding(acceleration, this->AccelerationThresholds);
+    if (!this->ComplyLimitations)
+      return;
+  }
+  this->PreviousVelocity = velocity;
 }
 
 //==============================================================================

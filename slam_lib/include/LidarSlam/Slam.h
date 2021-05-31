@@ -449,6 +449,8 @@ private:
   // corresponding to the timestamp in the header of input Lidar scan.
   Eigen::Isometry3d Tworld;
   Eigen::Isometry3d PreviousTworld;
+  // Previous computed velocity (for acceleration computation)
+  Eigen::Vector6d PreviousVelocity;
 
   // [s] SLAM computation duration of last processed frame (~Tworld delay)
   // used to compute latency compensated pose
@@ -631,6 +633,9 @@ private:
   // Number of matches for processed frame
   unsigned int TotalMatchedKeypoints = 0;
 
+  // Check motion limitations compliance
+  bool ComplyMotionLimits = true;
+
   // Parameters
 
   // Boolean to choose whether to compute the estimated overlap or not
@@ -643,6 +648,12 @@ private:
   // of the overlap estimation may be impacted
   // Notably, the continuity of the estimation could be slighlty corrupted
   float OverlapSamplingLeafSize = 0.f;
+
+  // Motion limitations
+  // Local velocity thresholds in BASE
+  Eigen::Vector4f VelocityThresholds     = {FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX};
+  // Local acceleration thresholds in BASE
+  Eigen::Vector4f AccelerationThresholds = {FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX};
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods
@@ -671,6 +682,9 @@ private:
   // Transform current keypoints to WORLD coordinates,
   // and add points to the maps if we are dealing with a new keyframe.
   void UpdateMapsUsingTworld();
+
+  // Test if the pose complies with motion limitations
+  void CheckMotionLimits();
 
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState(double time, const std::string& frameId);
