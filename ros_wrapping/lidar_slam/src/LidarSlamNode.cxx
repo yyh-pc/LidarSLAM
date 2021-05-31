@@ -686,6 +686,14 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
   SetSlamParam(double, "slam/keyframes/angle_threshold", KfAngleThreshold)
 
+  // Motion limitations (hard constraints to detect failure)
+  std::vector<float> acc;
+  if (this->PrivNh.getParam("slam/confidence/motion_constraints/acceleration", acc) && acc.size() == 4)
+    this->LidarSlam.SetAccelerationThresholds(Eigen::Map<const Eigen::Vector4f>(acc.data()));
+  std::vector<float> vel;
+  if (this->PrivNh.getParam("slam/confidence/motion_constraints/velocity", vel) && vel.size() == 4)
+    this->LidarSlam.SetVelocityThresholds(Eigen::Map<const Eigen::Vector4f>(vel.data()));
+
   // Rolling grids
   double size;
   if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_edges", size))

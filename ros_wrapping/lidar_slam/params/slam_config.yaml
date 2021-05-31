@@ -192,9 +192,12 @@ slam:
   # Confidence estimators on pose output
   confidence:
     overlap:
-      enable: false          # Compute estimation of the overlap between the current scan and the keypoint maps.
-      sampling_leaf_size: 0. # [m] Leaf size of the voxel grid to sample uniformly before evaluating overlap.
-                             # If g.t. 0, the estimation step will be faster but the value will be lower (due to sampling grids effects).
+      enable: false                          # Compute estimation of the overlap between the current scan and the keypoint maps.
+      sampling_leaf_size: 0.                 # [m] Leaf size of the voxel grid to sample uniformly before evaluating overlap.
+                                             # If g.t. 0, the estimation step will be faster but the value will be lower (due to sampling grids effects).
+    motion_constraints:                      # Physical constraints on motion to check pose credibility
+      acceleration: [.inf, .inf, .inf, .inf] # [linear_acc (m/s2), roll_acc (°/s2), pitch_acc (°/s2), yaw_acc (°/s2)] Acceleration thresholds
+      velocity:     [.inf, .inf, .inf, .inf] # [linear_vel (m/s ), roll_acc (°/s ), pitch_acc (°/s ), yaw_acc (°/s )] Velocity thresholds
 
   # Keypoints maps, saved as downsampled voxel grids
   voxel_grid:

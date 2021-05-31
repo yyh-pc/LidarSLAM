@@ -374,6 +374,14 @@ public:
   // Matches
   GetMacro(TotalMatchedKeypoints, int)
 
+  // Motion constraints
+  GetMacro(AccelerationThresholds, Eigen::Vector4f)
+  SetMacro(AccelerationThresholds, const Eigen::Vector4f&)
+
+  GetMacro(VelocityThresholds, Eigen::Vector4f)
+  SetMacro(VelocityThresholds, const Eigen::Vector4f&)
+
+
 private:
 
   // ---------------------------------------------------------------------------
