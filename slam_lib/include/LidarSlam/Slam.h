@@ -366,6 +366,9 @@ public:
   GetMacro(OverlapEnable, bool)
   SetMacro(OverlapEnable, bool)
 
+  GetMacro(OverlapSamplingLeafSize, float)
+  SetMacro(OverlapSamplingLeafSize, float)
+
   GetMacro(OverlapEstimation, float)
 
 private:
@@ -622,6 +625,13 @@ private:
   // Boolean to choose whether to compute the estimated overlap or not
   // at the end of the Localization step
   bool OverlapEnable = true;
+
+  // Leaf size of the voxel grid used to filter input scans
+  // Remaining points are used to estimate the overlap
+  // If increased, computation time may be reduced but the accuracy
+  // of the overlap estimation may be impacted
+  // Notably, the continuity of the estimation could be slighlty corrupted
+  float OverlapSamplingLeafSize = 0.f;
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods

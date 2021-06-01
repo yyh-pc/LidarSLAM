@@ -84,6 +84,7 @@
 #include <pcl/common/common.h>
 #include <pcl/common/transforms.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/filters/voxel_grid.h>
 // EIGEN
 #include <Eigen/Dense>
 
@@ -1210,13 +1211,26 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
     }
     currentIdx += frame->size();
   }
-  
+
+  PointCloud::Ptr sampledTransformedCloud;
+  // Uniform sampling cloud
+  if (this->OverlapSamplingLeafSize > 1e-3)
+  {
+    sampledTransformedCloud.reset(new PointCloud);
+    pcl::VoxelGrid<Point> uniFilter;
+    uniFilter.setInputCloud(transformedCloud);
+    uniFilter.setLeafSize(this->OverlapSamplingLeafSize, this->OverlapSamplingLeafSize, this->OverlapSamplingLeafSize);
+    uniFilter.filter(*sampledTransformedCloud);
+  }
+  else
+    sampledTransformedCloud = transformedCloud;
+
   // Compute customized LCP value
   // It represents the probability of one scanned point to have a neighbor
   // in the keypoint maps.
   // It is computed as an average of each point probability
   float LCP = 0.f;
-  for (auto& pt: *transformedCloud)
+  for (auto& pt: *sampledTransformedCloud)
   {
     for (auto k : KeypointTypes)
     {
@@ -1238,9 +1252,10 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
       }
     }
   }
-  LCP /= transformedCloud->size();
+
+  LCP /= sampledTransformedCloud->size();
   this->OverlapEstimation = LCP;
-  PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation);
+  PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << sampledTransformedCloud->size() << " points.");
 }
 
 //-----------------------------------------------------------------------------

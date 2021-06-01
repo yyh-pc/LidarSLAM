@@ -673,6 +673,7 @@ void LidarSlamNode::SetSlamParameters()
   // Confidence estimators
   // Overlap
   SetSlamParam(bool,   "slam/confidence/overlap/enable", OverlapEnable)
+  SetSlamParam(float,  "slam/confidence/overlap/sampling_leaf_size", OverlapSamplingLeafSize)
 
   // Keyframes
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
