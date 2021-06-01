@@ -577,6 +577,8 @@ void LidarSlamNode::PublishOutput()
   {
     lidar_slam::Confidence confidenceMsg;
     confidenceMsg.overlap = this->LidarSlam.GetOverlapEstimation();
+    auto covar = this->LidarSlam.GetTransformCovariance();
+    std::copy(covar.begin(), covar.end(), confidenceMsg.covariance.begin());
     this->Publishers[CONFIDENCE].publish(confidenceMsg);
   }
 }
