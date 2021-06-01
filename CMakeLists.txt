@@ -20,12 +20,27 @@ endif()
 # Install parameters
 set(SLAM_INSTALL_LIBRARY_DIR "lib"     CACHE STRING "Directory where to install LidarSlam libraries")
 set(SLAM_INSTALL_INCLUDE_DIR "include" CACHE STRING "Directory where to install LidarSlam header files")
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_DIR}")
 
 #-------------------------
 #  Find dependencies
 #-------------------------
+
+# If the Paraview plugin needs to be compiled, we must find Paraview before PCL.
+# Otherwise, if PCL is built with pcl_visualization module and uses another VTK
+# than the one provided by Paraview, it may override the correct include
+# directories and libraries.
+option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
+if (SLAM_PARAVIEW_PLUGIN)
+  # Find ParaView
+  find_package(ParaView REQUIRED)
+  message(STATUS "PARAVIEW_USE_FILE: ${PARAVIEW_USE_FILE}")
+  include(${PARAVIEW_USE_FILE})
+  # As the PV plugin is a shared library, we also need to ensure that the core
+  # SLAM lib is compatible with position independent code.
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
 
 find_package(nanoflann REQUIRED)
 
@@ -77,9 +92,7 @@ endif()
 add_subdirectory(slam_lib)
 
 # Build optional ParaView plugin
-option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
 if (SLAM_PARAVIEW_PLUGIN)
-  set(SLAM_INSTALL_PARAVIEW_PLUGIN_DIR ${SLAM_INSTALL_LIBRARY_DIR} CACHE STRING "Directory where to install Paraview LidarSlamPlugin")
   add_subdirectory(paraview_wrapping)
 endif()
 
