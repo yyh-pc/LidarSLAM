@@ -1211,6 +1211,10 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
     currentIdx += frame->size();
   }
   
+  // Compute customized LCP value
+  // It represents the probability of one scanned point to have a neighbor
+  // in the keypoint maps.
+  // It is computed as an average of each point probability
   float LCP = 0.f;
   for (auto& pt: *transformedCloud)
   {
@@ -1221,10 +1225,14 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
         std::vector<int> knnIndices;
         std::vector<float> knnSqDist;
         mapKdTrees.at(k).KnnSearch(pt, 1, knnIndices, knnSqDist);
-
-        if (!knnSqDist.empty() && knnSqDist[0] < std::pow(this->LocalMaps[k]->GetLeafSize(), 2) )
+        float sqLCPThreshold = std::pow(this->LocalMaps[k]->GetLeafSize(), 2);
+        if (!knnSqDist.empty())
         {
-          LCP += 1.f;
+          // We use a Gaussian like estimation for each point fitted in map leaf space
+          // to check the probability that one scan point has a neighbor in map
+          // Probability = 1 if the two points are superimposed
+          // Probability < 0.6 if the distance is g.t. the leaf size
+          LCP += std::exp( -knnSqDist[0] / (2 * sqLCPThreshold) );
           break;
         }
       }
