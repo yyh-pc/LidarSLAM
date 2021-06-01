@@ -1199,14 +1199,16 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
       double timeOffset = Utils::PclStampToSec(frame->header.stamp) - Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
 
       // Transform all points taking into account the points' timestamps
-      for (unsigned int idxPt = currentIdx; idxPt < currentIdx + frame->size(); ++idxPt)
+      #pragma omp parallel for num_threads(this->NbThreads)
+      for (int idxPt = currentIdx; idxPt < currentIdx + frame->size(); ++idxPt)
         Utils::TransformPoint(transformedCloud->at(idxPt), transformInterpolator(transformedCloud->at(idxPt).time + timeOffset) * baseToLidar);
     }
     else
     {
       // Transform all points without taking into account the points' timestamps
       // they are supposed to have been acquired at the same time
-      for (unsigned int idxPt = currentIdx; idxPt < currentIdx + frame->size(); ++idxPt)
+      #pragma omp parallel for num_threads(this->NbThreads)
+      for (int idxPt = currentIdx; idxPt < currentIdx + frame->size(); ++idxPt)
         Utils::TransformPoint(transformedCloud->at(idxPt), this->Tworld * baseToLidar);
     }
     currentIdx += frame->size();
@@ -1230,7 +1232,10 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
   // in the keypoint maps.
   // It is computed as an average of each point probability
   float LCP = 0.f;
-  for (auto& pt: *sampledTransformedCloud)
+  std::vector<float> LCPvec (sampledTransformedCloud->size(), 0.f);
+  
+  #pragma omp parallel for num_threads(this->NbThreads) shared(LCPvec)
+  for (int n = 0; n < sampledTransformedCloud->size(); ++n)
   {
     for (auto k : KeypointTypes)
     {
@@ -1238,7 +1243,7 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
       {
         std::vector<int> knnIndices;
         std::vector<float> knnSqDist;
-        mapKdTrees.at(k).KnnSearch(pt, 1, knnIndices, knnSqDist);
+        mapKdTrees.at(k).KnnSearch(sampledTransformedCloud->at(n), 1, knnIndices, knnSqDist);
         float sqLCPThreshold = std::pow(this->LocalMaps[k]->GetLeafSize(), 2);
         if (!knnSqDist.empty())
         {
@@ -1246,13 +1251,13 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
           // to check the probability that one scan point has a neighbor in map
           // Probability = 1 if the two points are superimposed
           // Probability < 0.6 if the distance is g.t. the leaf size
-          LCP += std::exp( -knnSqDist[0] / (2 * sqLCPThreshold) );
+          LCPvec[n] = std::exp( -knnSqDist[0] / (2 * sqLCPThreshold) );
           break;
         }
       }
     }
   }
-
+  LCP = std::accumulate(LCPvec.begin(), LCPvec.end(), 0.f);
   LCP /= sampledTransformedCloud->size();
   this->OverlapEstimation = LCP;
   PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << sampledTransformedCloud->size() << " points.");
