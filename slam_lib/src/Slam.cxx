@@ -601,6 +601,7 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation() const
 
   map["Localization: position error"]    = this->LocalizationUncertainty.PositionError;
   map["Localization: orientation error"] = this->LocalizationUncertainty.OrientationError;
+  map["Localization: overlap"]           = this->OverlapEstimation;
   return map;
 }
 
