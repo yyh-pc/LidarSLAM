@@ -371,6 +371,9 @@ public:
 
   GetMacro(OverlapEstimation, float)
 
+  // Matches
+  GetMacro(TotalMatchedKeypoints, int)
+
 private:
 
   // ---------------------------------------------------------------------------
@@ -632,6 +635,9 @@ private:
   // of the overlap estimation may be impacted
   // Notably, the continuity of the estimation could be slighlty corrupted
   float OverlapSamplingLeafSize = 0.f;
+
+  // Number of matches for processed frame
+  unsigned int TotalMatchedKeypoints = 0;
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods

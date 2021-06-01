@@ -868,7 +868,7 @@ void Slam::ComputeEgoMotion()
     IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
 
     // Reset ICP results
-    unsigned int totalMatchedKeypoints = 0;
+    this->TotalMatchedKeypoints = 0;
 
     // Init matching parameters
     KeypointsMatcher::Parameters matchingParams;
@@ -912,11 +912,11 @@ void Slam::ComputeEgoMotion()
 
       // Count matches and skip this frame
       // if there are too few geometric keypoints matched
-      totalMatchedKeypoints = 0;
+      this->TotalMatchedKeypoints = 0;
       for (auto k : {EDGE, PLANE})
-        totalMatchedKeypoints += this->EgoMotionMatchingResults[k].NbMatches();
+        this->TotalMatchedKeypoints += this->EgoMotionMatchingResults[k].NbMatches();
 
-      if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
+      if (this->TotalMatchedKeypoints < this->MinNbrMatchedKeypoints)
       {
         PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
         break;
@@ -956,7 +956,7 @@ void Slam::ComputeEgoMotion()
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion : whole ICP-LM loop"));
     if (this->Verbosity >= 2)
     {
-      std::cout << "Matched keypoints: " << totalMatchedKeypoints << " (";
+      std::cout << "Matched keypoints: " << this->TotalMatchedKeypoints << " (";
       for (auto k : {EDGE, PLANE})
         std::cout << this->EgoMotionMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
       std::cout << ")" << std::endl;
@@ -1036,7 +1036,7 @@ void Slam::Localization()
   IF_VERBOSE(3, Utils::Timer::Init("Localization : whole ICP-LM loop"));
 
   // Reset ICP results
-  unsigned int totalMatchedKeypoints = 0;
+  this->TotalMatchedKeypoints = 0;
 
   // Init matching parameters
   KeypointsMatcher::Parameters matchingParams;
@@ -1081,11 +1081,11 @@ void Slam::Localization()
 
     // Count matches and skip this frame
     // if there is too few geometric keypoints matched
-    totalMatchedKeypoints = 0;
+    this->TotalMatchedKeypoints = 0;
     for (auto k : KeypointTypes)
-      totalMatchedKeypoints += this->LocalizationMatchingResults[k].NbMatches();
+      this->TotalMatchedKeypoints += this->LocalizationMatchingResults[k].NbMatches();
 
-    if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
+    if (this->TotalMatchedKeypoints < this->MinNbrMatchedKeypoints)
     {
       // Reset state to previous one to avoid instability
       this->Trelative = Eigen::Isometry3d::Identity();
@@ -1158,7 +1158,7 @@ void Slam::Localization()
   if (this->Verbosity >= 2)
   {
     SET_COUT_FIXED_PRECISION(3);
-    std::cout << "Matched keypoints: " << totalMatchedKeypoints << " (";
+    std::cout << "Matched keypoints: " << this->TotalMatchedKeypoints << " (";
     for (auto k : KeypointTypes)
       std::cout << this->LocalizationMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
     std::cout << ")"

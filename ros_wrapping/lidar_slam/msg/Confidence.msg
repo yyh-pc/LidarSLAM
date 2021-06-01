@@ -1,8 +1,3 @@
-# The covariance in this message should be specified in the coordinate frame given by header.frame_id.
-
-# See "std_msgs/Header.msg"
-Header header
-
 # Row-major representation of the 6x6 covariance matrix of ICP pose estimation.
 # In order, the pose elements are:
 # (x, y, z, rotation angle about X axis, rotation angle about Y axis, rotation angle about Z axis)
@@ -15,3 +10,9 @@ float64[36] covariance
 # Bad values are lower than 0.4
 # Jumps in this value can reflect pose estimation failure
 float32 overlap
+
+# Number of matches between extracted keypoints
+# and current keypoint maps
+# Good values are greater than 200
+# Bad values are lower than 50
+int16 nb_matches
