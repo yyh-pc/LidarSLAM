@@ -85,8 +85,8 @@ public:
   //! Get all points
   PointCloud::Ptr Get() const;
 
-  // Get current number of points in rolling grid
-  unsigned int Size() const;
+  //! Get the current number of points in rolling grid
+  unsigned int Size() const {return this->NbPoints; }
 
   //! Roll the grid so that input bounding box can fit it in rolled map
   void Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
@@ -115,6 +115,9 @@ private:
 
   //! [m, m, m] Current position of the center of the VoxelGrid
   Eigen::Array3d VoxelGridPosition;
+
+  //! Current number of points stored in the rolling grid
+  unsigned int NbPoints;
 
 private:
 

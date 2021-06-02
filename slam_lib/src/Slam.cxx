@@ -1174,7 +1174,7 @@ void Slam::UpdateMapsUsingTworld()
                                                  << Utils::Rad2Deg(rotSinceLastKf) << " °");
 
   int nbMapKpts = 0;
-  for (auto mapKptsCloud : this->LocalMaps)
+  for (const auto& mapKptsCloud : this->LocalMaps)
     nbMapKpts += mapKptsCloud.second->Size();
   // Check if current frame is a new keyframe
   // If we don't have enough keyframes yet, the threshold is linearly lowered

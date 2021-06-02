@@ -72,6 +72,8 @@ void RollingGrid::Reset(const Eigen::Vector3d& position)
 //------------------------------------------------------------------------------
 void RollingGrid::Clear()
 {
+  this->NbPoints = 0;
+
   for (int x = 0; x < this->GridSize; x++)
     for (int y = 0; y < this->GridSize; y++)
       for (int z = 0; z < this->GridSize; z++)
@@ -142,18 +144,6 @@ RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Array3d& minPoint, co
 }
 
 //------------------------------------------------------------------------------
-unsigned int RollingGrid::Size() const
-{
-  unsigned int nbPoints = 0;
-  for (int x = 0; x < this->GridSize; x++)
-    for (int y = 0; y < this->GridSize; y++)
-      for (int z = 0; z < this->GridSize; z++)
-        nbPoints += this->Grid[x][y][z]->size();
-
-  return nbPoints;
-}
-
-//------------------------------------------------------------------------------
 RollingGrid::PointCloud::Ptr RollingGrid::Get() const
 {
   // Merge all points into a single pointcloud
@@ -192,6 +182,7 @@ void RollingGrid::Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& max
     {
       for (int z = 0; z < this->GridSize; z++)
       {
+        this->NbPoints -= this->Grid[this->GridSize - 1][y][z]->size();
         for (int x = this->GridSize - 1; x > 0; x--)
         {
           this->Grid[x][y][z] = std::move(this->Grid[x - 1][y][z]);
@@ -209,6 +200,7 @@ void RollingGrid::Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& max
     {
       for (int z = 0; z < this->GridSize; z++)
       {
+        this->NbPoints -= this->Grid[0][y][z]->size();
         for (int x = 0; x < this->GridSize - 1; x++)
         {
           this->Grid[x][y][z] = std::move(this->Grid[x + 1][y][z]);
@@ -226,6 +218,7 @@ void RollingGrid::Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& max
     {
       for (int z = 0; z < this->GridSize; z++)
       {
+        this->NbPoints -= this->Grid[x][this->GridSize - 1][z]->size();
         for (int y = this->GridSize - 1; y > 0; y--)
         {
           this->Grid[x][y][z] = std::move(this->Grid[x][y - 1][z]);
@@ -243,6 +236,7 @@ void RollingGrid::Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& max
     {
       for (int z = 0; z < this->GridSize; z++)
       {
+        this->NbPoints -= this->Grid[x][0][z]->size();
         for (int y = 0; y < this->GridSize - 1; y++)
         {
           this->Grid[x][y][z] = std::move(this->Grid[x][y + 1][z]);
@@ -260,6 +254,7 @@ void RollingGrid::Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& max
     {
       for (int y = 0; y < this->GridSize; y++)
       {
+        this->NbPoints -= this->Grid[x][y][this->GridSize - 1]->size();
         for (int z = this->GridSize - 1; z > 0; z--)
         {
           this->Grid[x][y][z] = std::move(this->Grid[x][y][z - 1]);
@@ -277,6 +272,7 @@ void RollingGrid::Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& max
     {
       for (int y = 0; y < this->GridSize; y++)
       {
+        this->NbPoints -= this->Grid[x][y][0]->size();
         for (int z = 0; z < this->GridSize - 1; z++)
         {
           this->Grid[x][y][z] = std::move(this->Grid[x][y][z + 1]);
@@ -305,8 +301,8 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
     this->Roll(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
   }
 
-  // Voxels to filter because new points were added
-  Grid3D<uint8_t> voxelToFilter = Utils::InitGrid3D<uint8_t>(this->GridSize, 0);
+  // Number of points added in each voxel
+  Grid3D<unsigned int> addedPoints = Utils::InitGrid3D<unsigned int>(this->GridSize, 0);
 
   // Compute the "position" of the lowest cell of the VoxelGrid in voxels dimensions
   Eigen::Array3i voxelGridOrigin = this->PositionToVoxel(this->VoxelGridPosition) - this->GridSize / 2;
@@ -320,7 +316,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
     // Add point to grid if it is indeed within bounds
     if (((0 <= cubeIdx) && (cubeIdx < this->GridSize)).all())
     {
-      voxelToFilter[cubeIdx.x()][cubeIdx.y()][cubeIdx.z()] = 1;
+      addedPoints[cubeIdx.x()][cubeIdx.y()][cubeIdx.z()] += 1;
       this->Grid[cubeIdx.x()][cubeIdx.y()][cubeIdx.z()]->push_back(point);
     }
   }
@@ -334,12 +330,19 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
     {
       for (int z = 0; z < this->GridSize; z++)
       {
-        if (voxelToFilter[x][y][z])
+        if (addedPoints[x][y][z] > 0)
         {
+          // Number of points in the voxel before filtering
+          unsigned int voxelPrevSize = this->Grid[x][y][z]->size() - addedPoints[x][y][z];
+
+          // Downsample the current voxel
           PointCloud::Ptr tmp(new PointCloud);
           downSizeFilter.setInputCloud(this->Grid[x][y][z]);
           downSizeFilter.filter(*tmp);
+
+          // Update the rolling grid voxel and number of points
           this->Grid[x][y][z] = tmp;
+          this->NbPoints += this->Grid[x][y][z]->size() - voxelPrevSize;
         }
       }
     }
