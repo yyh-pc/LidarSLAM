@@ -8,6 +8,7 @@ endif()
 
 set(LidarSlam_PUBLIC_HEADERS
   include/LidarSlam/CeresCostFunctions.h
+  include/LidarSlam/ConfidenceEstimators.h
   include/LidarSlam/Enums.h
   include/LidarSlam/GlobalTrajectoriesRegistration.h
   include/LidarSlam/KDTreePCLAdaptor.h
@@ -29,6 +30,7 @@ set(LidarSlam_PUBLIC_HEADERS
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 add_library(LidarSlam
+  src/ConfidenceEstimators.cxx
   src/GlobalTrajectoriesRegistration.cxx
   src/KeypointsMatcher.cxx
   src/LocalOptimizer.cxx

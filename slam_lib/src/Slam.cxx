@@ -74,6 +74,7 @@
 // LOCAL
 #include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
+#include "LidarSlam/ConfidenceEstimators.h"
 
 #ifdef USE_G2O
 #include "LidarSlam/PoseGraphOptimization.h"
@@ -1228,39 +1229,15 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
   else
     sampledTransformedCloud = transformedCloud;
 
-  // Compute customized LCP value
-  // It represents the probability of one scanned point to have a neighbor
-  // in the keypoint maps.
-  // It is computed as an average of each point probability
-  float LCP = 0.f;
-  std::vector<float> LCPvec (sampledTransformedCloud->size(), 0.f);
-  
-  #pragma omp parallel for num_threads(this->NbThreads) shared(LCPvec)
-  for (int n = 0; n < sampledTransformedCloud->size(); ++n)
+  std::map<Keypoint, float> leafSizes;
+  for (auto k : KeypointTypes)
   {
-    for (auto k : KeypointTypes)
-    {
-      if (this->UseKeypoints[k])
-      {
-        std::vector<int> knnIndices;
-        std::vector<float> knnSqDist;
-        mapKdTrees.at(k).KnnSearch(sampledTransformedCloud->at(n), 1, knnIndices, knnSqDist);
-        float sqLCPThreshold = std::pow(this->LocalMaps[k]->GetLeafSize(), 2);
-        if (!knnSqDist.empty())
-        {
-          // We use a Gaussian like estimation for each point fitted in map leaf space
-          // to check the probability that one scan point has a neighbor in map
-          // Probability = 1 if the two points are superimposed
-          // Probability < 0.6 if the distance is g.t. the leaf size
-          LCPvec[n] = std::exp( -knnSqDist[0] / (2 * sqLCPThreshold) );
-          break;
-        }
-      }
-    }
+    if (this->UseKeypoints[k])
+      leafSizes[k] = this->LocalMaps[k]->GetLeafSize();
   }
-  LCP = std::accumulate(LCPvec.begin(), LCPvec.end(), 0.f);
-  LCP /= sampledTransformedCloud->size();
-  this->OverlapEstimation = LCP;
+
+  // Compute LCP like estimator (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
+  this->OverlapEstimation = Confidence::LCPEstimator(sampledTransformedCloud, mapKdTrees, leafSizes, this->NbThreads);
   PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << sampledTransformedCloud->size() << " points.");
 }
 
