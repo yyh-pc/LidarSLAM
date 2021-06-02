@@ -30,21 +30,6 @@
 namespace LidarSlam
 {
 
-namespace Utils
-{
-namespace
-{
-  template<typename T>
-  RollingGrid::Grid3D<T> InitGrid3D(unsigned int size, T defaultValue = T())
-  {
-    return RollingGrid::Grid3D<T>(size,
-                                  std::vector<std::vector<T>>(size,
-                                                              std::vector<T>(size,
-                                                                             defaultValue)));
-  }
-} // end of anonymous namespace
-} // end of Utils namespace
-
 //==============================================================================
 //   Initialization and parameters setters
 //==============================================================================
@@ -52,9 +37,6 @@ namespace
 //------------------------------------------------------------------------------
 RollingGrid::RollingGrid(const Eigen::Vector3d& position)
 {
-  // Create rolling grid
-  this->Grid = Utils::InitGrid3D<PointCloud::Ptr>(this->GridSize);
-
   this->Reset(position);
 }
 
@@ -73,33 +55,19 @@ void RollingGrid::Reset(const Eigen::Vector3d& position)
 void RollingGrid::Clear()
 {
   this->NbPoints = 0;
-
-  for (int x = 0; x < this->GridSize; x++)
-    for (int y = 0; y < this->GridSize; y++)
-      for (int z = 0; z < this->GridSize; z++)
-      {
-        // If voxel is not already initialized, allocate memory.
-        // Otherwise, just clear data without freeing dedicating memory for faster processing.
-        auto& voxel = this->Grid[x][y][z];
-        if (voxel)
-          voxel->clear();
-        else
-          voxel.reset(new PointCloud);
-      }
+  this->Voxels.clear();
 }
 
 //------------------------------------------------------------------------------
 void RollingGrid::SetGridSize(int size)
 {
-  PointCloud::Ptr prevMap = this->Get();
-
   // Resize voxel grid
   this->GridSize = size;
-  this->Grid = Utils::InitGrid3D<PointCloud::Ptr>(this->GridSize);
-  // Clear current voxel grid and allocate new voxels
-  this->Clear();
 
-  // Add points back so that they now lie in the right voxel
+  // Clear current voxel grid and fill it back with points so that they now lie
+  // in the right voxel
+  PointCloud::Ptr prevMap = this->Get();
+  this->Clear();
   if (!prevMap->empty())
     this->Add(prevMap);
 }
@@ -135,10 +103,13 @@ RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Array3d& minPoint, co
 
   // Get all voxel in intersection
   PointCloud::Ptr intersection(new PointCloud);
-  for (int x = intersectionMin.x(); x <= intersectionMax.x(); x++)
-    for (int y = intersectionMin.y(); y <= intersectionMax.y(); y++)
-      for (int z = intersectionMin.z(); z <= intersectionMax.z(); z++)
-        *intersection += *(this->Grid[x][y][z]);
+  for (const auto& kv : this->Voxels)
+  {
+    // Add points if the voxel lies within bounds
+    Eigen::Array3i idx3d = this->To3d(kv.first);
+    if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
+      *intersection += *(kv.second);
+  }
 
   return intersection;
 }
@@ -148,10 +119,9 @@ RollingGrid::PointCloud::Ptr RollingGrid::Get() const
 {
   // Merge all points into a single pointcloud
   PointCloud::Ptr intersection(new PointCloud);
-  for (int x = 0; x < this->GridSize; x++)
-    for (int y = 0; y < this->GridSize; y++)
-      for (int z = 0; z < this->GridSize; z++)
-        *intersection += *(this->Grid[x][y][z]);
+  intersection->reserve(this->NbPoints);
+  for (const auto& kv : this->Voxels)
+    *intersection += *(kv.second);
 
   return intersection;
 }
@@ -170,118 +140,33 @@ void RollingGrid::Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& max
 
   // Clamp the rolling movement so that it only moves what is really necessary
   offset = offset.max(downOffset.min(0)).min(upOffset.max(0));
-  Eigen::Array3d voxelsOffset = (offset / this->VoxelResolution).round();
+  Eigen::Array3i voxelsOffset = (offset / this->VoxelResolution).round().cast<int>();
 
-  // Update new rolling grid position
-  this->VoxelGridPosition += voxelsOffset * this->VoxelResolution;
+  // Exit if there is no need to roll
+  if ((voxelsOffset == 0).all())
+    return;
 
-  // Shift the voxel grid to the -X direction.
-  while (voxelsOffset.x() < 0)
+  // Fill new voxel grid
+  unsigned int newNbPoints = 0;
+  std::unordered_map<int, PointCloud::Ptr> newVoxels;
+  for (const auto& kv : this->Voxels)
   {
-    for (int y = 0; y < this->GridSize; y++)
+    // Compute new voxel position
+    Eigen::Array3i newIdx3d = this->To3d(kv.first) - voxelsOffset;
+
+    // Move voxel and keep it only if it lies within bounds
+    if (((0 <= newIdx3d) && (newIdx3d < this->GridSize)).all())
     {
-      for (int z = 0; z < this->GridSize; z++)
-      {
-        this->NbPoints -= this->Grid[this->GridSize - 1][y][z]->size();
-        for (int x = this->GridSize - 1; x > 0; x--)
-        {
-          this->Grid[x][y][z] = std::move(this->Grid[x - 1][y][z]);
-        }
-        this->Grid[0][y][z].reset(new PointCloud);
-      }
+      int newIdx1d = this->To1d(newIdx3d);
+      newNbPoints += kv.second->size();
+      newVoxels[newIdx1d] = std::move(kv.second);
     }
-    voxelsOffset.x()++;
   }
 
-  // Shift the voxel grid to the +X direction.
-  while (voxelsOffset.x() > 0)
-  {
-    for (int y = 0; y < this->GridSize; y++)
-    {
-      for (int z = 0; z < this->GridSize; z++)
-      {
-        this->NbPoints -= this->Grid[0][y][z]->size();
-        for (int x = 0; x < this->GridSize - 1; x++)
-        {
-          this->Grid[x][y][z] = std::move(this->Grid[x + 1][y][z]);
-        }
-        this->Grid[this->GridSize - 1][y][z].reset(new PointCloud);
-      }
-    }
-    voxelsOffset.x()--;
-  }
-
-  // Shift the voxel grid to the -Y direction.
-  while (voxelsOffset.y() < 0)
-  {
-    for (int x = 0; x < this->GridSize; x++)
-    {
-      for (int z = 0; z < this->GridSize; z++)
-      {
-        this->NbPoints -= this->Grid[x][this->GridSize - 1][z]->size();
-        for (int y = this->GridSize - 1; y > 0; y--)
-        {
-          this->Grid[x][y][z] = std::move(this->Grid[x][y - 1][z]);
-        }
-        this->Grid[x][0][z].reset(new PointCloud);
-      }
-    }
-    voxelsOffset.y()++;
-  }
-
-  // Shift the voxel grid to the +Y direction.
-  while (voxelsOffset.y() > 0)
-  {
-    for (int x = 0; x < this->GridSize; x++)
-    {
-      for (int z = 0; z < this->GridSize; z++)
-      {
-        this->NbPoints -= this->Grid[x][0][z]->size();
-        for (int y = 0; y < this->GridSize - 1; y++)
-        {
-          this->Grid[x][y][z] = std::move(this->Grid[x][y + 1][z]);
-        }
-        this->Grid[x][this->GridSize - 1][z].reset(new PointCloud);
-      }
-    }
-    voxelsOffset.y()--;
-  }
-
-  // Shift the voxel grid to the -Z direction.
-  while (voxelsOffset.z() < 0)
-  {
-    for (int x = 0; x < this->GridSize; x++)
-    {
-      for (int y = 0; y < this->GridSize; y++)
-      {
-        this->NbPoints -= this->Grid[x][y][this->GridSize - 1]->size();
-        for (int z = this->GridSize - 1; z > 0; z--)
-        {
-          this->Grid[x][y][z] = std::move(this->Grid[x][y][z - 1]);
-        }
-        this->Grid[x][y][0].reset(new PointCloud);
-      }
-    }
-    voxelsOffset.z()++;
-  }
-
-  // Shift the voxel grid to the +Z direction.
-  while (voxelsOffset.z() > 0)
-  {
-    for (int x = 0; x < this->GridSize; x++)
-    {
-      for (int y = 0; y < this->GridSize; y++)
-      {
-        this->NbPoints -= this->Grid[x][y][0]->size();
-        for (int z = 0; z < this->GridSize - 1; z++)
-        {
-          this->Grid[x][y][z] = std::move(this->Grid[x][y][z + 1]);
-        }
-        this->Grid[x][y][this->GridSize - 1].reset(new PointCloud);
-      }
-    }
-    voxelsOffset.z()--;
-  }
+  // Update the voxel grid
+  this->NbPoints = newNbPoints;
+  this->Voxels.swap(newVoxels);
+  this->VoxelGridPosition += voxelsOffset.cast<double>() * this->VoxelResolution;
 }
 
 //------------------------------------------------------------------------------
@@ -302,7 +187,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
   }
 
   // Number of points added in each voxel
-  Grid3D<unsigned int> addedPoints = Utils::InitGrid3D<unsigned int>(this->GridSize, 0);
+  std::unordered_map<int, unsigned int> addedPoints;
 
   // Compute the "position" of the lowest cell of the VoxelGrid in voxels dimensions
   Eigen::Array3i voxelGridOrigin = this->PositionToVoxel(this->VoxelGridPosition) - this->GridSize / 2;
@@ -316,37 +201,55 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
     // Add point to grid if it is indeed within bounds
     if (((0 <= cubeIdx) && (cubeIdx < this->GridSize)).all())
     {
-      addedPoints[cubeIdx.x()][cubeIdx.y()][cubeIdx.z()] += 1;
-      this->Grid[cubeIdx.x()][cubeIdx.y()][cubeIdx.z()]->push_back(point);
+      int id1d = this->To1d(cubeIdx);
+
+      auto& voxel = this->Voxels[id1d];
+      if (!voxel)
+        voxel.reset(new PointCloud);
+      voxel->push_back(point);
+
+      addedPoints[id1d] += 1;
     }
   }
 
-  // Filter the modified pointCloud
+  // Filter the modified voxels
+  // All the points belonging to the same voxel will be approximated
+  // (i.e., downsampled) with their centroid. The mean operator is applied to
+  // each field (X, Y, Z, intensity, time, ...).
   pcl::VoxelGrid<Point> downSizeFilter;
   downSizeFilter.setLeafSize(this->LeafSize, this->LeafSize, this->LeafSize);
-  for (int x = 0; x < this->GridSize; x++)
+  for (const auto& kv : addedPoints)
   {
-    for (int y = 0; y < this->GridSize; y++)
-    {
-      for (int z = 0; z < this->GridSize; z++)
-      {
-        if (addedPoints[x][y][z] > 0)
-        {
-          // Number of points in the voxel before filtering
-          unsigned int voxelPrevSize = this->Grid[x][y][z]->size() - addedPoints[x][y][z];
-
-          // Downsample the current voxel
-          PointCloud::Ptr tmp(new PointCloud);
-          downSizeFilter.setInputCloud(this->Grid[x][y][z]);
-          downSizeFilter.filter(*tmp);
-
-          // Update the rolling grid voxel and number of points
-          this->Grid[x][y][z] = tmp;
-          this->NbPoints += this->Grid[x][y][z]->size() - voxelPrevSize;
-        }
-      }
-    }
+    // Number of points in the voxel before filtering
+    auto& voxel = this->Voxels[kv.first];
+    unsigned int voxelPrevSize = voxel->size() - kv.second;
+    // Downsample the current voxel
+    downSizeFilter.setInputCloud(voxel);
+    downSizeFilter.filter(*voxel);
+    // Update the voxel's number of points
+    this->NbPoints += voxel->size() - voxelPrevSize;
   }
+}
+
+//==============================================================================
+//   Helpers
+//==============================================================================
+
+//------------------------------------------------------------------------------
+int RollingGrid::To1d(const Eigen::Array3i& voxelId3d) const
+{
+  return voxelId3d.z() * this->GridSize * this->GridSize + voxelId3d.y() * this->GridSize + voxelId3d.x();
+}
+
+//------------------------------------------------------------------------------
+Eigen::Array3i RollingGrid::To3d(int voxelId1d) const
+{
+  int z = voxelId1d / (this->GridSize * this->GridSize);
+  voxelId1d -= z * this->GridSize * this->GridSize;
+  int y = voxelId1d / this->GridSize;
+  voxelId1d -= y * this->GridSize;
+  int x = voxelId1d;
+  return {x, y, z};
 }
 
 } // end of LidarSlam namespace

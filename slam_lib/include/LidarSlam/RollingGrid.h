@@ -20,6 +20,7 @@
 #pragma once
 
 #include "LidarSlam/LidarPoint.h"
+#include <unordered_map>
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
@@ -45,9 +46,6 @@ public:
   // Usefull types
   using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
-
-  template<typename T>
-  using Grid3D = std::vector<std::vector<std::vector<T>>>;
 
   //============================================================================
   //   Initialization and parameters setters
@@ -101,7 +99,7 @@ public:
 
 private:
 
-  //! [voxels] Size of the voxel grid: n*n*n voxels
+  //! [voxels] Max size of the voxel grid: n*n*n voxels
   int GridSize = 50;
 
   //! [m/voxel] Resolution of a voxel
@@ -111,7 +109,9 @@ private:
   double LeafSize = 0.2;
 
   //! VoxelGrid of pointcloud
-  Grid3D<PointCloud::Ptr> Grid;
+  //! To avoid intanciating a dense grid, only non empty voxels are stored.
+  //! Each voxel can be accessed using a flattened 1D index.
+  std::unordered_map<int, PointCloud::Ptr> Voxels;
 
   //! [m, m, m] Current position of the center of the VoxelGrid
   Eigen::Array3d VoxelGridPosition;
@@ -127,6 +127,12 @@ private:
   {
     return (position / this->VoxelResolution).array().floor().template cast<int>();
   }
+
+  //! Conversion from 3D voxel index to 1D flattened index
+  int To1d(const Eigen::Array3i& voxelId3d) const;
+
+  //! Conversion from 1D flattened voxel index to 3D index
+  Eigen::Array3i To3d(int voxelId1d) const;
 };
 
 } // end of LidarSlam namespace
