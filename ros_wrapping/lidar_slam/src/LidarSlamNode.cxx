@@ -584,6 +584,7 @@ void LidarSlamNode::PublishOutput()
     auto covar = this->LidarSlam.GetTransformCovariance();
     std::copy(covar.begin(), covar.end(), confidenceMsg.covariance.begin());
     confidenceMsg.nb_matches = this->LidarSlam.GetTotalMatchedKeypoints();
+    confidenceMsg.comply_motion_limits = this->LidarSlam.GetComplyMotionLimits();
     this->Publishers[CONFIDENCE].publish(confidenceMsg);
   }
 }

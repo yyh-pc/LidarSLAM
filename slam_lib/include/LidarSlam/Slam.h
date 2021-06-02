@@ -381,6 +381,7 @@ public:
   GetMacro(VelocityThresholds, Eigen::Vector4f)
   SetMacro(VelocityThresholds, const Eigen::Vector4f&)
 
+  GetMacro(ComplyMotionLimits, bool)
 
 private:
 
