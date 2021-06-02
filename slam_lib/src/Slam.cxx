@@ -604,9 +604,11 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation() const
     map[name] = this->LocalizationMatchingResults.at(k).NbMatches();
   }
 
-  map["Localization: position error"]    = this->LocalizationUncertainty.PositionError;
-  map["Localization: orientation error"] = this->LocalizationUncertainty.OrientationError;
-  map["Confidence: overlap"]             = this->OverlapEstimation;
+  map["Localization: position error"]      = this->LocalizationUncertainty.PositionError;
+  map["Localization: orientation error"]   = this->LocalizationUncertainty.OrientationError;
+  map["Confidence: overlap"]               = this->OverlapEstimation;
+  map["Confidence: comply motion limits"]  = this->ComplyMotionLimits;
+
   return map;
 }
 

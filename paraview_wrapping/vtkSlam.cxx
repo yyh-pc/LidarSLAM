@@ -793,3 +793,19 @@ void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
   this->SlamAlgo->SetVoxelGridLeafSize(k, s);
   this->ParametersModificationTime.Modified();
 }
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetAccelerationThresholds(float linear_acc, float roll_acc, float pitch_acc, float yaw_acc)
+{
+  Eigen::Vector4f accelerationThresholds = {linear_acc, roll_acc, pitch_acc, yaw_acc};
+  this->SlamAlgo->SetAccelerationThresholds(accelerationThresholds);
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetVelocityThresholds(float linear_vel, float roll_vel, float pitch_vel, float yaw_vel)
+{
+  Eigen::Vector4f velocityThresholds = {linear_vel, roll_vel, pitch_vel, yaw_vel};
+  this->SlamAlgo->SetVelocityThresholds(velocityThresholds);
+  this->ParametersModificationTime.Modified();
+}
