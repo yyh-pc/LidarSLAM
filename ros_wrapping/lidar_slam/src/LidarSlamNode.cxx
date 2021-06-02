@@ -575,7 +575,11 @@ void LidarSlamNode::PublishOutput()
   // Overlap estimation
   if (this->Publish[CONFIDENCE])
   {
+    // Get SLAM pose
+    LidarSlam::Transform odomToBase = this->LidarSlam.GetWorldTransform();
     lidar_slam::Confidence confidenceMsg;
+    confidenceMsg.header.stamp = ros::Time(odomToBase.time);
+    confidenceMsg.header.frame_id = this->OdometryFrameId;
     confidenceMsg.overlap = this->LidarSlam.GetOverlapEstimation();
     auto covar = this->LidarSlam.GetTransformCovariance();
     std::copy(covar.begin(), covar.end(), confidenceMsg.covariance.begin());

@@ -1,3 +1,8 @@
+# The covariance in this message should be specified in the coordinate frame given by header.frame_id.
+
+# See "std_msgs/Header.msg"
+Header header
+
 # Row-major representation of the 6x6 covariance matrix of ICP pose estimation.
 # In order, the pose elements are:
 # (x, y, z, rotation angle about X axis, rotation angle about Y axis, rotation angle about Z axis)
