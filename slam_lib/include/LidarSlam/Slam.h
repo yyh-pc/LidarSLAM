@@ -534,10 +534,6 @@ private:
   // 6-DoF parameters (DoF order : X, Y, Z, rX, rY, rZ)
   LocalOptimizer::RegistrationError LocalizationUncertainty;
 
-  // Overlap estimation of the current registered scan on the keypoints map
-  // It is contained between 0 and 1
-  float OverlapEstimation = -1.f;
-
   // Odometry manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
@@ -623,8 +619,20 @@ private:
   double LocalizationFinalSaturationDistance = 0.5;
 
   // ---------------------------------------------------------------------------
-  //   Confidence estimator parameters
+  //   Confidence estimation
   // ---------------------------------------------------------------------------
+
+  // Data
+
+  // Overlap estimation of the current registered scan on the keypoints map
+  // It is contained between 0 and 1
+  float OverlapEstimation = -1.f;
+
+  // Number of matches for processed frame
+  unsigned int TotalMatchedKeypoints = 0;
+
+  // Parameters
+
   // Boolean to choose whether to compute the estimated overlap or not
   // at the end of the Localization step
   bool OverlapEnable = true;
@@ -635,9 +643,6 @@ private:
   // of the overlap estimation may be impacted
   // Notably, the continuity of the estimation could be slighlty corrupted
   float OverlapSamplingLeafSize = 0.f;
-
-  // Number of matches for processed frame
-  unsigned int TotalMatchedKeypoints = 0;
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods
@@ -670,9 +675,6 @@ private:
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState(double time, const std::string& frameId);
 
-  // Estimate the overlap of the current scan onto the keypoint maps
-  void EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees);
-
   // ---------------------------------------------------------------------------
   //   Undistortion helpers
   // ---------------------------------------------------------------------------
@@ -692,6 +694,13 @@ private:
   // Update the undistortion interpolator poses bounds,
   // and refine the undistortion of the current keypoints clouds.
   void RefineUndistortion();
+
+  // ---------------------------------------------------------------------------
+  //   Confidence estimator helpers
+  // ---------------------------------------------------------------------------
+
+  // Estimate the overlap of the current scan onto the keypoint maps
+  void EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees);
 };
 
 } // end of LidarSlam namespace
