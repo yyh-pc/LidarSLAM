@@ -234,7 +234,10 @@
 
            - Extracted keypoints : ICP matching results
 
+           - Confidence estimation : overlap
+
           It is very useful when debugging or checking the SLAM behavior.
+          If disabled, the overlap estimation is not computed.
         </Documentation>
       </IntVectorProperty>
 
@@ -1028,6 +1031,28 @@
         <Property name="Blobs map resolution" />
         <Property name="Rolling grid dimension" />
         <Property name="Rolling grid resolution" />
+      </PropertyGroup>
+
+      <!-- ==================== Confidence estimator parameters ==================== -->
+
+      <DoubleVectorProperty
+          name="Overlap sampling leaf size"
+          command="SetOverlapSamplingLeafSize"
+          default_values="0."
+          number_of_elements="1"
+          panel_visibility="advanced">
+        <Documentation>
+          Leaf size of the voxel grid to sample uniformly before evaluating overlap (in meters).
+          If g.t. 0, the estimation step will be faster but the value will be lower.
+          If 0, no sampling is applied.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <PropertyGroup label="Confidence estimator parameters">
+        <Property name="Overlap sampling leaf size" />
       </PropertyGroup>
 
     </SourceProxy>
