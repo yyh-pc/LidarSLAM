@@ -37,11 +37,13 @@ enum Output
   PLANES_MAP,            // Publish plane keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
   BLOBS_MAP,             // Publish blob keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
 
-  EDGE_KEYPOINTS,       // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
-  PLANE_KEYPOINTS,      // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
-  BLOB_KEYPOINTS,       // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
+  EDGE_KEYPOINTS,        // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
+  PLANE_KEYPOINTS,       // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
+  BLOB_KEYPOINTS,        // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
 
   SLAM_REGISTERED_POINTS,// Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_registered_points'.
+
+  CONFIDENCE,            // Publish confidence estimators on output pose to topic 'slam_confidence'.
 
   PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'pgo_slam_path' latched topic.
   ICP_CALIB_SLAM_PATH,   // Publish ICP-aligned SLAM trajectory as Path msg to 'icp_slam_path' latched topic.
@@ -113,6 +115,8 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   initPublisher(BLOB_KEYPOINTS,  "keypoints/blobs",  CloudS, "output/keypoints/blobs",  true, 1, false);
 
   initPublisher(SLAM_REGISTERED_POINTS, "slam_registered_points", CloudS, "output/registered_points", true, 1, false);
+
+  initPublisher(CONFIDENCE, "slam_confidence", lidar_slam::Confidence, "output/confidence", true, 1, false);
 
   if (this->UseGps)
   {
@@ -567,6 +571,21 @@ void LidarSlamNode::PublishOutput()
 
   // debug cloud
   publishPointCloud(SLAM_REGISTERED_POINTS, this->LidarSlam.GetOutputFrame());
+
+  // Overlap estimation
+  if (this->Publish[CONFIDENCE])
+  {
+    // Get SLAM pose
+    LidarSlam::Transform odomToBase = this->LidarSlam.GetWorldTransform();
+    lidar_slam::Confidence confidenceMsg;
+    confidenceMsg.header.stamp = ros::Time(odomToBase.time);
+    confidenceMsg.header.frame_id = this->OdometryFrameId;
+    confidenceMsg.overlap = this->LidarSlam.GetOverlapEstimation();
+    auto covar = this->LidarSlam.GetTransformCovariance();
+    std::copy(covar.begin(), covar.end(), confidenceMsg.covariance.begin());
+    confidenceMsg.nb_matches = this->LidarSlam.GetTotalMatchedKeypoints();
+    this->Publishers[CONFIDENCE].publish(confidenceMsg);
+  }
 }
 
 //------------------------------------------------------------------------------
@@ -657,6 +676,11 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/localization/max_plane_distance", LocalizationMaxPlaneDistance)
   SetSlamParam(double, "slam/localization/init_saturation_distance", LocalizationInitSaturationDistance)
   SetSlamParam(double, "slam/localization/final_saturation_distance", LocalizationFinalSaturationDistance)
+
+  // Confidence estimators
+  // Overlap
+  SetSlamParam(bool,   "slam/confidence/overlap/enable", OverlapEnable)
+  SetSlamParam(float,  "slam/confidence/overlap/sampling_leaf_size", OverlapSamplingLeafSize)
 
   // Keyframes
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)

@@ -28,6 +28,7 @@
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <lidar_slam/SlamCommand.h>
+#include <lidar_slam/Confidence.h>
 
 // SLAM
 #include <LidarSlam/Slam.h>

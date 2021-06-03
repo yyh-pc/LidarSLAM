@@ -328,6 +328,7 @@ public:
   GetMacro(LocalizationFinalSaturationDistance, double)
   SetMacro(LocalizationFinalSaturationDistance, double)
 
+  // Sensor parameters
   void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);} 
   double GetWheelOdomWeight() const {return this->WheelOdomManager.GetWeight();}
 
@@ -357,6 +358,21 @@ public:
   void SetVoxelGridLeafSize(Keypoint k, double size);
   void SetVoxelGridSize(int size);
   void SetVoxelGridResolution(double resolution);
+
+  // ---------------------------------------------------------------------------
+  //   Confidence estimation
+  // ---------------------------------------------------------------------------
+  // Overlap
+  GetMacro(OverlapEnable, bool)
+  SetMacro(OverlapEnable, bool)
+
+  GetMacro(OverlapSamplingLeafSize, float)
+  SetMacro(OverlapSamplingLeafSize, float)
+
+  GetMacro(OverlapEstimation, float)
+
+  // Matches
+  GetMacro(TotalMatchedKeypoints, int)
 
 private:
 
@@ -518,6 +534,10 @@ private:
   // 6-DoF parameters (DoF order : X, Y, Z, rX, rY, rZ)
   LocalOptimizer::RegistrationError LocalizationUncertainty;
 
+  // Overlap estimation of the current registered scan on the keypoints map
+  // It is contained between 0 and 1
+  float OverlapEstimation = -1.f;
+
   // Odometry manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
@@ -603,6 +623,23 @@ private:
   double LocalizationFinalSaturationDistance = 0.5;
 
   // ---------------------------------------------------------------------------
+  //   Confidence estimator parameters
+  // ---------------------------------------------------------------------------
+  // Boolean to choose whether to compute the estimated overlap or not
+  // at the end of the Localization step
+  bool OverlapEnable = true;
+
+  // Leaf size of the voxel grid used to filter input scans
+  // Remaining points are used to estimate the overlap
+  // If increased, computation time may be reduced but the accuracy
+  // of the overlap estimation may be impacted
+  // Notably, the continuity of the estimation could be slighlty corrupted
+  float OverlapSamplingLeafSize = 0.f;
+
+  // Number of matches for processed frame
+  unsigned int TotalMatchedKeypoints = 0;
+
+  // ---------------------------------------------------------------------------
   //   Main sub-problems and methods
   // ---------------------------------------------------------------------------
 
@@ -632,6 +669,9 @@ private:
 
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState(double time, const std::string& frameId);
+
+  // Estimate the overlap of the current scan onto the keypoint maps
+  void EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees);
 
   // ---------------------------------------------------------------------------
   //   Undistortion helpers

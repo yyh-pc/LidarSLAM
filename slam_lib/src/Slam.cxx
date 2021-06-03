@@ -74,6 +74,7 @@
 // LOCAL
 #include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
+#include "LidarSlam/ConfidenceEstimators.h"
 
 #ifdef USE_G2O
 #include "LidarSlam/PoseGraphOptimization.h"
@@ -84,6 +85,7 @@
 #include <pcl/common/common.h>
 #include <pcl/common/transforms.h>
 #include <pcl/io/pcd_io.h>
+#include <pcl/filters/voxel_grid.h>
 // EIGEN
 #include <Eigen/Dense>
 
@@ -600,6 +602,7 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation() const
 
   map["Localization: position error"]    = this->LocalizationUncertainty.PositionError;
   map["Localization: orientation error"] = this->LocalizationUncertainty.OrientationError;
+  map["Localization: overlap"]           = this->OverlapEstimation;
   return map;
 }
 
@@ -866,7 +869,7 @@ void Slam::ComputeEgoMotion()
     IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
 
     // Reset ICP results
-    unsigned int totalMatchedKeypoints = 0;
+    this->TotalMatchedKeypoints = 0;
 
     // Init matching parameters
     KeypointsMatcher::Parameters matchingParams;
@@ -910,11 +913,11 @@ void Slam::ComputeEgoMotion()
 
       // Count matches and skip this frame
       // if there are too few geometric keypoints matched
-      totalMatchedKeypoints = 0;
+      this->TotalMatchedKeypoints = 0;
       for (auto k : {EDGE, PLANE})
-        totalMatchedKeypoints += this->EgoMotionMatchingResults[k].NbMatches();
+        this->TotalMatchedKeypoints += this->EgoMotionMatchingResults[k].NbMatches();
 
-      if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
+      if (this->TotalMatchedKeypoints < this->MinNbrMatchedKeypoints)
       {
         PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
         break;
@@ -954,7 +957,7 @@ void Slam::ComputeEgoMotion()
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion : whole ICP-LM loop"));
     if (this->Verbosity >= 2)
     {
-      std::cout << "Matched keypoints: " << totalMatchedKeypoints << " (";
+      std::cout << "Matched keypoints: " << this->TotalMatchedKeypoints << " (";
       for (auto k : {EDGE, PLANE})
         std::cout << this->EgoMotionMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
       std::cout << ")" << std::endl;
@@ -1034,7 +1037,7 @@ void Slam::Localization()
   IF_VERBOSE(3, Utils::Timer::Init("Localization : whole ICP-LM loop"));
 
   // Reset ICP results
-  unsigned int totalMatchedKeypoints = 0;
+  this->TotalMatchedKeypoints = 0;
 
   // Init matching parameters
   KeypointsMatcher::Parameters matchingParams;
@@ -1079,11 +1082,11 @@ void Slam::Localization()
 
     // Count matches and skip this frame
     // if there is too few geometric keypoints matched
-    totalMatchedKeypoints = 0;
+    this->TotalMatchedKeypoints = 0;
     for (auto k : KeypointTypes)
-      totalMatchedKeypoints += this->LocalizationMatchingResults[k].NbMatches();
+      this->TotalMatchedKeypoints += this->LocalizationMatchingResults[k].NbMatches();
 
-    if (totalMatchedKeypoints < this->MinNbrMatchedKeypoints)
+    if (this->TotalMatchedKeypoints < this->MinNbrMatchedKeypoints)
     {
       // Reset state to previous one to avoid instability
       this->Trelative = Eigen::Isometry3d::Identity();
@@ -1143,13 +1146,20 @@ void Slam::Localization()
     }
   }
 
+  if (this->OverlapEnable)
+  {
+    IF_VERBOSE(3, Utils::Timer::Init("Localization : Overlap estimation"));
+    this->EstimateOverlap(kdtrees);
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : Overlap estimation"));
+  }
+
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
 
   // Optionally print localization optimization summary
   if (this->Verbosity >= 2)
   {
     SET_COUT_FIXED_PRECISION(3);
-    std::cout << "Matched keypoints: " << totalMatchedKeypoints << " (";
+    std::cout << "Matched keypoints: " << this->TotalMatchedKeypoints << " (";
     for (auto k : KeypointTypes)
       std::cout << this->LocalizationMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
     std::cout << ")"
@@ -1160,6 +1170,75 @@ void Slam::Localization()
               << std::endl;
     RESET_COUT_FIXED_PRECISION;
   }
+}
+
+//-----------------------------------------------------------------------------
+void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
+{
+  // Init transformed cloud
+  PointCloud::Ptr transformedCloud(new PointCloud);
+  int currentIdx = 0;
+
+  // Transform each input point to BASE coordinates
+  for (const PointCloud::Ptr& frame: this->CurrentFrames)
+  {
+    *transformedCloud += *frame;
+    // Get LiDAR device id
+    int lidarDevice = frame->front().device_id;
+    // Get LiDAR to BASE transform
+    Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(lidarDevice);
+
+    // If distortion is enabled, distort all input points 
+    if (this->Undistortion)
+    {
+      // Extrapolate first and last poses with constant velocity model
+      Eigen::Isometry3d worldToBaseBegin = this->InterpolateScanPose(this->WithinFrameMotion.GetTime0());
+      Eigen::Isometry3d worldToBaseEnd = this->InterpolateScanPose(this->WithinFrameMotion.GetTime1());
+      // Init the interpolator to transform all points
+      auto transformInterpolator = this->WithinFrameMotion;
+      transformInterpolator.SetTransforms(worldToBaseBegin, worldToBaseEnd);
+      // Get time offset of current scan input relatively to device 0 scan
+      double timeOffset = Utils::PclStampToSec(frame->header.stamp) - Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
+
+      // Transform all points taking into account the points' timestamps
+      #pragma omp parallel for num_threads(this->NbThreads)
+      for (int idxPt = currentIdx; idxPt < currentIdx + frame->size(); ++idxPt)
+        Utils::TransformPoint(transformedCloud->at(idxPt), transformInterpolator(transformedCloud->at(idxPt).time + timeOffset) * baseToLidar);
+    }
+    else
+    {
+      // Transform all points without taking into account the points' timestamps
+      // they are supposed to have been acquired at the same time
+      #pragma omp parallel for num_threads(this->NbThreads)
+      for (int idxPt = currentIdx; idxPt < currentIdx + frame->size(); ++idxPt)
+        Utils::TransformPoint(transformedCloud->at(idxPt), this->Tworld * baseToLidar);
+    }
+    currentIdx += frame->size();
+  }
+
+  PointCloud::Ptr sampledTransformedCloud;
+  // Uniform sampling cloud
+  if (this->OverlapSamplingLeafSize > 1e-3)
+  {
+    sampledTransformedCloud.reset(new PointCloud);
+    pcl::VoxelGrid<Point> uniFilter;
+    uniFilter.setInputCloud(transformedCloud);
+    uniFilter.setLeafSize(this->OverlapSamplingLeafSize, this->OverlapSamplingLeafSize, this->OverlapSamplingLeafSize);
+    uniFilter.filter(*sampledTransformedCloud);
+  }
+  else
+    sampledTransformedCloud = transformedCloud;
+
+  std::map<Keypoint, float> leafSizes;
+  for (auto k : KeypointTypes)
+  {
+    if (this->UseKeypoints[k])
+      leafSizes[k] = this->LocalMaps[k]->GetLeafSize();
+  }
+
+  // Compute LCP like estimator (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
+  this->OverlapEstimation = Confidence::LCPEstimator(sampledTransformedCloud, mapKdTrees, leafSizes, this->NbThreads);
+  PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << sampledTransformedCloud->size() << " points.");
 }
 
 //-----------------------------------------------------------------------------
