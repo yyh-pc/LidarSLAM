@@ -28,27 +28,34 @@ float LCPEstimator(PointCloud::ConstPtr cloud, const std::map<Keypoint, KDTree>&
 {
   float LCP = 0.f;
   int nbPoints = cloud->size();
-  #pragma omp parallel for reduction(+:LCP) num_threads(nbThreads)
-  for (int n = 0; n < nbPoints; ++n)
+  if (nbPoints > 0)
   {
-    for (auto& kdTree : kdTrees)
+    #pragma omp parallel for reduction(+:LCP) num_threads(nbThreads)
+    for (int n = 0; n < nbPoints; ++n)
     {
-      std::vector<int> knnIndices;
-      std::vector<float> knnSqDist;
-      kdTree.second.KnnSearch(cloud->at(n), 1, knnIndices, knnSqDist);
-      float sqLCPThreshold = std::pow(leafSizes.at(kdTree.first), 2);
-      if (!knnSqDist.empty())
+      for (auto& kdTree : kdTrees)
       {
-        // We use a Gaussian like estimation for each point fitted in target leaf space
-        // to check the probability that one cloud point has a neighbor in the target
-        // Probability = 1 if the two points are superimposed
-        // Probability < 0.6 if the distance is g.t. the leaf size
-        LCP += std::exp( -knnSqDist[0] / (2.f * sqLCPThreshold) );
-        break;
+        // Check if a kdtree was filled for this keypoint type
+        if (kdTree.second.GetInputCloud()->size() > 0)
+        {
+          std::vector<int> knnIndices;
+          std::vector<float> knnSqDist;
+          kdTree.second.KnnSearch(cloud->at(n), 1, knnIndices, knnSqDist);
+          float sqLCPThreshold = std::pow(leafSizes.at(kdTree.first), 2);
+          if (!knnSqDist.empty())
+          {
+            // We use a Gaussian like estimation for each point fitted in target leaf space
+            // to check the probability that one cloud point has a neighbor in the target
+            // Probability = 1 if the two points are superimposed
+            // Probability < 0.6 if the distance is g.t. the leaf size
+            LCP += std::exp( -knnSqDist[0] / (2.f * sqLCPThreshold) );
+            break;
+          }
+        }
       }
     }
+    LCP /= nbPoints;
   }
-  LCP /= nbPoints;
   return LCP;
 }
 
