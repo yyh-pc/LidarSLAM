@@ -701,6 +701,19 @@ private:
 
   // Estimate the overlap of the current scan onto the keypoint maps
   void EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees);
+
+  // ---------------------------------------------------------------------------
+  //   Transformation helpers
+  // ---------------------------------------------------------------------------
+
+  // Aggregate a set of frames from LIDAR to BASE or WORLD coordinates.
+  // If worldCoordinates=false, it returns points in BASE coordinates (no undistortion).
+  // If worldCoordinates=true, it returns points in WORLD coordinates (optionally undistorted).
+  // The LIDAR to BASE offsets specific to each sensor are properly added.
+  // The output aggregated points timestamps are corrected to be relative to the 1st frame timestamp.
+  // NOTE: If transforming to WORLD coordinates, be sure that Tworld/WithinFrameMotion have been updated
+  //       (updated during the Localization step).
+  PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates) const;
 };
 
 } // end of LidarSlam namespace

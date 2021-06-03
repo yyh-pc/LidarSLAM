@@ -634,44 +634,7 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
 //-----------------------------------------------------------------------------
 Slam::PointCloud::Ptr Slam::GetOutputFrame()
 {
-  PointCloud::Ptr aggregatedOutput(new PointCloud);
-  aggregatedOutput->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
-                                                   this->WorldFrameId,
-                                                   this->NbrFrameProcessed);
-
-  // Loop over frames of input
-  for (unsigned int i = 0; i < this->CurrentFrames.size(); ++i)
-  {
-    PointCloud output;
-
-    // Transform from LiDAR sensor to BASE coordinate system,
-    // followed by rigid transform or undistortion
-    Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(this->CurrentFrames[i]->front().device_id);
-    if (this->Undistortion)
-    {
-      auto transformInterpolator = this->WithinFrameMotion;
-      transformInterpolator.SetTransforms(this->Tworld * this->WithinFrameMotion.GetH0() * baseToLidar,
-                                          this->Tworld * this->WithinFrameMotion.GetH1() * baseToLidar);
-      output.reserve(this->CurrentFrames[i]->size());
-      for (const Slam::Point& p : *this->CurrentFrames[i])
-        output.push_back(Utils::TransformPoint(p, transformInterpolator(p.time)));
-    }
-    else
-    {
-      const Eigen::Isometry3d worldPose = this->Tworld * baseToLidar;
-      pcl::transformPointCloud(*this->CurrentFrames[i], output, worldPose.matrix());
-    }
-
-    // Modify point-wise time offsets to match header.stamp
-    double timeOffset = Utils::PclStampToSec(this->CurrentFrames[i]->header.stamp) - Utils::PclStampToSec(aggregatedOutput->header.stamp);
-    for (auto& point: output)
-      point.time += timeOffset;
-
-    // Add registered (and undistorted) frame to aggregated output
-    *aggregatedOutput += output;
-  }
-
-  return aggregatedOutput;
+  return this->AggregateFrames(this->CurrentFrames, true);
 }
 
 //-----------------------------------------------------------------------------
@@ -739,21 +702,12 @@ void Slam::ExtractKeypoints()
   // Current keypoints become previous ones
   this->PreviousRawKeypoints = this->CurrentRawKeypoints;
 
-  // Reset current keypoints and adapt header
-  pcl::PCLHeader header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp, this->BaseFrameId, this->NbrFrameProcessed);
-  for (auto k : KeypointTypes)
-  {
-    this->CurrentRawKeypoints[k].reset(new PointCloud);
-    this->CurrentRawKeypoints[k]->header = header;
-  }
-
   // Extract keypoints from each input cloud
-  for (const PointCloud::Ptr& frame: this->CurrentFrames)
+  std::map<Keypoint, std::vector<PointCloud::Ptr>> keypoints;
+  for (const auto& frame: this->CurrentFrames)
   {
-    // Get LiDAR device id
+    // Get keypoints extractor to use for this LiDAR device
     int lidarDevice = frame->front().device_id;
-
-    // Get keypoints extractor
     // Check if KE exists
     if (!this->KeyPointsExtractors.count(lidarDevice))
     {
@@ -774,34 +728,15 @@ void Slam::ExtractKeypoints()
     }
     KeypointExtractorPtr& ke = this->KeyPointsExtractors[lidarDevice];
 
-    // Compute keypoints from this device frame
+    // Extract keypoints from this frame
     ke->ComputeKeyPoints(frame);
-
-    // Transform ke keypoints from LIDAR to BASE coordinates, 
-    // aggregate them in CurrentRawKeypoints, and correct time offset
-    Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(lidarDevice);
     for (auto k : KeypointTypes)
-    {
-      PointCloud::Ptr baseCloud;
-      // If transform to apply is identity, avoid much work
-      if (baseToLidar.isApprox(Eigen::Isometry3d::Identity()))
-        baseCloud = ke->GetKeypoints(k);
-      // If transform is set and non trivial, run transformation
-      else
-      {
-        baseCloud.reset(new PointCloud);
-        pcl::transformPointCloud(*ke->GetKeypoints(k), *baseCloud, baseToLidar.matrix());
-      }
-
-      // Add to current keypoints
-      *this->CurrentRawKeypoints[k] += *baseCloud;
-
-      // Modify point-wise time offsets to match header.stamp
-      double timeOffset = Utils::PclStampToSec(ke->GetKeypoints(k)->header.stamp) - Utils::PclStampToSec(this->CurrentRawKeypoints[k]->header.stamp);
-      for (unsigned int i = this->CurrentRawKeypoints[k]->size() - ke->GetKeypoints(k)->size(); i < this->CurrentRawKeypoints[k]->size(); i++)
-        this->CurrentRawKeypoints[k]->at(i).time += timeOffset;
-    }
+      keypoints[k].push_back(ke->GetKeypoints(k));
   }
+
+  // Merge all keypoints extracted from different frames together
+  for (auto k : KeypointTypes)
+    this->CurrentRawKeypoints[k] = this->AggregateFrames(keypoints[k], false);
 
   if (this->Verbosity >= 2)
   {
@@ -1366,46 +1301,8 @@ void Slam::RefineUndistortion()
 //-----------------------------------------------------------------------------
 void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
 {
-  // Init transformed cloud
-  PointCloud::Ptr transformedCloud(new PointCloud);
-  int currentIdx = 0;
-
-  // Transform each input point to BASE coordinates
-  for (const PointCloud::Ptr& frame: this->CurrentFrames)
-  {
-    *transformedCloud += *frame;
-    // Get LiDAR device id
-    int lidarDevice = frame->front().device_id;
-    // Get LiDAR to BASE transform
-    Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(lidarDevice);
-    int nbPoints = frame->size();
-    // If undistortion is enabled, undistort all input points 
-    if (this->Undistortion)
-    {
-      // Extrapolate first and last poses with constant velocity model
-      Eigen::Isometry3d worldToBaseBegin = this->InterpolateScanPose(this->WithinFrameMotion.GetTime0());
-      Eigen::Isometry3d worldToBaseEnd = this->InterpolateScanPose(this->WithinFrameMotion.GetTime1());
-      // Init the interpolator to transform all points
-      auto transformInterpolator = this->WithinFrameMotion;
-      transformInterpolator.SetTransforms(worldToBaseBegin, worldToBaseEnd);
-      // Get time offset of current scan input relatively to device 0 scan
-      double timeOffset = Utils::PclStampToSec(frame->header.stamp) - Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-
-      // Transform all points taking into account the points' timestamps
-      #pragma omp parallel for num_threads(this->NbThreads)
-      for (int idxPt = currentIdx; idxPt < currentIdx + nbPoints; ++idxPt)
-        Utils::TransformPoint(transformedCloud->at(idxPt), transformInterpolator(transformedCloud->at(idxPt).time + timeOffset) * baseToLidar);
-    }
-    else
-    {
-      // Transform all points without taking into account the points' timestamps
-      // they are supposed to have been acquired at the same time
-      #pragma omp parallel for num_threads(this->NbThreads)
-      for (int idxPt = currentIdx; idxPt < currentIdx + nbPoints; ++idxPt)
-        Utils::TransformPoint(transformedCloud->at(idxPt), this->Tworld * baseToLidar);
-    }
-    currentIdx += nbPoints;
-  }
+  // Get aggregated registered cloud
+  PointCloud::Ptr transformedCloud = this->AggregateFrames(this->CurrentFrames, true);
 
   // Uniform sampling cloud
   if (this->OverlapSamplingLeafSize > 1e-3)
@@ -1426,6 +1323,60 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
   // Compute LCP like estimator (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
   this->OverlapEstimation = Confidence::LCPEstimator(transformedCloud, mapKdTrees, leafSizes, this->NbThreads);
   PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << transformedCloud->size() << " points.");
+}
+
+//==============================================================================
+//   Transformation helpers
+//==============================================================================
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates) const
+{
+  PointCloud::Ptr aggregatedFrames(new PointCloud);
+  aggregatedFrames->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
+                                                   worldCoordinates ? this->WorldFrameId : this->BaseFrameId,
+                                                   this->NbrFrameProcessed);
+
+  // Loop over frames of input
+  for (const auto& frame: frames)
+  {
+    PointCloud::Ptr transformedFrame(new PointCloud);
+    Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(frame->front().device_id);
+
+    // Rigid transform from LIDAR to BASE then undistortion from BASE to WORLD
+    if (worldCoordinates && this->Undistortion)
+    {
+      auto transformInterpolator = this->WithinFrameMotion;
+      transformInterpolator.SetTransforms(this->Tworld * this->WithinFrameMotion.GetH0() * baseToLidar,
+                                          this->Tworld * this->WithinFrameMotion.GetH1() * baseToLidar);
+      transformedFrame->reserve(frame->size());
+      for (const auto& point : *frame)
+        transformedFrame->push_back(Utils::TransformPoint(point, transformInterpolator(point.time)));
+    }
+
+    // Rigid transform from LIDAR to BASE or WORLD coordinate system
+    else
+    {
+      // Get rigid transform to apply
+      Eigen::Isometry3d tf = worldCoordinates ? this->Tworld * baseToLidar : baseToLidar;
+      // If transform to apply is identity, avoid much work
+      if (tf.isApprox(Eigen::Isometry3d::Identity()))
+        transformedFrame = frame;
+      // If transform is non trivial, run transformation
+      else
+        pcl::transformPointCloud(*frame, *transformedFrame, tf.matrix());
+    }
+
+    // Modify point-wise time offsets to match header.stamp
+    double timeOffset = Utils::PclStampToSec(frame->header.stamp) - Utils::PclStampToSec(aggregatedFrames->header.stamp);
+    for (auto& point : *transformedFrame)
+      point.time += timeOffset;
+
+    // Add transformed frame to aggregated output
+    *aggregatedFrames += *transformedFrame;
+  }
+
+  return aggregatedFrames;
 }
 
 //==============================================================================
