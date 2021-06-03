@@ -1187,8 +1187,8 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
     int lidarDevice = frame->front().device_id;
     // Get LiDAR to BASE transform
     Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(lidarDevice);
-
-    // If distortion is enabled, distort all input points 
+    int nbPoints = frame->size();
+    // If undistortion is enabled, undistort all input points 
     if (this->Undistortion)
     {
       // Extrapolate first and last poses with constant velocity model
@@ -1202,7 +1202,7 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
 
       // Transform all points taking into account the points' timestamps
       #pragma omp parallel for num_threads(this->NbThreads)
-      for (int idxPt = currentIdx; idxPt < currentIdx + frame->size(); ++idxPt)
+      for (int idxPt = currentIdx; idxPt < currentIdx + nbPoints; ++idxPt)
         Utils::TransformPoint(transformedCloud->at(idxPt), transformInterpolator(transformedCloud->at(idxPt).time + timeOffset) * baseToLidar);
     }
     else
@@ -1210,10 +1210,10 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
       // Transform all points without taking into account the points' timestamps
       // they are supposed to have been acquired at the same time
       #pragma omp parallel for num_threads(this->NbThreads)
-      for (int idxPt = currentIdx; idxPt < currentIdx + frame->size(); ++idxPt)
+      for (int idxPt = currentIdx; idxPt < currentIdx + nbPoints; ++idxPt)
         Utils::TransformPoint(transformedCloud->at(idxPt), this->Tworld * baseToLidar);
     }
-    currentIdx += frame->size();
+    currentIdx += nbPoints;
   }
 
   PointCloud::Ptr sampledTransformedCloud;
