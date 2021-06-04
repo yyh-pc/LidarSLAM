@@ -1137,8 +1137,19 @@ void Slam::UpdateMapsUsingTworld()
     PRINT_VERBOSE(3, "Adding new keyframe " << this->KfCounter);
   }
 
-  // Transform current keypoints to WORLD coordinates,
-  // and add points to map if we are dealing with a new keyframe.
+  // Transform keypoints to WORLD coordinates
+  for (auto k : KeypointTypes)
+  {
+    this->CurrentWorldKeypoints[k].reset(new PointCloud);
+    pcl::copyPointCloud(*this->CurrentUndistortedKeypoints[k], *this->CurrentWorldKeypoints[k]);
+    this->CurrentWorldKeypoints[k]->header.frame_id = this->WorldFrameId;
+    int nbPoints = this->CurrentWorldKeypoints[k]->size();
+    #pragma omp parallel for num_threads(this->NbThreads)
+    for (int i = 0; i < nbPoints; ++i)
+      Utils::TransformPoint(this->CurrentWorldKeypoints[k]->at(i), this->Tworld);
+  }
+
+  // Add points to map if we are dealing with a new keyframe.
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
   int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
@@ -1146,19 +1157,8 @@ void Slam::UpdateMapsUsingTworld()
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
-    this->CurrentWorldKeypoints[k].reset(new PointCloud);
-    this->CurrentWorldKeypoints[k]->header = this->CurrentUndistortedKeypoints[k]->header;
-    this->CurrentWorldKeypoints[k]->header.frame_id = this->WorldFrameId;
-    if (this->UseKeypoints[k])
-    {
-      // Transform keypoints to WORLD coordinates
-      this->CurrentWorldKeypoints[k]->points.reserve(this->CurrentUndistortedKeypoints[k]->size());
-      for (const Point& p : *this->CurrentUndistortedKeypoints[k])
-        this->CurrentWorldKeypoints[k]->push_back(Utils::TransformPoint(p, this->Tworld));
-      // Add new keypoints to rolling grid if we are dealing with a new keyframe
-      if (isNewKeyFrame)
-        this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k]);
-    }
+    if (this->UseKeypoints[k] && isNewKeyFrame)
+      this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k]);
   }
 }
 
@@ -1235,7 +1235,7 @@ void Slam::InitUndistortion()
   double frameLastTime  = std::numeric_limits<double>::lowest();
   for (auto k : KeypointTypes)
   {
-    for (const Point& point: *this->CurrentUndistortedKeypoints[k])
+    for (const auto& point : *this->CurrentUndistortedKeypoints[k])
     {
       frameFirstTime = std::min(frameFirstTime, point.time);
       frameLastTime  = std::max(frameLastTime, point.time);
@@ -1282,15 +1282,15 @@ void Slam::RefineUndistortion()
                                       newBaseEnd   * previousBaseEnd.inverse());
 
   // Refine undistortion of keypoints clouds
-  // The iteration is not directly on Keypoint types
-  // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
-  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
-  for (int i = 0; i < nbKeypointTypes; ++i)
+  for (auto k : KeypointTypes)
   {
-    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
-    for (Point& p : *this->CurrentUndistortedKeypoints[k])
-      Utils::TransformPoint(p, transformInterpolator(p.time));
+    int nbPoints = this->CurrentUndistortedKeypoints[k]->size();
+    #pragma omp parallel for num_threads(this->NbThreads)
+    for (int i = 0; i < nbPoints; ++i)
+    {
+      auto& point = this->CurrentUndistortedKeypoints[k]->at(i);
+      Utils::TransformPoint(point, transformInterpolator(point.time));
+    }
   }
 }
 
@@ -1340,7 +1340,14 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
   // Loop over frames of input
   for (const auto& frame: frames)
   {
-    PointCloud::Ptr transformedFrame(new PointCloud);
+    // Add frame to aggregated output
+    int startIdx = aggregatedFrames->size();
+    int endIdx = startIdx + frame->size();
+    *aggregatedFrames += *frame;
+
+    // Modify point-wise time offsets to match header.stamp
+    // And transform points from LIDAR to BASE or WORLD coordinate system
+    double timeOffset = Utils::PclStampToSec(frame->header.stamp) - Utils::PclStampToSec(aggregatedFrames->header.stamp);
     Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(frame->front().device_id);
 
     // Rigid transform from LIDAR to BASE then undistortion from BASE to WORLD
@@ -1349,9 +1356,13 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
       auto transformInterpolator = this->WithinFrameMotion;
       transformInterpolator.SetTransforms(this->Tworld * this->WithinFrameMotion.GetH0() * baseToLidar,
                                           this->Tworld * this->WithinFrameMotion.GetH1() * baseToLidar);
-      transformedFrame->reserve(frame->size());
-      for (const auto& point : *frame)
-        transformedFrame->push_back(Utils::TransformPoint(point, transformInterpolator(point.time)));
+      #pragma omp parallel for num_threads(this->NbThreads)
+      for (int i = startIdx; i < endIdx; ++i)
+      {
+        auto& point = aggregatedFrames->at(i);
+        point.time += timeOffset;
+        Utils::TransformPoint(point, transformInterpolator(point.time));
+      }
     }
 
     // Rigid transform from LIDAR to BASE or WORLD coordinate system
@@ -1361,19 +1372,23 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
       Eigen::Isometry3d tf = worldCoordinates ? this->Tworld * baseToLidar : baseToLidar;
       // If transform to apply is identity, avoid much work
       if (tf.isApprox(Eigen::Isometry3d::Identity()))
-        transformedFrame = frame;
+      {
+        #pragma omp parallel for num_threads(this->NbThreads)
+        for (int i = startIdx; i < endIdx; ++i)
+          aggregatedFrames->at(i).time += timeOffset;
+      }
       // If transform is non trivial, run transformation
       else
-        pcl::transformPointCloud(*frame, *transformedFrame, tf.matrix());
+      {
+        #pragma omp parallel for num_threads(this->NbThreads)
+        for (int i = startIdx; i < endIdx; ++i)
+        {
+          auto& point = aggregatedFrames->at(i);
+          point.time += timeOffset;
+          Utils::TransformPoint(point, tf);
+        }
+      }
     }
-
-    // Modify point-wise time offsets to match header.stamp
-    double timeOffset = Utils::PclStampToSec(frame->header.stamp) - Utils::PclStampToSec(aggregatedFrames->header.stamp);
-    for (auto& point : *transformedFrame)
-      point.time += timeOffset;
-
-    // Add transformed frame to aggregated output
-    *aggregatedFrames += *transformedFrame;
   }
 
   return aggregatedFrames;
