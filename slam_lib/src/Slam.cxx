@@ -1407,18 +1407,14 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
     currentIdx += nbPoints;
   }
 
-  PointCloud::Ptr sampledTransformedCloud;
   // Uniform sampling cloud
   if (this->OverlapSamplingLeafSize > 1e-3)
   {
-    sampledTransformedCloud.reset(new PointCloud);
     pcl::VoxelGrid<Point> uniFilter;
     uniFilter.setInputCloud(transformedCloud);
     uniFilter.setLeafSize(this->OverlapSamplingLeafSize, this->OverlapSamplingLeafSize, this->OverlapSamplingLeafSize);
-    uniFilter.filter(*sampledTransformedCloud);
+    uniFilter.filter(*transformedCloud);
   }
-  else
-    sampledTransformedCloud = transformedCloud;
 
   std::map<Keypoint, float> leafSizes;
   for (auto k : KeypointTypes)
@@ -1428,8 +1424,8 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
   }
 
   // Compute LCP like estimator (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
-  this->OverlapEstimation = Confidence::LCPEstimator(sampledTransformedCloud, mapKdTrees, leafSizes, this->NbThreads);
-  PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << sampledTransformedCloud->size() << " points.");
+  this->OverlapEstimation = Confidence::LCPEstimator(transformedCloud, mapKdTrees, leafSizes, this->NbThreads);
+  PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << transformedCloud->size() << " points.");
 }
 
 //==============================================================================
