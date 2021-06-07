@@ -244,6 +244,13 @@ public:
   vtkCustomSetMacroNoCheck(VoxelGridSize, int)
   vtkCustomSetMacroNoCheck(VoxelGridResolution, double)
 
+  // ---------------------------------------------------------------------------
+  //   Confidence estimator parameters
+  // ---------------------------------------------------------------------------
+
+  vtkCustomGetMacro(OverlapSamplingLeafSize, double)
+  vtkCustomSetMacro(OverlapSamplingLeafSize, double)
+
 protected:
   vtkSlam();
 

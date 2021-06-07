@@ -121,7 +121,12 @@ void vtkSlam::Reset()
     {
       this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>(it.first));
     }
+    // Enable overlap computation
+    this->SlamAlgo->SetOverlapEnable(true);
   }
+  else
+    // Disable overlap computation
+    this->SlamAlgo->SetOverlapEnable(false);
 
   // Refresh view
   this->Modified();
@@ -681,6 +686,8 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
           array->SetTuple1(i, 0.);
         this->Trajectory->GetPointData()->AddArray(array);
       }
+      // Enable overlap computation
+      this->SlamAlgo->SetOverlapEnable(true);
     }
 
     // If AdvancedReturnMode is being disabled
@@ -689,6 +696,8 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
       // Delete optional arrays
       for (const auto& it : debugInfo)
         this->Trajectory->GetPointData()->RemoveArray(it.first.c_str());
+      // Disable overlap computation
+      this->SlamAlgo->SetOverlapEnable(false);
     }
 
     this->AdvancedReturnMode = _arg;
