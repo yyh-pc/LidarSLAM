@@ -175,6 +175,7 @@ void Slam::Reset(bool resetLog)
 
   // Reset point clouds
   this->CurrentFrames.clear();
+  this->RegisteredFrame.reset(new PointCloud);
   this->CurrentFrames.emplace_back(new PointCloud);
   for (auto k : KeypointTypes)
   {
@@ -632,9 +633,13 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetOutputFrame()
+Slam::PointCloud::Ptr Slam::GetRegisteredFrame()
 {
-  return this->AggregateFrames(this->CurrentFrames, true);
+  // If the input points have not been aggregated to WORLD coordinates yet,
+  // transform and aggregate them
+  if (this->RegisteredFrame->header.stamp != this->CurrentFrames[0]->header.stamp)
+    this->RegisteredFrame = this->AggregateFrames(this->CurrentFrames, true);
+  return this->RegisteredFrame;
 }
 
 //-----------------------------------------------------------------------------
@@ -1315,16 +1320,18 @@ void Slam::RefineUndistortion()
 //-----------------------------------------------------------------------------
 void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
 {
-  // Get aggregated registered cloud
-  PointCloud::Ptr transformedCloud = this->AggregateFrames(this->CurrentFrames, true);
+  // Aggregate all input points into WORLD coordinates
+  PointCloud::Ptr aggregatedPoints = this->GetRegisteredFrame();
 
   // Uniform sampling cloud
+  PointCloud::Ptr sampledCloud = aggregatedPoints;
   if (this->OverlapSamplingLeafSize > 1e-3)
   {
+    sampledCloud.reset(new PointCloud);
     pcl::VoxelGrid<Point> uniFilter;
-    uniFilter.setInputCloud(transformedCloud);
+    uniFilter.setInputCloud(aggregatedPoints);
     uniFilter.setLeafSize(this->OverlapSamplingLeafSize, this->OverlapSamplingLeafSize, this->OverlapSamplingLeafSize);
-    uniFilter.filter(*transformedCloud);
+    uniFilter.filter(*sampledCloud);
   }
 
   std::map<Keypoint, float> leafSizes;
@@ -1335,8 +1342,8 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
   }
 
   // Compute LCP like estimator (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
-  this->OverlapEstimation = Confidence::LCPEstimator(transformedCloud, mapKdTrees, leafSizes, this->NbThreads);
-  PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << transformedCloud->size() << " points.");
+  this->OverlapEstimation = Confidence::LCPEstimator(sampledCloud, mapKdTrees, leafSizes, this->NbThreads);
+  PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << sampledCloud->size() << " points.");
 }
 
 //==============================================================================

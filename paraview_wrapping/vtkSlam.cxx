@@ -174,7 +174,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // Output : Current undistorted LiDAR frame in world coordinates
   auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
   slamFrame->ShallowCopy(input);
-  auto worldFrame = this->SlamAlgo->GetOutputFrame();
+  auto worldFrame = this->SlamAlgo->GetRegisteredFrame();
   vtkIdType nbPoints = input->GetNumberOfPoints();
   // Modify only points coordinates to keep input arrays
   auto registeredPoints = vtkSmartPointer<vtkPoints>::New();

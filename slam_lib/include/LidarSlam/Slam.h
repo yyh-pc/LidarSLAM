@@ -163,8 +163,9 @@ public:
   // internally transformed, this will be done on first call of this method. 
   PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = false);
 
-  // Get current frame
-  PointCloud::Ptr GetOutputFrame();
+  // Get current registered (and optionally undistorted) input points.
+  // All frames from all devices are aggregated.
+  PointCloud::Ptr GetRegisteredFrame();
 
   // Get current number of frames already processed
   GetMacro(NbrFrameProcessed, unsigned int)
@@ -494,8 +495,11 @@ private:
   //   Keypoints from current frame
   // ---------------------------------------------------------------------------
 
-  // Current frames (all input frames)
+  // Current frames (all raw input frames)
   std::vector<PointCloud::Ptr> CurrentFrames;
+
+  // Current aggregated points from all input frames, in WORLD coordinates (with undistortion if enabled)
+  PointCloud::Ptr RegisteredFrame;
 
   // Raw extracted keypoints, in BASE coordinates (no undistortion)
   std::map<Keypoint, PointCloud::Ptr> CurrentRawKeypoints;
