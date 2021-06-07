@@ -706,6 +706,10 @@ void Slam::ExtractKeypoints()
   std::map<Keypoint, std::vector<PointCloud::Ptr>> keypoints;
   for (const auto& frame: this->CurrentFrames)
   {
+    // If the frame is empty, ignore it
+    if (frame->empty())
+      continue;
+
     // Get keypoints extractor to use for this LiDAR device
     int lidarDevice = frame->front().device_id;
     // Check if KE exists
@@ -1340,6 +1344,10 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
   // Loop over frames of input
   for (const auto& frame: frames)
   {
+    // If the frame is empty, ignore it
+    if (frame->empty())
+      continue;
+
     // Add frame to aggregated output
     int startIdx = aggregatedFrames->size();
     int endIdx = startIdx + frame->size();
