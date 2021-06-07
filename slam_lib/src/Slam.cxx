@@ -648,9 +648,18 @@ Slam::PointCloud::Ptr Slam::GetMap(Keypoint k) const
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetKeypoints(Keypoint k, bool worldCoordinates) const
+Slam::PointCloud::Ptr Slam::GetKeypoints(Keypoint k, bool worldCoordinates)
 {
-  return worldCoordinates ? this->CurrentWorldKeypoints.at(k) : this->CurrentUndistortedKeypoints.at(k);
+  // Return keypoints in BASE coordinates
+  if (!worldCoordinates)
+    return this->CurrentUndistortedKeypoints.at(k);
+
+  // Return keypoints in WORLD coordinates
+  // If the keypoints have not been transformed yet to WORLD coordinates, perform transformation
+  if (this->CurrentWorldKeypoints.at(k)->header.stamp != this->CurrentUndistortedKeypoints.at(k)->header.stamp)
+    this->CurrentWorldKeypoints[k] = this->TransformPointCloud(this->CurrentUndistortedKeypoints[k],
+                                                               this->Tworld, this->WorldFrameId);
+  return this->CurrentWorldKeypoints.at(k);
 }
 
 //==============================================================================
@@ -1132,38 +1141,29 @@ void Slam::UpdateMapsUsingTworld()
                                                  << transSinceLastKf << " m, "
                                                  << Utils::Rad2Deg(rotSinceLastKf) << " °");
 
-  int nbMapKpts = 0;
-  for (const auto& mapKptsCloud : this->LocalMaps)
-    nbMapKpts += mapKptsCloud.second->Size();
   // Check if current frame is a new keyframe
   // If we don't have enough keyframes yet, the threshold is linearly lowered
   constexpr double MIN_KF_NB = 10.;
   double thresholdCoef = std::min(this->KfCounter / MIN_KF_NB, 1.);
+  int nbMapKpts = 0;
+  for (const auto& mapKptsCloud : this->LocalMaps)
+    nbMapKpts += mapKptsCloud.second->Size();
   bool isNewKeyFrame = nbMapKpts < this->MinNbrMatchedKeypoints * 10 ||
                        transSinceLastKf >= thresholdCoef * this->KfDistanceThreshold ||
                        rotSinceLastKf >= Utils::Deg2Rad(thresholdCoef * this->KfAngleThreshold);
+  if (!isNewKeyFrame)
+    return;
 
   // Notify current frame to be a new keyframe
-  if (isNewKeyFrame)
-  {
-    this->KfCounter++;
-    this->KfLastPose = this->Tworld;
-    PRINT_VERBOSE(3, "Adding new keyframe " << this->KfCounter);
-  }
+  this->KfCounter++;
+  this->KfLastPose = this->Tworld;
+  PRINT_VERBOSE(3, "Adding new keyframe " << this->KfCounter);
 
   // Transform keypoints to WORLD coordinates
   for (auto k : KeypointTypes)
-  {
-    this->CurrentWorldKeypoints[k].reset(new PointCloud);
-    pcl::copyPointCloud(*this->CurrentUndistortedKeypoints[k], *this->CurrentWorldKeypoints[k]);
-    this->CurrentWorldKeypoints[k]->header.frame_id = this->WorldFrameId;
-    int nbPoints = this->CurrentWorldKeypoints[k]->size();
-    #pragma omp parallel for num_threads(this->NbThreads)
-    for (int i = 0; i < nbPoints; ++i)
-      Utils::TransformPoint(this->CurrentWorldKeypoints[k]->at(i), this->Tworld);
-  }
+    this->CurrentWorldKeypoints[k] = this->GetKeypoints(k, true);
 
-  // Add points to map if we are dealing with a new keyframe.
+  // Add registered points to map
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
   int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
@@ -1171,7 +1171,7 @@ void Slam::UpdateMapsUsingTworld()
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
-    if (this->UseKeypoints[k] && isNewKeyFrame)
+    if (this->UseKeypoints[k])
       this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k]);
   }
 }
@@ -1342,6 +1342,27 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
 //==============================================================================
 //   Transformation helpers
 //==============================================================================
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::TransformPointCloud(PointCloud::ConstPtr cloud,
+                                                const Eigen::Isometry3d& tf,
+                                                const std::string& frameId) const
+{
+  // Copy all fields and set frame ID
+  PointCloud::Ptr transformedCloud(new PointCloud);
+  pcl::copyPointCloud(*cloud, *transformedCloud);
+  transformedCloud->header.frame_id = frameId;
+
+  // Transform each point inplace in parallel
+  int nbPoints = transformedCloud->size();
+  #pragma omp parallel for num_threads(this->NbThreads)
+  for (int i = 0; i < nbPoints; ++i)
+  {
+    auto& point = transformedCloud->at(i);
+    Utils::TransformPoint(point, tf);
+  }
+  return transformedCloud;
+}
 
 //-----------------------------------------------------------------------------
 Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates) const

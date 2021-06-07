@@ -158,7 +158,10 @@ public:
   // Get extracted and optionally undistorted keypoints from current frame.
   // If worldCoordinates=false, it returns keypoints in BASE coordinates,
   // If worldCoordinates=true, it returns keypoints in WORLD coordinates.
-  PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = false) const;
+  // NOTE: The requested keypoints are lazy-transformed: if the requested WORLD
+  // keypoints are not directly available in case they have not already been
+  // internally transformed, this will be done on first call of this method. 
+  PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = false);
 
   // Get current frame
   PointCloud::Ptr GetOutputFrame();
@@ -705,6 +708,11 @@ private:
   // ---------------------------------------------------------------------------
   //   Transformation helpers
   // ---------------------------------------------------------------------------
+
+  // Rigidly transform a pointcloud in a multi-threaded way.
+  PointCloud::Ptr TransformPointCloud(PointCloud::ConstPtr cloud,
+                                      const Eigen::Isometry3d& tf,
+                                      const std::string& frameId = "") const;
 
   // Aggregate a set of frames from LIDAR to BASE or WORLD coordinates.
   // If worldCoordinates=false, it returns points in BASE coordinates (no undistortion).
