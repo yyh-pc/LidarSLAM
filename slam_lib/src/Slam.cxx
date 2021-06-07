@@ -740,7 +740,17 @@ void Slam::ExtractKeypoints()
 
   // Merge all keypoints extracted from different frames together
   for (auto k : KeypointTypes)
-    this->CurrentRawKeypoints[k] = this->AggregateFrames(keypoints[k], false);
+  {
+    if (this->UseKeypoints[k])
+      this->CurrentRawKeypoints[k] = this->AggregateFrames(keypoints[k], false);
+    else
+    {
+      this->CurrentRawKeypoints[k].reset(new PointCloud);
+      this->CurrentRawKeypoints[k]->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
+                                                                   this->BaseFrameId,
+                                                                   this->NbrFrameProcessed);
+    }
+  }
 
   if (this->Verbosity >= 2)
   {
