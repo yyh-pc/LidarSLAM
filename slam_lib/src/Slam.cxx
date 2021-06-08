@@ -1441,38 +1441,47 @@ void Slam::CheckMotionLimits()
   if (this->NbrFrameProcessed == 0)
     return;
 
-  auto thresholding = [](const Eigen::Vector6d& vec, const Eigen::Vector4f& thresholds)
-  {
-    return vec.head(3).squaredNorm() < std::pow(thresholds[0], 2)
-           && std::abs(vec[3]) < Utils::Deg2Rad(thresholds[1])
-           && std::abs(vec[4]) < Utils::Deg2Rad(thresholds[2])
-           && std::abs(vec[5]) < Utils::Deg2Rad(thresholds[3]);
-  };
+  // Compute angular part
+  // NOTE : It is not possible to detect an angular acceleration or velocity greater than PI
+  // Rotation angle in [0, 2pi]
+  float angle = Eigen::AngleAxisd(this->Trelative.linear()).angle();
+  // Rotation angle in [0, pi]
+  if (angle > M_PI)
+    angle = 2 * M_PI - angle;
+  angle = Utils::Rad2Deg(angle);
+  // Compute linear part
+  float distance = this->Trelative.translation().norm();
 
+  // Compute time spent
   float deltaTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp) - this->LogTrajectory.back().time;
-  Eigen::Isometry3d TrelativeBase = this->Tworld.inverse() * this->PreviousTworld;
-  Eigen::Vector6d velocity = Utils::IsometryToXYZRPY(TrelativeBase) / deltaTime;
-  PRINT_VERBOSE(3, "Velocity = " << velocity.head(3).norm()     << " m/s, " 
-                                 << Utils::Rad2Deg(velocity[1]) << " °/s, "
-                                 << Utils::Rad2Deg(velocity[2]) << " °/s, " 
-                                 << Utils::Rad2Deg(velocity[3]) << " °/s");
 
-  this->ComplyLimitations = thresholding(velocity, this->VelocityThresholds);
-  if (!this->ComplyLimitations)
-    return;
+  // Compute velocity
+  Eigen::Array2f velocity = {distance / deltaTime, angle / deltaTime};
+  SET_COUT_FIXED_PRECISION(3);
+  // Print local velocity
+  PRINT_VERBOSE(3, "Velocity     = " << velocity[0] << " m/s,   "
+                                     << velocity[1] << " °/s")
+  RESET_COUT_FIXED_PRECISION;
 
   if (this->NbrFrameProcessed >= 2)
   {
-    Eigen::Vector6d acceleration = (velocity - this->PreviousVelocity) / deltaTime;
-    PRINT_VERBOSE(3, "Acceleration = " << acceleration.head(3).norm()     << " m/s2, " 
-                                       << Utils::Rad2Deg(acceleration[1]) << " °/s2, "
-                                       << Utils::Rad2Deg(acceleration[2]) << " °/s2, " 
-                                       << Utils::Rad2Deg(acceleration[3]) << " °/s2");
+    // Compute local acceleration in BASE
+    Eigen::Array2f acceleration = (velocity - this->PreviousVelocity) / deltaTime;
+    // Print local acceleration
+    SET_COUT_FIXED_PRECISION(3);
+    PRINT_VERBOSE(3, "Acceleration = " << acceleration[0] << " m/s2,   "
+                                       << acceleration[1] << " °/s2")
+    RESET_COUT_FIXED_PRECISION;
 
-    this->ComplyLimitations = thresholding(acceleration, this->AccelerationThresholds);
-    if (!this->ComplyLimitations)
-      return;
+    // Check velocity compliance
+    bool complyVelocityLimits = (velocity < this->VelocityLimits).all();
+    // Check acceleration compliance
+    bool complyAccelerationLimits = (acceleration.abs() < this->AccelerationLimits).all();
+
+    // Set ComplyMotionLimits
+    this->ComplyMotionLimits = complyVelocityLimits && complyAccelerationLimits;
   }
+
   this->PreviousVelocity = velocity;
 }
 

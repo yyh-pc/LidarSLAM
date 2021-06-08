@@ -1052,14 +1052,17 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Velocity constraints"
-          command="SetVelocityThresholds"
-          default_values="1e6 1e6 1e6 1e6"
-          number_of_elements="4"
+          name="Velocity limits"
+          command="SetVelocityLimits"
+          default_values="1e6 1e6"
+          number_of_elements="2"
           panel_visibility="advanced">
         <Documentation>
-          Velocity threshold to evaluate and discard pose.
-          [linear_vel (m/s), roll_vel (°/s), pitch_vel (°/s), yaw_vel (°/s)]
+          Velocity thresholds to evaluate and discard pose.
+
+          translation speed: m/s
+
+          rotation speed: °/s
         </Documentation>
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
@@ -1067,14 +1070,17 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Acceleration constraints"
-          command="SetAccelerationThresholds"
-          default_values="1e3 1e3 1e3 1e3"
-          number_of_elements="4"
+          name="Acceleration limits"
+          command="SetAccelerationLimits"
+          default_values="1e3 1e3"
+          number_of_elements="2"
           panel_visibility="advanced">
         <Documentation>
           Acceleration threshold to evaluate and discard pose.
-          [linear_acc (m/s2), roll_acc (°/s2), pitch_acc (°/s2), yaw_acc (°/s2)]
+
+          translation acceleration: m/s^2
+
+          rotation acceleration: °/s^2
         </Documentation>
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
@@ -1083,8 +1089,8 @@
 
       <PropertyGroup label="Confidence estimator parameters">
         <Property name="Overlap sampling leaf size" />
-        <Property name="Velocity constraints" />
-        <Property name="Acceleration constraints" />
+        <Property name="Velocity limits" />
+        <Property name="Acceleration limits" />
       </PropertyGroup>
 
     </SourceProxy>

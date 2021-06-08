@@ -689,11 +689,11 @@ void LidarSlamNode::SetSlamParameters()
 
   // Motion limitations (hard constraints to detect failure)
   std::vector<float> acc;
-  if (this->PrivNh.getParam("slam/confidence/motion_constraints/acceleration", acc) && acc.size() == 4)
-    this->LidarSlam.SetAccelerationThresholds(Eigen::Map<const Eigen::Vector4f>(acc.data()));
+  if (this->PrivNh.getParam("slam/confidence/motion_limits/acceleration", acc) && acc.size() == 2)
+    this->LidarSlam.SetAccelerationLimits(Eigen::Map<const Eigen::Array2f>(acc.data()));
   std::vector<float> vel;
-  if (this->PrivNh.getParam("slam/confidence/motion_constraints/velocity", vel) && vel.size() == 4)
-    this->LidarSlam.SetVelocityThresholds(Eigen::Map<const Eigen::Vector4f>(vel.data()));
+  if (this->PrivNh.getParam("slam/confidence/motion_limits/velocity", vel) && vel.size() == 2)
+    this->LidarSlam.SetVelocityLimits(Eigen::Map<const Eigen::Array2f>(vel.data()));
 
   // Rolling grids
   double size;

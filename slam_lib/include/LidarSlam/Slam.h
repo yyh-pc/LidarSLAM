@@ -375,11 +375,11 @@ public:
   GetMacro(TotalMatchedKeypoints, int)
 
   // Motion constraints
-  GetMacro(AccelerationThresholds, Eigen::Vector4f)
-  SetMacro(AccelerationThresholds, const Eigen::Vector4f&)
+  GetMacro(AccelerationLimits, Eigen::Array2f)
+  SetMacro(AccelerationLimits, const Eigen::Array2f&)
 
-  GetMacro(VelocityThresholds, Eigen::Vector4f)
-  SetMacro(VelocityThresholds, const Eigen::Vector4f&)
+  GetMacro(VelocityLimits, Eigen::Array2f)
+  SetMacro(VelocityLimits, const Eigen::Array2f&)
 
   GetMacro(ComplyMotionLimits, bool)
 
@@ -458,8 +458,6 @@ private:
   // corresponding to the timestamp in the header of input Lidar scan.
   Eigen::Isometry3d Tworld;
   Eigen::Isometry3d PreviousTworld;
-  // Previous computed velocity (for acceleration computation)
-  Eigen::Vector6d PreviousVelocity;
 
   // [s] SLAM computation duration of last processed frame (~Tworld delay)
   // used to compute latency compensated pose
@@ -645,6 +643,9 @@ private:
   // Check motion limitations compliance
   bool ComplyMotionLimits = true;
 
+  // Previous computed velocity (for acceleration computation)
+  Eigen::Array2f PreviousVelocity;
+
   // Parameters
 
   // Boolean to choose whether to compute the estimated overlap or not
@@ -660,9 +661,9 @@ private:
 
   // Motion limitations
   // Local velocity thresholds in BASE
-  Eigen::Vector4f VelocityThresholds     = {FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX};
+  Eigen::Array2f VelocityLimits     = {FLT_MAX, FLT_MAX};
   // Local acceleration thresholds in BASE
-  Eigen::Vector4f AccelerationThresholds = {FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX};
+  Eigen::Array2f AccelerationLimits = {FLT_MAX, FLT_MAX};
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods

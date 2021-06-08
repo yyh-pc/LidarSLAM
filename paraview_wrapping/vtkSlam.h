@@ -252,8 +252,8 @@ public:
   vtkCustomSetMacro(OverlapSamplingLeafSize, double)
 
   // Motion constraints
-  virtual void SetAccelerationThresholds(float linear_acc, float roll_acc, float pitch_acc, float yaw_acc);
-  virtual void SetVelocityThresholds(float linear_vel, float roll_vel, float pitch_vel, float yaw_vel);
+  virtual void SetAccelerationLimits(float linearAcc, float angularAcc);
+  virtual void SetVelocityLimits(float linearVel, float angularVel);
 
 protected:
   vtkSlam();
