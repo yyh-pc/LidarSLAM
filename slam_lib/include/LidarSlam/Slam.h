@@ -158,10 +158,14 @@ public:
   // Get extracted and optionally undistorted keypoints from current frame.
   // If worldCoordinates=false, it returns keypoints in BASE coordinates,
   // If worldCoordinates=true, it returns keypoints in WORLD coordinates.
-  PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = false) const;
+  // NOTE: The requested keypoints are lazy-transformed: if the requested WORLD
+  // keypoints are not directly available in case they have not already been
+  // internally transformed, this will be done on first call of this method. 
+  PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = false);
 
-  // Get current frame
-  PointCloud::Ptr GetOutputFrame();
+  // Get current registered (and optionally undistorted) input points.
+  // All frames from all devices are aggregated.
+  PointCloud::Ptr GetRegisteredFrame();
 
   // Get current number of frames already processed
   GetMacro(NbrFrameProcessed, unsigned int)
@@ -500,8 +504,11 @@ private:
   //   Keypoints from current frame
   // ---------------------------------------------------------------------------
 
-  // Current frames (all input frames)
+  // Current frames (all raw input frames)
   std::vector<PointCloud::Ptr> CurrentFrames;
+
+  // Current aggregated points from all input frames, in WORLD coordinates (with undistortion if enabled)
+  PointCloud::Ptr RegisteredFrame;
 
   // Raw extracted keypoints, in BASE coordinates (no undistortion)
   std::map<Keypoint, PointCloud::Ptr> CurrentRawKeypoints;
@@ -725,6 +732,24 @@ private:
 
   // Estimate the overlap of the current scan onto the keypoint maps
   void EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees);
+
+  // ---------------------------------------------------------------------------
+  //   Transformation helpers
+  // ---------------------------------------------------------------------------
+
+  // Rigidly transform a pointcloud in a multi-threaded way.
+  PointCloud::Ptr TransformPointCloud(PointCloud::ConstPtr cloud,
+                                      const Eigen::Isometry3d& tf,
+                                      const std::string& frameId = "") const;
+
+  // Aggregate a set of frames from LIDAR to BASE or WORLD coordinates.
+  // If worldCoordinates=false, it returns points in BASE coordinates (no undistortion).
+  // If worldCoordinates=true, it returns points in WORLD coordinates (optionally undistorted).
+  // The LIDAR to BASE offsets specific to each sensor are properly added.
+  // The output aggregated points timestamps are corrected to be relative to the 1st frame timestamp.
+  // NOTE: If transforming to WORLD coordinates, be sure that Tworld/WithinFrameMotion have been updated
+  //       (updated during the Localization step).
+  PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates) const;
 };
 
 } // end of LidarSlam namespace

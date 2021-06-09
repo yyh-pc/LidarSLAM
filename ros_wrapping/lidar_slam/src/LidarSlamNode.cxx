@@ -569,8 +569,8 @@ void LidarSlamNode::PublishOutput()
   publishPointCloud(PLANE_KEYPOINTS, this->LidarSlam.GetKeypoints(LidarSlam::PLANE));
   publishPointCloud(BLOB_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::BLOB));
 
-  // debug cloud
-  publishPointCloud(SLAM_REGISTERED_POINTS, this->LidarSlam.GetOutputFrame());
+  // Registered aggregated (and optionally undistorted) input scans points
+  publishPointCloud(SLAM_REGISTERED_POINTS, this->LidarSlam.GetRegisteredFrame());
 
   // Overlap estimation
   if (this->Publish[CONFIDENCE])

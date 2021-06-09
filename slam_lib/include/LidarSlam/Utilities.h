@@ -114,6 +114,7 @@ std::vector<size_t> SortIdx(const std::vector<T>& v, bool ascending=true)
  * @brief Convert first char to upper case
  */
 std::string Capitalize(std::string st);
+
 //------------------------------------------------------------------------------
 /*!
  * @brief Make the string plural (add 's')
