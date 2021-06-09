@@ -1051,8 +1051,46 @@
         </Hints>
       </DoubleVectorProperty>
 
+      <DoubleVectorProperty
+          name="Velocity limits"
+          command="SetVelocityLimits"
+          default_values="1e6 1e6"
+          number_of_elements="2"
+          panel_visibility="advanced">
+        <Documentation>
+          Velocity thresholds to evaluate and discard pose.
+
+          translation speed: m/s
+
+          rotation speed: °/s
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
+          name="Acceleration limits"
+          command="SetAccelerationLimits"
+          default_values="1e3 1e3"
+          number_of_elements="2"
+          panel_visibility="advanced">
+        <Documentation>
+          Acceleration threshold to evaluate and discard pose.
+
+          translation acceleration: m/s^2
+
+          rotation acceleration: °/s^2
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
       <PropertyGroup label="Confidence estimator parameters">
         <Property name="Overlap sampling leaf size" />
+        <Property name="Velocity limits" />
+        <Property name="Acceleration limits" />
       </PropertyGroup>
 
     </SourceProxy>

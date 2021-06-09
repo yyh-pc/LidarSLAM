@@ -21,3 +21,7 @@ float32 overlap
 # Good values are greater than 200
 # Bad values are lower than 50
 int16 nb_matches
+
+# This value indicates if the estimated pose 
+# respects the specified physical constraints on velocity and acceleration
+bool comply_motion_limits

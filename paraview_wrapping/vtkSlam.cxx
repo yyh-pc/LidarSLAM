@@ -793,3 +793,17 @@ void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
   this->SlamAlgo->SetVoxelGridLeafSize(k, s);
   this->ParametersModificationTime.Modified();
 }
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetAccelerationLimits(float linearAcc, float angularAcc)
+{
+  this->SlamAlgo->SetAccelerationLimits({linearAcc, angularAcc});
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetVelocityLimits(float linearVel, float angularVel)
+{
+  this->SlamAlgo->SetVelocityLimits({linearVel, angularVel});
+  this->ParametersModificationTime.Modified();
+}

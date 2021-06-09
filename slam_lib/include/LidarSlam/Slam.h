@@ -374,6 +374,15 @@ public:
   // Matches
   GetMacro(TotalMatchedKeypoints, int)
 
+  // Motion constraints
+  GetMacro(AccelerationLimits, Eigen::Array2f)
+  SetMacro(AccelerationLimits, const Eigen::Array2f&)
+
+  GetMacro(VelocityLimits, Eigen::Array2f)
+  SetMacro(VelocityLimits, const Eigen::Array2f&)
+
+  GetMacro(ComplyMotionLimits, bool)
+
 private:
 
   // ---------------------------------------------------------------------------
@@ -631,6 +640,12 @@ private:
   // Number of matches for processed frame
   unsigned int TotalMatchedKeypoints = 0;
 
+  // Check motion limitations compliance
+  bool ComplyMotionLimits = true;
+
+  // Previous computed velocity (for acceleration computation)
+  Eigen::Array2f PreviousVelocity;
+
   // Parameters
 
   // Boolean to choose whether to compute the estimated overlap or not
@@ -643,6 +658,12 @@ private:
   // of the overlap estimation may be impacted
   // Notably, the continuity of the estimation could be slighlty corrupted
   float OverlapSamplingLeafSize = 0.f;
+
+  // Motion limitations
+  // Local velocity thresholds in BASE
+  Eigen::Array2f VelocityLimits     = {FLT_MAX, FLT_MAX};
+  // Local acceleration thresholds in BASE
+  Eigen::Array2f AccelerationLimits = {FLT_MAX, FLT_MAX};
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods
@@ -671,6 +692,9 @@ private:
   // Transform current keypoints to WORLD coordinates,
   // and add points to the maps if we are dealing with a new keyframe.
   void UpdateMapsUsingTworld();
+
+  // Test if the pose complies with motion limitations
+  void CheckMotionLimits();
 
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState(double time, const std::string& frameId);

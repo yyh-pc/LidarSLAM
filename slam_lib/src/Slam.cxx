@@ -265,6 +265,10 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Maps update"));
   }
 
+  this->CheckMotionLimits();
+  if (!this->ComplyMotionLimits)
+    PRINT_WARNING("The pose does not comply with the motion limitations. Lidar SLAM may have failed.")
+
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, Utils::Timer::Init("Logging"));
   this->LogCurrentFrameState(Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp), this->WorldFrameId);
@@ -600,9 +604,11 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation() const
     map[name] = this->LocalizationMatchingResults.at(k).NbMatches();
   }
 
-  map["Localization: position error"]    = this->LocalizationUncertainty.PositionError;
-  map["Localization: orientation error"] = this->LocalizationUncertainty.OrientationError;
-  map["Confidence: overlap"]             = this->OverlapEstimation;
+  map["Localization: position error"]      = this->LocalizationUncertainty.PositionError;
+  map["Localization: orientation error"]   = this->LocalizationUncertainty.OrientationError;
+  map["Confidence: overlap"]               = this->OverlapEstimation;
+  map["Confidence: comply motion limits"]  = this->ComplyMotionLimits;
+
   return map;
 }
 
@@ -1426,6 +1432,57 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
   // Compute LCP like estimator (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
   this->OverlapEstimation = Confidence::LCPEstimator(transformedCloud, mapKdTrees, leafSizes, this->NbThreads);
   PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << transformedCloud->size() << " points.");
+}
+
+//-----------------------------------------------------------------------------
+void Slam::CheckMotionLimits()
+{
+  this->ComplyMotionLimits = true;
+  if (this->NbrFrameProcessed == 0)
+    return;
+
+  // Compute angular part
+  // NOTE : It is not possible to detect an angular acceleration or velocity greater than PI
+  // Rotation angle in [0, 2pi]
+  float angle = Eigen::AngleAxisd(this->Trelative.linear()).angle();
+  // Rotation angle in [0, pi]
+  if (angle > M_PI)
+    angle = 2 * M_PI - angle;
+  angle = Utils::Rad2Deg(angle);
+  // Compute linear part
+  float distance = this->Trelative.translation().norm();
+
+  // Compute time spent
+  float deltaTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp) - this->LogTrajectory.back().time;
+
+  // Compute velocity
+  Eigen::Array2f velocity = {distance / deltaTime, angle / deltaTime};
+  SET_COUT_FIXED_PRECISION(3);
+  // Print local velocity
+  PRINT_VERBOSE(3, "Velocity     = " << velocity[0] << " m/s,   "
+                                     << velocity[1] << " °/s")
+  RESET_COUT_FIXED_PRECISION;
+
+  if (this->NbrFrameProcessed >= 2)
+  {
+    // Compute local acceleration in BASE
+    Eigen::Array2f acceleration = (velocity - this->PreviousVelocity) / deltaTime;
+    // Print local acceleration
+    SET_COUT_FIXED_PRECISION(3);
+    PRINT_VERBOSE(3, "Acceleration = " << acceleration[0] << " m/s2,   "
+                                       << acceleration[1] << " °/s2")
+    RESET_COUT_FIXED_PRECISION;
+
+    // Check velocity compliance
+    bool complyVelocityLimits = (velocity < this->VelocityLimits).all();
+    // Check acceleration compliance
+    bool complyAccelerationLimits = (acceleration.abs() < this->AccelerationLimits).all();
+
+    // Set ComplyMotionLimits
+    this->ComplyMotionLimits = complyVelocityLimits && complyAccelerationLimits;
+  }
+
+  this->PreviousVelocity = velocity;
 }
 
 //==============================================================================

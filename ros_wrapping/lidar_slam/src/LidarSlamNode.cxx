@@ -584,6 +584,7 @@ void LidarSlamNode::PublishOutput()
     auto covar = this->LidarSlam.GetTransformCovariance();
     std::copy(covar.begin(), covar.end(), confidenceMsg.covariance.begin());
     confidenceMsg.nb_matches = this->LidarSlam.GetTotalMatchedKeypoints();
+    confidenceMsg.comply_motion_limits = this->LidarSlam.GetComplyMotionLimits();
     this->Publishers[CONFIDENCE].publish(confidenceMsg);
   }
 }
@@ -685,6 +686,14 @@ void LidarSlamNode::SetSlamParameters()
   // Keyframes
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
   SetSlamParam(double, "slam/keyframes/angle_threshold", KfAngleThreshold)
+
+  // Motion limitations (hard constraints to detect failure)
+  std::vector<float> acc;
+  if (this->PrivNh.getParam("slam/confidence/motion_limits/acceleration", acc) && acc.size() == 2)
+    this->LidarSlam.SetAccelerationLimits(Eigen::Map<const Eigen::Array2f>(acc.data()));
+  std::vector<float> vel;
+  if (this->PrivNh.getParam("slam/confidence/motion_limits/velocity", vel) && vel.size() == 2)
+    this->LidarSlam.SetVelocityLimits(Eigen::Map<const Eigen::Array2f>(vel.data()));
 
   // Rolling grids
   double size;
