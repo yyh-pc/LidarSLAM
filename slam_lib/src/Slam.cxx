@@ -74,6 +74,7 @@
 // LOCAL
 #include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
+#include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/ConfidenceEstimators.h"
 
 #ifdef USE_G2O
@@ -94,6 +95,8 @@
 
 namespace LidarSlam
 {
+
+using KDTree = KDTreePCLAdaptor<Slam::Point>;
 
 namespace Utils
 {
@@ -967,12 +970,6 @@ void Slam::Localization()
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
 
-  std::map<Keypoint, KDTree> kdtrees;
-  // Initialization of std map elements to parallelize 
-  // their construction with OMP avoiding concurrency issues
-  for (auto k : KeypointTypes)
-    kdtrees[k] = KDTree();
-
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
   int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
@@ -988,9 +985,8 @@ void Slam::Localization()
       Eigen::Vector4f minPoint, maxPoint;
       pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
 
-      // Extract all points in maps lying in this bounding box
-      PointCloud::Ptr localSubMap = this->LocalMaps[k]->Get(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
-      kdtrees[k].Reset(localSubMap);
+      // Build submap of all points lying in this bounding box
+      this->LocalMaps[k]->BuildSubMapKdTree(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
     }
   }
 
@@ -998,7 +994,8 @@ void Slam::Localization()
   {
     std::cout << "Keypoints extracted from map : ";
     for (auto k : KeypointTypes)
-      std::cout << kdtrees[k].GetInputCloud()->size() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+      std::cout << this->LocalMaps[k]->GetSubMapKdTree().GetInputCloud()->size()
+                << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
     std::cout << std::endl;
   }
 
@@ -1047,7 +1044,7 @@ void Slam::Localization()
 
     // Loop over keypoints to build the point to line residuals
     for (auto k : KeypointTypes)
-      this->LocalizationMatchingResults[k] = matcher.BuildMatchResiduals(this->CurrentUndistortedKeypoints[k], kdtrees[k], k);
+      this->LocalizationMatchingResults[k] = matcher.BuildMatchResiduals(this->CurrentUndistortedKeypoints[k], this->LocalMaps[k]->GetSubMapKdTree(), k);
 
     // Count matches and skip this frame
     // if there is too few geometric keypoints matched
@@ -1118,7 +1115,7 @@ void Slam::Localization()
   if (this->OverlapEnable)
   {
     IF_VERBOSE(3, Utils::Timer::Init("Localization : Overlap estimation"));
-    this->EstimateOverlap(kdtrees);
+    this->EstimateOverlap();
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : Overlap estimation"));
   }
 
@@ -1324,7 +1321,7 @@ void Slam::RefineUndistortion()
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
+void Slam::EstimateOverlap()
 {
   // Aggregate all input points into WORLD coordinates
   PointCloud::Ptr aggregatedPoints = this->GetRegisteredFrame();
@@ -1340,15 +1337,17 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
     uniFilter.filter(*sampledCloud);
   }
 
-  std::map<Keypoint, float> leafSizes;
+  // Keep only the maps to use
+  std::map<Keypoint, std::shared_ptr<RollingGrid>> mapsToUse;
   for (auto k : KeypointTypes)
   {
-    if (this->UseKeypoints[k])
-      leafSizes[k] = this->LocalMaps[k]->GetLeafSize();
+    if (this->UseKeypoints[k] && !this->LocalMaps[k]->GetSubMapKdTree().GetInputCloud()->empty())
+      mapsToUse[k] = this->LocalMaps[k];
   }
 
-  // Compute LCP like estimator (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
-  this->OverlapEstimation = Confidence::LCPEstimator(sampledCloud, mapKdTrees, leafSizes, this->NbThreads);
+  // Compute LCP like estimator
+  // (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
+  this->OverlapEstimation = Confidence::LCPEstimator(sampledCloud, mapsToUse, this->NbThreads);
   PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << sampledCloud->size() << " points.");
 }
 

@@ -78,7 +78,6 @@
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/Enums.h"
 #include "LidarSlam/SpinningSensorKeypointExtractor.h"
-#include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/KeypointsMatcher.h"
 #include "LidarSlam/LocalOptimizer.h"
 #include "LidarSlam/MotionModel.h"
@@ -106,7 +105,6 @@ public:
   // Usefull types
   using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
-  using KDTree = KDTreePCLAdaptor<Point>;
   using KeypointExtractorPtr = std::shared_ptr<SpinningSensorKeypointExtractor>;
 
   // Initialization
@@ -730,8 +728,8 @@ private:
   //   Confidence estimator helpers
   // ---------------------------------------------------------------------------
 
-  // Estimate the overlap of the current scan onto the keypoint maps
-  void EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees);
+  // Estimate the overlap of the current scan onto the keypoints submaps
+  void EstimateOverlap();
 
   // ---------------------------------------------------------------------------
   //   Transformation helpers

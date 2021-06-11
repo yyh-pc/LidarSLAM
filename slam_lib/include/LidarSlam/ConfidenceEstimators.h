@@ -19,7 +19,7 @@
 #pragma once
 
 // LOCAL
-#include "LidarSlam/KDTreePCLAdaptor.h"
+#include "LidarSlam/RollingGrid.h"
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/Enums.h"
 
@@ -36,13 +36,13 @@ using Point = LidarPoint;
 using PointCloud = pcl::PointCloud<Point>;
 using KDTree = KDTreePCLAdaptor<Point>;
 
-// Compute the LCP estimator (overlap estimator) for the registration of the points of cloud
-// onto some target stored in kdTrees relatively to the leafSizes of the targetted point cloud
-// It corresponds to the number of points from cloud which have a neighbor in the target
-// relatively to the leafSizes thresholds
+// Compute the LCP estimator (overlap estimator) for the registration of the
+// points of cloud onto some prebuilt submaps of maps.
+// It corresponds to the number of points from cloud which have a neighbor in
+// the submaps relatively to the resolution of the maps.
 // (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
 // In this LCP extension, we also check the distance between nearest neighbors to make a smooth estimator
-float LCPEstimator(PointCloud::ConstPtr cloud, const std::map<Keypoint, KDTree>& kdTrees, const std::map<Keypoint, float>& leafSizes, int nbThreads = 1);
+float LCPEstimator(PointCloud::ConstPtr cloud, const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps, int nbThreads = 1);
 
 } // enf of Confidence namespace
 
