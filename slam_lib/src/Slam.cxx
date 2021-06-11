@@ -261,6 +261,13 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->Localization();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization"));
 
+  // Compute and check pose confidence estimators
+  IF_VERBOSE(3, Utils::Timer::Init("Confidence estimators computation"));
+  if (this->OverlapEnable)
+    this->EstimateOverlap();
+  this->CheckMotionLimits();
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Confidence estimators computation"));
+
   // Update keypoints maps : add current keypoints to map using Tworld
   if (this->UpdateMap)
   {
@@ -268,10 +275,6 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     this->UpdateMapsUsingTworld();
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Maps update"));
   }
-
-  this->CheckMotionLimits();
-  if (!this->ComplyMotionLimits)
-    PRINT_WARNING("The pose does not comply with the motion limitations. Lidar SLAM may have failed.")
 
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, Utils::Timer::Init("Logging"));
@@ -1112,13 +1115,6 @@ void Slam::Localization()
     }
   }
 
-  if (this->OverlapEnable)
-  {
-    IF_VERBOSE(3, Utils::Timer::Init("Localization : Overlap estimation"));
-    this->EstimateOverlap();
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : Overlap estimation"));
-  }
-
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
 
   // Optionally print localization optimization summary
@@ -1351,6 +1347,60 @@ void Slam::EstimateOverlap()
   PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << sampledCloud->size() << " points.");
 }
 
+//-----------------------------------------------------------------------------
+void Slam::CheckMotionLimits()
+{
+  this->ComplyMotionLimits = true;
+  if (this->NbrFrameProcessed == 0)
+    return;
+
+  // Compute angular part
+  // NOTE : It is not possible to detect an angular acceleration or velocity greater than PI
+  // Rotation angle in [0, 2pi]
+  float angle = Eigen::AngleAxisd(this->Trelative.linear()).angle();
+  // Rotation angle in [0, pi]
+  if (angle > M_PI)
+    angle = 2 * M_PI - angle;
+  angle = Utils::Rad2Deg(angle);
+  // Compute linear part
+  float distance = this->Trelative.translation().norm();
+
+  // Compute time spent
+  float deltaTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp) - this->LogTrajectory.back().time;
+
+  // Compute velocity
+  Eigen::Array2f velocity = {distance / deltaTime, angle / deltaTime};
+  SET_COUT_FIXED_PRECISION(3);
+  // Print local velocity
+  PRINT_VERBOSE(3, "Velocity     = " << std::setw(6) << velocity[0] << " m/s,  "
+                                     << std::setw(6) << velocity[1] << " °/s")
+  RESET_COUT_FIXED_PRECISION;
+
+  if (this->NbrFrameProcessed >= 2)
+  {
+    // Compute local acceleration in BASE
+    Eigen::Array2f acceleration = (velocity - this->PreviousVelocity) / deltaTime;
+    // Print local acceleration
+    SET_COUT_FIXED_PRECISION(3);
+    PRINT_VERBOSE(3, "Acceleration = " << std::setw(6) << acceleration[0] << " m/s2, "
+                                       << std::setw(6) << acceleration[1] << " °/s2")
+    RESET_COUT_FIXED_PRECISION;
+
+    // Check velocity compliance
+    bool complyVelocityLimits = (velocity < this->VelocityLimits).all();
+    // Check acceleration compliance
+    bool complyAccelerationLimits = (acceleration.abs() < this->AccelerationLimits).all();
+
+    // Set ComplyMotionLimits
+    this->ComplyMotionLimits = complyVelocityLimits && complyAccelerationLimits;
+  }
+
+  this->PreviousVelocity = velocity;
+
+  if (!this->ComplyMotionLimits)
+    PRINT_WARNING("The pose does not comply with the motion limitations. Lidar SLAM may have failed.")
+}
+
 //==============================================================================
 //   Transformation helpers
 //==============================================================================
@@ -1443,57 +1493,6 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
   }
 
   return aggregatedFrames;
-}
-
-//-----------------------------------------------------------------------------
-void Slam::CheckMotionLimits()
-{
-  this->ComplyMotionLimits = true;
-  if (this->NbrFrameProcessed == 0)
-    return;
-
-  // Compute angular part
-  // NOTE : It is not possible to detect an angular acceleration or velocity greater than PI
-  // Rotation angle in [0, 2pi]
-  float angle = Eigen::AngleAxisd(this->Trelative.linear()).angle();
-  // Rotation angle in [0, pi]
-  if (angle > M_PI)
-    angle = 2 * M_PI - angle;
-  angle = Utils::Rad2Deg(angle);
-  // Compute linear part
-  float distance = this->Trelative.translation().norm();
-
-  // Compute time spent
-  float deltaTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp) - this->LogTrajectory.back().time;
-
-  // Compute velocity
-  Eigen::Array2f velocity = {distance / deltaTime, angle / deltaTime};
-  SET_COUT_FIXED_PRECISION(3);
-  // Print local velocity
-  PRINT_VERBOSE(3, "Velocity     = " << velocity[0] << " m/s,   "
-                                     << velocity[1] << " °/s")
-  RESET_COUT_FIXED_PRECISION;
-
-  if (this->NbrFrameProcessed >= 2)
-  {
-    // Compute local acceleration in BASE
-    Eigen::Array2f acceleration = (velocity - this->PreviousVelocity) / deltaTime;
-    // Print local acceleration
-    SET_COUT_FIXED_PRECISION(3);
-    PRINT_VERBOSE(3, "Acceleration = " << acceleration[0] << " m/s2,   "
-                                       << acceleration[1] << " °/s2")
-    RESET_COUT_FIXED_PRECISION;
-
-    // Check velocity compliance
-    bool complyVelocityLimits = (velocity < this->VelocityLimits).all();
-    // Check acceleration compliance
-    bool complyAccelerationLimits = (acceleration.abs() < this->AccelerationLimits).all();
-
-    // Set ComplyMotionLimits
-    this->ComplyMotionLimits = complyVelocityLimits && complyAccelerationLimits;
-  }
-
-  this->PreviousVelocity = velocity;
 }
 
 //==============================================================================

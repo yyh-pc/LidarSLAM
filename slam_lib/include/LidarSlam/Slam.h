@@ -698,9 +698,6 @@ private:
   // and add points to the maps if we are dealing with a new keyframe.
   void UpdateMapsUsingTworld();
 
-  // Test if the pose complies with motion limitations
-  void CheckMotionLimits();
-
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState(double time, const std::string& frameId);
 
@@ -730,6 +727,9 @@ private:
 
   // Estimate the overlap of the current scan onto the keypoints submaps
   void EstimateOverlap();
+
+  // Test if the pose complies with motion limitations
+  void CheckMotionLimits();
 
   // ---------------------------------------------------------------------------
   //   Transformation helpers
