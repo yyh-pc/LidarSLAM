@@ -64,11 +64,13 @@ public:
 
   //! Set grid size (number of voxels in each direction)
   //! NOTE: this may remove some points from the grid if size is decreased
+  //! The sub-map KD-tree is cleared during the process.
   void SetGridSize(int size);
   GetMacro(GridSize, int)
 
   //! Set voxel resolution (resolution of each voxel, in meters)
   //! NOTE: this may remove some points from the grid if resolution is decreased
+  //! The sub-map KD-tree is cleared during the process.
   void SetVoxelResolution(double resolution);
   GetMacro(VoxelResolution, double)
 
@@ -90,16 +92,22 @@ public:
 
   //! Add some points to the grid
   //! If roll is true, the map is rolled first so that all new points to add can fit in rolled map.
+  //! If points are added, the sub-map KD-tree is cleared.
   void Add(const PointCloud::Ptr& pointcloud, bool roll = true);
 
   //============================================================================
   //   Sub map use
   //============================================================================
 
-  //! Build a submap from all points in map lying in given bounding box.
-  //! This will build an internal KD-tree of the extracted submap, that can be
-  //! used for fast NN queries in this submap.
+  //! Build a KD-tree from all points in the map, or from all points lying in
+  //! the given bounding box.
+  //! This KD-tree can then be used for fast NN queries in this submap.
+  void BuildSubMapKdTree();
   void BuildSubMapKdTree(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
+
+  //! Check if the KD-tree built on top of the submap is valid or if it needs to be updated.
+  //! The KD-tree is cleared every time the map is modified.
+  bool IsSubMapKdTreeValid() const {return !this->KdTree.GetInputCloud()->empty(); };
 
   //! Get the KD-Tree of the submap for fast NN queries
   const KDTree& GetSubMapKdTree() const {return this->KdTree; };

@@ -979,17 +979,28 @@ void Slam::Localization()
   #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
+    // If the map has been updated, the KD-tree needs to be updated
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
-    if (this->UseKeypoints[k])
+    if (this->UseKeypoints[k] && !this->LocalMaps[k]->IsSubMapKdTreeValid())
     {
-      // Estimate current keypoints bounding box
-      PointCloud currWordKeypoints;
-      pcl::transformPointCloud(*this->CurrentUndistortedKeypoints[k], currWordKeypoints, this->Tworld.matrix());
-      Eigen::Vector4f minPoint, maxPoint;
-      pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
+      // If maps are fixed, we can build a single KD-tree of the entire map
+      // to avoid rebuilding it again
+      if (!this->UpdateMap)
+        this->LocalMaps[k]->BuildSubMapKdTree();
 
-      // Build submap of all points lying in this bounding box
-      this->LocalMaps[k]->BuildSubMapKdTree(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+      // Otherwise, we only extract the local sub maps to build a local and
+      // smaller KD-tree
+      else
+      {
+        // Estimate current keypoints bounding box
+        PointCloud currWordKeypoints;
+        pcl::transformPointCloud(*this->CurrentUndistortedKeypoints[k], currWordKeypoints, this->Tworld.matrix());
+        Eigen::Vector4f minPoint, maxPoint;
+        pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
+
+        // Build submap of all points lying in this bounding box
+        this->LocalMaps[k]->BuildSubMapKdTree(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+      }
     }
   }
 
@@ -1337,7 +1348,7 @@ void Slam::EstimateOverlap()
   std::map<Keypoint, std::shared_ptr<RollingGrid>> mapsToUse;
   for (auto k : KeypointTypes)
   {
-    if (this->UseKeypoints[k] && !this->LocalMaps[k]->GetSubMapKdTree().GetInputCloud()->empty())
+    if (this->UseKeypoints[k] && this->LocalMaps[k]->IsSubMapKdTreeValid())
       mapsToUse[k] = this->LocalMaps[k];
   }
 

@@ -190,6 +190,10 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
     }
   }
 
+  // Exit if no points need to be added
+  if (addedPoints.empty())
+    return;
+
   // Filter the modified voxels
   // All the points belonging to the same voxel will be approximated
   // (i.e., downsampled) with their centroid. The mean operator is applied to
@@ -207,11 +211,22 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
     // Update the voxel's number of points
     this->NbPoints += voxel->size() - voxelPrevSize;
   }
+
+  // Clear the deprecated KD-tree as the map has been updated
+  this->KdTree.Reset();
 }
 
 //==============================================================================
 //   Sub map use
 //==============================================================================
+
+//------------------------------------------------------------------------------
+void RollingGrid::BuildSubMapKdTree()
+{
+  // Get all points from all voxels
+  // Build the internal KD-Tree for fast NN queries in map
+  this->KdTree.Reset(this->Get());
+}
 
 //------------------------------------------------------------------------------
 void RollingGrid::BuildSubMapKdTree(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint)
