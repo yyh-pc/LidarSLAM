@@ -41,8 +41,14 @@ using KDTree = KDTreePCLAdaptor<Point>;
 // It corresponds to the number of points from cloud which have a neighbor in
 // the submaps relatively to the resolution of the maps.
 // (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
-// In this LCP extension, we also check the distance between nearest neighbors to make a smooth estimator
-float LCPEstimator(PointCloud::ConstPtr cloud, const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps, int nbThreads = 1);
+// In this LCP extension, we also check the distance between nearest neighbors
+// to make a smooth estimator.
+// To accelerate the process, the ratio of points (between 0 and 1) from the
+// input cloud to compute overlap on can be specified.
+float LCPEstimator(PointCloud::ConstPtr cloud,
+                   const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps,
+                   float subsamplingRatio = 1.,
+                   int nbThreads = 1);
 
 } // enf of Confidence namespace
 

@@ -248,8 +248,8 @@ public:
   //   Confidence estimator parameters
   // ---------------------------------------------------------------------------
 
-  vtkCustomGetMacro(OverlapSamplingLeafSize, double)
-  vtkCustomSetMacro(OverlapSamplingLeafSize, double)
+  vtkCustomGetMacro(OverlapSamplingRatio, double)
+  vtkCustomSetMacro(OverlapSamplingRatio, double)
 
   // Motion constraints
   virtual void SetAccelerationLimits(float linearAcc, float angularAcc);

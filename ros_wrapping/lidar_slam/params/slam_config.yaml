@@ -193,8 +193,7 @@ slam:
   confidence:
     overlap:
       enable: false              # Compute estimation of the overlap between the current scan and the keypoint maps.
-      sampling_leaf_size: 0.     # [m] Leaf size of the voxel grid to sample uniformly before evaluating overlap.
-                                 # If g.t. 0, the estimation step will be faster but the value will be lower (due to sampling grids effects).
+      sampling_ratio: 1.         # [0-1] Ratio of points from the input cloud to compute overlap on to save some time.
     motion_limits:               # Physical constraints on motion to check pose credibility
       acceleration: [.inf, .inf] # [linear_acc (m/s2), angular_acc (°/s2)] Acceleration limits
       velocity:     [.inf, .inf] # [linear_vel (m/s ), angular_vel (°/s )] Velocity limits

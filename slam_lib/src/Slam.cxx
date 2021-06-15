@@ -1328,21 +1328,16 @@ void Slam::RefineUndistortion()
 //==============================================================================
 
 //-----------------------------------------------------------------------------
+void Slam::SetOverlapSamplingRatio (float _arg)
+{
+  this->OverlapSamplingRatio = Utils::Clamp(_arg, 0.f, 1.f);
+}
+
+//-----------------------------------------------------------------------------
 void Slam::EstimateOverlap()
 {
   // Aggregate all input points into WORLD coordinates
   PointCloud::Ptr aggregatedPoints = this->GetRegisteredFrame();
-
-  // Uniform sampling cloud
-  PointCloud::Ptr sampledCloud = aggregatedPoints;
-  if (this->OverlapSamplingLeafSize > 1e-3)
-  {
-    sampledCloud.reset(new PointCloud);
-    pcl::VoxelGrid<Point> uniFilter;
-    uniFilter.setInputCloud(aggregatedPoints);
-    uniFilter.setLeafSize(this->OverlapSamplingLeafSize, this->OverlapSamplingLeafSize, this->OverlapSamplingLeafSize);
-    uniFilter.filter(*sampledCloud);
-  }
 
   // Keep only the maps to use
   std::map<Keypoint, std::shared_ptr<RollingGrid>> mapsToUse;
@@ -1354,8 +1349,9 @@ void Slam::EstimateOverlap()
 
   // Compute LCP like estimator
   // (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
-  this->OverlapEstimation = Confidence::LCPEstimator(sampledCloud, mapsToUse, this->NbThreads);
-  PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << sampledCloud->size() << " points.");
+  this->OverlapEstimation = Confidence::LCPEstimator(aggregatedPoints, mapsToUse, this->OverlapSamplingRatio, this->NbThreads);
+  PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : "
+                                << static_cast<int>(aggregatedPoints->size() * this->OverlapSamplingRatio) << " points.");
 }
 
 //-----------------------------------------------------------------------------

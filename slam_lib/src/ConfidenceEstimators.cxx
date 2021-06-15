@@ -25,21 +25,25 @@ namespace LidarSlam
 namespace Confidence
 {
 
-float LCPEstimator(PointCloud::ConstPtr cloud, const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps, int nbThreads)
+float LCPEstimator(PointCloud::ConstPtr cloud,
+                   const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps,
+                   float subsamplingRatio,
+                   int nbThreads)
 {
   float LCP = 0.f;
-  int nbPoints = cloud->size();
+  int nbPoints = cloud->size() * subsamplingRatio;
   if (nbPoints > 0)
   {
     std::vector<float> LCPvec(nbPoints, 0.f);
     #pragma omp parallel for num_threads(nbThreads)
     for (int n = 0; n < nbPoints; ++n)
     {
+      const auto& point = cloud->at(n / subsamplingRatio);
       for (const auto& map : maps)
       {
         std::vector<int> knnIndices;
         std::vector<float> knnSqDist;
-        if (map.second->GetSubMapKdTree().KnnSearch(cloud->at(n), 1, knnIndices, knnSqDist) > 0)
+        if (map.second->GetSubMapKdTree().KnnSearch(point, 1, knnIndices, knnSqDist) > 0)
         {
           // We use a Gaussian like estimation for each point fitted in target leaf space
           // to check the probability that one cloud point has a neighbor in the target
