@@ -78,7 +78,6 @@
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/Enums.h"
 #include "LidarSlam/SpinningSensorKeypointExtractor.h"
-#include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/KeypointsMatcher.h"
 #include "LidarSlam/LocalOptimizer.h"
 #include "LidarSlam/MotionModel.h"
@@ -106,7 +105,6 @@ public:
   // Usefull types
   using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
-  using KDTree = KDTreePCLAdaptor<Point>;
   using KeypointExtractorPtr = std::shared_ptr<SpinningSensorKeypointExtractor>;
 
   // Initialization
@@ -700,9 +698,6 @@ private:
   // and add points to the maps if we are dealing with a new keyframe.
   void UpdateMapsUsingTworld();
 
-  // Test if the pose complies with motion limitations
-  void CheckMotionLimits();
-
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState(double time, const std::string& frameId);
 
@@ -730,8 +725,11 @@ private:
   //   Confidence estimator helpers
   // ---------------------------------------------------------------------------
 
-  // Estimate the overlap of the current scan onto the keypoint maps
-  void EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees);
+  // Estimate the overlap of the current scan onto the keypoints submaps
+  void EstimateOverlap();
+
+  // Test if the pose complies with motion limitations
+  void CheckMotionLimits();
 
   // ---------------------------------------------------------------------------
   //   Transformation helpers

@@ -74,6 +74,7 @@
 // LOCAL
 #include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
+#include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/ConfidenceEstimators.h"
 
 #ifdef USE_G2O
@@ -94,6 +95,8 @@
 
 namespace LidarSlam
 {
+
+using KDTree = KDTreePCLAdaptor<Slam::Point>;
 
 namespace Utils
 {
@@ -258,6 +261,13 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->Localization();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization"));
 
+  // Compute and check pose confidence estimators
+  IF_VERBOSE(3, Utils::Timer::Init("Confidence estimators computation"));
+  if (this->OverlapEnable)
+    this->EstimateOverlap();
+  this->CheckMotionLimits();
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Confidence estimators computation"));
+
   // Update keypoints maps : add current keypoints to map using Tworld
   if (this->UpdateMap)
   {
@@ -265,10 +275,6 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     this->UpdateMapsUsingTworld();
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Maps update"));
   }
-
-  this->CheckMotionLimits();
-  if (!this->ComplyMotionLimits)
-    PRINT_WARNING("The pose does not comply with the motion limitations. Lidar SLAM may have failed.")
 
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, Utils::Timer::Init("Logging"));
@@ -967,30 +973,34 @@ void Slam::Localization()
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
   IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
 
-  std::map<Keypoint, KDTree> kdtrees;
-  // Initialization of std map elements to parallelize 
-  // their construction with OMP avoiding concurrency issues
-  for (auto k : KeypointTypes)
-    kdtrees[k] = KDTree();
-
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
   int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
   #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
+    // If the map has been updated, the KD-tree needs to be updated
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
-    if (this->UseKeypoints[k])
+    if (this->UseKeypoints[k] && !this->LocalMaps[k]->IsSubMapKdTreeValid())
     {
-      // Estimate current keypoints bounding box
-      PointCloud currWordKeypoints;
-      pcl::transformPointCloud(*this->CurrentUndistortedKeypoints[k], currWordKeypoints, this->Tworld.matrix());
-      Eigen::Vector4f minPoint, maxPoint;
-      pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
+      // If maps are fixed, we can build a single KD-tree of the entire map
+      // to avoid rebuilding it again
+      if (!this->UpdateMap)
+        this->LocalMaps[k]->BuildSubMapKdTree();
 
-      // Extract all points in maps lying in this bounding box
-      PointCloud::Ptr localSubMap = this->LocalMaps[k]->Get(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
-      kdtrees[k].Reset(localSubMap);
+      // Otherwise, we only extract the local sub maps to build a local and
+      // smaller KD-tree
+      else
+      {
+        // Estimate current keypoints bounding box
+        PointCloud currWordKeypoints;
+        pcl::transformPointCloud(*this->CurrentUndistortedKeypoints[k], currWordKeypoints, this->Tworld.matrix());
+        Eigen::Vector4f minPoint, maxPoint;
+        pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
+
+        // Build submap of all points lying in this bounding box
+        this->LocalMaps[k]->BuildSubMapKdTree(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+      }
     }
   }
 
@@ -998,7 +1008,8 @@ void Slam::Localization()
   {
     std::cout << "Keypoints extracted from map : ";
     for (auto k : KeypointTypes)
-      std::cout << kdtrees[k].GetInputCloud()->size() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+      std::cout << this->LocalMaps[k]->GetSubMapKdTree().GetInputCloud()->size()
+                << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
     std::cout << std::endl;
   }
 
@@ -1047,7 +1058,7 @@ void Slam::Localization()
 
     // Loop over keypoints to build the point to line residuals
     for (auto k : KeypointTypes)
-      this->LocalizationMatchingResults[k] = matcher.BuildMatchResiduals(this->CurrentUndistortedKeypoints[k], kdtrees[k], k);
+      this->LocalizationMatchingResults[k] = matcher.BuildMatchResiduals(this->CurrentUndistortedKeypoints[k], this->LocalMaps[k]->GetSubMapKdTree(), k);
 
     // Count matches and skip this frame
     // if there is too few geometric keypoints matched
@@ -1113,13 +1124,6 @@ void Slam::Localization()
       this->LocalizationUncertainty = optimizer.EstimateRegistrationError();
       break;
     }
-  }
-
-  if (this->OverlapEnable)
-  {
-    IF_VERBOSE(3, Utils::Timer::Init("Localization : Overlap estimation"));
-    this->EstimateOverlap(kdtrees);
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : Overlap estimation"));
   }
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
@@ -1324,7 +1328,7 @@ void Slam::RefineUndistortion()
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
+void Slam::EstimateOverlap()
 {
   // Aggregate all input points into WORLD coordinates
   PointCloud::Ptr aggregatedPoints = this->GetRegisteredFrame();
@@ -1340,16 +1344,72 @@ void Slam::EstimateOverlap(const std::map<Keypoint, KDTree>& mapKdTrees)
     uniFilter.filter(*sampledCloud);
   }
 
-  std::map<Keypoint, float> leafSizes;
+  // Keep only the maps to use
+  std::map<Keypoint, std::shared_ptr<RollingGrid>> mapsToUse;
   for (auto k : KeypointTypes)
   {
-    if (this->UseKeypoints[k])
-      leafSizes[k] = this->LocalMaps[k]->GetLeafSize();
+    if (this->UseKeypoints[k] && this->LocalMaps[k]->IsSubMapKdTreeValid())
+      mapsToUse[k] = this->LocalMaps[k];
   }
 
-  // Compute LCP like estimator (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
-  this->OverlapEstimation = Confidence::LCPEstimator(sampledCloud, mapKdTrees, leafSizes, this->NbThreads);
+  // Compute LCP like estimator
+  // (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
+  this->OverlapEstimation = Confidence::LCPEstimator(sampledCloud, mapsToUse, this->NbThreads);
   PRINT_VERBOSE(3, "Overlap : " << this->OverlapEstimation << ", estimated on : " << sampledCloud->size() << " points.");
+}
+
+//-----------------------------------------------------------------------------
+void Slam::CheckMotionLimits()
+{
+  this->ComplyMotionLimits = true;
+  if (this->NbrFrameProcessed == 0)
+    return;
+
+  // Compute angular part
+  // NOTE : It is not possible to detect an angular acceleration or velocity greater than PI
+  // Rotation angle in [0, 2pi]
+  float angle = Eigen::AngleAxisd(this->Trelative.linear()).angle();
+  // Rotation angle in [0, pi]
+  if (angle > M_PI)
+    angle = 2 * M_PI - angle;
+  angle = Utils::Rad2Deg(angle);
+  // Compute linear part
+  float distance = this->Trelative.translation().norm();
+
+  // Compute time spent
+  float deltaTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp) - this->LogTrajectory.back().time;
+
+  // Compute velocity
+  Eigen::Array2f velocity = {distance / deltaTime, angle / deltaTime};
+  SET_COUT_FIXED_PRECISION(3);
+  // Print local velocity
+  PRINT_VERBOSE(3, "Velocity     = " << std::setw(6) << velocity[0] << " m/s,  "
+                                     << std::setw(6) << velocity[1] << " °/s")
+  RESET_COUT_FIXED_PRECISION;
+
+  if (this->NbrFrameProcessed >= 2)
+  {
+    // Compute local acceleration in BASE
+    Eigen::Array2f acceleration = (velocity - this->PreviousVelocity) / deltaTime;
+    // Print local acceleration
+    SET_COUT_FIXED_PRECISION(3);
+    PRINT_VERBOSE(3, "Acceleration = " << std::setw(6) << acceleration[0] << " m/s2, "
+                                       << std::setw(6) << acceleration[1] << " °/s2")
+    RESET_COUT_FIXED_PRECISION;
+
+    // Check velocity compliance
+    bool complyVelocityLimits = (velocity < this->VelocityLimits).all();
+    // Check acceleration compliance
+    bool complyAccelerationLimits = (acceleration.abs() < this->AccelerationLimits).all();
+
+    // Set ComplyMotionLimits
+    this->ComplyMotionLimits = complyVelocityLimits && complyAccelerationLimits;
+  }
+
+  this->PreviousVelocity = velocity;
+
+  if (!this->ComplyMotionLimits)
+    PRINT_WARNING("The pose does not comply with the motion limitations. Lidar SLAM may have failed.")
 }
 
 //==============================================================================
@@ -1444,57 +1504,6 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
   }
 
   return aggregatedFrames;
-}
-
-//-----------------------------------------------------------------------------
-void Slam::CheckMotionLimits()
-{
-  this->ComplyMotionLimits = true;
-  if (this->NbrFrameProcessed == 0)
-    return;
-
-  // Compute angular part
-  // NOTE : It is not possible to detect an angular acceleration or velocity greater than PI
-  // Rotation angle in [0, 2pi]
-  float angle = Eigen::AngleAxisd(this->Trelative.linear()).angle();
-  // Rotation angle in [0, pi]
-  if (angle > M_PI)
-    angle = 2 * M_PI - angle;
-  angle = Utils::Rad2Deg(angle);
-  // Compute linear part
-  float distance = this->Trelative.translation().norm();
-
-  // Compute time spent
-  float deltaTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp) - this->LogTrajectory.back().time;
-
-  // Compute velocity
-  Eigen::Array2f velocity = {distance / deltaTime, angle / deltaTime};
-  SET_COUT_FIXED_PRECISION(3);
-  // Print local velocity
-  PRINT_VERBOSE(3, "Velocity     = " << velocity[0] << " m/s,   "
-                                     << velocity[1] << " °/s")
-  RESET_COUT_FIXED_PRECISION;
-
-  if (this->NbrFrameProcessed >= 2)
-  {
-    // Compute local acceleration in BASE
-    Eigen::Array2f acceleration = (velocity - this->PreviousVelocity) / deltaTime;
-    // Print local acceleration
-    SET_COUT_FIXED_PRECISION(3);
-    PRINT_VERBOSE(3, "Acceleration = " << acceleration[0] << " m/s2,   "
-                                       << acceleration[1] << " °/s2")
-    RESET_COUT_FIXED_PRECISION;
-
-    // Check velocity compliance
-    bool complyVelocityLimits = (velocity < this->VelocityLimits).all();
-    // Check acceleration compliance
-    bool complyAccelerationLimits = (acceleration.abs() < this->AccelerationLimits).all();
-
-    // Set ComplyMotionLimits
-    this->ComplyMotionLimits = complyVelocityLimits && complyAccelerationLimits;
-  }
-
-  this->PreviousVelocity = velocity;
 }
 
 //==============================================================================

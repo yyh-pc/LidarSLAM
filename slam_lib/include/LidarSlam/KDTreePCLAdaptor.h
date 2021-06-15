@@ -54,7 +54,7 @@ public:
     * \param leafMaxSize The maximum size of a leaf of the tree (refer to
     * https://github.com/jlblancoc/nanoflann#21-kdtreesingleindexadaptorparamsleaf_max_size)
     */
-  void Reset(PointCloudPtr cloud, int leafMaxSize = 16)
+  void Reset(PointCloudPtr cloud = PointCloudPtr(new PointCloud), int leafMaxSize = 16)
   {
     // Copy the input cloud
     this->Cloud = cloud;

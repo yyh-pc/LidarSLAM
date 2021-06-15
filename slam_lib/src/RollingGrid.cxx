@@ -56,6 +56,7 @@ void RollingGrid::Clear()
 {
   this->NbPoints = 0;
   this->Voxels.clear();
+  this->KdTree.Reset();
 }
 
 //------------------------------------------------------------------------------
@@ -90,29 +91,6 @@ void RollingGrid::SetVoxelResolution(double resolution)
 //==============================================================================
 //   Main use
 //==============================================================================
-
-//------------------------------------------------------------------------------
-RollingGrid::PointCloud::Ptr RollingGrid::Get(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint) const
-{
-  // Compute the position of the origin cell (0, 0, 0) of the grid
-  Eigen::Array3i voxelGridOrigin = this->PositionToVoxel(this->VoxelGridPosition) - this->GridSize / 2;
-
-  // Get sub-VoxelGrid bounds
-  Eigen::Array3i intersectionMin = (this->PositionToVoxel(minPoint) - voxelGridOrigin).max(0);
-  Eigen::Array3i intersectionMax = (this->PositionToVoxel(maxPoint) - voxelGridOrigin).min(this->GridSize - 1);
-
-  // Get all voxel in intersection
-  PointCloud::Ptr intersection(new PointCloud);
-  for (const auto& kv : this->Voxels)
-  {
-    // Add points if the voxel lies within bounds
-    Eigen::Array3i idx3d = this->To3d(kv.first);
-    if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
-      *intersection += *(kv.second);
-  }
-
-  return intersection;
-}
 
 //------------------------------------------------------------------------------
 RollingGrid::PointCloud::Ptr RollingGrid::Get() const
@@ -212,6 +190,10 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
     }
   }
 
+  // Exit if no points need to be added
+  if (addedPoints.empty())
+    return;
+
   // Filter the modified voxels
   // All the points belonging to the same voxel will be approximated
   // (i.e., downsampled) with their centroid. The mean operator is applied to
@@ -229,6 +211,45 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
     // Update the voxel's number of points
     this->NbPoints += voxel->size() - voxelPrevSize;
   }
+
+  // Clear the deprecated KD-tree as the map has been updated
+  this->KdTree.Reset();
+}
+
+//==============================================================================
+//   Sub map use
+//==============================================================================
+
+//------------------------------------------------------------------------------
+void RollingGrid::BuildSubMapKdTree()
+{
+  // Get all points from all voxels
+  // Build the internal KD-Tree for fast NN queries in map
+  this->KdTree.Reset(this->Get());
+}
+
+//------------------------------------------------------------------------------
+void RollingGrid::BuildSubMapKdTree(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint)
+{
+  // Compute the position of the origin cell (0, 0, 0) of the grid
+  Eigen::Array3i voxelGridOrigin = this->PositionToVoxel(this->VoxelGridPosition) - this->GridSize / 2;
+
+  // Get sub-VoxelGrid bounds
+  Eigen::Array3i intersectionMin = (this->PositionToVoxel(minPoint) - voxelGridOrigin).max(0);
+  Eigen::Array3i intersectionMax = (this->PositionToVoxel(maxPoint) - voxelGridOrigin).min(this->GridSize - 1);
+
+  // Get all points from voxels in intersection
+  PointCloud::Ptr intersection(new PointCloud);
+  for (const auto& kv : this->Voxels)
+  {
+    // Add points if the voxel lies within bounds
+    Eigen::Array3i idx3d = this->To3d(kv.first);
+    if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
+      *intersection += *(kv.second);
+  }
+
+  // Build the internal KD-Tree for fast NN queries in sub-map
+  this->KdTree.Reset(intersection);
 }
 
 //==============================================================================

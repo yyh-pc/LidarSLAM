@@ -20,6 +20,7 @@
 #pragma once
 
 #include "LidarSlam/LidarPoint.h"
+#include "LidarSlam/KDTreePCLAdaptor.h"
 #include <unordered_map>
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
@@ -46,6 +47,7 @@ public:
   // Usefull types
   using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
+  using KDTree = KDTreePCLAdaptor<Point>;
 
   //============================================================================
   //   Initialization and parameters setters
@@ -57,16 +59,18 @@ public:
   //! Reset map (clear voxels, reset position, ...)
   void Reset(const Eigen::Vector3d& position = Eigen::Vector3d::Zero());
 
-  //! Remove all points from all voxels
+  //! Remove all points from all voxels and clear the submap KD-tree
   void Clear();
 
   //! Set grid size (number of voxels in each direction)
   //! NOTE: this may remove some points from the grid if size is decreased
+  //! The sub-map KD-tree is cleared during the process.
   void SetGridSize(int size);
   GetMacro(GridSize, int)
 
   //! Set voxel resolution (resolution of each voxel, in meters)
   //! NOTE: this may remove some points from the grid if resolution is decreased
+  //! The sub-map KD-tree is cleared during the process.
   void SetVoxelResolution(double resolution);
   GetMacro(VoxelResolution, double)
 
@@ -74,16 +78,13 @@ public:
   GetMacro(LeafSize, double)
 
   //============================================================================
-  //   Main use
+  //   Main rolling grid use
   //============================================================================
-
-  //! Extract all points in map lying in given bounding box
-  PointCloud::Ptr Get(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint) const;
 
   //! Get all points
   PointCloud::Ptr Get() const;
 
-  //! Get the current number of points in rolling grid
+  //! Get the total number of points in rolling grid
   unsigned int Size() const {return this->NbPoints; }
 
   //! Roll the grid so that input bounding box can fit it in rolled map
@@ -91,7 +92,25 @@ public:
 
   //! Add some points to the grid
   //! If roll is true, the map is rolled first so that all new points to add can fit in rolled map.
+  //! If points are added, the sub-map KD-tree is cleared.
   void Add(const PointCloud::Ptr& pointcloud, bool roll = true);
+
+  //============================================================================
+  //   Sub map use
+  //============================================================================
+
+  //! Build a KD-tree from all points in the map, or from all points lying in
+  //! the given bounding box.
+  //! This KD-tree can then be used for fast NN queries in this submap.
+  void BuildSubMapKdTree();
+  void BuildSubMapKdTree(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
+
+  //! Check if the KD-tree built on top of the submap is valid or if it needs to be updated.
+  //! The KD-tree is cleared every time the map is modified.
+  bool IsSubMapKdTreeValid() const {return !this->KdTree.GetInputCloud()->empty(); };
+
+  //! Get the KD-Tree of the submap for fast NN queries
+  const KDTree& GetSubMapKdTree() const {return this->KdTree; };
 
   //============================================================================
   //   Attributes and helper methods
@@ -116,8 +135,11 @@ private:
   //! [m, m, m] Current position of the center of the VoxelGrid
   Eigen::Array3d VoxelGridPosition;
 
-  //! Current number of points stored in the rolling grid
+  //! Total number of points stored in the rolling grid
   unsigned int NbPoints;
+
+  //! KD-Tree built on top of local sub-map for fast NN queries in sub-map
+  KDTree KdTree;
 
 private:
 
