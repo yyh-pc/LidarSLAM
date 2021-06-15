@@ -28,16 +28,14 @@
 
 namespace LidarSlam
 {
-
 namespace Confidence
 {
 
 using Point = LidarPoint;
 using PointCloud = pcl::PointCloud<Point>;
-using KDTree = KDTreePCLAdaptor<Point>;
 
-// Compute the LCP estimator (overlap estimator) for the registration of the
-// points of cloud onto some prebuilt submaps of maps.
+// Compute the LCP estimator (overlap estimator) for the registration of a
+// pointcloud onto some prebuilt maps.
 // It corresponds to the number of points from cloud which have a neighbor in
 // the submaps relatively to the resolution of the maps.
 // (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
@@ -51,5 +49,4 @@ float LCPEstimator(PointCloud::ConstPtr cloud,
                    int nbThreads = 1);
 
 } // enf of Confidence namespace
-
 } // end of LidarSlam namespace

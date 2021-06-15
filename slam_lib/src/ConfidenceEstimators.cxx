@@ -17,50 +17,52 @@
 //==============================================================================
 
 #include <LidarSlam/ConfidenceEstimators.h>
-#include <numeric>
 
 namespace LidarSlam
 {
-
 namespace Confidence
 {
 
+//-----------------------------------------------------------------------------
 float LCPEstimator(PointCloud::ConstPtr cloud,
                    const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps,
                    float subsamplingRatio,
                    int nbThreads)
 {
-  float LCP = 0.f;
+  // Number of points to process
   int nbPoints = cloud->size() * subsamplingRatio;
-  if (nbPoints > 0)
+  if (nbPoints == 0 || maps.empty())
+    return 0.;
+
+  // Iterate on all points of input cloud to process
+  float lcp = 0.;
+  #pragma omp parallel for num_threads(nbThreads) reduction(+:lcp)
+  for (int n = 0; n < nbPoints; ++n)
   {
-    std::vector<float> LCPvec(nbPoints, 0.f);
-    #pragma omp parallel for num_threads(nbThreads)
-    for (int n = 0; n < nbPoints; ++n)
+    // Compute the LCP contribution of the current point
+    const auto& point = cloud->at(n / subsamplingRatio);
+    float bestProba = 0.;
+    for (const auto& map : maps)
     {
-      const auto& point = cloud->at(n / subsamplingRatio);
-      for (const auto& map : maps)
+      // Get nearest neighbor
+      int nnIndex;
+      float nnSqDist;
+      if (map.second->GetSubMapKdTree().KnnSearch(point.data, 1, &nnIndex, &nnSqDist))
       {
-        std::vector<int> knnIndices;
-        std::vector<float> knnSqDist;
-        if (map.second->GetSubMapKdTree().KnnSearch(point, 1, knnIndices, knnSqDist) > 0)
-        {
-          // We use a Gaussian like estimation for each point fitted in target leaf space
-          // to check the probability that one cloud point has a neighbor in the target
-          // Probability = 1 if the two points are superimposed
-          // Probability < 0.011 if the distance is g.t. the leaf size
-          float sqLCPThreshold = std::pow(map.second->GetLeafSize() / 3.f, 2);
-          float currentProba = std::exp( -knnSqDist[0] / (2.f * sqLCPThreshold) );
-          if (currentProba > LCPvec[n])
-            LCPvec[n] = currentProba;
-        }
+        // We use a Gaussian like estimation for each point fitted in target leaf space
+        // to check the probability that one cloud point has a neighbor in the target
+        // Probability = 1 if the two points are superimposed
+        // Probability < 0.011 if the distance is g.t. the leaf size
+        float sqLCPThreshold = std::pow(map.second->GetLeafSize() / 3.f, 2);
+        float currentProba = std::exp( -nnSqDist / (2.f * sqLCPThreshold) );
+        if (currentProba > bestProba)
+          bestProba = currentProba;
       }
     }
-    LCP = std::accumulate(LCPvec.begin(), LCPvec.end(), 0.f) / nbPoints;
+    lcp += bestProba;
   }
-  return LCP;
+  return lcp / nbPoints;
 }
 
-}
-
-}
+} // end of Confidence namespace
+} // end of LidarSlam namespace
