@@ -307,9 +307,6 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(co
   // ===================================================
   // Get neighboring points in previous set of keypoints
 
-  // double maxDist = this->MaxDistanceForICPMatching;  //< maximum distance between keypoints and its neighbors
-  float maxDiameter = 4.;
-
   std::vector<int> knnIndices;
   std::vector<float> knnSqDist;
   unsigned int neighborhoodSize = kdtreePreviousBlobs.KnnSearch(worldPoint.data(), this->Params.BlobDistanceNbrNeighbors, knnIndices, knnSqDist);
@@ -330,28 +327,6 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(co
   // Shortcut to keypoints cloud
   const PointCloud& previousBlobsPoints = *kdtreePreviousBlobs.GetInputCloud();
 
-  // ======================================
-  // Check the diameter of the neighborhood
-
-  // If the diameter is too big, we don't want to keep this blob.
-  // We must do that since the fitted ellipsoid assumes to encode the local
-  // shape of the neighborhood.
-  float squaredDiameter = 0.;
-  for (unsigned int nearestPointIndexI: knnIndices)
-  {
-    const Point& ptI = previousBlobsPoints[nearestPointIndexI];
-    for (unsigned int nearestPointIndexJ: knnIndices)
-    {
-      const Point& ptJ = previousBlobsPoints[nearestPointIndexJ];
-      float squaredDistanceIJ = (ptI.getVector3fMap() - ptJ.getVector3fMap()).squaredNorm();
-      squaredDiameter = std::max(squaredDiameter, squaredDistanceIJ);
-    }
-  }
-  if (squaredDiameter > maxDiameter * maxDiameter)
-  {
-    return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0., CeresTools::Residual() };
-  }
-
   // ======================================================
   // Compute point-to-blob optimization parameters with PCA
 
@@ -363,11 +338,11 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(co
   Eigen::Matrix3d eigVecs;
   Utils::ComputeMeanAndPCA(previousBlobsPoints, knnIndices, mean, eigVecs, eigVals);
 
-  // TODO: check PCA structure
-  // if (PCA shape isn't OK)
-  // {
-  //   return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0. };
-  // }
+  // Check PCA structure
+  if (eigVals(0) <= 0. || eigVals(1) <= 0.)
+  {
+    return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0., CeresTools::Residual()};
+  }
 
   // Compute the inverse squared out covariance matrix
   // of the target neighborhood -> A = Covariance^(-1/2)
@@ -380,7 +355,10 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(co
   // Check parameters validity
 
   // Check the determinant of the matrix
-  if (!std::isfinite(eigValsSqrtInv.prod()))
+  // and check parameters validity:
+  // It would be the case if P1 = P2, for instance if the sensor has some dual
+  // returns that hit the same point.
+  if (!std::isfinite(A(0, 0)) || !std::isfinite(eigValsSqrtInv.prod()))
   {
     return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0., CeresTools::Residual() };
   }
@@ -390,7 +368,7 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(co
 
   // Quality score of the point-to-blob match
   // The aim is to prevent wrong matching pulling the pointcloud in a bad direction.
-  double fitQualityCoeff = 1.0;//1.0 - knnSqDist.back() / maxDist;
+  double fitQualityCoeff = 1.0;
   CeresTools::Residual res = this->BuildResidual(A, mean, localPoint, fitQualityCoeff);
   return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff, res };
 }
