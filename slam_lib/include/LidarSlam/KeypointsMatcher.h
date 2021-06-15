@@ -71,12 +71,12 @@ public:
     unsigned int LineDistanceNbrNeighbors = 10; //< initial number of neighbor edge points searched to approximate the corresponding line
     unsigned int MinimumLineNeighborRejection = 4;  //< number of neighbor edge points required to approximate the corresponding line after filtering startegy
     double LineDistancefactor = 5.0; //< PCA eigenvalues ratio to consider a neighborhood fits a line model : V2 >= factor * V1
-    double MaxLineDistance = 0.2; //< maximum distance between keypoints and their computed line
+    double MaxLineDistance = 0.2; //< maximum RMSE between target keypoints and their fitted line
 
     unsigned int PlaneDistanceNbrNeighbors = 5; //< number of neighbors planar points required to approximate the corresponding plane
     double PlaneDistancefactor1 = 35.0; //< PCA eigenvalues ratio to consider a neighborhood fits a plane model :
     double PlaneDistancefactor2 = 8.0;  //<     V1 >= factor1 * V0 and V2 <= factor2 * V1
-    double MaxPlaneDistance = 0.2; //< maximum distance between keypoints and their computed plane
+    double MaxPlaneDistance = 0.2; //< maximum RMSE between target keypoints and their fitted plane
 
     unsigned int BlobDistanceNbrNeighbors = 25; //< number of blob neighbors required to approximate the corresponding ellipsoid
 
