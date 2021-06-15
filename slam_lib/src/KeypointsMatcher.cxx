@@ -167,28 +167,19 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(co
     return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0., CeresTools::Residual() };
   }
 
-  // Evaluate the distance from the fitted line distribution of the neighborhood
-  double meanSquaredDist = 0.;
-  double squaredMaxDist = this->Params.MaxLineDistance * this->Params.MaxLineDistance;
-  for (unsigned int nearestPointIndex: knnIndices)
-  {
-    const Point& pt = previousEdgesPoints[nearestPointIndex];
-    Eigen::Vector3d Xtemp(pt.x, pt.y, pt.z);
-    double squaredDist = (Xtemp - mean).transpose() * A * (Xtemp - mean);
-    // CHECK invalidate all neighborhood even if only one point is bad?
-    if (squaredDist > squaredMaxDist)
-    {
-      return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0., CeresTools::Residual() };
-    }
-    meanSquaredDist += squaredDist;
-  }
-  meanSquaredDist /= static_cast<double>(neighborhoodSize);
+  // If the MSE is too high, the target model is not accurate enough, discard the match in optimization
+  double mse = eigVals(0) + eigVals(1);
+  if (mse >= std::pow(this->Params.MaxLineDistance, 2))
+    return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0., CeresTools::Residual() };
 
   // ===========================================
   // Add valid parameters for later optimization
 
   // Quality score of the point-to-line match
-  double fitQualityCoeff = 1.0 - std::sqrt(meanSquaredDist / squaredMaxDist);
+  // If the points to model error is too low, assign maximum weight.
+  // Otherwise, assign a weight relative to the points to model error and a user parameter maximum value
+  double fitQualityCoeff = (mse <= 1e-6) ? 1. : 1. - std::sqrt(mse) / this->Params.MaxLineDistance;
+
   CeresTools::Residual res = this->BuildResidual(A, mean, localPoint, fitQualityCoeff);
   return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff, res };
 }
@@ -261,28 +252,19 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(c
     return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0., CeresTools::Residual() };
   }
 
-  // Evaluate the distance from the fitted plane distribution of the neighborhood
-  double meanSquaredDist = 0.;
-  double squaredMaxDist = this->Params.MaxPlaneDistance * this->Params.MaxPlaneDistance;
-  for (unsigned int nearestPointIndex: knnIndices)
-  {
-    const Point& pt = previousPlanesPoints[nearestPointIndex];
-    Eigen::Vector3d Xtemp(pt.x, pt.y, pt.z);
-    double squaredDist = (Xtemp - mean).transpose() * A * (Xtemp - mean);
-    // CHECK invalidate all neighborhood even if only one point is bad?
-    if (squaredDist > squaredMaxDist)
-    {
-      return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0., CeresTools::Residual() };
-    }
-    meanSquaredDist += squaredDist;
-  }
-  meanSquaredDist /= static_cast<double>(neighborhoodSize);
+  // If the MSE is too high, the target model is not accurate enough, discard the match in optimization
+  double mse = eigVals(0);
+  if (mse >= std::pow(this->Params.MaxPlaneDistance, 2))
+    return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0., CeresTools::Residual() };
 
   // ===========================================
   // Add valid parameters for later optimization
 
   // Quality score of the point-to-plane match
-  double fitQualityCoeff = 1.0 - std::sqrt(meanSquaredDist / squaredMaxDist);
+  // If the points to model error is too low, assign maximum weight.
+  // Otherwise, assign a weight relative to the points to model error and a user parameter maximum value
+  double fitQualityCoeff = (mse <= 1e-6) ? 1. : 1. - std::sqrt(mse) / this->Params.MaxPlaneDistance;
+
   CeresTools::Residual res = this->BuildResidual(A, mean, localPoint, fitQualityCoeff);
   return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff, res };
 }
