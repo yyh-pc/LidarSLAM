@@ -165,10 +165,11 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(co
   // n is the director vector of the line
   const Eigen::Vector3d& n = eigVecs.col(2);
 
-  // A = (I-n*n.t).t * (I-n*n.t) = (I - n*n.t)^2
-  // since (I-n*n.t) is a symmetric matrix
-  // Then it comes A (I-n*n.t)^2 = (I-n*n.t) since
-  // A is the matrix of a projection endomorphism
+  // Compute the inverse squared out covariance matrix
+  // of the target line model -> A = Covariance^(-1/2)
+  // It is used to compute the Mahalanobis distance
+  // The residual vector is A*(pt - mean)
+  // NOTE : A^2 = (Id - n*n.t)^2 = Id - n*n.t
   Eigen::Matrix3d A = Eigen::Matrix3d::Identity() - n * n.transpose();
 
   // =========================
@@ -257,7 +258,16 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(c
 
   // n is the normal vector of the plane
   const Eigen::Vector3d& n = eigVecs.col(0);
+
+  // Compute the inverse squared out covariance matrix
+  // of the target plane model -> A = Covariance^(-1/2)
+  // It is used to compute the Mahalanobis distance
+  // The residual vector is A*(pt - mean)
+  // NOTE : A^2 = (n*n.t)^2 = n*n.t
   Eigen::Matrix3d A = n * n.transpose();
+
+  // =========================
+  // Check parameters validity
 
   // It would be the case if P1 = P2, P1 = P3 or P3 = P2, for instance if the
   // sensor has some dual returns that hit the same point.
@@ -359,10 +369,15 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(co
   //   return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0. };
   // }
 
-  // The inverse of the covariance matrix encodes the mahalanobis distance.
-  // The residual vector is A*(pt - mean) with A = Covariance^(-1/2)
+  // Compute the inverse squared out covariance matrix
+  // of the target neighborhood -> A = Covariance^(-1/2)
+  // It is used to compute the Mahalanobis distance
+  // The residual vector is A*(pt - mean)
   Eigen::Vector3d eigValsSqrtInv = eigVals.array().rsqrt();
   Eigen::Matrix3d A = eigVecs * eigValsSqrtInv.asDiagonal() * eigVecs.transpose();
+
+  // =========================
+  // Check parameters validity
 
   // Check the determinant of the matrix
   if (!std::isfinite(eigValsSqrtInv.prod()))
