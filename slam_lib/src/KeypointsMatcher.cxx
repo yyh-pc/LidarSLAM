@@ -82,9 +82,23 @@ CeresTools::Residual KeypointsMatcher::BuildResidual(const Eigen::Matrix3d& A, c
   res.Cost = CeresCostFunctions::MahalanobisDistanceAffineIsometryResidual::Create(A, P, X);
 
   // Use a robustifier to limit the contribution of an outlier match
-  auto* robustifier = new ceres::TukeyLoss(std::sqrt(this->Params.SaturationDistance));
+  // Tukey loss applied on residual square:
+  //   rho(residual^2) = a^2 / 3 * ( 1 - (1 - residual^2 / a^2)^3 )   for residual^2 <= a^2,
+  //   rho(residual^2) = a^2 / 3                                      for residual^2 >  a^2.
+  // a is the scaling parameter of the function
+  // See http://ceres-solver.org/nnls_modeling.html#theory for details
+  auto* robustifier = new ceres::TukeyLoss(this->Params.SaturationDistance);
+
   // Weight the contribution of the given match by its reliability
-  res.Robustifier.reset(new ceres::ScaledLoss(robustifier, weight, ceres::TAKE_OWNERSHIP));
+  // WARNING : in CERES version < 2.0.0, the Tukey loss is badly implemented, so we have to correct the weight by a factor 2
+  // See https://github.com/ceres-solver/ceres-solver/commit/6da364713f5b78ddf15b0e0ad92c76362c7c7683 for details
+  // This is important for covariance scaling 
+  #if (CERES_VERSION_MAJOR < 2)
+    res.Robustifier.reset(new ceres::ScaledLoss(robustifier, 2.0 * weight, ceres::TAKE_OWNERSHIP));
+  // If Ceres version >= 2.0.0, the Tukey loss is corrected.
+  #else
+    res.Robustifier.reset(new ceres::ScaledLoss(robustifier, weight, ceres::TAKE_OWNERSHIP));
+  #endif
   return res;
 }
 
