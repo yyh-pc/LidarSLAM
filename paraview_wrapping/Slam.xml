@@ -617,26 +617,26 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max edge neighbors distance to fitted line EM"
+          name="Max RMSE between neighbors and line model EM"
           command="SetEgoMotionMaxLineDistance"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Reject an edge point if its neighborhood has points that
-          are too far from the fitted line (degenerated ellipsoid).
+          Reject a match if the target line model is not 
+          accurate enough (if neighbors RMSE is too high)
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max plane neighbors distance to fitted plane EM"
+          name="Max RMSE between neighbors and plane model EM"
           command="SetEgoMotionMaxPlaneDistance"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Reject a planar point if its neighborhood has points that
-          are too far from the fitted plane (degenerated ellipsoid).
+          Reject a match if the target plane model is not 
+          accurate enough (if neighbors RMSE is too high)
         </Documentation>
       </DoubleVectorProperty>
 
@@ -683,8 +683,8 @@
         <Property name="Linearity factor EM" />
         <Property name="Planarity factor 1 EM" />
         <Property name="Planarity factor 2 EM" />
-        <Property name="Max edge neighbors distance to fitted line EM" />
-        <Property name="Max plane neighbors distance to fitted plane EM" />
+        <Property name="Max RMSE between neighbors and line model EM" />
+        <Property name="Max RMSE between neighbors and plane model EM" />
         <Property name="Init saturation distance EM" />
         <Property name="Final saturation distance EM" />
         <Hints>
@@ -839,26 +839,26 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max edge neighbors distance to fitted line"
+          name="Max RMSE between neighbors and line model"
           command="SetLocalizationMaxLineDistance"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Reject an edge point if its neighborhood has points that
-          are too far from the fitted line (degenerated ellipsoid).
+          Reject a match if the target line model is not 
+          accurate enough (if neighbors RMSE is too high)
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty
-          name="Max plane neighbors distance to fitted plane"
+          name="Max RMSE between neighbors and plane model"
           command="SetLocalizationMaxPlaneDistance"
           default_values="0.2"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Reject a planar point if its neighborhood has points that
-          are too far from the fitted plane (degenerated ellipsoid).
+          Reject a match if the target line model is not 
+          accurate enough (if neighbors RMSE is too high)
         </Documentation>
       </DoubleVectorProperty>
 
@@ -907,8 +907,8 @@
         <Property name="Linearity factor" />
         <Property name="Planarity factor 1" />
         <Property name="Planarity factor 2" />
-        <Property name="Max edge neighbors distance to fitted line" />
-        <Property name="Max plane neighbors distance to fitted plane" />
+        <Property name="Max RMSE between neighbors and line model" />
+        <Property name="Max RMSE between neighbors and plane model" />
         <Property name="Init saturation distance" />
         <Property name="Final saturation distance" />
       </PropertyGroup>
