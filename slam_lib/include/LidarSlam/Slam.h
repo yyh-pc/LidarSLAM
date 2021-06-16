@@ -364,10 +364,8 @@ public:
   // ---------------------------------------------------------------------------
   //   Confidence estimation
   // ---------------------------------------------------------------------------
-  // Overlap
-  GetMacro(OverlapEnable, bool)
-  SetMacro(OverlapEnable, bool)
 
+  // Overlap
   GetMacro(OverlapSamplingRatio, float)
   void SetOverlapSamplingRatio(float _arg);
 
@@ -653,13 +651,10 @@ private:
 
   // Parameters
 
-  // Boolean to choose whether to compute the estimated overlap or not
-  // at the end of the Localization step
-  bool OverlapEnable = true;
-
   // [0-1] Ratio of points from the input cloud to compute overlap on.
   // Downsampling accelerates the overlap computation, but may be less precise.
-  float OverlapSamplingRatio = 1.f;
+  // If 0, overlap won't be computed.
+  float OverlapSamplingRatio = 0.f;
 
   // Motion limitations
   // Local velocity thresholds in BASE

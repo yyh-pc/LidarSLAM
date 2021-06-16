@@ -263,7 +263,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 
   // Compute and check pose confidence estimators
   IF_VERBOSE(3, Utils::Timer::Init("Confidence estimators computation"));
-  if (this->OverlapEnable)
+  if (this->OverlapSamplingRatio > 0)
     this->EstimateOverlap();
   this->CheckMotionLimits();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Confidence estimators computation"));
