@@ -43,6 +43,8 @@ using PointCloud = pcl::PointCloud<Point>;
 // to make a smooth estimator.
 // To accelerate the process, the ratio of points (between 0 and 1) from the
 // input cloud to compute overlap on can be specified.
+// It returns a valid overlap value between 0 and 1, or -1 if the overlap could
+// not be computed (not enough points).
 float LCPEstimator(PointCloud::ConstPtr cloud,
                    const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps,
                    float subsamplingRatio = 1.,

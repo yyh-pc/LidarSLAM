@@ -1330,7 +1330,12 @@ void Slam::RefineUndistortion()
 //-----------------------------------------------------------------------------
 void Slam::SetOverlapSamplingRatio (float _arg)
 {
+  // Clamp ratio beteen 0 and 1
   this->OverlapSamplingRatio = Utils::Clamp(_arg, 0.f, 1.f);
+
+  // Reset overlap value if overlap computation is disabled
+  if (this->OverlapSamplingRatio == 0.)
+    this->OverlapEstimation = -1.f;
 }
 
 //-----------------------------------------------------------------------------

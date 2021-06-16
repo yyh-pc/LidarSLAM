@@ -32,7 +32,7 @@ float LCPEstimator(PointCloud::ConstPtr cloud,
   // Number of points to process
   int nbPoints = cloud->size() * subsamplingRatio;
   if (nbPoints == 0 || maps.empty())
-    return 0.;
+    return -1.;
 
   // Iterate on all points of input cloud to process
   float lcp = 0.;

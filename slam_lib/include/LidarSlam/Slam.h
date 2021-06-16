@@ -637,7 +637,8 @@ private:
   // Data
 
   // Overlap estimation of the current registered scan on the keypoints map
-  // It is contained between 0 and 1
+  // A valid value lies in range [0-1].
+  // It is set to -1 if overlap has not been evaluated (disabled or not enough points).
   float OverlapEstimation = -1.f;
 
   // Number of matches for processed frame
