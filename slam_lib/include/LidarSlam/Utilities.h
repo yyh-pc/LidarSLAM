@@ -111,6 +111,21 @@ std::vector<size_t> SortIdx(const std::vector<T>& v, bool ascending=true)
 
 //------------------------------------------------------------------------------
 /*!
+ * @brief Clamp a value between min and max saturation thresholds.
+ * @param val The value to clamp
+ * @param min The lower saturation threshold
+ * @param max The higher saturation threshold
+ * @return The value clamped between min and max: min <= retval <= max
+ */
+//----------------------------------------------------------------------------
+template<typename T>
+T Clamp(const T& val, const T& min, const T& max)
+{
+  return (val < min) ? min : (max < val) ? max : val;
+}
+
+//------------------------------------------------------------------------------
+/*!
  * @brief Convert first char to upper case
  */
 std::string Capitalize(std::string st);

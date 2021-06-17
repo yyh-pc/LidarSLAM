@@ -680,13 +680,7 @@ void LidarSlamNode::SetSlamParameters()
 
   // Confidence estimators
   // Overlap
-  SetSlamParam(bool,   "slam/confidence/overlap/enable", OverlapEnable)
-  SetSlamParam(float,  "slam/confidence/overlap/sampling_leaf_size", OverlapSamplingLeafSize)
-
-  // Keyframes
-  SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
-  SetSlamParam(double, "slam/keyframes/angle_threshold", KfAngleThreshold)
-
+  SetSlamParam(float,  "slam/confidence/overlap/sampling_ratio", OverlapSamplingRatio)
   // Motion limitations (hard constraints to detect failure)
   std::vector<float> acc;
   if (this->PrivNh.getParam("slam/confidence/motion_limits/acceleration", acc) && acc.size() == 2)
@@ -694,6 +688,10 @@ void LidarSlamNode::SetSlamParameters()
   std::vector<float> vel;
   if (this->PrivNh.getParam("slam/confidence/motion_limits/velocity", vel) && vel.size() == 2)
     this->LidarSlam.SetVelocityLimits(Eigen::Map<const Eigen::Array2f>(vel.data()));
+
+  // Keyframes
+  SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
+  SetSlamParam(double, "slam/keyframes/angle_threshold", KfAngleThreshold)
 
   // Rolling grids
   double size;

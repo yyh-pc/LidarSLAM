@@ -228,13 +228,11 @@
           If advanced return mode is enabled, extra arrays are added to the
           outputs to display some of the SLAM internal variables :
 
-           - Trajectory : matching summary, localization error summary
+           - Trajectory : matching summary, localization error summary, confidence estimators
 
            - Output transformed frame : saliency, planarity, intensity gap, keypoint validity
 
            - Extracted keypoints : ICP matching results
-
-           - Confidence estimation : overlap
 
           It is very useful when debugging or checking the SLAM behavior.
           If disabled, the overlap estimation is not computed.
@@ -1036,15 +1034,21 @@
       <!-- ==================== Confidence estimator parameters ==================== -->
 
       <DoubleVectorProperty
-          name="Overlap sampling leaf size"
-          command="SetOverlapSamplingLeafSize"
-          default_values="0."
+          name="Overlap sampling ratio"
+          command="SetOverlapSamplingRatio"
+          default_values="0.25"
           number_of_elements="1"
           panel_visibility="advanced">
         <Documentation>
-          Leaf size of the voxel grid to sample uniformly before evaluating overlap (in meters).
-          If g.t. 0, the estimation step will be faster but the value will be lower.
-          If 0, no sampling is applied.
+          Ratio of points (between 0 and 1) from the current frame to compute
+          overlap on.
+
+          The overlap estimates how much the current scan is well registered on
+          the current maps.
+
+          Downsampling accelerates the overlap computation, but may be less
+          precise. A ratio of 1 uses all points, 0.5 uses 1 point over 2, etc.,
+          0 disables overlap computation.
         </Documentation>
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
@@ -1088,7 +1092,7 @@
       </DoubleVectorProperty>
 
       <PropertyGroup label="Confidence estimator parameters">
-        <Property name="Overlap sampling leaf size" />
+        <Property name="Overlap sampling ratio" />
         <Property name="Velocity limits" />
         <Property name="Acceleration limits" />
       </PropertyGroup>

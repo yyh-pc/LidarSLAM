@@ -248,8 +248,8 @@ public:
   //   Confidence estimator parameters
   // ---------------------------------------------------------------------------
 
-  vtkCustomGetMacro(OverlapSamplingLeafSize, double)
-  vtkCustomSetMacro(OverlapSamplingLeafSize, double)
+  vtkCustomGetMacro(OverlapSamplingRatio, double)
+  virtual void SetOverlapSamplingRatio (double ratio);
 
   // Motion constraints
   virtual void SetAccelerationLimits(float linearAcc, float angularAcc);
@@ -339,6 +339,9 @@ private:
   std::string VerticalCalibArrayName;  ///< Calibration column used to sort laser rings by elevation angle
   double TimeToSecondsFactor;          ///< Coef to apply to TimeArray values to express time in seconds
   double TimeToSecondsFactorSetting;   ///< Duplicated parameter used to store the value set by user
+
+  // Internal variable to store overlap sampling ratio when advanced return mode is disabled.
+  float OverlapSamplingRatio = 0.25;
 };
 
 #endif // VTK_SLAM_H

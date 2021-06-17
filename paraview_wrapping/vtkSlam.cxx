@@ -118,15 +118,10 @@ void vtkSlam::Reset()
   {
     auto debugInfo = this->SlamAlgo->GetDebugInformation();
     for (const auto& it : debugInfo)
-    {
       this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>(it.first));
-    }
-    // Enable overlap computation
-    this->SlamAlgo->SetOverlapEnable(true);
   }
-  else
-    // Disable overlap computation
-    this->SlamAlgo->SetOverlapEnable(false);
+  // Enable overlap computation only if advanced return mode is activated
+  this->SlamAlgo->SetOverlapSamplingRatio(this->AdvancedReturnMode ? this->OverlapSamplingRatio : 0.);
 
   // Refresh view
   this->Modified();
@@ -687,7 +682,7 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
         this->Trajectory->GetPointData()->AddArray(array);
       }
       // Enable overlap computation
-      this->SlamAlgo->SetOverlapEnable(true);
+      this->SlamAlgo->SetOverlapSamplingRatio(this->OverlapSamplingRatio);
     }
 
     // If AdvancedReturnMode is being disabled
@@ -697,7 +692,7 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
       for (const auto& it : debugInfo)
         this->Trajectory->GetPointData()->RemoveArray(it.first.c_str());
       // Disable overlap computation
-      this->SlamAlgo->SetOverlapEnable(false);
+      this->SlamAlgo->SetOverlapSamplingRatio(0.);
     }
 
     this->AdvancedReturnMode = _arg;
@@ -792,6 +787,22 @@ void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
   vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting VoxelGridLeafSize to " << s);
   this->SlamAlgo->SetVoxelGridLeafSize(k, s);
   this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetOverlapSamplingRatio(double ratio)
+{
+  // Change parameter value if it is modified
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting OverlapSamplingRatio to " << ratio);
+  if (this->OverlapSamplingRatio != ratio)
+  {
+    this->OverlapSamplingRatio = ratio;
+    this->ParametersModificationTime.Modified();
+  }
+
+  // Forward this parameter change to SLAM if Advanced Return Mode is enabled
+  if (this->AdvancedReturnMode)
+    this->SlamAlgo->SetOverlapSamplingRatio(this->OverlapSamplingRatio);
 }
 
 //-----------------------------------------------------------------------------

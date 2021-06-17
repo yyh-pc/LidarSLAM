@@ -364,12 +364,10 @@ public:
   // ---------------------------------------------------------------------------
   //   Confidence estimation
   // ---------------------------------------------------------------------------
-  // Overlap
-  GetMacro(OverlapEnable, bool)
-  SetMacro(OverlapEnable, bool)
 
-  GetMacro(OverlapSamplingLeafSize, float)
-  SetMacro(OverlapSamplingLeafSize, float)
+  // Overlap
+  GetMacro(OverlapSamplingRatio, float)
+  void SetOverlapSamplingRatio(float _arg);
 
   GetMacro(OverlapEstimation, float)
 
@@ -639,7 +637,8 @@ private:
   // Data
 
   // Overlap estimation of the current registered scan on the keypoints map
-  // It is contained between 0 and 1
+  // A valid value lies in range [0-1].
+  // It is set to -1 if overlap has not been evaluated (disabled or not enough points).
   float OverlapEstimation = -1.f;
 
   // Number of matches for processed frame
@@ -653,16 +652,10 @@ private:
 
   // Parameters
 
-  // Boolean to choose whether to compute the estimated overlap or not
-  // at the end of the Localization step
-  bool OverlapEnable = true;
-
-  // Leaf size of the voxel grid used to filter input scans
-  // Remaining points are used to estimate the overlap
-  // If increased, computation time may be reduced but the accuracy
-  // of the overlap estimation may be impacted
-  // Notably, the continuity of the estimation could be slighlty corrupted
-  float OverlapSamplingLeafSize = 0.f;
+  // [0-1] Ratio of points from the input cloud to compute overlap on.
+  // Downsampling accelerates the overlap computation, but may be less precise.
+  // If 0, overlap won't be computed.
+  float OverlapSamplingRatio = 0.f;
 
   // Motion limitations
   // Local velocity thresholds in BASE
