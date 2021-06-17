@@ -159,10 +159,10 @@ slam:
   ego_motion_registration:
     ICP_max_iter: 4                     # Max number of iterations of ICP matching.
     LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
-    line_distance_nbr_neighbors: 8      # Number of nearest neighbors to look for in previous frame (all scan lines considered) to build line model.
-    minimum_line_neighbor_rejection: 3  # Min number of valid nearest neighbors (max 1 per scan line) to keep neighborhood to build line model.
+    line_distance_nbr_neighbors: 8      # [>=2] Number of nearest neighbors to look for in previous frame (all scan lines considered) to build line model.
+    minimum_line_neighbor_rejection: 3  # [>=2] Min number of valid nearest neighbors (max 1 per scan line) to keep neighborhood to build line model.
     line_distance_factor: 5.            # PCA eigenvalues ratio to consider a neighborhood fits a line model (V2 > factor * V1).
-    plane_distance_nbr_neighbors: 5     # Number of nearest neighbors to look for in previous frame to build plane model.
+    plane_distance_nbr_neighbors: 5     # [>=3] Number of nearest neighbors to look for in previous frame to build plane model.
     plane_distance_factor1: 35.         # PCA eigenvalues ratio to consider a neighborhood fits a plane model :
     plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
     max_line_distance: 0.2              # [m] Max RMSE between neighbors and line model allowed to use the match.
@@ -173,10 +173,10 @@ slam:
   localization:
     ICP_max_iter: 3                     # Max number of iterations of ICP matching.
     LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
-    line_distance_nbr_neighbors: 10     # Number of nearest neighbors to look for in map to build line model.
-    minimum_line_neighbor_rejection: 4  # Min number of valid nearest neighbors (close to line model) to keep neighborhood to conisder line model.
+    line_distance_nbr_neighbors: 10     # [>=2] Number of nearest neighbors to look for in map to build line model.
+    minimum_line_neighbor_rejection: 4  # [>=2] Min number of valid nearest neighbors (close to line model) to keep neighborhood to conisder line model.
     line_distance_factor: 5.            # PCA eigenvalues ratio to consider a neighborhood fits a line model (V2 > factor * V1).
-    plane_distance_nbr_neighbors: 5     # Number of nearest neighbors to look for in map to build plane model.
+    plane_distance_nbr_neighbors: 5     # [>=3] Number of nearest neighbors to look for in map to build plane model.
     plane_distance_factor1: 35.         # PCA eigenvalues ratio to consider a neighborhood fits a plane model :
     plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
     max_line_distance: 0.2              # [m] Max RMSE between neighbors and line model allowed to use the match.

@@ -512,6 +512,8 @@
           In the Ego-Motion step, the neighborhood of an edge keypoint
           is fitted using a Ransac algorithm. This parameter sets the
           minimum number of inliers we want to keep currently considered point
+
+          At least 2 points are needed to build a valid line model.
         </Documentation>
       </IntVectorProperty>
 
@@ -523,6 +525,8 @@
         <Documentation>
           K-nearest neighbors points to consider to compute the Variance-Covariance
           matrix of the neighborhood to define the Mahalanobis distance function.
+
+          At least 3 points are needed to build a valid plane model.
         </Documentation>
       </IntVectorProperty>
 
@@ -534,6 +538,8 @@
         <Documentation>
           K-nearest neighbors points to consider to compute the Variance-Covariance
           matrix of the neighborhood to define the Mahalanobis distance function.
+
+          At least 2 points are needed to build a valid line model.
         </Documentation>
       </IntVectorProperty>
 
@@ -720,6 +726,8 @@
           In the Localization step, the neighborhood of an edge keypoint
           is fitted using a Ransac algorithm. This parameter sets the
           minimum number of inliers we want to keep currently considered point
+
+          At least 2 points are needed to build a valid line model.
         </Documentation>
       </IntVectorProperty>
 
@@ -731,6 +739,8 @@
         <Documentation>
           K-nearest neighbors points to consider to compute the Variance-Covariance
           matrix of the neighborhood to define the Mahalanobis distance function.
+
+          At least 3 points are needed to build a valid plane model.
         </Documentation>
       </IntVectorProperty>
 
@@ -742,6 +752,8 @@
         <Documentation>
           K-nearest neighbors points to consider to compute the Variance-Covariance
           matrix of the neighborhood to define the Mahalanobis distance function.
+
+          At least 2 points are needed to build a valid line model.
         </Documentation>
       </IntVectorProperty>
 

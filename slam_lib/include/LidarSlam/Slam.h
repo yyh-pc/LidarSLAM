@@ -595,24 +595,24 @@ private:
   // is rejected. We also make a filter upon the ratio of the eigen
   // values of the variance-covariance matrix of the neighborhood
   // to check if the points are distributed upon a line or a plane
-  unsigned int LocalizationLineDistanceNbrNeighbors = 10;
-  unsigned int LocalizationMinimumLineNeighborRejection = 4;
+  unsigned int LocalizationLineDistanceNbrNeighbors = 10;  // [>=2]
+  unsigned int LocalizationMinimumLineNeighborRejection = 4;  // [>=2]
   double LocalizationLineDistancefactor = 5.0;
 
-  unsigned int LocalizationPlaneDistanceNbrNeighbors = 5;
+  unsigned int LocalizationPlaneDistanceNbrNeighbors = 5;  // [>=3]
   double LocalizationPlaneDistancefactor1 = 35.0;
   double LocalizationPlaneDistancefactor2 = 8.0;
 
   double LocalizationMaxPlaneDistance = 0.2;
   double LocalizationMaxLineDistance = 0.2;
 
-  unsigned int LocalizationBlobDistanceNbrNeighbors = 25.;  // TODO : set from user interface
+  unsigned int LocalizationBlobDistanceNbrNeighbors = 25.;  // [>=4] TODO : set from user interface
 
-  unsigned int EgoMotionLineDistanceNbrNeighbors = 8;
-  unsigned int EgoMotionMinimumLineNeighborRejection = 3;
+  unsigned int EgoMotionLineDistanceNbrNeighbors = 8;  // [>=2]
+  unsigned int EgoMotionMinimumLineNeighborRejection = 3;  // [>=2]
   double EgoMotionLineDistancefactor = 5.;
 
-  unsigned int EgoMotionPlaneDistanceNbrNeighbors = 5;
+  unsigned int EgoMotionPlaneDistanceNbrNeighbors = 5;  // [>=3]
   double EgoMotionPlaneDistancefactor1 = 35.0;
   double EgoMotionPlaneDistancefactor2 = 8.0;
 

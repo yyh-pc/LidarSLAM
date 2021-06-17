@@ -68,17 +68,17 @@ public:
     // We also perform a filter upon the ratio of the eigen values of the
     // covariance matrix of the neighborhood to check if the points are
     // distributed upon a line or a plane.
-    unsigned int LineDistanceNbrNeighbors = 10; //< initial number of neighbor edge points searched to approximate the corresponding line
-    unsigned int MinimumLineNeighborRejection = 4;  //< number of neighbor edge points required to approximate the corresponding line after filtering startegy
+    unsigned int LineDistanceNbrNeighbors = 10; //< [>=2] initial number of neighbor edge points searched to approximate the corresponding line
+    unsigned int MinimumLineNeighborRejection = 4; //< [>=2] number of neighbor edge points required to approximate the corresponding line after filtering startegy
     double LineDistancefactor = 5.0; //< PCA eigenvalues ratio to consider a neighborhood fits a line model : V2 >= factor * V1
     double MaxLineDistance = 0.2; //< maximum RMSE between target keypoints and their fitted line
 
-    unsigned int PlaneDistanceNbrNeighbors = 5; //< number of neighbors planar points required to approximate the corresponding plane
+    unsigned int PlaneDistanceNbrNeighbors = 5; //< [>=3] number of neighbors planar points required to approximate the corresponding plane
     double PlaneDistancefactor1 = 35.0; //< PCA eigenvalues ratio to consider a neighborhood fits a plane model :
     double PlaneDistancefactor2 = 8.0;  //<     V1 >= factor1 * V0 and V2 <= factor2 * V1
     double MaxPlaneDistance = 0.2; //< maximum RMSE between target keypoints and their fitted plane
 
-    unsigned int BlobDistanceNbrNeighbors = 25; //< number of blob neighbors required to approximate the corresponding ellipsoid
+    unsigned int BlobDistanceNbrNeighbors = 25; //< [>=4] number of blob neighbors required to approximate the corresponding ellipsoid
 
     // Maximum distance (in meters) beyond which the residual errors are
     // saturated to robustify the optimization against outlier constraints.
@@ -92,14 +92,15 @@ public:
     //! Result of the keypoint matching, explaining rejection cause of matching failure.
     enum MatchStatus : uint8_t
     {
-      SUCCESS = 0,              ///< Keypoint has been successfully matched
-      NOT_ENOUGH_NEIGHBORS = 1, ///< Not enough neighbors to match keypoint
-      NEIGHBORS_TOO_FAR = 2,    ///< Neighbors are too far to match keypoint
-      BAD_PCA_STRUCTURE = 3,    ///< PCA eigenvalues analysis discards neighborhood fit to model
-      INVALID_NUMERICAL = 4,    ///< Optimization parameter computation has numerical invalidity
-      MSE_TOO_LARGE = 5,        ///< Mean squared error to model is too important to accept fitted model
-      UNKOWN = 6,               ///< Unkown status (matching probably not performed yet)
-      nStatus = 7
+      SUCCESS = 0,                ///< Keypoint has been successfully matched
+      BAD_MODEL_PARAMETRIZATION,  ///< Not enough neighbors requested to build the target model
+      NOT_ENOUGH_NEIGHBORS,       ///< Not enough neighbors found to match keypoint
+      NEIGHBORS_TOO_FAR,          ///< Neighbors are too far to match keypoint
+      BAD_PCA_STRUCTURE,          ///< PCA eigenvalues analysis discards neighborhood fit to model
+      INVALID_NUMERICAL,          ///< Optimization parameter computation has numerical invalidity
+      MSE_TOO_LARGE,              ///< Mean squared error to model is too important to accept fitted model
+      UNKOWN,                     ///< Unkown status (matching probably not performed yet)
+      nStatus
     };
 
     //! Match status and quality weight of each keypoint

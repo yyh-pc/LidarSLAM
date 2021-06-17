@@ -105,6 +105,10 @@ CeresTools::Residual KeypointsMatcher::BuildResidual(const Eigen::Matrix3d& A, c
 //-----------------------------------------------------------------------------
 KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p)
 {
+  // At least 2 points are needed to fit a line model
+  if (this->Params.LineDistanceNbrNeighbors < 2 || this->Params.MinimumLineNeighborRejection < 2)
+    return { MatchingResults::MatchStatus::BAD_MODEL_PARAMETRIZATION, 0., CeresTools::Residual() };
+
   // =====================================================
   // Transform the point using the current pose estimation
 
@@ -202,6 +206,10 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(co
 //-----------------------------------------------------------------------------
 KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p)
 {
+  // At least 3 points are needed to fit a plane model
+  if (this->Params.PlaneDistanceNbrNeighbors < 3)
+    return { MatchingResults::MatchStatus::BAD_MODEL_PARAMETRIZATION, 0., CeresTools::Residual() };
+
   // =====================================================
   // Transform the point using the current pose estimation
 
@@ -296,6 +304,10 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(c
 //-----------------------------------------------------------------------------
 KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p)
 {
+  // At least 4 points are needed to fit an ellipsoid model
+  if (this->Params.BlobDistanceNbrNeighbors < 4)
+    return { MatchingResults::MatchStatus::BAD_MODEL_PARAMETRIZATION, 0., CeresTools::Residual() };
+
   // =====================================================
   // Transform the point using the current pose estimation
 
