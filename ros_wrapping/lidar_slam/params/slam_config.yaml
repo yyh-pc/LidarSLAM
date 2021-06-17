@@ -179,6 +179,7 @@ slam:
     plane_distance_nbr_neighbors: 5     # [>=3] Number of nearest neighbors to look for in map to build plane model.
     plane_distance_factor1: 35.         # PCA eigenvalues ratio to consider a neighborhood fits a plane model :
     plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
+    blob_distance_nbr_neighbors: 10     # [>=4] Number of nearest neighbors to look for in map to build blob model.
     max_line_distance: 0.2              # [m] Max RMSE between neighbors and line model allowed to use the match.
     max_plane_distance: 0.2             # [m] Max RMSE between neighbors and plane model allowed to use the match.
     init_saturation_distance: 2.        # Initial distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.

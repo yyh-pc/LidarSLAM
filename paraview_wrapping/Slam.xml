@@ -757,6 +757,22 @@
         </Documentation>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Nb blob neighbors"
+                         command="SetLocalizationBlobDistanceNbrNeighbors"
+                         number_of_elements="1"
+                         default_values="10"
+                         panel_visibility="advanced">
+        <Documentation>
+          K-nearest neighbors points to consider to compute the Variance-Covariance
+          matrix of the neighborhood to define the Mahalanobis distance function.
+
+          At least 4 points are needed to build a valid blob model.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use blobs" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
       <DoubleVectorProperty name="Linearity factor"
                             command="SetLocalizationLineDistancefactor"
                             number_of_elements="1"
@@ -862,6 +878,7 @@
         <Property name="Nb edges neighbors minimum after Ransac" />
         <Property name="Nb edge neighbors" />
         <Property name="Nb plane neighbors" />
+        <Property name="Nb blob neighbors" />
         <Property name="Linearity factor" />
         <Property name="Planarity factor 1" />
         <Property name="Planarity factor 2" />

@@ -78,7 +78,7 @@ public:
     double PlaneDistancefactor2 = 8.0;  //<     V1 >= factor1 * V0 and V2 <= factor2 * V1
     double MaxPlaneDistance = 0.2; //< maximum RMSE between target keypoints and their fitted plane
 
-    unsigned int BlobDistanceNbrNeighbors = 25; //< [>=4] number of blob neighbors required to approximate the corresponding ellipsoid
+    unsigned int BlobDistanceNbrNeighbors = 10; //< [>=4] number of blob neighbors required to approximate the corresponding ellipsoid
 
     // Maximum distance (in meters) beyond which the residual errors are
     // saturated to robustify the optimization against outlier constraints.

@@ -419,6 +419,7 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   PrintParameter(LocalizationPlaneDistancefactor1)
   PrintParameter(LocalizationPlaneDistancefactor2)
   PrintParameter(LocalizationMaxPlaneDistance)
+  PrintParameter(LocalizationBlobDistanceNbrNeighbors)
   PrintParameter(LocalizationInitSaturationDistance)
   PrintParameter(LocalizationFinalSaturationDistance)
 

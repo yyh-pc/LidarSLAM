@@ -324,6 +324,9 @@ public:
   GetMacro(LocalizationMaxPlaneDistance, double)
   SetMacro(LocalizationMaxPlaneDistance, double)
 
+  GetMacro(LocalizationBlobDistanceNbrNeighbors, unsigned int)
+  SetMacro(LocalizationBlobDistanceNbrNeighbors, unsigned int)
+
   GetMacro(LocalizationInitSaturationDistance, double)
   SetMacro(LocalizationInitSaturationDistance, double)
 
@@ -606,7 +609,7 @@ private:
   double LocalizationMaxPlaneDistance = 0.2;
   double LocalizationMaxLineDistance = 0.2;
 
-  unsigned int LocalizationBlobDistanceNbrNeighbors = 25.;  // [>=4] TODO : set from user interface
+  unsigned int LocalizationBlobDistanceNbrNeighbors = 10;  // [>=4]
 
   unsigned int EgoMotionLineDistanceNbrNeighbors = 8;  // [>=2]
   unsigned int EgoMotionMinimumLineNeighborRejection = 3;  // [>=2]
