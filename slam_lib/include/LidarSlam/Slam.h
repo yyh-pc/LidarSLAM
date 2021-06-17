@@ -253,15 +253,15 @@ public:
   GetMacro(TwoDMode, bool)
   SetMacro(TwoDMode, bool)
 
-  GetMacro(MaxDistanceForICPMatching, double)
-  SetMacro(MaxDistanceForICPMatching, double)
-
   // Get/Set EgoMotion
   GetMacro(EgoMotionLMMaxIter, unsigned int)
   SetMacro(EgoMotionLMMaxIter, unsigned int)
 
   GetMacro(EgoMotionICPMaxIter, unsigned int)
   SetMacro(EgoMotionICPMaxIter, unsigned int)
+
+  GetMacro(EgoMotionMaxDistanceForICPMatching, double)
+  SetMacro(EgoMotionMaxDistanceForICPMatching, double)
 
   GetMacro(EgoMotionLineDistanceNbrNeighbors, unsigned int)
   SetMacro(EgoMotionLineDistanceNbrNeighbors, unsigned int)
@@ -299,6 +299,9 @@ public:
 
   GetMacro(LocalizationICPMaxIter, unsigned int)
   SetMacro(LocalizationICPMaxIter, unsigned int)
+
+  GetMacro(LocalizationMaxDistanceForICPMatching, double)
+  SetMacro(LocalizationMaxDistanceForICPMatching, double)
 
   GetMacro(LocalizationLineDistanceNbrNeighbors, unsigned int)
   SetMacro(LocalizationLineDistanceNbrNeighbors, unsigned int)
@@ -573,7 +576,8 @@ private:
   // The max distance allowed between a keypoint from the current frame and its
   // neighborhood from the map (or previous frame) to build an ICP match.
   // If the distance is over this limit, no match residual will be built.
-  double MaxDistanceForICPMatching = 5.;
+  double EgoMotionMaxDistanceForICPMatching = 5.;
+  double LocalizationMaxDistanceForICPMatching = 5.;
 
   // Maximum number of iteration
   // in the ego motion optimization step

@@ -503,6 +503,17 @@
         </Documentation>
       </IntVectorProperty>
 
+      <DoubleVectorProperty name="Max distance for ICP matching EM"
+                            command="SetEgoMotionMaxDistanceForICPMatching"
+                            number_of_elements="1"
+                            default_values="5."
+                            panel_visibility="advanced">
+        <Documentation>
+          Max distance allowed between a keypoint and its neighbors from the
+          previous frame to build an ICP match
+        </Documentation>
+      </DoubleVectorProperty>
+
       <IntVectorProperty name="Nb edges neighbors minimum after Ransac EM"
                          command="SetEgoMotionMinimumLineNeighborRejection"
                          number_of_elements="1"
@@ -643,6 +654,7 @@
       <PropertyGroup label="Ego-Motion registration ICP matching and optimization parameters">
         <Property name="ICP-Optimization iterations EM" />
         <Property name="Lev-Mardt max iterations EM" />
+        <Property name="Max distance for ICP matching EM" />
         <Property name="Nb edges neighbors minimum after Ransac EM" />
         <Property name="Nb edge neighbors EM" />
         <Property name="Nb plane neighbors EM" />
@@ -716,6 +728,17 @@
           cost functions to solve the problem.
         </Documentation>
       </IntVectorProperty>
+
+      <DoubleVectorProperty name="Max distance for ICP matching"
+                            command="SetLocalizationMaxDistanceForICPMatching"
+                            number_of_elements="1"
+                            default_values="5."
+                            panel_visibility="advanced">
+        <Documentation>
+          Max distance allowed between a keypoint and its neighbors from the map
+          to build an ICP match
+        </Documentation>
+      </DoubleVectorProperty>
 
       <IntVectorProperty name="Nb edges neighbors minimum after Ransac"
                          command="SetLocalizationMinimumLineNeighborRejection"
@@ -875,6 +898,7 @@
         <Property name="IMU gravity weight" />
         <Property name="ICP-Optimization iterations" />
         <Property name="Lev-Mardt max iterations" />
+        <Property name="Max distance for ICP matching" />
         <Property name="Nb edges neighbors minimum after Ransac" />
         <Property name="Nb edge neighbors" />
         <Property name="Nb plane neighbors" />

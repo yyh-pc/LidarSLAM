@@ -131,15 +131,15 @@ public:
   vtkCustomGetMacro(TwoDMode, bool)
   vtkCustomSetMacro(TwoDMode, bool)
 
-  vtkCustomGetMacro(MaxDistanceForICPMatching, double)
-  vtkCustomSetMacro(MaxDistanceForICPMatching, double)
-
   // Get/Set EgoMotion
   vtkCustomGetMacro(EgoMotionLMMaxIter, unsigned int)
   vtkCustomSetMacro(EgoMotionLMMaxIter, unsigned int)
 
   vtkCustomGetMacro(EgoMotionICPMaxIter, unsigned int)
   vtkCustomSetMacro(EgoMotionICPMaxIter, unsigned int)
+
+  vtkCustomGetMacro(EgoMotionMaxDistanceForICPMatching, double)
+  vtkCustomSetMacro(EgoMotionMaxDistanceForICPMatching, double)
 
   vtkCustomGetMacro(EgoMotionLineDistanceNbrNeighbors, unsigned int)
   vtkCustomSetMacro(EgoMotionLineDistanceNbrNeighbors, unsigned int)
@@ -177,6 +177,9 @@ public:
 
   vtkCustomGetMacro(LocalizationICPMaxIter, unsigned int)
   vtkCustomSetMacro(LocalizationICPMaxIter, unsigned int)
+
+  vtkCustomGetMacro(LocalizationMaxDistanceForICPMatching, double)
+  vtkCustomSetMacro(LocalizationMaxDistanceForICPMatching, double)
 
   vtkCustomGetMacro(LocalizationLineDistanceNbrNeighbors, unsigned int)
   vtkCustomSetMacro(LocalizationLineDistanceNbrNeighbors, unsigned int)

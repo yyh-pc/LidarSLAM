@@ -850,8 +850,8 @@ void Slam::ComputeEgoMotion()
     KeypointsMatcher::Parameters matchingParams;
     matchingParams.NbThreads = this->NbThreads;
     matchingParams.SingleEdgePerRing = true;
-    matchingParams.MaxDistanceForICPMatching = this->MaxDistanceForICPMatching;
     matchingParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
+    matchingParams.MaxDistanceForICPMatching = this->EgoMotionMaxDistanceForICPMatching;
     matchingParams.LineDistanceNbrNeighbors = this->EgoMotionLineDistanceNbrNeighbors;
     matchingParams.MinimumLineNeighborRejection = this->EgoMotionMinimumLineNeighborRejection;
     matchingParams.LineDistancefactor = this->EgoMotionLineDistancefactor;
@@ -1023,8 +1023,8 @@ void Slam::Localization()
   KeypointsMatcher::Parameters matchingParams;
   matchingParams.NbThreads = this->NbThreads;
   matchingParams.SingleEdgePerRing = false;
-  matchingParams.MaxDistanceForICPMatching = this->MaxDistanceForICPMatching;
   matchingParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
+  matchingParams.MaxDistanceForICPMatching = this->LocalizationMaxDistanceForICPMatching;
   matchingParams.LineDistanceNbrNeighbors = this->LocalizationLineDistanceNbrNeighbors;
   matchingParams.MinimumLineNeighborRejection = this->LocalizationMinimumLineNeighborRejection;
   matchingParams.LineDistancefactor = this->LocalizationLineDistancefactor;
