@@ -26,11 +26,10 @@
         some frames if too slow) with live display.
       </Documentation>
 
-      <InputProperty
-         name="Input"
-         label="Point Cloud"
-         port_index="0"
-         command="SetInputConnection">
+      <InputProperty name="Input"
+                     command="SetInputConnection"
+                     label="Point Cloud"
+                     port_index="0">
         <ProxyGroupDomain name="groups">
           <Group name="sources"/>
           <Group name="filters"/>
@@ -43,11 +42,10 @@
         </Documentation>
       </InputProperty>
 
-      <InputProperty
-         name="Calibration"
-         port_index="1"
-         command="SetInputConnection"
-         null_on_empty="1">
+      <InputProperty name="Calibration"
+                     command="SetInputConnection"
+                     port_index="1"
+                     null_on_empty="1">
         <Hints>
           <Optional /> <!-- No input selection dialog at instantiation -->
         </Hints>
@@ -74,9 +72,8 @@
 
       <!-- ============= Paraview filter inputs/outputs options ============ -->
 
-      <Property
-          name="Reset state"
-          command="Reset">
+      <Property name="Reset state"
+                command="Reset">
         <Documentation>
           Reset SLAM internal state : maps and trajectory are cleared, and
           current pose is set back to origin.
@@ -84,19 +81,18 @@
         </Documentation>
       </Property>
 
-      <!--~~~~~~~~~~~~~~~~~~~~~~~ Inputs options ~~~~~~~~~~~~~~~~~~~~~~~-->
+      <!--~~~~~~~~~~~~~~~~~~~~~~~~~ Inputs options ~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 
       <!-- Sensor data file must be csv.
            A field time in POSIX format is necessary
            Possible sensor fields are : odom, [acc_x, acc_y, acc_z].
            This file is loaded in PV wrapping.
            It is used to add constraints to the SLAM optimization -->
-      <StringVectorProperty
-        name="SensorDataFile"
-        animateable="0"
-        command="SetSensorData"
-        number_of_elements="1"
-        panel_visibility="advanced">
+      <StringVectorProperty name="SensorDataFile"
+                            command="SetSensorData"
+                            number_of_elements="1"
+                            animateable="0"
+                            panel_visibility="advanced">
         <FileListDomain name="files"/>
         <Documentation>
           The path of the external sensor data file to use.
@@ -108,16 +104,14 @@
           *odom*: Wheel odometry, in meters
 
           *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second
-
         </Documentation>
       </StringVectorProperty>
 
-      <IntVectorProperty
-          name="Auto detect input arrays"
-          command="SetAutoDetectInputArrays"
-          default_values="1"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Auto detect input arrays"
+                         command="SetAutoDetectInputArrays"
+                         number_of_elements="1"
+                         default_values="1"
+                         panel_visibility="advanced">
         <BooleanDomain name="bool" />
         <Documentation>
           If enabled, SLAM filter will try to auto-detect the time, intensity
@@ -128,8 +122,8 @@
       <!-- If auto-detection mode is disabled, user needs to specify input arrays to use -->
       <StringVectorProperty name="Time array"
                             command="SetInputArrayToProcess"
-                            element_types="0 0 0 0 2"
                             number_of_elements="5"
+                            element_types="0 0 0 0 2"
                             default_values="0"
                             panel_visibility="advanced">
         <ArrayListDomain attribute_type="Scalars" name="array_list">
@@ -147,8 +141,8 @@
 
       <StringVectorProperty name="Intensity array"
                             command="SetInputArrayToProcess"
-                            element_types="0 0 0 0 2"
                             number_of_elements="5"
+                            element_types="0 0 0 0 2"
                             default_values="1"
                             panel_visibility="advanced">
         <ArrayListDomain attribute_type="Scalars" name="array_list">
@@ -166,8 +160,8 @@
 
       <StringVectorProperty name="Laser ring id array"
                             command="SetInputArrayToProcess"
-                            element_types="0 0 0 0 2"
                             number_of_elements="5"
+                            element_types="0 0 0 0 2"
                             default_values="2"
                             panel_visibility="advanced">
         <ArrayListDomain attribute_type="Scalars" name="array_list">
@@ -185,8 +179,8 @@
 
       <StringVectorProperty name="Elevation angles calibration"
                             command="SetInputArrayToProcess"
-                            element_types="0 0 0 0 2"
                             number_of_elements="5"
+                            element_types="0 0 0 0 2"
                             default_values="3"
                             panel_visibility="advanced">
         <ArrayListDomain attribute_type="Scalars" name="array_list">
@@ -205,8 +199,8 @@
 
       <DoubleVectorProperty name="Time to seconds factor"
                             command="SetTimeToSecondsFactorSetting"
-                            default_values="1e-6"
                             number_of_elements="1"
+                            default_values="1e-6"
                             panel_visibility="advanced">
         <Documentation>
           Coefficient to apply to *Time array* values to express timestamps in seconds.
@@ -216,13 +210,12 @@
         </Hints>
       </DoubleVectorProperty>
 
-      <!--~~~~~~~~~~~~~~~~~~~~~~ Outputs options ~~~~~~~~~~~~~~~~~~~~~~-->
+      <!--~~~~~~~~~~~~~~~~~~~~~~~~~ Outputs options ~~~~~~~~~~~~~~~~~~~~~~~~~-->
 
-      <IntVectorProperty
-          name="Advanced return mode"
-          command="SetAdvancedReturnMode"
-          default_values="0"
-          number_of_elements="1">
+      <IntVectorProperty name="Advanced return mode"
+                         command="SetAdvancedReturnMode"
+                         number_of_elements="1"
+                         default_values="0">
         <BooleanDomain name="bool" />
         <Documentation>
           If advanced return mode is enabled, extra arrays are added to the
@@ -239,11 +232,10 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Output keypoints maps"
-          command="SetOutputKeypointsMaps"
-          default_values="1"
-          number_of_elements="1">
+      <IntVectorProperty name="Output keypoints maps"
+                         command="SetOutputKeypointsMaps"
+                         number_of_elements="1"
+                         default_values="1">
         <BooleanDomain name="bool" />
         <Documentation>
           If enabled, SLAM filter will output keypoints maps.
@@ -251,28 +243,23 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Keypoints maps update step"
-          command="SetMapsUpdateStep"
-          default_values="1"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Keypoints maps update step"
+                         command="SetMapsUpdateStep"
+                         number_of_elements="1"
+                         default_values="1"
+                         panel_visibility="advanced">
         <Documentation>
           SLAM filter will update keypoints maps only 1 frame over *step* to save time.
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator"
-                                   mode="enabled_state"
-                                   property="Output keypoints maps"
-                                   value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="Output keypoints maps" value="1" />
         </Hints>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Output current keypoints"
-          command="SetOutputCurrentKeypoints"
-          default_values="1"
-          number_of_elements="1">
+      <IntVectorProperty name="Output current keypoints"
+                         command="SetOutputCurrentKeypoints"
+                         number_of_elements="1"
+                         default_values="1">
         <BooleanDomain name="bool" />
         <Documentation>
           If enabled, SLAM filter will output keypoints extracted from current
@@ -280,12 +267,11 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Output keypoints in WORLD coordinates"
-          command="SetOutputKeypointsInWorldCoordinates"
-          default_values="1"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Output keypoints in WORLD coordinates"
+                         command="SetOutputKeypointsInWorldCoordinates"
+                         number_of_elements="1"
+                         default_values="1"
+                         panel_visibility="advanced">
         <BooleanDomain name="bool" />
         <Documentation>
           If disabled, return raw keypoints extracted from current frame in BASE
@@ -295,10 +281,7 @@
           undistorted if undistortion is activated.
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator"
-                                   mode="enabled_state"
-                                   property="Output current keypoints"
-                                   value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="Output current keypoints" value="1" />
         </Hints>
       </IntVectorProperty>
 
@@ -318,13 +301,12 @@
         <Property name="Output keypoints in WORLD coordinates" />
       </PropertyGroup>
 
-      <!-- ==================== General ==================== -->
+      <!-- ============================ General ============================ -->
 
-      <IntVectorProperty
-          name="2d mode"
-          command="SetTwoDMode"
-          default_values="0"
-          number_of_elements="1">
+      <IntVectorProperty name="2d mode"
+                         command="SetTwoDMode"
+                         number_of_elements="1"
+                         default_values="0">
         <BooleanDomain name="bool" />
         <Documentation>
           Optimize only 2D pose in BASE coordinates.
@@ -333,22 +315,20 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Use blobs"
-          command="SetUseBlobs"
-          default_values="0"
-          number_of_elements="1">
+      <IntVectorProperty name="Use blobs"
+                         command="SetUseBlobs"
+                         number_of_elements="1"
+                         default_values="0" >
         <BooleanDomain name="bool" />
         <Documentation>
           If enabled, blob keypoints are used in localization step.
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Verbosity level"
-          command="SetVerbosity"
-          default_values="0"
-          number_of_elements="1">
+      <IntVectorProperty name="Verbosity level"
+                         command="SetVerbosity"
+                         number_of_elements="1"
+                         default_values="0" >
         <EnumerationDomain name="enum">
           <Entry value="0" text="0) Errors, warnings or one time info"/>
           <Entry value="1" text="1) 0 + Frame total processing duration"/>
@@ -374,11 +354,10 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Ego-Motion mode"
-          command="SetEgoMotion"
-          default_values="1"
-          number_of_elements="1">
+      <IntVectorProperty name="Ego-Motion mode"
+                         command="SetEgoMotion"
+                         number_of_elements="1"
+                         default_values="1">
         <EnumerationDomain name="enum">
           <Entry value="0" text="Disabled"/>
           <Entry value="1" text="Motion extrapolation"/>
@@ -408,11 +387,10 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Undistortion mode"
-          command="SetUndistortion"
-          default_values="2"
-          number_of_elements="1">
+      <IntVectorProperty name="Undistortion mode"
+                         command="SetUndistortion"
+                         number_of_elements="1"
+                         default_values="2">
         <EnumerationDomain name="enum">
           <Entry value="0" text="Disabled"/>
           <Entry value="1" text="Once"/>
@@ -431,11 +409,10 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Number of threads"
-          command="SetNbThreads"
-          default_values="1"
-          number_of_elements="1">
+      <IntVectorProperty name="Number of threads"
+                         command="SetNbThreads"
+                         number_of_elements="1"
+                         default_values="1">
         <IntRangeDomain name="range" min="1" max="16"/>
         <Documentation>
           Max number of threads to use for parallel processing.
@@ -453,10 +430,9 @@
 
       <!-- ================ Keypoints extraction Parameters ================ -->
 
-      <ProxyProperty
-        name="KeyPointsExtractor"
-        command="SetKeyPointsExtractor"
-        label="Keypoints extractor">
+      <ProxyProperty name="KeyPointsExtractor"
+                     command="SetKeyPointsExtractor"
+                     label="Keypoints extractor">
         <ProxyListDomain name="proxy_list">
           <Group name="KeyPointsExtractors"/>
         </ProxyListDomain>
@@ -467,12 +443,11 @@
 
       <!-- ==================== BASE to LIDAR transform ==================== -->
 
-      <DoubleVectorProperty
-          name="Translation"
-          command="SetBaseToLidarTranslation"
-          default_values="0 0 0"
-          number_of_elements="3"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Translation"
+                            command="SetBaseToLidarTranslation"
+                            number_of_elements="3"
+                            default_values="0. 0. 0."
+                            panel_visibility="advanced">
         <Documentation>
           Position of the LiDAR sensor in BASE coordinate system (X, Y, Z).
 
@@ -482,12 +457,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Rotation"
-          command="SetBaseToLidarRotation"
-          default_values="0 0 0"
-          number_of_elements="3"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Rotation"
+                            command="SetBaseToLidarRotation"
+                            number_of_elements="3"
+                            default_values="0. 0. 0."
+                            panel_visibility="advanced">
         <Documentation>
           Rotation of the LiDAR sensor in BASE coordinate system (rX, rY, rZ, euler angles in ZYX convention, in degrees).
 
@@ -502,14 +476,13 @@
         <Property name="Rotation" />
       </PropertyGroup>
 
-      <!-- ==================== Ego Motion Parameters ==================== -->
+      <!-- ===================== Ego Motion Parameters ===================== -->
 
-      <IntVectorProperty
-          name="ICP-Optimization iterations EM"
-          command="SetEgoMotionICPMaxIter"
-          default_values="4"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="ICP-Optimization iterations EM"
+                         command="SetEgoMotionICPMaxIter"
+                         number_of_elements="1"
+                         default_values="4"
+                         panel_visibility="advanced">
         <Documentation>
           The registration of the current frame on the previous frame is performed iteratively,
           building point-to-feature Mahalanobis distance functions during an ICP
@@ -518,12 +491,11 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Lev-Mardt max iterations EM"
-          command="SetEgoMotionLMMaxIter"
-          default_values="15"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Lev-Mardt max iterations EM"
+                         command="SetEgoMotionLMMaxIter"
+                         number_of_elements="1"
+                         default_values="15"
+                         panel_visibility="advanced">
         <Documentation>
           Maximum number of iterations of the numerical optimization step, using
           Levenberg-Marquardt iterative algorithm with non-linear least square
@@ -531,12 +503,11 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Nb edges neighbors minimum after Ransac EM"
-          command="SetEgoMotionMinimumLineNeighborRejection"
-          default_values="3"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Nb edges neighbors minimum after Ransac EM"
+                         command="SetEgoMotionMinimumLineNeighborRejection"
+                         number_of_elements="1"
+                         default_values="3"
+                         panel_visibility="advanced">
         <Documentation>
           In the Ego-Motion step, the neighborhood of an edge keypoint
           is fitted using a Ransac algorithm. This parameter sets the
@@ -544,36 +515,33 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Nb edge neighbors EM"
-          command="SetEgoMotionLineDistanceNbrNeighbors"
-          default_values="8"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Nb edge neighbors EM"
+                         command="SetEgoMotionLineDistanceNbrNeighbors"
+                         number_of_elements="1"
+                         default_values="8"
+                         panel_visibility="advanced">
         <Documentation>
           K-nearest neighbors points to consider to compute the Variance-Covariance
           matrix of the neighborhood to define the Mahalanobis distance function.
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Nb plane neighbors EM"
-          command="SetEgoMotionPlaneDistanceNbrNeighbors"
-          default_values="5"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Nb plane neighbors EM"
+                         command="SetEgoMotionPlaneDistanceNbrNeighbors"
+                         number_of_elements="1"
+                         default_values="5"
+                         panel_visibility="advanced">
         <Documentation>
           K-nearest neighbors points to consider to compute the Variance-Covariance
           matrix of the neighborhood to define the Mahalanobis distance function.
         </Documentation>
       </IntVectorProperty>
 
-      <DoubleVectorProperty
-          name="Linearity factor EM"
-          command="SetEgoMotionLineDistancefactor"
-          default_values="5"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Linearity factor EM"
+                            command="SetEgoMotionLineDistancefactor"
+                            number_of_elements="1"
+                            default_values="5."
+                            panel_visibility="advanced">
         <Documentation>
           Reject an edge keypoint if its neighborhood is not distributed
           along a line :
@@ -582,12 +550,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Planarity factor 1 EM"
-          command="SetEgoMotionPlaneDistancefactor1"
-          default_values="35"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Planarity factor 1 EM"
+                            command="SetEgoMotionPlaneDistancefactor1"
+                            number_of_elements="1"
+                            default_values="35."
+                            panel_visibility="advanced">
         <Documentation>
           Reject a planar keypoint if its neighborhood is not distributed
           along a plane:
@@ -598,12 +565,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Planarity factor 2 EM"
-          command="SetEgoMotionPlaneDistancefactor2"
-          default_values="8"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Planarity factor 2 EM"
+                            command="SetEgoMotionPlaneDistancefactor2"
+                            number_of_elements="1"
+                            default_values="8."
+                            panel_visibility="advanced">
         <Documentation>
           Reject a planar keypoint if its neighborhood is not distributed
           along a plane:
@@ -614,36 +580,33 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Max RMSE between neighbors and line model EM"
-          command="SetEgoMotionMaxLineDistance"
-          default_values="0.2"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Max RMSE between neighbors and line model EM"
+                            command="SetEgoMotionMaxLineDistance"
+                            number_of_elements="1"
+                            default_values="0.2"
+                            panel_visibility="advanced">
         <Documentation>
           Reject a match if the target line model is not 
           accurate enough (if neighbors RMSE is too high)
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Max RMSE between neighbors and plane model EM"
-          command="SetEgoMotionMaxPlaneDistance"
-          default_values="0.2"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Max RMSE between neighbors and plane model EM"
+                            command="SetEgoMotionMaxPlaneDistance"
+                            number_of_elements="1"
+                            default_values="0.2"
+                            panel_visibility="advanced">
         <Documentation>
           Reject a match if the target plane model is not 
           accurate enough (if neighbors RMSE is too high)
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Init saturation distance EM"
-          command="SetEgoMotionInitSaturationDistance"
-          default_values="5."
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Init saturation distance EM"
+                            command="SetEgoMotionInitSaturationDistance"
+                            number_of_elements="1"
+                            default_values="5."
+                            panel_visibility="advanced">
         <Documentation>
           Maximum distance (in meters) beyond which the residual errors are
           saturated to robustify the optimization against outlier constraints.
@@ -655,12 +618,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Final saturation distance EM"
-          command="SetEgoMotionFinalSaturationDistance"
-          default_values="1."
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Final saturation distance EM"
+                            command="SetEgoMotionFinalSaturationDistance"
+                            number_of_elements="1"
+                            default_values="1."
+                            panel_visibility="advanced">
         <Documentation>
           Maximum distance (in meters) beyond which the residual errors are
           saturated to robustify the optimization against outlier constraints.
@@ -698,12 +660,11 @@
 
       <!-- ==================== Localization Parameters ==================== -->
 
-      <DoubleVectorProperty
-          name="Wheel odometry weight"
-          command="SetWheelOdomWeight"
-          default_values="0."
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Wheel odometry weight"
+                            command="SetWheelOdomWeight"
+                            number_of_elements="1"
+                            default_values="0."
+                            panel_visibility="advanced">
         <Documentation>
           Wheel odometry weight.
         </Documentation>
@@ -712,26 +673,24 @@
         </Hints>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="IMU gravity weight"
-          command="SetGravityWeight"
-          default_values="0."
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="IMU gravity weight"
+                            command="SetGravityWeight"
+                            number_of_elements="1"
+                            default_values="0."
+                            panel_visibility="advanced">
         <Documentation>
           IMU gravity alignment weight.
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility"  inverse="1" property="SensorDataFile" value="" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="SensorDataFile" value="" />
         </Hints>
       </DoubleVectorProperty>
 
-      <IntVectorProperty
-          name="ICP-Optimization iterations"
-          command="SetLocalizationICPMaxIter"
-          default_values="3"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="ICP-Optimization iterations"
+                         command="SetLocalizationICPMaxIter"
+                         number_of_elements="1"
+                         default_values="3"
+                         panel_visibility="advanced">
         <Documentation>
           The registration of the current frame on the map is performed iteratively,
           building point-to-feature Mahalanobis distance functions during an ICP
@@ -740,12 +699,11 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Lev-Mardt max iterations"
-          command="SetLocalizationLMMaxIter"
-          default_values="15"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Lev-Mardt max iterations"
+                         command="SetLocalizationLMMaxIter"
+                         number_of_elements="1"
+                         default_values="15"
+                         panel_visibility="advanced">
         <Documentation>
           Maximum number of iterations of the numerical optimization step, using
           Levenberg-Marquardt iterative algorithm with non-linear least square
@@ -753,12 +711,11 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Nb edges neighbors minimum after Ransac"
-          command="SetLocalizationMinimumLineNeighborRejection"
-          default_values="4"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Nb edges neighbors minimum after Ransac"
+                         command="SetLocalizationMinimumLineNeighborRejection"
+                         number_of_elements="1"
+                         default_values="4"
+                         panel_visibility="advanced">
         <Documentation>
           In the Localization step, the neighborhood of an edge keypoint
           is fitted using a Ransac algorithm. This parameter sets the
@@ -766,36 +723,33 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Nb edge neighbors"
-          command="SetLocalizationLineDistanceNbrNeighbors"
-          default_values="10"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Nb edge neighbors"
+                         command="SetLocalizationLineDistanceNbrNeighbors"
+                         number_of_elements="1"
+                         default_values="10"
+                         panel_visibility="advanced">
         <Documentation>
           K-nearest neighbors points to consider to compute the Variance-Covariance
           matrix of the neighborhood to define the Mahalanobis distance function.
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Nb plane neighbors"
-          command="SetLocalizationPlaneDistanceNbrNeighbors"
-          default_values="5"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Nb plane neighbors"
+                         command="SetLocalizationPlaneDistanceNbrNeighbors"
+                         number_of_elements="1"
+                         default_values="5"
+                         panel_visibility="advanced">
         <Documentation>
           K-nearest neighbors points to consider to compute the Variance-Covariance
           matrix of the neighborhood to define the Mahalanobis distance function.
         </Documentation>
       </IntVectorProperty>
 
-      <DoubleVectorProperty
-          name="Linearity factor"
-          command="SetLocalizationLineDistancefactor"
-          default_values="5"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Linearity factor"
+                            command="SetLocalizationLineDistancefactor"
+                            number_of_elements="1"
+                            default_values="5."
+                            panel_visibility="advanced">
         <Documentation>
           Reject an edge keypoint if its neighborhood is not distributed
           along a line :
@@ -804,12 +758,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Planarity factor 1"
-          command="SetLocalizationPlaneDistancefactor1"
-          default_values="35"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Planarity factor 1"
+                            command="SetLocalizationPlaneDistancefactor1"
+                            number_of_elements="1"
+                            default_values="35."
+                            panel_visibility="advanced">
         <Documentation>
           Reject a planar keypoint if its neighborhood is not distributed
           along a plane:
@@ -820,12 +773,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Planarity factor 2"
-          command="SetLocalizationPlaneDistancefactor2"
-          default_values="8"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Planarity factor 2"
+                            command="SetLocalizationPlaneDistancefactor2"
+                            number_of_elements="1"
+                            default_values="8."
+                            panel_visibility="advanced">
         <Documentation>
           Reject a planar keypoint if its neighborhood is not distributed
           along a plane:
@@ -836,36 +788,33 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Max RMSE between neighbors and line model"
-          command="SetLocalizationMaxLineDistance"
-          default_values="0.2"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Max RMSE between neighbors and line model"
+                            command="SetLocalizationMaxLineDistance"
+                            number_of_elements="1"
+                            default_values="0.2"
+                            panel_visibility="advanced">
         <Documentation>
           Reject a match if the target line model is not 
           accurate enough (if neighbors RMSE is too high)
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Max RMSE between neighbors and plane model"
-          command="SetLocalizationMaxPlaneDistance"
-          default_values="0.2"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Max RMSE between neighbors and plane model"
+                            command="SetLocalizationMaxPlaneDistance"
+                            number_of_elements="1"
+                            default_values="0.2"
+                            panel_visibility="advanced">
         <Documentation>
           Reject a match if the target line model is not 
           accurate enough (if neighbors RMSE is too high)
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Init saturation distance"
-          command="SetLocalizationInitSaturationDistance"
-          default_values="2."
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Init saturation distance"
+                            command="SetLocalizationInitSaturationDistance"
+                            number_of_elements="1"
+                            default_values="2."
+                            panel_visibility="advanced">
         <Documentation>
           Maximum distance (in meters) beyond which the residual errors are
           saturated to robustify the optimization against outlier constraints.
@@ -877,12 +826,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Final saturation distance"
-          command="SetLocalizationFinalSaturationDistance"
-          default_values="0.5"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Final saturation distance"
+                            command="SetLocalizationFinalSaturationDistance"
+                            number_of_elements="1"
+                            default_values="0.5"
+                            panel_visibility="advanced">
         <Documentation>
           Maximum distance (in meters) beyond which the residual errors are
           saturated to robustify the optimization against outlier constraints.
@@ -911,38 +859,35 @@
         <Property name="Final saturation distance" />
       </PropertyGroup>
 
-      <!-- ==================== Map Parameters ==================== -->
+      <!-- ======================== Map Parameters ========================= -->
 
-      <DoubleVectorProperty
-          name="Keyframe distance threshold"
-          command="SetKfDistanceThreshold"
-          default_values="0.5"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Keyframe distance threshold"
+                            command="SetKfDistanceThreshold"
+                            number_of_elements="1"
+                            default_values="0.5"
+                            panel_visibility="advanced">
         <Documentation>
           Minimum distance to travel since last keyframe to add a new one.
           Only keyframes' points are added to the map.
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Keyframe angle threshold"
-          command="SetKfAngleThreshold"
-          default_values="5."
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Keyframe angle threshold"
+                            command="SetKfAngleThreshold"
+                            number_of_elements="1"
+                            default_values="5."
+                            panel_visibility="advanced">
         <Documentation>
           Minimum angle (in degrees) to rotate since last keyframe to add a new one.
           Only keyframes' points are added to the map.
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Edges map resolution"
-          command="SetVoxelGridLeafSizeEdges"
-          default_values="0.3"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Edges map resolution"
+                            command="SetVoxelGridLeafSizeEdges"
+                            number_of_elements="1"
+                            default_values="0.3"
+                            panel_visibility="advanced">
         <Documentation>
           Minimum size of a leaf when downsampling the edges map using
           a voxel grid filter. It should not be too big or some high
@@ -952,12 +897,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Planes map resolution"
-          command="SetVoxelGridLeafSizePlanes"
-          default_values="0.6"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Planes map resolution"
+                            command="SetVoxelGridLeafSizePlanes"
+                            number_of_elements="1"
+                            default_values="0.6"
+                            panel_visibility="advanced">
         <Documentation>
           Minimum size of a leaf when downsampling the planes map using
           a voxel grid filter. It should not be too big or some high
@@ -967,12 +911,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Blobs map resolution"
-          command="SetVoxelGridLeafSizeBlobs"
-          default_values="0.3"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Blobs map resolution"
+                            command="SetVoxelGridLeafSizeBlobs"
+                            number_of_elements="1"
+                            default_values="0.3"
+                            panel_visibility="advanced">
         <Documentation>
           Minimum size of a leaf when downsampling the blobs map using
           a voxel grid filter. It should not be too big or some high
@@ -981,19 +924,15 @@
           computation time may increase.
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator"
-                                   mode="visibility"
-                                   property="Use blobs"
-                                   value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use blobs" value="1" />
         </Hints>
       </DoubleVectorProperty>
 
-      <IntVectorProperty
-          name="Rolling grid dimension"
-          command="SetVoxelGridSize"
-          default_values="50"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Rolling grid dimension"
+                         command="SetVoxelGridSize"
+                         number_of_elements="1"
+                         default_values="50"
+                         panel_visibility="advanced">
         <Documentation>
           Number of voxels in each direction of the rolling grid. It should be
           large enough to store a local map around current pose, but a too high
@@ -1007,12 +946,11 @@
         </Documentation>
       </IntVectorProperty>
 
-      <DoubleVectorProperty
-          name="Rolling grid resolution"
-          command="SetVoxelGridResolution"
-          default_values="10."
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Rolling grid resolution"
+                            command="SetVoxelGridResolution"
+                            number_of_elements="1"
+                            default_values="10."
+                            panel_visibility="advanced">
         <Documentation>
           Resolution of a voxel of the rolling grid (meters per voxel).
           It should not be too big or too much points will be considered when
@@ -1031,14 +969,13 @@
         <Property name="Rolling grid resolution" />
       </PropertyGroup>
 
-      <!-- ==================== Confidence estimator parameters ==================== -->
+      <!-- ================ Confidence estimator parameters ================ -->
 
-      <DoubleVectorProperty
-          name="Overlap sampling ratio"
-          command="SetOverlapSamplingRatio"
-          default_values="0.25"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Overlap sampling ratio"
+                            command="SetOverlapSamplingRatio"
+                            number_of_elements="1"
+                            default_values="0.25"
+                            panel_visibility="advanced">
         <Documentation>
           Ratio of points (between 0 and 1) from the current frame to compute
           overlap on.
@@ -1055,12 +992,11 @@
         </Hints>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Velocity limits"
-          command="SetVelocityLimits"
-          default_values="1e6 1e6"
-          number_of_elements="2"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Velocity limits"
+                            command="SetVelocityLimits"
+                            number_of_elements="2"
+                            default_values="1e6 1e6"
+                            panel_visibility="advanced">
         <Documentation>
           Velocity thresholds to evaluate and discard pose.
 
@@ -1073,12 +1009,11 @@
         </Hints>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Acceleration limits"
-          command="SetAccelerationLimits"
-          default_values="1e3 1e3"
-          number_of_elements="2"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Acceleration limits"
+                            command="SetAccelerationLimits"
+                            number_of_elements="2"
+                            default_values="1e3 1e3"
+                            panel_visibility="advanced">
         <Documentation>
           Acceleration threshold to evaluate and discard pose.
 
@@ -1128,22 +1063,20 @@
         This filter performs offline processing of all input frames without live display.
       </Documentation>
 
-      <IntVectorProperty
-          name="All frames"
-          command="SetAllFrames"
-          default_values="1"
-          number_of_elements="1">
+      <IntVectorProperty name="All frames"
+                         command="SetAllFrames"
+                         number_of_elements="1"
+                         default_values="1">
         <BooleanDomain name="bool" />
         <Documentation>
           Process all frames of the recording.
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="First frame"
-          command="SetFirstFrame"
-          default_values="0"
-          number_of_elements="1">
+      <IntVectorProperty name="First frame"
+                         command="SetFirstFrame"
+                         number_of_elements="1"
+                         default_values="0">
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="All frames" value="0" />
         </Hints>
@@ -1152,11 +1085,10 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Last frame"
-          command="SetLastFrame"
-          default_values="0"
-          number_of_elements="1">
+      <IntVectorProperty name="Last frame"
+                         command="SetLastFrame"
+                         number_of_elements="1"
+                         default_values="0">
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="All frames" value="0" />
         </Hints>
@@ -1165,12 +1097,11 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty
-          name="Step size"
-          command="SetStepSize"
-          default_values="1"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Step size"
+                         command="SetStepSize"
+                         number_of_elements="1"
+                         default_values="1"
+                         panel_visibility="advanced">
         <Documentation>
           Process one frame every StepSize frames (e.g. every (1) frame, every
           2 frames, every 3 frames, and so on).
@@ -1204,12 +1135,11 @@
         Extract edges, planes and blobs keypoints from a spinning LiDAR sensor pointcloud.
       </Documentation>
 
-      <IntVectorProperty
-          name="Neighborhood width"
-          command="SetNeighborWidth"
-          default_values="4"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <IntVectorProperty name="Neighborhood width"
+                         command="SetNeighborWidth"
+                         number_of_elements="1"
+                         default_values="4"
+                         panel_visibility="advanced">
         <Documentation>
           Number of neighbors to use on each side of current point to estimate
           the keypoints scores (curvature, planarity, depth gap, ...) in each
@@ -1217,12 +1147,11 @@
         </Documentation>
       </IntVectorProperty>
 
-      <DoubleVectorProperty
-          name="Min distance to sensor"
-          command="SetMinDistanceToSensor"
-          default_values="3"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Min distance to sensor"
+                            command="SetMinDistanceToSensor"
+                            number_of_elements="1"
+                            default_values="3."
+                            panel_visibility="advanced">
         <Documentation>
           Minimum distance between a point and the sensor to be processed for
           the keypoint extraction. In other words, all points too close from the
@@ -1230,12 +1159,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Min laser beam to surface angle"
-          command="SetMinBeamSurfaceAngle"
-          default_values="10"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Min laser beam to surface angle"
+                            command="SetMinBeamSurfaceAngle"
+                            number_of_elements="1"
+                            default_values="10."
+                            panel_visibility="advanced">
         <Documentation>
           Minimum angle between the laser beam and the surface on which
           a point is laying to consider it as a potential keypoint.
@@ -1244,12 +1172,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Plane max sinus angle"
-          command="SetPlaneSinAngleThreshold"
-          default_values="0.5"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Plane max sinus angle"
+                            command="SetPlaneSinAngleThreshold"
+                            number_of_elements="1"
+                            default_values="0.5"
+                            panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as a planar keypoint is to compute
           the angle between the two lines that fit its previous and next neighborhoods.
@@ -1258,12 +1185,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Edge min sinus angle"
-          command="SetEdgeSinAngleThreshold"
-          default_values="0.86"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Edge min sinus angle"
+                            command="SetEdgeSinAngleThreshold"
+                            number_of_elements="1"
+                            default_values="0.86"
+                            panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
           the angle between the two lines that fit its previous and next neighborhoods.
@@ -1272,12 +1198,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Edge min saliency distance"
-          command="SetEdgeSaliencyThreshold"
-          default_values="1.5"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Edge min saliency distance"
+                            command="SetEdgeSaliencyThreshold"
+                            number_of_elements="1"
+                            default_values="1.5"
+                            panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
           the depth gap between the point and its far background neighborhood.
@@ -1285,12 +1210,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Edge min intensity gap"
-          command="SetEdgeIntensityGapThreshold"
-          default_values="50."
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Edge min intensity gap"
+                            command="SetEdgeIntensityGapThreshold"
+                            number_of_elements="1"
+                            default_values="50."
+                            panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
           the intensity gap between the point and its left and right neighbors.
@@ -1298,12 +1222,11 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty
-          name="Edge min depth gap"
-          command="SetEdgeDepthGapThreshold"
-          default_values="0.15"
-          number_of_elements="1"
-          panel_visibility="advanced">
+      <DoubleVectorProperty name="Edge min depth gap"
+                            command="SetEdgeDepthGapThreshold"
+                            number_of_elements="1"
+                            default_values="0.15"
+                            panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
           the gap between the point and its neighborhood, fitted by a line. Then
