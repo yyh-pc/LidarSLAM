@@ -37,8 +37,6 @@ option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
 if (SLAM_PARAVIEW_PLUGIN)
   # Find ParaView
   find_package(ParaView REQUIRED)
-  message(STATUS "PARAVIEW_USE_FILE: ${PARAVIEW_USE_FILE}")
-  include(${PARAVIEW_USE_FILE})
   # As the PV plugin is a shared library, we also need to ensure that the core
   # SLAM lib is compatible with position independent code.
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)

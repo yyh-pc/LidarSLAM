@@ -1,25 +1,35 @@
-set(SLAM_INSTALL_PARAVIEW_PLUGIN_DIR ${SLAM_INSTALL_LIBRARY_DIR} CACHE STRING "Directory where to install Paraview LidarSlamPlugin")
+set(lidarslam_sources)
 
-set(ServerManagerSources
-  vtkSlam.cxx
-  vtkSlam.h
-  vtkSlamManager.cxx
-  vtkSlamManager.h
-  vtkSpinningSensorKeypointExtractor.cxx
-  vtkSpinningSensorKeypointExtractor.h)
-
-set(ServerManagerXML
-  Slam.xml)
-
-add_paraview_plugin(LidarSlamPlugin ${PROJECT_VERSION}
-  SERVER_MANAGER_XML ${ServerManagerXML}
-  SERVER_MANAGER_SOURCES ${ServerManagerSources}
-  DOCUMENTATION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doc/"
+set(lidarslam_classes
+  vtkSlam
+  vtkSlamManager
+  vtkSpinningSensorKeypointExtractor
 )
 
-target_link_libraries(LidarSlamPlugin PUBLIC LidarSlam)
+set(lidarslam_headers)
+set(lidarslam_templates)
 
-install(TARGETS LidarSlamPlugin
-        RUNTIME DESTINATION ${SLAM_INSTALL_PARAVIEW_PLUGIN_DIR}
-        LIBRARY DESTINATION ${SLAM_INSTALL_PARAVIEW_PLUGIN_DIR}
-        COMPONENT Runtime)
+set(lidarslam_xml
+  Slam.xml
+)
+
+# Create Module
+vtk_module_add_module(LidarSlamPluginMod
+  FORCE_STATIC # Using FORCE_STATIC build the vtk module statically into the plugin library, to avoid confusion when loading                
+  SOURCES ${lidarslam_sources} # Will not trigger a PV wrapping
+  CLASSES ${lidarslam_classes} # Those will be PV ClientServer wrapped #shorcut for sources x.cxx x.h  
+  HEADERS ${lidarslam_headers} # Those will be PV ClientServer wrapped
+  #TEMPLATES ${lidarslam_templates} # Those will be PV ClientServer wrapped
+  #PRIVATE_* variants exists and will not be wrapped, CLASSES are always PRIVATE/NOT-WRAPPED
+)
+paraview_add_server_manager_xmls(
+  MODULE LidarSlamPluginMod
+  XMLS  ${lidarslam_xml}
+)
+
+target_link_libraries(LidarSlamPluginMod PUBLIC LidarSlam)
+target_include_directories(LidarSlamPluginMod
+  PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}
+)
+

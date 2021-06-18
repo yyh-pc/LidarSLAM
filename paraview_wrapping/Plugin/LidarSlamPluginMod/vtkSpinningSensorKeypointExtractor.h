@@ -48,7 +48,7 @@ class VTK_EXPORT vtkSpinningSensorKeypointExtractor : public vtkObject
 public:
   static vtkSpinningSensorKeypointExtractor* New();
   vtkTypeMacro(vtkSpinningSensorKeypointExtractor, vtkObject)
-  void PrintSelf(ostream& os, vtkIndent indent);
+  void PrintSelf(ostream& os, vtkIndent indent) override;
 
   vtkCustomSetMacro(NeighborWidth, int)
 
