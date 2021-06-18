@@ -150,6 +150,9 @@ public:
   vtkCustomGetMacro(EgoMotionEdgePcaFactor, double)
   vtkCustomSetMacro(EgoMotionEdgePcaFactor, double)
 
+  vtkCustomGetMacro(EgoMotionEdgeMaxModelError, double)
+  vtkCustomSetMacro(EgoMotionEdgeMaxModelError, double)
+
   vtkCustomGetMacro(EgoMotionPlaneNbNeighbors, unsigned int)
   vtkCustomSetMacro(EgoMotionPlaneNbNeighbors, unsigned int)
 
@@ -158,9 +161,6 @@ public:
 
   vtkCustomGetMacro(EgoMotionPlanePcaFactor2, double)
   vtkCustomSetMacro(EgoMotionPlanePcaFactor2, double)
-
-  vtkCustomGetMacro(EgoMotionEdgeMaxModelError, double)
-  vtkCustomSetMacro(EgoMotionEdgeMaxModelError, double)
 
   vtkCustomGetMacro(EgoMotionPlaneMaxModelError, double)
   vtkCustomSetMacro(EgoMotionPlaneMaxModelError, double)
@@ -190,6 +190,9 @@ public:
   vtkCustomGetMacro(LocalizationEdgePcaFactor, double)
   vtkCustomSetMacro(LocalizationEdgePcaFactor, double)
 
+  vtkCustomGetMacro(LocalizationEdgeMaxModelError, double)
+  vtkCustomSetMacro(LocalizationEdgeMaxModelError, double)
+
   vtkCustomGetMacro(LocalizationPlaneNbNeighbors, unsigned int)
   vtkCustomSetMacro(LocalizationPlaneNbNeighbors, unsigned int)
 
@@ -198,9 +201,6 @@ public:
 
   vtkCustomGetMacro(LocalizationPlanePcaFactor2, double)
   vtkCustomSetMacro(LocalizationPlanePcaFactor2, double)
-
-  vtkCustomGetMacro(LocalizationEdgeMaxModelError, double)
-  vtkCustomSetMacro(LocalizationEdgeMaxModelError, double)
 
   vtkCustomGetMacro(LocalizationPlaneMaxModelError, double)
   vtkCustomSetMacro(LocalizationPlaneMaxModelError, double)

@@ -51,34 +51,29 @@ public:
     // If true, the method GetPerRingLineNeighbors() will be used.
     bool SingleEdgePerRing = false;
 
-    // The max distance allowed between a current keypoint and its neighborhood
-    // from the map (or previous frame) to build an ICP match.
-    // If the distance is over this limit, no match residual will be built.
+    // [m] The max distance allowed between a current keypoint and its neighbors.
+    // If one of the neighbors is farther, the neighborhood will be rejected.
     double MaxNeighborsDistance = 5.;
 
-    // When computing the point <-> line and point <-> plane distance in the ICP,
-    // the kNearest edge/plane points of the current point are selected to
-    // approximate the line/plane using a PCA.
-    // If one of the k-nearest points is too far, the neigborhood is rejected.
-    // We also perform a filter upon the ratio of the eigen values of the
-    // covariance matrix of the neighborhood to check if the points are
-    // distributed upon a line or a plane.
-    unsigned int EdgeNbNeighbors = 10; //< [>=2] initial number of neighbor edge points searched to approximate the corresponding line
-    unsigned int EdgeMinNbNeighbors = 4; //< [>=2] number of neighbor edge points required to approximate the corresponding line after filtering startegy
-    double EdgePcaFactor = 5.0; //< PCA eigenvalues ratio to consider a neighborhood fits a line model : V2 >= factor * V1
-    double EdgeMaxModelError = 0.2; //< maximum RMSE between target keypoints and their fitted line
+    // Edge keypoints matching: point-to-line distance
+    unsigned int EdgeNbNeighbors = 10;   ///< [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates
+    unsigned int EdgeMinNbNeighbors = 4; ///< [>=2] Min number of resulting filtered edge neighbors to approximate the corresponding line model
+    double EdgePcaFactor = 5.0;          ///< To check the line neighborhood shape, the PCA eigenvalues must respect: factor * V1 <= V2
+    double EdgeMaxModelError = 0.2;      ///< [m] Max RMSE allowed between neighborhood and its fitted line model
 
-    unsigned int PlaneNbNeighbors = 5; //< [>=3] number of neighbors planar points required to approximate the corresponding plane
-    double PlanePcaFactor1 = 35.0; //< PCA eigenvalues ratio to consider a neighborhood fits a plane model :
-    double PlanePcaFactor2 = 8.0;  //<     V1 >= factor1 * V0 and V2 <= factor2 * V1
-    double PlaneMaxModelError = 0.2; //< maximum RMSE between target keypoints and their fitted plane
+    // Plane keypoints matching: point-to-plane distance
+    unsigned int PlaneNbNeighbors = 5;   ///< [>=3] Number of plane neighbors to extract to approximate the corresponding plane model
+    double PlanePcaFactor1 = 35.0;       ///< To check the plane neighborhood shape, the PCA eigenvalues must respect:
+    double PlanePcaFactor2 = 8.0;        ///<     factor1 * V0 <= V1 and V2 <= factor2 * V1
+    double PlaneMaxModelError = 0.2;     ///< [m] Max RMSE allowed between neighborhood and its fitted plane model
 
-    unsigned int BlobNbNeighbors = 10; //< [>=4] number of blob neighbors required to approximate the corresponding ellipsoid
+    // Blob keypoints matching: point-to-ellipsoid distance
+    unsigned int BlobNbNeighbors = 10;   ///< [>=4] Number of blob neighbors to extract to approximate the corresponding ellipsoid model
 
-    // Maximum distance (in meters) beyond which the residual errors are
+    // [m] Maximum distance beyond which the residual errors are
     // saturated to robustify the optimization against outlier constraints.
     // The residuals will be robustified by Tukey loss at scale SatDist,
-    // leading to ~90% of saturation at SatDist^2/2, fully saturated at SatDist^2.
+    // leading to 50% of saturation at SatDist/2, fully saturated at SatDist.
     double SaturationDistance = 1.;
   };
 
@@ -134,7 +129,17 @@ public:
   // It needs matching parameters and the prior transform to apply to keypoints
   KeypointsMatcher(const Parameters& params, const Eigen::Isometry3d& posePrior);
 
-  // Build point-to-neighborhood residuals
+  // Point-to-neighborhood matching parameters.
+  // The goal will be to loop over all keypoints, and to build the corresponding
+  // point-to-neighborhood residuals that will be optimized later.
+  // For each source keypoint, the steps will be:
+  // - To extract the N nearest neighbors from the target cloud.
+  //   These neighbors should not be too far from the source keypoint.
+  // - Assess the neighborhood shape by checking its PCA eigenvalues.
+  // - Fit a line/plane/blob model on the neighborhood using PCA.
+  // - Assess the model quality by checking its error relatively to the neighborhood.
+  // - Build the corresponding point-to-model distance operator
+  // If any of these steps fail, the matching procedure of the current keypoint aborts.
   MatchingResults BuildMatchResiduals(const PointCloud::Ptr& currPoints,
                                       const KDTree& prevPoints,
                                       Keypoint keypointType);
@@ -182,10 +187,11 @@ private:
 
 private:
 
+  // Matching parameters
   const Parameters Params;
 
-  // Initialization of DoF to optimize
-  const Eigen::Isometry3d PosePrior;  ///< Initial guess of the pose to optimize
+  // Initial guess of the pose to optimize
+  const Eigen::Isometry3d PosePrior;
 };
 
 } // end of LidarSlam namespace

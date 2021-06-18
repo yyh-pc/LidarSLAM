@@ -573,60 +573,56 @@ private:
   // This will hold Z (elevation), rX (roll) and rY (pitch) constant.
   bool TwoDMode = false;
 
-  // The max distance allowed between a keypoint from the current frame and its
-  // neighborhood from the map (or previous frame) to build an ICP match.
-  // If the distance is over this limit, no match residual will be built.
-  double EgoMotionMaxNeighborsDistance = 5.;
-  double LocalizationMaxNeighborsDistance = 5.;
-
-  // Maximum number of iteration
-  // in the ego motion optimization step
-  unsigned int EgoMotionLMMaxIter = 15;
-
-  // Maximum number of iteration
-  // in the localization optimization step
-  unsigned int LocalizationLMMaxIter = 15;
-
-  // During the Levenberg-Marquardt algoritm
-  // keypoints will have to be match with planes
-  // and lines of the previous frame. This parameter
-  // indicates how many times we want to do the
-  // the ICP matching
+  // Number of outer ICP-optim loop iterations to perform.
+  // Each iteration will consist of building ICP matches, then optimizing them.
   unsigned int EgoMotionICPMaxIter = 4;
   unsigned int LocalizationICPMaxIter = 3;
 
-  // When computing the point<->line and point<->plane distance
-  // in the ICP, the kNearest edges/planes points of the current
-  // points are selected to approximate the line/plane using a PCA
-  // If the one of the k-nearest points is too far the neigborhood
-  // is rejected. We also make a filter upon the ratio of the eigen
-  // values of the variance-covariance matrix of the neighborhood
-  // to check if the points are distributed upon a line or a plane
-  unsigned int LocalizationEdgeNbNeighbors = 10;  // [>=2]
-  unsigned int LocalizationEdgeMinNbNeighbors = 4;  // [>=2]
+  // Maximum number of iterations of the Levenberg-Marquardt optimizer to solve
+  // the ICP problem composed of the built point-to-neighborhood residuals
+  unsigned int EgoMotionLMMaxIter = 15;
+  unsigned int LocalizationLMMaxIter = 15;
+
+  // Point-to-neighborhood matching parameters.
+  // The goal will be to loop over all keypoints, and to build the corresponding
+  // point-to-neighborhood residuals that will be optimized later.
+  // For each source keypoint, the steps will be:
+  // - To extract the N nearest neighbors from the target cloud.
+  //   These neighbors should not be too far from the source keypoint.
+  // - Assess the neighborhood shape by checking its PCA eigenvalues.
+  // - Fit a line/plane/blob model on the neighborhood using PCA.
+  // - Assess the model quality by checking its error relatively to the neighborhood.
+  // - Build the corresponding point-to-model distance operator
+  // If any of this step fails, the matching procedure of the current keypoint aborts.
+  // See KeypointsMatcher::Parameters for more details on each parameter.
+
+  // Max distance allowed between a source keypoint and its neighbors in target map.
+  // If one of the neighbors is farther, the neighborhood will be rejected.
+  double EgoMotionMaxNeighborsDistance = 5.;
+  double LocalizationMaxNeighborsDistance = 5.;
+
+  // Edge keypoints matching: point-to-line distance
+  unsigned int EgoMotionEdgeNbNeighbors = 8;
+  unsigned int EgoMotionEdgeMinNbNeighbors = 3;
+  double EgoMotionEdgePcaFactor = 5.;
+  double EgoMotionEdgeMaxModelError = 0.2;
+  unsigned int LocalizationEdgeNbNeighbors = 10;
+  unsigned int LocalizationEdgeMinNbNeighbors = 4;
   double LocalizationEdgePcaFactor = 5.0;
-
-  unsigned int LocalizationPlaneNbNeighbors = 5;  // [>=3]
-  double LocalizationPlanePcaFactor1 = 35.0;
-  double LocalizationPlanePcaFactor2 = 8.0;
-
-  double LocalizationPlaneMaxModelError = 0.2;
   double LocalizationEdgeMaxModelError = 0.2;
 
-  unsigned int LocalizationBlobNbNeighbors = 10;  // [>=4]
-
-  unsigned int EgoMotionEdgeNbNeighbors = 8;  // [>=2]
-  unsigned int EgoMotionEdgeMinNbNeighbors = 3;  // [>=2]
-  double EgoMotionEdgePcaFactor = 5.;
-
-  unsigned int EgoMotionPlaneNbNeighbors = 5;  // [>=3]
+  // Plane keypoints matching: point-to-plane distance
+  unsigned int EgoMotionPlaneNbNeighbors = 5;
   double EgoMotionPlanePcaFactor1 = 35.0;
   double EgoMotionPlanePcaFactor2 = 8.0;
-
   double EgoMotionPlaneMaxModelError = 0.2;
-  double EgoMotionEdgeMaxModelError = 0.2;
+  unsigned int LocalizationPlaneNbNeighbors = 5;
+  double LocalizationPlanePcaFactor1 = 35.0;
+  double LocalizationPlanePcaFactor2 = 8.0;
+  double LocalizationPlaneMaxModelError = 0.2;
 
-  double MinNbMatchedKeypoints = 20.;  // TODO : set from user interface
+  // Blob keypoints matching: point-to-ellipsoid distance
+  unsigned int LocalizationBlobNbNeighbors = 10;
 
   // Maximum distance (in meters) beyond which the residual errors are
   // saturated to robustify the optimization against outlier constraints.
@@ -658,6 +654,11 @@ private:
   Eigen::Array2f PreviousVelocity;
 
   // Parameters
+
+  // Min number of matches to consider the optimization problem usable.
+  // Below this threshold, we consider that there are not enough matches to
+  // provide good enough optimization results, and registration is aborted.
+  unsigned int MinNbMatchedKeypoints = 20;
 
   // [0-1] Ratio of points from the input cloud to compute overlap on.
   // Downsampling accelerates the overlap computation, but may be less precise.
