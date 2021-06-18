@@ -39,7 +39,7 @@ public:
   using PointCloud = pcl::PointCloud<Point>;
   using KDTree = KDTreePCLAdaptor<Point>;
 
-  //! Structure to easily set all ICP/LM parameters
+  //! Structure to easily set all matching parameters
   struct Parameters
   {
     // Max number of threads to use to parallelize computations
@@ -54,12 +54,7 @@ public:
     // The max distance allowed between a current keypoint and its neighborhood
     // from the map (or previous frame) to build an ICP match.
     // If the distance is over this limit, no match residual will be built.
-    double MaxDistanceForICPMatching = 5.;
-
-    // Min number of matches
-    // Below this threshold, we consider that there are not enough matches to
-    // provide good enough optimization results, and registration is aborted.
-    unsigned int MinNbrMatchedKeypoints = 20;
+    double MaxNeighborsDistance = 5.;
 
     // When computing the point <-> line and point <-> plane distance in the ICP,
     // the kNearest edge/plane points of the current point are selected to
@@ -68,21 +63,22 @@ public:
     // We also perform a filter upon the ratio of the eigen values of the
     // covariance matrix of the neighborhood to check if the points are
     // distributed upon a line or a plane.
-    unsigned int LineDistanceNbrNeighbors = 10; //< [>=2] initial number of neighbor edge points searched to approximate the corresponding line
-    unsigned int MinimumLineNeighborRejection = 4; //< [>=2] number of neighbor edge points required to approximate the corresponding line after filtering startegy
-    double LineDistancefactor = 5.0; //< PCA eigenvalues ratio to consider a neighborhood fits a line model : V2 >= factor * V1
-    double MaxLineDistance = 0.2; //< maximum RMSE between target keypoints and their fitted line
+    unsigned int EdgeNbNeighbors = 10; //< [>=2] initial number of neighbor edge points searched to approximate the corresponding line
+    unsigned int EdgeMinNbNeighbors = 4; //< [>=2] number of neighbor edge points required to approximate the corresponding line after filtering startegy
+    double EdgePcaFactor = 5.0; //< PCA eigenvalues ratio to consider a neighborhood fits a line model : V2 >= factor * V1
+    double EdgeMaxModelError = 0.2; //< maximum RMSE between target keypoints and their fitted line
 
-    unsigned int PlaneDistanceNbrNeighbors = 5; //< [>=3] number of neighbors planar points required to approximate the corresponding plane
-    double PlaneDistancefactor1 = 35.0; //< PCA eigenvalues ratio to consider a neighborhood fits a plane model :
-    double PlaneDistancefactor2 = 8.0;  //<     V1 >= factor1 * V0 and V2 <= factor2 * V1
-    double MaxPlaneDistance = 0.2; //< maximum RMSE between target keypoints and their fitted plane
+    unsigned int PlaneNbNeighbors = 5; //< [>=3] number of neighbors planar points required to approximate the corresponding plane
+    double PlanePcaFactor1 = 35.0; //< PCA eigenvalues ratio to consider a neighborhood fits a plane model :
+    double PlanePcaFactor2 = 8.0;  //<     V1 >= factor1 * V0 and V2 <= factor2 * V1
+    double PlaneMaxModelError = 0.2; //< maximum RMSE between target keypoints and their fitted plane
 
-    unsigned int BlobDistanceNbrNeighbors = 10; //< [>=4] number of blob neighbors required to approximate the corresponding ellipsoid
+    unsigned int BlobNbNeighbors = 10; //< [>=4] number of blob neighbors required to approximate the corresponding ellipsoid
 
     // Maximum distance (in meters) beyond which the residual errors are
     // saturated to robustify the optimization against outlier constraints.
-    // The residuals will be robustified by Tukey loss at scale sqrt(SatDist).
+    // The residuals will be robustified by Tukey loss at scale SatDist,
+    // leading to ~90% of saturation at SatDist^2/2, fully saturated at SatDist^2.
     double SaturationDistance = 1.;
   };
 

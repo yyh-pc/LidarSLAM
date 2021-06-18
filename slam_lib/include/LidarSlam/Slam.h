@@ -260,32 +260,32 @@ public:
   GetMacro(EgoMotionICPMaxIter, unsigned int)
   SetMacro(EgoMotionICPMaxIter, unsigned int)
 
-  GetMacro(EgoMotionMaxDistanceForICPMatching, double)
-  SetMacro(EgoMotionMaxDistanceForICPMatching, double)
+  GetMacro(EgoMotionMaxNeighborsDistance, double)
+  SetMacro(EgoMotionMaxNeighborsDistance, double)
 
-  GetMacro(EgoMotionLineDistanceNbrNeighbors, unsigned int)
-  SetMacro(EgoMotionLineDistanceNbrNeighbors, unsigned int)
+  GetMacro(EgoMotionEdgeNbNeighbors, unsigned int)
+  SetMacro(EgoMotionEdgeNbNeighbors, unsigned int)
 
-  GetMacro(EgoMotionMinimumLineNeighborRejection, unsigned int)
-  SetMacro(EgoMotionMinimumLineNeighborRejection, unsigned int)
+  GetMacro(EgoMotionEdgeMinNbNeighbors, unsigned int)
+  SetMacro(EgoMotionEdgeMinNbNeighbors, unsigned int)
 
-  GetMacro(EgoMotionLineDistancefactor, double)
-  SetMacro(EgoMotionLineDistancefactor, double)
+  GetMacro(EgoMotionEdgePcaFactor, double)
+  SetMacro(EgoMotionEdgePcaFactor, double)
 
-  GetMacro(EgoMotionPlaneDistanceNbrNeighbors, unsigned int)
-  SetMacro(EgoMotionPlaneDistanceNbrNeighbors, unsigned int)
+  GetMacro(EgoMotionPlaneNbNeighbors, unsigned int)
+  SetMacro(EgoMotionPlaneNbNeighbors, unsigned int)
 
-  GetMacro(EgoMotionPlaneDistancefactor1, double)
-  SetMacro(EgoMotionPlaneDistancefactor1, double)
+  GetMacro(EgoMotionPlanePcaFactor1, double)
+  SetMacro(EgoMotionPlanePcaFactor1, double)
 
-  GetMacro(EgoMotionPlaneDistancefactor2, double)
-  SetMacro(EgoMotionPlaneDistancefactor2, double)
+  GetMacro(EgoMotionPlanePcaFactor2, double)
+  SetMacro(EgoMotionPlanePcaFactor2, double)
 
-  GetMacro(EgoMotionMaxLineDistance, double)
-  SetMacro(EgoMotionMaxLineDistance, double)
+  GetMacro(EgoMotionEdgeMaxModelError, double)
+  SetMacro(EgoMotionEdgeMaxModelError, double)
 
-  GetMacro(EgoMotionMaxPlaneDistance, double)
-  SetMacro(EgoMotionMaxPlaneDistance, double)
+  GetMacro(EgoMotionPlaneMaxModelError, double)
+  SetMacro(EgoMotionPlaneMaxModelError, double)
 
   GetMacro(EgoMotionInitSaturationDistance, double)
   SetMacro(EgoMotionInitSaturationDistance, double)
@@ -300,35 +300,35 @@ public:
   GetMacro(LocalizationICPMaxIter, unsigned int)
   SetMacro(LocalizationICPMaxIter, unsigned int)
 
-  GetMacro(LocalizationMaxDistanceForICPMatching, double)
-  SetMacro(LocalizationMaxDistanceForICPMatching, double)
+  GetMacro(LocalizationMaxNeighborsDistance, double)
+  SetMacro(LocalizationMaxNeighborsDistance, double)
 
-  GetMacro(LocalizationLineDistanceNbrNeighbors, unsigned int)
-  SetMacro(LocalizationLineDistanceNbrNeighbors, unsigned int)
+  GetMacro(LocalizationEdgeNbNeighbors, unsigned int)
+  SetMacro(LocalizationEdgeNbNeighbors, unsigned int)
 
-  GetMacro(LocalizationMinimumLineNeighborRejection, unsigned int)
-  SetMacro(LocalizationMinimumLineNeighborRejection, unsigned int)
+  GetMacro(LocalizationEdgeMinNbNeighbors, unsigned int)
+  SetMacro(LocalizationEdgeMinNbNeighbors, unsigned int)
 
-  GetMacro(LocalizationLineDistancefactor, double)
-  SetMacro(LocalizationLineDistancefactor, double)
+  GetMacro(LocalizationEdgePcaFactor, double)
+  SetMacro(LocalizationEdgePcaFactor, double)
 
-  GetMacro(LocalizationPlaneDistanceNbrNeighbors, unsigned int)
-  SetMacro(LocalizationPlaneDistanceNbrNeighbors, unsigned int)
+  GetMacro(LocalizationPlaneNbNeighbors, unsigned int)
+  SetMacro(LocalizationPlaneNbNeighbors, unsigned int)
 
-  GetMacro(LocalizationPlaneDistancefactor1, double)
-  SetMacro(LocalizationPlaneDistancefactor1, double)
+  GetMacro(LocalizationPlanePcaFactor1, double)
+  SetMacro(LocalizationPlanePcaFactor1, double)
 
-  GetMacro(LocalizationPlaneDistancefactor2, double)
-  SetMacro(LocalizationPlaneDistancefactor2, double)
+  GetMacro(LocalizationPlanePcaFactor2, double)
+  SetMacro(LocalizationPlanePcaFactor2, double)
 
-  GetMacro(LocalizationMaxLineDistance, double)
-  SetMacro(LocalizationMaxLineDistance, double)
+  GetMacro(LocalizationEdgeMaxModelError, double)
+  SetMacro(LocalizationEdgeMaxModelError, double)
 
-  GetMacro(LocalizationMaxPlaneDistance, double)
-  SetMacro(LocalizationMaxPlaneDistance, double)
+  GetMacro(LocalizationPlaneMaxModelError, double)
+  SetMacro(LocalizationPlaneMaxModelError, double)
 
-  GetMacro(LocalizationBlobDistanceNbrNeighbors, unsigned int)
-  SetMacro(LocalizationBlobDistanceNbrNeighbors, unsigned int)
+  GetMacro(LocalizationBlobNbNeighbors, unsigned int)
+  SetMacro(LocalizationBlobNbNeighbors, unsigned int)
 
   GetMacro(LocalizationInitSaturationDistance, double)
   SetMacro(LocalizationInitSaturationDistance, double)
@@ -576,8 +576,8 @@ private:
   // The max distance allowed between a keypoint from the current frame and its
   // neighborhood from the map (or previous frame) to build an ICP match.
   // If the distance is over this limit, no match residual will be built.
-  double EgoMotionMaxDistanceForICPMatching = 5.;
-  double LocalizationMaxDistanceForICPMatching = 5.;
+  double EgoMotionMaxNeighborsDistance = 5.;
+  double LocalizationMaxNeighborsDistance = 5.;
 
   // Maximum number of iteration
   // in the ego motion optimization step
@@ -602,31 +602,31 @@ private:
   // is rejected. We also make a filter upon the ratio of the eigen
   // values of the variance-covariance matrix of the neighborhood
   // to check if the points are distributed upon a line or a plane
-  unsigned int LocalizationLineDistanceNbrNeighbors = 10;  // [>=2]
-  unsigned int LocalizationMinimumLineNeighborRejection = 4;  // [>=2]
-  double LocalizationLineDistancefactor = 5.0;
+  unsigned int LocalizationEdgeNbNeighbors = 10;  // [>=2]
+  unsigned int LocalizationEdgeMinNbNeighbors = 4;  // [>=2]
+  double LocalizationEdgePcaFactor = 5.0;
 
-  unsigned int LocalizationPlaneDistanceNbrNeighbors = 5;  // [>=3]
-  double LocalizationPlaneDistancefactor1 = 35.0;
-  double LocalizationPlaneDistancefactor2 = 8.0;
+  unsigned int LocalizationPlaneNbNeighbors = 5;  // [>=3]
+  double LocalizationPlanePcaFactor1 = 35.0;
+  double LocalizationPlanePcaFactor2 = 8.0;
 
-  double LocalizationMaxPlaneDistance = 0.2;
-  double LocalizationMaxLineDistance = 0.2;
+  double LocalizationPlaneMaxModelError = 0.2;
+  double LocalizationEdgeMaxModelError = 0.2;
 
-  unsigned int LocalizationBlobDistanceNbrNeighbors = 10;  // [>=4]
+  unsigned int LocalizationBlobNbNeighbors = 10;  // [>=4]
 
-  unsigned int EgoMotionLineDistanceNbrNeighbors = 8;  // [>=2]
-  unsigned int EgoMotionMinimumLineNeighborRejection = 3;  // [>=2]
-  double EgoMotionLineDistancefactor = 5.;
+  unsigned int EgoMotionEdgeNbNeighbors = 8;  // [>=2]
+  unsigned int EgoMotionEdgeMinNbNeighbors = 3;  // [>=2]
+  double EgoMotionEdgePcaFactor = 5.;
 
-  unsigned int EgoMotionPlaneDistanceNbrNeighbors = 5;  // [>=3]
-  double EgoMotionPlaneDistancefactor1 = 35.0;
-  double EgoMotionPlaneDistancefactor2 = 8.0;
+  unsigned int EgoMotionPlaneNbNeighbors = 5;  // [>=3]
+  double EgoMotionPlanePcaFactor1 = 35.0;
+  double EgoMotionPlanePcaFactor2 = 8.0;
 
-  double EgoMotionMaxPlaneDistance = 0.2;
-  double EgoMotionMaxLineDistance = 0.2;
+  double EgoMotionPlaneMaxModelError = 0.2;
+  double EgoMotionEdgeMaxModelError = 0.2;
 
-  double MinNbrMatchedKeypoints = 20.;  // TODO : set from user interface
+  double MinNbMatchedKeypoints = 20.;  // TODO : set from user interface
 
   // Maximum distance (in meters) beyond which the residual errors are
   // saturated to robustify the optimization against outlier constraints.

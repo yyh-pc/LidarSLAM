@@ -503,8 +503,8 @@
         </Documentation>
       </IntVectorProperty>
 
-      <DoubleVectorProperty name="Max distance for ICP matching EM"
-                            command="SetEgoMotionMaxDistanceForICPMatching"
+      <DoubleVectorProperty name="Max neighbors distance EM"
+                            command="SetEgoMotionMaxNeighborsDistance"
                             number_of_elements="1"
                             default_values="5."
                             panel_visibility="advanced">
@@ -515,7 +515,7 @@
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Nb edges neighbors minimum after Ransac EM"
-                         command="SetEgoMotionMinimumLineNeighborRejection"
+                         command="SetEgoMotionEdgeMinNbNeighbors"
                          number_of_elements="1"
                          default_values="3"
                          panel_visibility="advanced">
@@ -529,7 +529,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Nb edge neighbors EM"
-                         command="SetEgoMotionLineDistanceNbrNeighbors"
+                         command="SetEgoMotionEdgeNbNeighbors"
                          number_of_elements="1"
                          default_values="8"
                          panel_visibility="advanced">
@@ -542,7 +542,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Nb plane neighbors EM"
-                         command="SetEgoMotionPlaneDistanceNbrNeighbors"
+                         command="SetEgoMotionPlaneNbNeighbors"
                          number_of_elements="1"
                          default_values="5"
                          panel_visibility="advanced">
@@ -555,7 +555,7 @@
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Linearity factor EM"
-                            command="SetEgoMotionLineDistancefactor"
+                            command="SetEgoMotionEdgePcaFactor"
                             number_of_elements="1"
                             default_values="5."
                             panel_visibility="advanced">
@@ -568,7 +568,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Planarity factor 1 EM"
-                            command="SetEgoMotionPlaneDistancefactor1"
+                            command="SetEgoMotionPlanePcaFactor1"
                             number_of_elements="1"
                             default_values="35."
                             panel_visibility="advanced">
@@ -583,7 +583,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Planarity factor 2 EM"
-                            command="SetEgoMotionPlaneDistancefactor2"
+                            command="SetEgoMotionPlanePcaFactor2"
                             number_of_elements="1"
                             default_values="8."
                             panel_visibility="advanced">
@@ -598,7 +598,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Max RMSE between neighbors and line model EM"
-                            command="SetEgoMotionMaxLineDistance"
+                            command="SetEgoMotionEdgeMaxModelError"
                             number_of_elements="1"
                             default_values="0.2"
                             panel_visibility="advanced">
@@ -609,7 +609,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Max RMSE between neighbors and plane model EM"
-                            command="SetEgoMotionMaxPlaneDistance"
+                            command="SetEgoMotionPlaneMaxModelError"
                             number_of_elements="1"
                             default_values="0.2"
                             panel_visibility="advanced">
@@ -654,7 +654,7 @@
       <PropertyGroup label="Ego-Motion registration ICP matching and optimization parameters">
         <Property name="ICP-Optimization iterations EM" />
         <Property name="Lev-Mardt max iterations EM" />
-        <Property name="Max distance for ICP matching EM" />
+        <Property name="Max neighbors distance EM" />
         <Property name="Nb edges neighbors minimum after Ransac EM" />
         <Property name="Nb edge neighbors EM" />
         <Property name="Nb plane neighbors EM" />
@@ -729,8 +729,8 @@
         </Documentation>
       </IntVectorProperty>
 
-      <DoubleVectorProperty name="Max distance for ICP matching"
-                            command="SetLocalizationMaxDistanceForICPMatching"
+      <DoubleVectorProperty name="Max neighbors distance"
+                            command="SetLocalizationMaxNeighborsDistance"
                             number_of_elements="1"
                             default_values="5."
                             panel_visibility="advanced">
@@ -741,7 +741,7 @@
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Nb edges neighbors minimum after Ransac"
-                         command="SetLocalizationMinimumLineNeighborRejection"
+                         command="SetLocalizationEdgeMinNbNeighbors"
                          number_of_elements="1"
                          default_values="4"
                          panel_visibility="advanced">
@@ -755,7 +755,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Nb edge neighbors"
-                         command="SetLocalizationLineDistanceNbrNeighbors"
+                         command="SetLocalizationEdgeNbNeighbors"
                          number_of_elements="1"
                          default_values="10"
                          panel_visibility="advanced">
@@ -768,7 +768,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Nb plane neighbors"
-                         command="SetLocalizationPlaneDistanceNbrNeighbors"
+                         command="SetLocalizationPlaneNbNeighbors"
                          number_of_elements="1"
                          default_values="5"
                          panel_visibility="advanced">
@@ -781,7 +781,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Nb blob neighbors"
-                         command="SetLocalizationBlobDistanceNbrNeighbors"
+                         command="SetLocalizationBlobNbNeighbors"
                          number_of_elements="1"
                          default_values="10"
                          panel_visibility="advanced">
@@ -797,7 +797,7 @@
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Linearity factor"
-                            command="SetLocalizationLineDistancefactor"
+                            command="SetLocalizationEdgePcaFactor"
                             number_of_elements="1"
                             default_values="5."
                             panel_visibility="advanced">
@@ -810,7 +810,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Planarity factor 1"
-                            command="SetLocalizationPlaneDistancefactor1"
+                            command="SetLocalizationPlanePcaFactor1"
                             number_of_elements="1"
                             default_values="35."
                             panel_visibility="advanced">
@@ -825,7 +825,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Planarity factor 2"
-                            command="SetLocalizationPlaneDistancefactor2"
+                            command="SetLocalizationPlanePcaFactor2"
                             number_of_elements="1"
                             default_values="8."
                             panel_visibility="advanced">
@@ -840,7 +840,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Max RMSE between neighbors and line model"
-                            command="SetLocalizationMaxLineDistance"
+                            command="SetLocalizationEdgeMaxModelError"
                             number_of_elements="1"
                             default_values="0.2"
                             panel_visibility="advanced">
@@ -851,7 +851,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Max RMSE between neighbors and plane model"
-                            command="SetLocalizationMaxPlaneDistance"
+                            command="SetLocalizationPlaneMaxModelError"
                             number_of_elements="1"
                             default_values="0.2"
                             panel_visibility="advanced">
@@ -898,7 +898,7 @@
         <Property name="IMU gravity weight" />
         <Property name="ICP-Optimization iterations" />
         <Property name="Lev-Mardt max iterations" />
-        <Property name="Max distance for ICP matching" />
+        <Property name="Max neighbors distance" />
         <Property name="Nb edges neighbors minimum after Ransac" />
         <Property name="Nb edge neighbors" />
         <Property name="Nb plane neighbors" />

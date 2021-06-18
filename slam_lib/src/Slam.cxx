@@ -850,16 +850,15 @@ void Slam::ComputeEgoMotion()
     KeypointsMatcher::Parameters matchingParams;
     matchingParams.NbThreads = this->NbThreads;
     matchingParams.SingleEdgePerRing = true;
-    matchingParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
-    matchingParams.MaxDistanceForICPMatching = this->EgoMotionMaxDistanceForICPMatching;
-    matchingParams.LineDistanceNbrNeighbors = this->EgoMotionLineDistanceNbrNeighbors;
-    matchingParams.MinimumLineNeighborRejection = this->EgoMotionMinimumLineNeighborRejection;
-    matchingParams.LineDistancefactor = this->EgoMotionLineDistancefactor;
-    matchingParams.MaxLineDistance = this->EgoMotionMaxLineDistance;
-    matchingParams.PlaneDistanceNbrNeighbors = this->EgoMotionPlaneDistanceNbrNeighbors;
-    matchingParams.PlaneDistancefactor1 = this->EgoMotionPlaneDistancefactor1;
-    matchingParams.PlaneDistancefactor2 = this->EgoMotionPlaneDistancefactor2;
-    matchingParams.MaxPlaneDistance = this->EgoMotionMaxPlaneDistance;
+    matchingParams.MaxNeighborsDistance = this->EgoMotionMaxNeighborsDistance;
+    matchingParams.EdgeNbNeighbors = this->EgoMotionEdgeNbNeighbors;
+    matchingParams.EdgeMinNbNeighbors = this->EgoMotionEdgeMinNbNeighbors;
+    matchingParams.EdgePcaFactor = this->EgoMotionEdgePcaFactor;
+    matchingParams.EdgeMaxModelError = this->EgoMotionEdgeMaxModelError;
+    matchingParams.PlaneNbNeighbors = this->EgoMotionPlaneNbNeighbors;
+    matchingParams.PlanePcaFactor1 = this->EgoMotionPlanePcaFactor1;
+    matchingParams.PlanePcaFactor2 = this->EgoMotionPlanePcaFactor2;
+    matchingParams.PlaneMaxModelError = this->EgoMotionPlaneMaxModelError;
 
     // ICP - Levenberg-Marquardt loop
     // At each step of this loop an ICP matching is performed. Once the keypoints
@@ -892,7 +891,7 @@ void Slam::ComputeEgoMotion()
       for (auto k : {EDGE, PLANE})
         this->TotalMatchedKeypoints += this->EgoMotionMatchingResults[k].NbMatches();
 
-      if (this->TotalMatchedKeypoints < this->MinNbrMatchedKeypoints)
+      if (this->TotalMatchedKeypoints < this->MinNbMatchedKeypoints)
       {
         PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
         break;
@@ -1023,17 +1022,16 @@ void Slam::Localization()
   KeypointsMatcher::Parameters matchingParams;
   matchingParams.NbThreads = this->NbThreads;
   matchingParams.SingleEdgePerRing = false;
-  matchingParams.MinNbrMatchedKeypoints = this->MinNbrMatchedKeypoints;
-  matchingParams.MaxDistanceForICPMatching = this->LocalizationMaxDistanceForICPMatching;
-  matchingParams.LineDistanceNbrNeighbors = this->LocalizationLineDistanceNbrNeighbors;
-  matchingParams.MinimumLineNeighborRejection = this->LocalizationMinimumLineNeighborRejection;
-  matchingParams.LineDistancefactor = this->LocalizationLineDistancefactor;
-  matchingParams.MaxLineDistance = this->LocalizationMaxLineDistance;
-  matchingParams.PlaneDistanceNbrNeighbors = this->LocalizationPlaneDistanceNbrNeighbors;
-  matchingParams.PlaneDistancefactor1 = this->LocalizationPlaneDistancefactor1;
-  matchingParams.PlaneDistancefactor2 = this->LocalizationPlaneDistancefactor2;
-  matchingParams.MaxPlaneDistance = this->LocalizationMaxPlaneDistance;
-  matchingParams.BlobDistanceNbrNeighbors = this->LocalizationBlobDistanceNbrNeighbors;
+  matchingParams.MaxNeighborsDistance = this->LocalizationMaxNeighborsDistance;
+  matchingParams.EdgeNbNeighbors = this->LocalizationEdgeNbNeighbors;
+  matchingParams.EdgeMinNbNeighbors = this->LocalizationEdgeMinNbNeighbors;
+  matchingParams.EdgePcaFactor = this->LocalizationEdgePcaFactor;
+  matchingParams.EdgeMaxModelError = this->LocalizationEdgeMaxModelError;
+  matchingParams.PlaneNbNeighbors = this->LocalizationPlaneNbNeighbors;
+  matchingParams.PlanePcaFactor1 = this->LocalizationPlanePcaFactor1;
+  matchingParams.PlanePcaFactor2 = this->LocalizationPlanePcaFactor2;
+  matchingParams.PlaneMaxModelError = this->LocalizationPlaneMaxModelError;
+  matchingParams.BlobNbNeighbors = this->LocalizationBlobNbNeighbors;
 
   // ICP - Levenberg-Marquardt loop
   // At each step of this loop an ICP matching is performed. Once the keypoints
@@ -1066,7 +1064,7 @@ void Slam::Localization()
     for (auto k : KeypointTypes)
       this->TotalMatchedKeypoints += this->LocalizationMatchingResults[k].NbMatches();
 
-    if (this->TotalMatchedKeypoints < this->MinNbrMatchedKeypoints)
+    if (this->TotalMatchedKeypoints < this->MinNbMatchedKeypoints)
     {
       // Reset state to previous one to avoid instability
       this->Trelative = Eigen::Isometry3d::Identity();
@@ -1160,10 +1158,10 @@ void Slam::UpdateMapsUsingTworld()
   // If we don't have enough keyframes yet, the threshold is linearly lowered
   constexpr double MIN_KF_NB = 10.;
   double thresholdCoef = std::min(this->KfCounter / MIN_KF_NB, 1.);
-  int nbMapKpts = 0;
+  unsigned int nbMapKpts = 0;
   for (const auto& mapKptsCloud : this->LocalMaps)
     nbMapKpts += mapKptsCloud.second->Size();
-  bool isNewKeyFrame = nbMapKpts < this->MinNbrMatchedKeypoints * 10 ||
+  bool isNewKeyFrame = nbMapKpts < this->MinNbMatchedKeypoints * 10 ||
                        transSinceLastKf >= thresholdCoef * this->KfDistanceThreshold ||
                        rotSinceLastKf >= Utils::Deg2Rad(thresholdCoef * this->KfAngleThreshold);
   if (!isNewKeyFrame)
