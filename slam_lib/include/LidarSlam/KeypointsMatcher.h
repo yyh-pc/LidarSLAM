@@ -151,34 +151,34 @@ private:
   // Build ICP match residual functions.
   // To recover the motion, we have to minimize the function
   //   f(R, T) = sum(d(edge_kpt, line)^2) + sum(d(plane_kpt, plane)^2) + sum(d(blob_kpt, blob)^2)
-  // In all cases, the squared Mahalanobis distance between the keypoint and the line/plane/blob can be written :
+  // In all cases, the squared Mahalanobis distance between the keypoint and the line/plane/blob can be written:
   //   (R * X + T - P).t * A.t * A * (R * X + T - P)
-  // Where :
-  // - (R, T) is the rigid transform to optimize 
-  // - X is the key point
-  // - P is the mean point of the line/plane/blob neighborhood
+  // Where:
+  // - (R, T) is the rigid transform to optimize (transform from WORLD to BASE)
+  // - X is the keypoint in BASE coordinates
+  // - P is the centroid of the line/plane/blob neighborhood, in WORLD coordinates
   // - A is the distance operator:
   //    * A = (I - u*u.t) for a line with u being the unit tangent vector of the line.
   //    * A = (n*n.t) for a plane with n being its normal.
-  //    * A = C^{-1/2} is the squared information matrix, aka stiffness matrix, where 
+  //    * A = C^{-1/2} is the squared information matrix, aka stiffness matrix, where
   //      C is the covariance matrix encoding the shape of the neighborhood for a blob.
   // - weight attenuates the distance function for outliers
   CeresTools::Residual BuildResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double weight = 1.);
 
   // Match the current keypoint with its neighborhood in the map / previous
-  MatchingResults::MatchInfo BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p);
-  MatchingResults::MatchInfo BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p);
-  MatchingResults::MatchInfo BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p);
+  MatchingResults::MatchInfo BuildLineMatch(const KDTree& previousEdges, const Point& p);
+  MatchingResults::MatchInfo BuildPlaneMatch(const KDTree& previousPlanes, const Point& p);
+  MatchingResults::MatchInfo BuildBlobMatch(const KDTree& previousBlobs, const Point& p);
 
   // Instead of taking the k-nearest neigbors we will take specific neighbor
   // using the particularities of the lidar sensor
-  void GetPerRingLineNeighbors(const KDTree& kdtreePreviousEdges, const double pos[3],
+  void GetPerRingLineNeighbors(const KDTree& previousEdges, const double pos[3],
                                unsigned int knearest, std::vector<int>& validKnnIndices,
                                std::vector<float>& validKnnSqDist) const;
 
   // Instead of taking the k-nearest neighbors we will take specific neighbor
   // using a sample consensus model
-  void GetRansacLineNeighbors(const KDTree& kdtreePreviousEdges, const double pos[3],
+  void GetRansacLineNeighbors(const KDTree& previousEdges, const double pos[3],
                               unsigned int knearest, double maxDistInlier,
                               std::vector<int>& validKnnIndices,
                               std::vector<float>& validKnnSqDist) const;
