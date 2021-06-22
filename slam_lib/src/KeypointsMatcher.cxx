@@ -103,15 +103,19 @@ CeresTools::Residual KeypointsMatcher::BuildResidual(const Eigen::Matrix3d& A, c
 }
 
 //-----------------------------------------------------------------------------
-KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p)
+KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(const KDTree& previousEdges, const Point& p)
 {
+  // At least 2 points are needed to fit a line model
+  if (this->Params.EdgeNbNeighbors < 2 || this->Params.EdgeMinNbNeighbors < 2)
+    return { MatchingResults::MatchStatus::BAD_MODEL_PARAMETRIZATION, 0., CeresTools::Residual() };
+
   // =====================================================
   // Transform the point using the current pose estimation
 
-  // localPoint is the raw local position, on which we need to apply the transform to optimize.
-  // worldPoint is the estimated position in world coodinates.
-  Eigen::Vector3d localPoint = p.getVector3fMap().cast<double>();
-  Eigen::Vector3d worldPoint = this->PosePrior * localPoint;
+  // basePoint is the raw local position in BASE coordinates, on which we need to apply the transform to optimize.
+  // worldPoint is the estimated position in WORLD coodinates, transformed using initial prior.
+  Eigen::Vector3d basePoint = p.getVector3fMap().cast<double>();
+  Eigen::Vector3d worldPoint = this->PosePrior * basePoint;
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
@@ -119,26 +123,19 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(co
   std::vector<int> knnIndices;
   std::vector<float> knnSqDist;
   if (this->Params.SingleEdgePerRing)
-    this->GetPerRingLineNeighbors(kdtreePreviousEdges, worldPoint.data(), this->Params.LineDistanceNbrNeighbors, knnIndices, knnSqDist);
+    this->GetPerRingLineNeighbors(previousEdges, worldPoint.data(), this->Params.EdgeNbNeighbors, knnIndices, knnSqDist);
   else
-    this->GetRansacLineNeighbors(kdtreePreviousEdges, worldPoint.data(), this->Params.LineDistanceNbrNeighbors, this->Params.MaxLineDistance, knnIndices, knnSqDist);
+    this->GetRansacLineNeighbors(previousEdges, worldPoint.data(), this->Params.EdgeNbNeighbors, this->Params.EdgeMaxModelError, knnIndices, knnSqDist);
 
   // If not enough neighbors, abort
   unsigned int neighborhoodSize = knnIndices.size();
-  if (neighborhoodSize < this->Params.MinimumLineNeighborRejection)
-  {
+  if (neighborhoodSize < this->Params.EdgeMinNbNeighbors)
     return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0., CeresTools::Residual() };
-  }
 
   // If the nearest edges are too far from the current edge keypoint,
   // we skip this point.
-  if (knnSqDist.back() > this->Params.MaxDistanceForICPMatching * this->Params.MaxDistanceForICPMatching)
-  {
+  if (knnSqDist.back() > this->Params.MaxNeighborsDistance * this->Params.MaxNeighborsDistance)
     return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0., CeresTools::Residual() };
-  }
-
-  // Shortcut to keypoints cloud
-  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.GetInputCloud();
 
   // =======================================================
   // Check if neighborhood is a good line candidate with PCA
@@ -149,15 +146,13 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(co
   Eigen::Vector3d mean;
   Eigen::Vector3d eigVals;
   Eigen::Matrix3d eigVecs;
-  Utils::ComputeMeanAndPCA(previousEdgesPoints, knnIndices, mean, eigVecs, eigVals);
+  Utils::ComputeMeanAndPCA(*previousEdges.GetInputCloud(), knnIndices, mean, eigVecs, eigVals);
 
   // If the first eigen value is significantly higher than the second one,
   // it means that the sourrounding points are distributed on an edge line.
   // Otherwise, discard this bad unstructured neighborhood.
-  if (eigVals(2) < this->Params.LineDistancefactor * eigVals(1))
-  {
+  if (eigVals(2) < this->Params.EdgePcaFactor * eigVals(1))
     return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0., CeresTools::Residual() };
-  }
 
   // =============================================
   // Compute point-to-line optimization parameters
@@ -178,13 +173,11 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(co
   // It would be the case if P1 = P2, for instance if the sensor has some dual
   // returns that hit the same point.
   if (!std::isfinite(A(0, 0)))
-  {
     return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0., CeresTools::Residual() };
-  }
 
   // If the MSE is too high, the target model is not accurate enough, discard the match in optimization
   double mse = eigVals(0) + eigVals(1);
-  if (mse >= std::pow(this->Params.MaxLineDistance, 2))
+  if (mse >= std::pow(this->Params.EdgeMaxModelError, 2))
     return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0., CeresTools::Residual() };
 
   // ===========================================
@@ -193,45 +186,42 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(co
   // Quality score of the point-to-line match
   // If the points to model error is too low, assign maximum weight.
   // Otherwise, assign a weight relative to the points to model error and a user parameter maximum value
-  double fitQualityCoeff = (mse <= 1e-6) ? 1. : 1. - std::sqrt(mse) / this->Params.MaxLineDistance;
+  double fitQualityCoeff = (mse <= 1e-6) ? 1. : 1. - std::sqrt(mse) / this->Params.EdgeMaxModelError;
 
-  CeresTools::Residual res = this->BuildResidual(A, mean, localPoint, fitQualityCoeff);
+  CeresTools::Residual res = this->BuildResidual(A, mean, basePoint, fitQualityCoeff);
   return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff, res };
 }
 
 //-----------------------------------------------------------------------------
-KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p)
+KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(const KDTree& previousPlanes, const Point& p)
 {
+  // At least 3 points are needed to fit a plane model
+  if (this->Params.PlaneNbNeighbors < 3)
+    return { MatchingResults::MatchStatus::BAD_MODEL_PARAMETRIZATION, 0., CeresTools::Residual() };
+
   // =====================================================
   // Transform the point using the current pose estimation
 
-  // localPoint is the raw local position, on which we need to apply the transform to optimize.
-  // worldPoint is the estimated position in world coodinates.
-  Eigen::Vector3d localPoint = p.getVector3fMap().cast<double>();
-  Eigen::Vector3d worldPoint = this->PosePrior * localPoint;
+  // basePoint is the raw local position in BASE coordinates, on which we need to apply the transform to optimize.
+  // worldPoint is the estimated position in WORLD coodinates, transformed using initial prior.
+  Eigen::Vector3d basePoint = p.getVector3fMap().cast<double>();
+  Eigen::Vector3d worldPoint = this->PosePrior * basePoint;
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
 
   std::vector<int> knnIndices;
   std::vector<float> knnSqDist;
-  unsigned int neighborhoodSize = kdtreePreviousPlanes.KnnSearch(worldPoint.data(), this->Params.PlaneDistanceNbrNeighbors, knnIndices, knnSqDist);
+  unsigned int neighborhoodSize = previousPlanes.KnnSearch(worldPoint.data(), this->Params.PlaneNbNeighbors, knnIndices, knnSqDist);
 
   // It means that there is not enough keypoints in the neighborhood
-  if (neighborhoodSize < this->Params.PlaneDistanceNbrNeighbors)
-  {
+  if (neighborhoodSize < this->Params.PlaneNbNeighbors)
     return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0., CeresTools::Residual() };
-  }
 
   // If the nearest planar points are too far from the current keypoint,
   // we skip this point.
-  if (knnSqDist.back() > this->Params.MaxDistanceForICPMatching * this->Params.MaxDistanceForICPMatching)
-  {
+  if (knnSqDist.back() > this->Params.MaxNeighborsDistance * this->Params.MaxNeighborsDistance)
     return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0., CeresTools::Residual() };
-  }
-
-  // Shortcut to keypoints cloud
-  const PointCloud& previousPlanesPoints = *kdtreePreviousPlanes.GetInputCloud();
 
   // ========================================================
   // Check if neighborhood is a good plane candidate with PCA
@@ -242,16 +232,14 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(c
   Eigen::Vector3d mean;
   Eigen::Vector3d eigVals;
   Eigen::Matrix3d eigVecs;
-  Utils::ComputeMeanAndPCA(previousPlanesPoints, knnIndices, mean, eigVecs, eigVals);
+  Utils::ComputeMeanAndPCA(*previousPlanes.GetInputCloud(), knnIndices, mean, eigVecs, eigVals);
 
   // If the second eigen value is close to the highest one and bigger than the
   // smallest one, it means that the points are distributed along a plane.
   // Otherwise, discard this bad unstructured neighborhood.
-  if (this->Params.PlaneDistancefactor2 * eigVals(1) < eigVals(2) ||
-      eigVals(1) < this->Params.PlaneDistancefactor1 * eigVals(0))
-  {
+  if (eigVals(1) < this->Params.PlanePcaFactor1 * eigVals(0) || 
+      this->Params.PlanePcaFactor2 * eigVals(1) < eigVals(2))
     return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0., CeresTools::Residual() };
-  }
 
   // ==============================================
   // Compute point-to-plane optimization parameters
@@ -272,13 +260,11 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(c
   // It would be the case if P1 = P2, P1 = P3 or P3 = P2, for instance if the
   // sensor has some dual returns that hit the same point.
   if (!std::isfinite(A(0, 0)))
-  {
     return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0., CeresTools::Residual() };
-  }
 
   // If the MSE is too high, the target model is not accurate enough, discard the match in optimization
   double mse = eigVals(0);
-  if (mse >= std::pow(this->Params.MaxPlaneDistance, 2))
+  if (mse >= std::pow(this->Params.PlaneMaxModelError, 2))
     return { MatchingResults::MatchStatus::MSE_TOO_LARGE, 0., CeresTools::Residual() };
 
   // ===========================================
@@ -287,45 +273,42 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(c
   // Quality score of the point-to-plane match
   // If the points to model error is too low, assign maximum weight.
   // Otherwise, assign a weight relative to the points to model error and a user parameter maximum value
-  double fitQualityCoeff = (mse <= 1e-6) ? 1. : 1. - std::sqrt(mse) / this->Params.MaxPlaneDistance;
+  double fitQualityCoeff = (mse <= 1e-6) ? 1. : 1. - std::sqrt(mse) / this->Params.PlaneMaxModelError;
 
-  CeresTools::Residual res = this->BuildResidual(A, mean, localPoint, fitQualityCoeff);
+  CeresTools::Residual res = this->BuildResidual(A, mean, basePoint, fitQualityCoeff);
   return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff, res };
 }
 
 //-----------------------------------------------------------------------------
-KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p)
+KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(const KDTree& previousBlobs, const Point& p)
 {
+  // At least 4 points are needed to fit an ellipsoid model
+  if (this->Params.BlobNbNeighbors < 4)
+    return { MatchingResults::MatchStatus::BAD_MODEL_PARAMETRIZATION, 0., CeresTools::Residual() };
+
   // =====================================================
   // Transform the point using the current pose estimation
 
-  // localPoint is the raw local position, on which we need to apply the transform to optimize.
-  // worldPoint is the estimated position in world coodinates.
-  Eigen::Vector3d localPoint = p.getVector3fMap().cast<double>();
-  Eigen::Vector3d worldPoint = this->PosePrior * localPoint;
+  // basePoint is the raw local position in BASE coordinates, on which we need to apply the transform to optimize.
+  // worldPoint is the estimated position in WORLD coodinates, transformed using initial prior.
+  Eigen::Vector3d basePoint = p.getVector3fMap().cast<double>();
+  Eigen::Vector3d worldPoint = this->PosePrior * basePoint;
 
   // ===================================================
   // Get neighboring points in previous set of keypoints
 
   std::vector<int> knnIndices;
   std::vector<float> knnSqDist;
-  unsigned int neighborhoodSize = kdtreePreviousBlobs.KnnSearch(worldPoint.data(), this->Params.BlobDistanceNbrNeighbors, knnIndices, knnSqDist);
+  unsigned int neighborhoodSize = previousBlobs.KnnSearch(worldPoint.data(), this->Params.BlobNbNeighbors, knnIndices, knnSqDist);
 
   // It means that there is not enough keypoints in the neighborhood
-  if (neighborhoodSize < this->Params.BlobDistanceNbrNeighbors)
-  {
+  if (neighborhoodSize < this->Params.BlobNbNeighbors)
     return { MatchingResults::MatchStatus::NOT_ENOUGH_NEIGHBORS, 0., CeresTools::Residual() };
-  }
 
   // If the nearest blob points are too far from the current keypoint,
   // we skip this point.
-  if (knnSqDist.back() > this->Params.MaxDistanceForICPMatching * this->Params.MaxDistanceForICPMatching)
-  {
+  if (knnSqDist.back() > this->Params.MaxNeighborsDistance * this->Params.MaxNeighborsDistance)
     return { MatchingResults::MatchStatus::NEIGHBORS_TOO_FAR, 0., CeresTools::Residual() };
-  }
-
-  // Shortcut to keypoints cloud
-  const PointCloud& previousBlobsPoints = *kdtreePreviousBlobs.GetInputCloud();
 
   // ======================================================
   // Compute point-to-blob optimization parameters with PCA
@@ -336,13 +319,11 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(co
   Eigen::Vector3d mean;
   Eigen::Vector3d eigVals;
   Eigen::Matrix3d eigVecs;
-  Utils::ComputeMeanAndPCA(previousBlobsPoints, knnIndices, mean, eigVecs, eigVals);
+  Utils::ComputeMeanAndPCA(*previousBlobs.GetInputCloud(), knnIndices, mean, eigVecs, eigVals);
 
   // Check PCA structure
   if (eigVals(0) <= 0. || eigVals(1) <= 0.)
-  {
     return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0., CeresTools::Residual()};
-  }
 
   // Compute the inverse squared out covariance matrix
   // of the target neighborhood -> A = Covariance^(-1/2)
@@ -359,9 +340,7 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(co
   // It would be the case if P1 = P2, for instance if the sensor has some dual
   // returns that hit the same point.
   if (!std::isfinite(A(0, 0)) || !std::isfinite(eigValsSqrtInv.prod()))
-  {
     return { MatchingResults::MatchStatus::INVALID_NUMERICAL, 0., CeresTools::Residual() };
-  }
 
   // ===========================================
   // Add valid parameters for later optimization
@@ -369,25 +348,25 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildBlobMatch(co
   // Quality score of the point-to-blob match
   // The aim is to prevent wrong matching pulling the pointcloud in a bad direction.
   double fitQualityCoeff = 1.0;
-  CeresTools::Residual res = this->BuildResidual(A, mean, localPoint, fitQualityCoeff);
+  CeresTools::Residual res = this->BuildResidual(A, mean, basePoint, fitQualityCoeff);
   return { MatchingResults::MatchStatus::SUCCESS, fitQualityCoeff, res };
 }
 
 //-----------------------------------------------------------------------------
-void KeypointsMatcher::GetPerRingLineNeighbors(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest,
-                                                    std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const
+void KeypointsMatcher::GetPerRingLineNeighbors(const KDTree& previousEdges, const double pos[3], unsigned int knearest,
+                                               std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const
 {
   // Get nearest neighbors of the query point
   std::vector<int> knnIndices;
   std::vector<float> knnSqDist;
-  unsigned int neighborhoodSize = kdtreePreviousEdges.KnnSearch(pos, knearest, knnIndices, knnSqDist);
+  unsigned int neighborhoodSize = previousEdges.KnnSearch(pos, knearest, knnIndices, knnSqDist);
 
   // If empty neighborhood, return
   if (neighborhoodSize == 0)
     return;
 
   // Shortcut to keypoints cloud
-  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.GetInputCloud();
+  const PointCloud& previousEdgesPoints = *previousEdges.GetInputCloud();
 
   // Take the closest point
   const Point& closest = previousEdgesPoints[knnIndices[0]];
@@ -433,13 +412,13 @@ void KeypointsMatcher::GetPerRingLineNeighbors(const KDTree& kdtreePreviousEdges
 }
 
 //-----------------------------------------------------------------------------
-void KeypointsMatcher::GetRansacLineNeighbors(const KDTree& kdtreePreviousEdges, const double pos[3], unsigned int knearest, double maxDistInlier,
+void KeypointsMatcher::GetRansacLineNeighbors(const KDTree& previousEdges, const double pos[3], unsigned int knearest, double maxDistInlier,
                                               std::vector<int>& validKnnIndices, std::vector<float>& validKnnSqDist) const
 {
   // Get nearest neighbors of the query point
   std::vector<int> knnIndices;
   std::vector<float> knnSqDist;
-  unsigned int neighborhoodSize = kdtreePreviousEdges.KnnSearch(pos, knearest, knnIndices, knnSqDist);
+  unsigned int neighborhoodSize = previousEdges.KnnSearch(pos, knearest, knnIndices, knnSqDist);
 
   // If neighborhood contains less than 2 neighbors
   // no line can be fitted
@@ -447,7 +426,7 @@ void KeypointsMatcher::GetRansacLineNeighbors(const KDTree& kdtreePreviousEdges,
     return;
 
   // Shortcut to keypoints cloud
-  const PointCloud& previousEdgesPoints = *kdtreePreviousEdges.GetInputCloud();
+  const PointCloud& previousEdgesPoints = *previousEdges.GetInputCloud();
 
   // To avoid square root when performing comparison
   const float squaredMaxDistInlier = maxDistInlier * maxDistInlier;

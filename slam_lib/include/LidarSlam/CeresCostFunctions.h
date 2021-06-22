@@ -85,12 +85,16 @@ Eigen::Matrix<T, 3, 3> RotationMatrixFromRPY(const T& rx, const T& ry, const T& 
  * \class MahalanobisDistanceAffineIsometryResidual
  * \brief Cost function to optimize the affine isometry transformation
  *        (rotation and translation) so that the mahalanobis distance
- *        between a point X and its neighborhood is minimized.
+ *        between a source point and a target model is minimized.
  *
- * More precisely, in case the user is interested in implementing a cost function of the form
- * cost(x) = (x - P)^T C^{-1} (x - P) where, P is a mean and C is a covariance matrix,
- * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the covariance, 
- * also known as the stiffness matrix.
+ * In case the user is interested in implementing a cost function:
+ *     cost(x) = (Y - P)^t C^{-1} (Y - P)
+ * where:
+ *  - Y = (R X + T) is the source point X transformed by the isometry (R, T) to optimize
+ *  - P is a point laying on the target model
+ *  - C is the covariance matrix of the target model,
+ * then A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the
+ * covariance, also known as the stiffness matrix.
  *
  * This function takes one 6D parameters block :
  *   - 3 first parameters to encode translation : X, Y, Z
@@ -150,15 +154,20 @@ private:
 //------------------------------------------------------------------------------
 /**
  * \class MahalanobisDistanceInterpolatedMotionResidual
- * \brief Cost function to optimize the affine isometry transformations H0=(R0, T0) and H1=(R1, T1)
- *        at timestamps t0=0 and t1=1 so that the linearly interpolated transform
- *        (R, T) = (R0^(1-t) * R1^t, (1 - t) T0 + t T1)
- *        applied to X (acquired at time t) minimizes the mahalanobis distance.
+ * \brief Cost function to optimize the affine isometry transformations
+ *        (R0, T0) and (R1, T1) at timestamps t0=0 and t1=1 so that the
+ *        linearly interpolated transform (R, T) applied to source point X
+ *        acquired at time t minimizes the mahalanobis distance.
  *
- * More precisely, in case the user is interested in implementing a cost function of the form
- * cost(x) = (x - P)^T C^{-1} (x - P) where, P is a mean vector and C is a covariance matrix,
- * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the covariance, 
- * also known as the stiffness matrix.
+ * In case the user is interested in implementing a cost function:
+ *     cost(x) = (Y - P)^t C^{-1} (Y - P)
+ * where:
+ *  - Y = (R X + T) is the source point X transformed by the interpolated isometry
+ *     (R, T) = (R0^(1-t) * R1^t, (1 - t) T0 + t T1)
+ *  - P is a point laying on the target model
+ *  - C is the covariance matrix of the target model,
+ * then, A = C^{-1/2}, i.e the matrix A is the square root of the inverse of the
+ * covariance, also known as the stiffness matrix.
  *
  * This function takes two 6D parameters blocks :
  *  1) First isometry H0 :

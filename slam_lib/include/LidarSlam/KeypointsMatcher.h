@@ -39,7 +39,7 @@ public:
   using PointCloud = pcl::PointCloud<Point>;
   using KDTree = KDTreePCLAdaptor<Point>;
 
-  //! Structure to easily set all ICP/LM parameters
+  //! Structure to easily set all matching parameters
   struct Parameters
   {
     // Max number of threads to use to parallelize computations
@@ -51,38 +51,29 @@ public:
     // If true, the method GetPerRingLineNeighbors() will be used.
     bool SingleEdgePerRing = false;
 
-    // The max distance allowed between a current keypoint and its neighborhood
-    // from the map (or previous frame) to build an ICP match.
-    // If the distance is over this limit, no match residual will be built.
-    double MaxDistanceForICPMatching = 5.;
+    // [m] The max distance allowed between a current keypoint and its neighbors.
+    // If one of the neighbors is farther, the neighborhood will be rejected.
+    double MaxNeighborsDistance = 5.;
 
-    // Min number of matches
-    // Below this threshold, we consider that there are not enough matches to
-    // provide good enough optimization results, and registration is aborted.
-    unsigned int MinNbrMatchedKeypoints = 20;
+    // Edge keypoints matching: point-to-line distance
+    unsigned int EdgeNbNeighbors = 10;   ///< [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates
+    unsigned int EdgeMinNbNeighbors = 4; ///< [>=2] Min number of resulting filtered edge neighbors to approximate the corresponding line model
+    double EdgePcaFactor = 5.0;          ///< To check the line neighborhood shape, the PCA eigenvalues must respect: factor * V1 <= V2
+    double EdgeMaxModelError = 0.2;      ///< [m] Max RMSE allowed between neighborhood and its fitted line model
 
-    // When computing the point <-> line and point <-> plane distance in the ICP,
-    // the kNearest edge/plane points of the current point are selected to
-    // approximate the line/plane using a PCA.
-    // If one of the k-nearest points is too far, the neigborhood is rejected.
-    // We also perform a filter upon the ratio of the eigen values of the
-    // covariance matrix of the neighborhood to check if the points are
-    // distributed upon a line or a plane.
-    unsigned int LineDistanceNbrNeighbors = 10; //< initial number of neighbor edge points searched to approximate the corresponding line
-    unsigned int MinimumLineNeighborRejection = 4;  //< number of neighbor edge points required to approximate the corresponding line after filtering startegy
-    double LineDistancefactor = 5.0; //< PCA eigenvalues ratio to consider a neighborhood fits a line model : V2 >= factor * V1
-    double MaxLineDistance = 0.2; //< maximum RMSE between target keypoints and their fitted line
+    // Plane keypoints matching: point-to-plane distance
+    unsigned int PlaneNbNeighbors = 5;   ///< [>=3] Number of plane neighbors to extract to approximate the corresponding plane model
+    double PlanePcaFactor1 = 35.0;       ///< To check the plane neighborhood shape, the PCA eigenvalues must respect:
+    double PlanePcaFactor2 = 8.0;        ///<     factor1 * V0 <= V1 and V2 <= factor2 * V1
+    double PlaneMaxModelError = 0.2;     ///< [m] Max RMSE allowed between neighborhood and its fitted plane model
 
-    unsigned int PlaneDistanceNbrNeighbors = 5; //< number of neighbors planar points required to approximate the corresponding plane
-    double PlaneDistancefactor1 = 35.0; //< PCA eigenvalues ratio to consider a neighborhood fits a plane model :
-    double PlaneDistancefactor2 = 8.0;  //<     V1 >= factor1 * V0 and V2 <= factor2 * V1
-    double MaxPlaneDistance = 0.2; //< maximum RMSE between target keypoints and their fitted plane
+    // Blob keypoints matching: point-to-ellipsoid distance
+    unsigned int BlobNbNeighbors = 10;   ///< [>=4] Number of blob neighbors to extract to approximate the corresponding ellipsoid model
 
-    unsigned int BlobDistanceNbrNeighbors = 25; //< number of blob neighbors required to approximate the corresponding ellipsoid
-
-    // Maximum distance (in meters) beyond which the residual errors are
+    // [m] Maximum distance beyond which the residual errors are
     // saturated to robustify the optimization against outlier constraints.
-    // The residuals will be robustified by Tukey loss at scale sqrt(SatDist).
+    // The residuals will be robustified by Tukey loss at scale SatDist,
+    // leading to 50% of saturation at SatDist/2, fully saturated at SatDist.
     double SaturationDistance = 1.;
   };
 
@@ -92,14 +83,15 @@ public:
     //! Result of the keypoint matching, explaining rejection cause of matching failure.
     enum MatchStatus : uint8_t
     {
-      SUCCESS = 0,              ///< Keypoint has been successfully matched
-      NOT_ENOUGH_NEIGHBORS = 1, ///< Not enough neighbors to match keypoint
-      NEIGHBORS_TOO_FAR = 2,    ///< Neighbors are too far to match keypoint
-      BAD_PCA_STRUCTURE = 3,    ///< PCA eigenvalues analysis discards neighborhood fit to model
-      INVALID_NUMERICAL = 4,    ///< Optimization parameter computation has numerical invalidity
-      MSE_TOO_LARGE = 5,        ///< Mean squared error to model is too important to accept fitted model
-      UNKOWN = 6,               ///< Unkown status (matching probably not performed yet)
-      nStatus = 7
+      SUCCESS = 0,                ///< Keypoint has been successfully matched
+      BAD_MODEL_PARAMETRIZATION,  ///< Not enough neighbors requested to build the target model
+      NOT_ENOUGH_NEIGHBORS,       ///< Not enough neighbors found to match keypoint
+      NEIGHBORS_TOO_FAR,          ///< Neighbors are too far to match keypoint
+      BAD_PCA_STRUCTURE,          ///< PCA eigenvalues analysis discards neighborhood fit to model
+      INVALID_NUMERICAL,          ///< Optimization parameter computation has numerical invalidity
+      MSE_TOO_LARGE,              ///< Mean squared error to model is too important to accept fitted model
+      UNKOWN,                     ///< Unkown status (matching probably not performed yet)
+      nStatus
     };
 
     //! Match status and quality weight of each keypoint
@@ -137,7 +129,17 @@ public:
   // It needs matching parameters and the prior transform to apply to keypoints
   KeypointsMatcher(const Parameters& params, const Eigen::Isometry3d& posePrior);
 
-  // Build point-to-neighborhood residuals
+  // Point-to-neighborhood matching parameters.
+  // The goal will be to loop over all keypoints, and to build the corresponding
+  // point-to-neighborhood residuals that will be optimized later.
+  // For each source keypoint, the steps will be:
+  // - To extract the N nearest neighbors from the target cloud.
+  //   These neighbors should not be too far from the source keypoint.
+  // - Assess the neighborhood shape by checking its PCA eigenvalues.
+  // - Fit a line/plane/blob model on the neighborhood using PCA.
+  // - Assess the model quality by checking its error relatively to the neighborhood.
+  // - Build the corresponding point-to-model distance operator
+  // If any of these steps fail, the matching procedure of the current keypoint aborts.
   MatchingResults BuildMatchResiduals(const PointCloud::Ptr& currPoints,
                                       const KDTree& prevPoints,
                                       Keypoint keypointType);
@@ -149,34 +151,34 @@ private:
   // Build ICP match residual functions.
   // To recover the motion, we have to minimize the function
   //   f(R, T) = sum(d(edge_kpt, line)^2) + sum(d(plane_kpt, plane)^2) + sum(d(blob_kpt, blob)^2)
-  // In all cases, the squared Mahalanobis distance between the keypoint and the line/plane/blob can be written :
+  // In all cases, the squared Mahalanobis distance between the keypoint and the line/plane/blob can be written:
   //   (R * X + T - P).t * A.t * A * (R * X + T - P)
-  // Where :
-  // - (R, T) is the rigid transform to optimize 
-  // - X is the key point
-  // - P is the mean point of the line/plane/blob neighborhood
+  // Where:
+  // - (R, T) is the rigid transform to optimize (transform from WORLD to BASE)
+  // - X is the keypoint in BASE coordinates
+  // - P is the centroid of the line/plane/blob neighborhood, in WORLD coordinates
   // - A is the distance operator:
   //    * A = (I - u*u.t) for a line with u being the unit tangent vector of the line.
   //    * A = (n*n.t) for a plane with n being its normal.
-  //    * A = C^{-1/2} is the squared information matrix, aka stiffness matrix, where 
+  //    * A = C^{-1/2} is the squared information matrix, aka stiffness matrix, where
   //      C is the covariance matrix encoding the shape of the neighborhood for a blob.
   // - weight attenuates the distance function for outliers
   CeresTools::Residual BuildResidual(const Eigen::Matrix3d& A, const Eigen::Vector3d& P, const Eigen::Vector3d& X, double weight = 1.);
 
   // Match the current keypoint with its neighborhood in the map / previous
-  MatchingResults::MatchInfo BuildLineMatch(const KDTree& kdtreePreviousEdges, const Point& p);
-  MatchingResults::MatchInfo BuildPlaneMatch(const KDTree& kdtreePreviousPlanes, const Point& p);
-  MatchingResults::MatchInfo BuildBlobMatch(const KDTree& kdtreePreviousBlobs, const Point& p);
+  MatchingResults::MatchInfo BuildLineMatch(const KDTree& previousEdges, const Point& p);
+  MatchingResults::MatchInfo BuildPlaneMatch(const KDTree& previousPlanes, const Point& p);
+  MatchingResults::MatchInfo BuildBlobMatch(const KDTree& previousBlobs, const Point& p);
 
   // Instead of taking the k-nearest neigbors we will take specific neighbor
   // using the particularities of the lidar sensor
-  void GetPerRingLineNeighbors(const KDTree& kdtreePreviousEdges, const double pos[3],
+  void GetPerRingLineNeighbors(const KDTree& previousEdges, const double pos[3],
                                unsigned int knearest, std::vector<int>& validKnnIndices,
                                std::vector<float>& validKnnSqDist) const;
 
   // Instead of taking the k-nearest neighbors we will take specific neighbor
   // using a sample consensus model
-  void GetRansacLineNeighbors(const KDTree& kdtreePreviousEdges, const double pos[3],
+  void GetRansacLineNeighbors(const KDTree& previousEdges, const double pos[3],
                               unsigned int knearest, double maxDistInlier,
                               std::vector<int>& validKnnIndices,
                               std::vector<float>& validKnnSqDist) const;
@@ -185,10 +187,11 @@ private:
 
 private:
 
+  // Matching parameters
   const Parameters Params;
 
-  // Initialization of DoF to optimize
-  const Eigen::Isometry3d PosePrior;  ///< Initial guess of the pose to optimize
+  // Initial guess of the pose to optimize
+  const Eigen::Isometry3d PosePrior;
 };
 
 } // end of LidarSlam namespace

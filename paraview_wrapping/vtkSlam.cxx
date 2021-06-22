@@ -299,15 +299,18 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     {
       auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
       auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
+      auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
       std::unordered_map<std::string, vtkPolyData*> outputMap;
-      outputMap["EgoMotion: edge matches"] = edgePoints;
-      outputMap["EgoMotion: edge weights"] = edgePoints;
-      outputMap["Localization: edge matches"] = edgePoints;
-      outputMap["Localization: edge weights"] = edgePoints;
-      outputMap["EgoMotion: plane matches"] = planarPoints;
-      outputMap["EgoMotion: plane weights"] = planarPoints;
+      outputMap["EgoMotion: edge matches"]     = edgePoints;
+      outputMap["EgoMotion: edge weights"]     = edgePoints;
+      outputMap["EgoMotion: plane matches"]    = planarPoints;
+      outputMap["EgoMotion: plane weights"]    = planarPoints;
+      outputMap["Localization: edge matches"]  = edgePoints;
+      outputMap["Localization: edge weights"]  = edgePoints;
       outputMap["Localization: plane matches"] = planarPoints;
       outputMap["Localization: plane weights"] = planarPoints;
+      outputMap["Localization: blob matches"]  = blobPoints;
+      outputMap["Localization: blob weights"]  = blobPoints;
       auto debugArray = this->SlamAlgo->GetDebugArray();
       for (const auto& it : outputMap)
       {
@@ -394,31 +397,32 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   PrintParameter(NbThreads)
   PrintParameter(Verbosity)
 
-  PrintParameter(MaxDistanceForICPMatching)
-
-  PrintParameter(EgoMotionLMMaxIter)
   PrintParameter(EgoMotionICPMaxIter)
-  PrintParameter(EgoMotionLineDistanceNbrNeighbors)
-  PrintParameter(EgoMotionMinimumLineNeighborRejection)
-  PrintParameter(EgoMotionMaxLineDistance)
-  PrintParameter(EgoMotionLineDistancefactor)
-  PrintParameter(EgoMotionPlaneDistanceNbrNeighbors)
-  PrintParameter(EgoMotionMaxPlaneDistance)
-  PrintParameter(EgoMotionPlaneDistancefactor1)
-  PrintParameter(EgoMotionPlaneDistancefactor2)
+  PrintParameter(EgoMotionLMMaxIter)
+  PrintParameter(EgoMotionMaxNeighborsDistance)
+  PrintParameter(EgoMotionEdgeNbNeighbors)
+  PrintParameter(EgoMotionEdgeMinNbNeighbors)
+  PrintParameter(EgoMotionEdgeMaxModelError)
+  PrintParameter(EgoMotionEdgePcaFactor)
+  PrintParameter(EgoMotionPlaneNbNeighbors)
+  PrintParameter(EgoMotionPlaneMaxModelError)
+  PrintParameter(EgoMotionPlanePcaFactor1)
+  PrintParameter(EgoMotionPlanePcaFactor2)
   PrintParameter(EgoMotionInitSaturationDistance)
   PrintParameter(EgoMotionFinalSaturationDistance)
 
-  PrintParameter(LocalizationLMMaxIter)
   PrintParameter(LocalizationICPMaxIter)
-  PrintParameter(LocalizationLineDistanceNbrNeighbors)
-  PrintParameter(LocalizationMinimumLineNeighborRejection)
-  PrintParameter(LocalizationMaxLineDistance)
-  PrintParameter(LocalizationLineDistancefactor)
-  PrintParameter(LocalizationPlaneDistanceNbrNeighbors)
-  PrintParameter(LocalizationPlaneDistancefactor1)
-  PrintParameter(LocalizationPlaneDistancefactor2)
-  PrintParameter(LocalizationMaxPlaneDistance)
+  PrintParameter(LocalizationLMMaxIter)
+  PrintParameter(LocalizationMaxNeighborsDistance)
+  PrintParameter(LocalizationEdgeNbNeighbors)
+  PrintParameter(LocalizationEdgeMinNbNeighbors)
+  PrintParameter(LocalizationEdgeMaxModelError)
+  PrintParameter(LocalizationEdgePcaFactor)
+  PrintParameter(LocalizationPlaneNbNeighbors)
+  PrintParameter(LocalizationPlanePcaFactor1)
+  PrintParameter(LocalizationPlanePcaFactor2)
+  PrintParameter(LocalizationPlaneMaxModelError)
+  PrintParameter(LocalizationBlobNbNeighbors)
   PrintParameter(LocalizationInitSaturationDistance)
   PrintParameter(LocalizationFinalSaturationDistance)
 

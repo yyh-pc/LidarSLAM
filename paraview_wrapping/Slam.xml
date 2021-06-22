@@ -484,121 +484,143 @@
                          default_values="4"
                          panel_visibility="advanced">
         <Documentation>
-          The registration of the current frame on the previous frame is performed iteratively,
-          building point-to-feature Mahalanobis distance functions during an ICP
-          step, followed by a non-linear optimization of these residuals.
+          The registration of the current frame on the previous frame is performed
+          iteratively, building point-to-model Mahalanobis distance functions
+          during an ICP step, followed by a non-linear optimization of these residuals.
+
           This parameter is the number of ICP-optimization iterations to perform.
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Lev-Mardt max iterations EM"
+      <IntVectorProperty name="LM optimization iterations EM"
                          command="SetEgoMotionLMMaxIter"
                          number_of_elements="1"
                          default_values="15"
                          panel_visibility="advanced">
         <Documentation>
-          Maximum number of iterations of the numerical optimization step, using
-          Levenberg-Marquardt iterative algorithm with non-linear least square
-          cost functions to solve the problem.
+          Max number of iterations of the Levenberg-Marquardt optimizer to solve
+          the ICP problem
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Nb edges neighbors minimum after Ransac EM"
-                         command="SetEgoMotionMinimumLineNeighborRejection"
-                         number_of_elements="1"
-                         default_values="3"
-                         panel_visibility="advanced">
-        <Documentation>
-          In the Ego-Motion step, the neighborhood of an edge keypoint
-          is fitted using a Ransac algorithm. This parameter sets the
-          minimum number of inliers we want to keep currently considered point
-        </Documentation>
-      </IntVectorProperty>
-
-      <IntVectorProperty name="Nb edge neighbors EM"
-                         command="SetEgoMotionLineDistanceNbrNeighbors"
-                         number_of_elements="1"
-                         default_values="8"
-                         panel_visibility="advanced">
-        <Documentation>
-          K-nearest neighbors points to consider to compute the Variance-Covariance
-          matrix of the neighborhood to define the Mahalanobis distance function.
-        </Documentation>
-      </IntVectorProperty>
-
-      <IntVectorProperty name="Nb plane neighbors EM"
-                         command="SetEgoMotionPlaneDistanceNbrNeighbors"
-                         number_of_elements="1"
-                         default_values="5"
-                         panel_visibility="advanced">
-        <Documentation>
-          K-nearest neighbors points to consider to compute the Variance-Covariance
-          matrix of the neighborhood to define the Mahalanobis distance function.
-        </Documentation>
-      </IntVectorProperty>
-
-      <DoubleVectorProperty name="Linearity factor EM"
-                            command="SetEgoMotionLineDistancefactor"
+      <DoubleVectorProperty name="Max neighbors distance EM"
+                            command="SetEgoMotionMaxNeighborsDistance"
                             number_of_elements="1"
                             default_values="5."
                             panel_visibility="advanced">
         <Documentation>
-          Reject an edge keypoint if its neighborhood is not distributed
-          along a line :
-
-          *EigenValue1 > Factor · EigenValue2*
+          Max distance allowed between a keypoint and its neighbors from the
+          previous frame to build an ICP match
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Planarity factor 1 EM"
-                            command="SetEgoMotionPlaneDistancefactor1"
+      <IntVectorProperty name="Edge nb of neighbors EM"
+                         command="SetEgoMotionEdgeNbNeighbors"
+                         number_of_elements="1"
+                         default_values="8"
+                         panel_visibility="advanced">
+        <Documentation>
+          Initial number of edge neighbors to extract, that will be filtered out
+          to keep best candidates.
+
+          At least 2 points are needed to build a valid line model.
+          If below, line models won't be usable and will be ignored.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Edge nb min filtered neighbors EM"
+                         command="SetEgoMotionEdgeMinNbNeighbors"
+                         number_of_elements="1"
+                         default_values="3"
+                         panel_visibility="advanced">
+        <Documentation>
+          Min number of resulting filtered edge neighbors (max 1 per scan line)
+          to approximate the corresponding line model.
+
+          At least 2 points are needed to build a valid line model.
+          If below, line models won't be usable and will be ignored.
+        </Documentation>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Edge PCA factor EM"
+                            command="SetEgoMotionEdgePcaFactor"
+                            number_of_elements="1"
+                            default_values="5."
+                            panel_visibility="advanced">
+        <Documentation>
+          To check the line neighborhood shape, the PCA eigenvalues must respect:
+
+          *EigenValue2 >= Factor x EigenValue1*
+
+          with *EigenValue2 >= EigenValue1 >= EigenValue0*
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Edge max model error EM"
+                            command="SetEgoMotionEdgeMaxModelError"
+                            number_of_elements="1"
+                            default_values="0.2"
+                            panel_visibility="advanced">
+        <Documentation>
+          Max RMSE allowed between neighborhood and its fitted line model to
+          keep only accurate models
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty name="Plane nb of neighbors EM"
+                         command="SetEgoMotionPlaneNbNeighbors"
+                         number_of_elements="1"
+                         default_values="5"
+                         panel_visibility="advanced">
+        <Documentation>
+          Number of plane neighbors to extract to approximate the corresponding
+          plane model.
+
+          At least 3 points are needed to build a valid plane model.
+          If below, plane models won't be usable and will be ignored.
+        </Documentation>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Plane PCA factor 1 EM"
+                            command="SetEgoMotionPlanePcaFactor1"
                             number_of_elements="1"
                             default_values="35."
                             panel_visibility="advanced">
         <Documentation>
-          Reject a planar keypoint if its neighborhood is not distributed
-          along a plane:
+          To check the plane neighborhood shape, the PCA eigenvalues must respect:
 
-          *Factor1 · EigenValue2 > EigenValue1*
+          *EigenValue1 >= Factor1 x EigenValue0*
 
-          *EigenValue2 > Factor2 · EigenValue3*
+          *Factor2 x EigenValue1 >= EigenValue2*
+
+          with *EigenValue2 >= EigenValue1 >= EigenValue0*
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Planarity factor 2 EM"
-                            command="SetEgoMotionPlaneDistancefactor2"
+      <DoubleVectorProperty name="Plane PCA factor 2 EM"
+                            command="SetEgoMotionPlanePcaFactor2"
                             number_of_elements="1"
                             default_values="8."
                             panel_visibility="advanced">
         <Documentation>
-          Reject a planar keypoint if its neighborhood is not distributed
-          along a plane:
+          To check the plane neighborhood shape, the PCA eigenvalues must respect:
 
-          *Factor1 · EigenValue2 > EigenValue1*
+          *EigenValue1 >= Factor1 x EigenValue0*
 
-          *EigenValue2 > Factor2 · EigenValue3*
+          *Factor2 x EigenValue1 >= EigenValue2*
+
+          with *EigenValue2 >= EigenValue1 >= EigenValue0*
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Max RMSE between neighbors and line model EM"
-                            command="SetEgoMotionMaxLineDistance"
+      <DoubleVectorProperty name="Plane max model error EM"
+                            command="SetEgoMotionPlaneMaxModelError"
                             number_of_elements="1"
                             default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
-          Reject a match if the target line model is not 
-          accurate enough (if neighbors RMSE is too high)
-        </Documentation>
-      </DoubleVectorProperty>
-
-      <DoubleVectorProperty name="Max RMSE between neighbors and plane model EM"
-                            command="SetEgoMotionMaxPlaneDistance"
-                            number_of_elements="1"
-                            default_values="0.2"
-                            panel_visibility="advanced">
-        <Documentation>
-          Reject a match if the target plane model is not 
-          accurate enough (if neighbors RMSE is too high)
+          Max RMSE allowed between neighborhood and its fitted plane model to
+          keep only accurate models
         </Documentation>
       </DoubleVectorProperty>
 
@@ -610,7 +632,7 @@
         <Documentation>
           Maximum distance (in meters) beyond which the residual errors are
           saturated to robustify the optimization against outlier constraints.
-          The residuals will be robustified by Tukey loss (~90% of saturation at
+          The residuals will be robustified by Tukey loss (50% of saturation at
           *SaturationDistance/2*, fully saturated at *SaturationDistance*).
 
           The saturation distance at each iteration is linearly interpolated
@@ -626,7 +648,7 @@
         <Documentation>
           Maximum distance (in meters) beyond which the residual errors are
           saturated to robustify the optimization against outlier constraints.
-          The residuals will be robustified by Tukey loss (~90% of saturation at
+          The residuals will be robustified by Tukey loss (50% of saturation at
           *SaturationDistance/2*, fully saturated at *SaturationDistance*).
 
           The saturation distance at each iteration is linearly interpolated
@@ -636,15 +658,16 @@
 
       <PropertyGroup label="Ego-Motion registration ICP matching and optimization parameters">
         <Property name="ICP-Optimization iterations EM" />
-        <Property name="Lev-Mardt max iterations EM" />
-        <Property name="Nb edges neighbors minimum after Ransac EM" />
-        <Property name="Nb edge neighbors EM" />
-        <Property name="Nb plane neighbors EM" />
-        <Property name="Linearity factor EM" />
-        <Property name="Planarity factor 1 EM" />
-        <Property name="Planarity factor 2 EM" />
-        <Property name="Max RMSE between neighbors and line model EM" />
-        <Property name="Max RMSE between neighbors and plane model EM" />
+        <Property name="LM optimization iterations EM" />
+        <Property name="Max neighbors distance EM" />
+        <Property name="Edge nb of neighbors EM" />
+        <Property name="Edge nb min filtered neighbors EM" />
+        <Property name="Edge PCA factor EM" />
+        <Property name="Edge max model error EM" />
+        <Property name="Plane nb of neighbors EM" />
+        <Property name="Plane PCA factor 1 EM" />
+        <Property name="Plane PCA factor 2 EM" />
+        <Property name="Plane max model error EM" />
         <Property name="Init saturation distance EM" />
         <Property name="Final saturation distance EM" />
         <Hints>
@@ -693,122 +716,161 @@
                          panel_visibility="advanced">
         <Documentation>
           The registration of the current frame on the map is performed iteratively,
-          building point-to-feature Mahalanobis distance functions during an ICP
-          step, followed by a non-linear optimization of these residuals.
+          building point-to-model Mahalanobis distance functions during an ICP step,
+          followed by a non-linear optimization of these residuals.
+
           This parameter is the number of ICP-optimization iterations to perform.
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Lev-Mardt max iterations"
+      <IntVectorProperty name="LM optimization iterations"
                          command="SetLocalizationLMMaxIter"
                          number_of_elements="1"
                          default_values="15"
                          panel_visibility="advanced">
         <Documentation>
-          Maximum number of iterations of the numerical optimization step, using
-          Levenberg-Marquardt iterative algorithm with non-linear least square
-          cost functions to solve the problem.
+          Max number of iterations of the Levenberg-Marquardt optimizer to solve
+          the ICP problem
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Nb edges neighbors minimum after Ransac"
-                         command="SetLocalizationMinimumLineNeighborRejection"
-                         number_of_elements="1"
-                         default_values="4"
-                         panel_visibility="advanced">
-        <Documentation>
-          In the Localization step, the neighborhood of an edge keypoint
-          is fitted using a Ransac algorithm. This parameter sets the
-          minimum number of inliers we want to keep currently considered point
-        </Documentation>
-      </IntVectorProperty>
-
-      <IntVectorProperty name="Nb edge neighbors"
-                         command="SetLocalizationLineDistanceNbrNeighbors"
-                         number_of_elements="1"
-                         default_values="10"
-                         panel_visibility="advanced">
-        <Documentation>
-          K-nearest neighbors points to consider to compute the Variance-Covariance
-          matrix of the neighborhood to define the Mahalanobis distance function.
-        </Documentation>
-      </IntVectorProperty>
-
-      <IntVectorProperty name="Nb plane neighbors"
-                         command="SetLocalizationPlaneDistanceNbrNeighbors"
-                         number_of_elements="1"
-                         default_values="5"
-                         panel_visibility="advanced">
-        <Documentation>
-          K-nearest neighbors points to consider to compute the Variance-Covariance
-          matrix of the neighborhood to define the Mahalanobis distance function.
-        </Documentation>
-      </IntVectorProperty>
-
-      <DoubleVectorProperty name="Linearity factor"
-                            command="SetLocalizationLineDistancefactor"
+      <DoubleVectorProperty name="Max neighbors distance"
+                            command="SetLocalizationMaxNeighborsDistance"
                             number_of_elements="1"
                             default_values="5."
                             panel_visibility="advanced">
         <Documentation>
-          Reject an edge keypoint if its neighborhood is not distributed
-          along a line :
-
-          *EigenValue1 > Factor · EigenValue2*
+          Max distance allowed between a keypoint and its neighbors from the map
+          to build an ICP match
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Planarity factor 1"
-                            command="SetLocalizationPlaneDistancefactor1"
+      <IntVectorProperty name="Edge nb of neighbors"
+                         command="SetLocalizationEdgeNbNeighbors"
+                         number_of_elements="1"
+                         default_values="10"
+                         panel_visibility="advanced">
+        <Documentation>
+          Initial number of edge neighbors to extract, that will be filtered out
+          to keep best candidates.
+
+          At least 2 points are needed to build a valid line model.
+          If below, line models won't be usable and will be ignored.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Edge nb min filtered neighbors"
+                         command="SetLocalizationEdgeMinNbNeighbors"
+                         number_of_elements="1"
+                         default_values="4"
+                         panel_visibility="advanced">
+        <Documentation>
+          Min number of resulting filtered edge neighbors (close to best line
+          candidate) to approximate the corresponding line model.
+
+          At least 2 points are needed to build a valid line model.
+          If below, line models won't be usable and will be ignored.
+        </Documentation>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Edge PCA factor"
+                            command="SetLocalizationEdgePcaFactor"
+                            number_of_elements="1"
+                            default_values="5."
+                            panel_visibility="advanced">
+        <Documentation>
+          To check the line neighborhood shape, the PCA eigenvalues must respect:
+
+          *EigenValue2 >= Factor x EigenValue1*
+
+          with *EigenValue2 >= EigenValue1 >= EigenValue0*
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Edge max model error"
+                            command="SetLocalizationEdgeMaxModelError"
+                            number_of_elements="1"
+                            default_values="0.2"
+                            panel_visibility="advanced">
+        <Documentation>
+          Max RMSE allowed between neighborhood and its fitted line model to
+          keep only accurate models
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty name="Plane nb of neighbors"
+                         command="SetLocalizationPlaneNbNeighbors"
+                         number_of_elements="1"
+                         default_values="5"
+                         panel_visibility="advanced">
+        <Documentation>
+          Number of plane neighbors to extract to approximate the corresponding
+          plane model.
+
+          At least 3 points are needed to build a valid plane model.
+          If below, plane models won't be usable and will be ignored.
+        </Documentation>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Plane PCA factor 1"
+                            command="SetLocalizationPlanePcaFactor1"
                             number_of_elements="1"
                             default_values="35."
                             panel_visibility="advanced">
         <Documentation>
-          Reject a planar keypoint if its neighborhood is not distributed
-          along a plane:
+          To check the plane neighborhood shape, the PCA eigenvalues must respect:
 
-          *Factor1 · EigenValue2 > EigenValue1*
+          *EigenValue1 >= Factor1 x EigenValue0*
 
-          *EigenValue2 > Factor2 · EigenValue3*
+          *Factor2 x EigenValue1 >= EigenValue2*
+
+          with *EigenValue2 >= EigenValue1 >= EigenValue0*
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Planarity factor 2"
-                            command="SetLocalizationPlaneDistancefactor2"
+      <DoubleVectorProperty name="Plane PCA factor 2"
+                            command="SetLocalizationPlanePcaFactor2"
                             number_of_elements="1"
                             default_values="8."
                             panel_visibility="advanced">
         <Documentation>
-          Reject a planar keypoint if its neighborhood is not distributed
-          along a plane:
+          To check the plane neighborhood shape, the PCA eigenvalues must respect:
 
-          *Factor1 · EigenValue2 > EigenValue1*
+          *EigenValue1 >= Factor1 x EigenValue0*
 
-          *EigenValue2 > Factor2 · EigenValue3*
+          *Factor2 x EigenValue1 >= EigenValue2*
+
+          with *EigenValue2 >= EigenValue1 >= EigenValue0*
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Max RMSE between neighbors and line model"
-                            command="SetLocalizationMaxLineDistance"
+      <DoubleVectorProperty name="Plane max model error"
+                            command="SetLocalizationPlaneMaxModelError"
                             number_of_elements="1"
                             default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
-          Reject a match if the target line model is not 
-          accurate enough (if neighbors RMSE is too high)
+          Max RMSE allowed between neighborhood and its fitted plane model to
+          keep only accurate models
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Max RMSE between neighbors and plane model"
-                            command="SetLocalizationMaxPlaneDistance"
-                            number_of_elements="1"
-                            default_values="0.2"
-                            panel_visibility="advanced">
+      <IntVectorProperty name="Blob nb of neighbors"
+                         command="SetLocalizationBlobNbNeighbors"
+                         number_of_elements="1"
+                         default_values="10"
+                         panel_visibility="advanced">
         <Documentation>
-          Reject a match if the target line model is not 
-          accurate enough (if neighbors RMSE is too high)
+          Number of blob neighbors to extract to approximate the corresponding
+          ellipsoid model.
+
+          At least 4 points are needed to build a valid blob model.
+          If below, blob models won't be usable and will be ignored.
         </Documentation>
-      </DoubleVectorProperty>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use blobs" value="1" />
+        </Hints>
+      </IntVectorProperty>
 
       <DoubleVectorProperty name="Init saturation distance"
                             command="SetLocalizationInitSaturationDistance"
@@ -818,7 +880,7 @@
         <Documentation>
           Maximum distance (in meters) beyond which the residual errors are
           saturated to robustify the optimization against outlier constraints.
-          The residuals will be robustified by Tukey loss (~90% of saturation at
+          The residuals will be robustified by Tukey loss (50% of saturation at
           *SaturationDistance/2*, fully saturated at *SaturationDistance*).
 
           The saturation distance at each iteration is linearly interpolated
@@ -834,7 +896,7 @@
         <Documentation>
           Maximum distance (in meters) beyond which the residual errors are
           saturated to robustify the optimization against outlier constraints.
-          The residuals will be robustified by Tukey loss (~90% of saturation at
+          The residuals will be robustified by Tukey loss (50% of saturation at
           *SaturationDistance/2*, fully saturated at *SaturationDistance*).
 
           The saturation distance at each iteration is linearly interpolated
@@ -846,15 +908,17 @@
         <Property name="Wheel odometry weight" />
         <Property name="IMU gravity weight" />
         <Property name="ICP-Optimization iterations" />
-        <Property name="Lev-Mardt max iterations" />
-        <Property name="Nb edges neighbors minimum after Ransac" />
-        <Property name="Nb edge neighbors" />
-        <Property name="Nb plane neighbors" />
-        <Property name="Linearity factor" />
-        <Property name="Planarity factor 1" />
-        <Property name="Planarity factor 2" />
-        <Property name="Max RMSE between neighbors and line model" />
-        <Property name="Max RMSE between neighbors and plane model" />
+        <Property name="LM optimization iterations" />
+        <Property name="Max neighbors distance" />
+        <Property name="Edge nb of neighbors" />
+        <Property name="Edge nb min filtered neighbors" />
+        <Property name="Edge PCA factor" />
+        <Property name="Edge max model error" />
+        <Property name="Plane nb of neighbors" />
+        <Property name="Plane PCA factor 1" />
+        <Property name="Plane PCA factor 2" />
+        <Property name="Plane max model error" />
+        <Property name="Blob nb of neighbors" />
         <Property name="Init saturation distance" />
         <Property name="Final saturation distance" />
       </PropertyGroup>

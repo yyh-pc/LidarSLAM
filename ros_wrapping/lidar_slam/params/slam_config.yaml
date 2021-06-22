@@ -88,7 +88,9 @@ gps:
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
 
+  # General parameters
   n_threads: 8      # Max number of threads to use for parallel processing (default: 1)
+  2d_mode: false    # Optimize only 2D pose (X, Y, rZ) of tracking_frame relatively to odometry_frame.
   use_blobs: false  # Use only edge and planar keypoints (do not use blob keypoints)
 
   # How to estimate Ego-Motion (approximate relative motion since last frame).
@@ -151,38 +153,37 @@ slam:
   #  4) Binary compressed format PCD file (on disk, ~1.5x compression, ~0.8 ms overhead)
   logging_storage: 0
 
-  # General ICP and LM parameters
-  max_distance_for_ICP_matching: 5.     # [m] Max distance between a keypoint from the current frame and its neighborhood from the map to build an ICP match.
-  2d_mode: false                        # Optimize only 2D pose (X, Y, rZ) of tracking_frame relatively to odometry_frame.
-
   # ICP and LM parameters for Ego-Motion registration step (used only if ego_motion is 2 or 3)
   ego_motion_registration:
-    ICP_max_iter: 4                     # Max number of iterations of ICP matching.
-    LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
-    line_distance_nbr_neighbors: 8      # Number of nearest neighbors to look for in previous frame (all scan lines considered) to build line model.
-    minimum_line_neighbor_rejection: 3  # Min number of valid nearest neighbors (max 1 per scan line) to keep neighborhood to build line model.
-    line_distance_factor: 5.            # PCA eigenvalues ratio to consider a neighborhood fits a line model (V2 > factor * V1).
-    plane_distance_nbr_neighbors: 5     # Number of nearest neighbors to look for in previous frame to build plane model.
-    plane_distance_factor1: 35.         # PCA eigenvalues ratio to consider a neighborhood fits a plane model :
-    plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
-    max_line_distance: 0.2              # [m] Max RMSE between neighbors and line model allowed to use the match.
-    max_plane_distance: 0.2             # [m] Max RMSE between neighbors and plane model allowed to use the match.
-    init_saturation_distance: 5.        # Initial distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.
-    final_saturation_distance: 1.       # Final distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.
+    ICP_max_iter: 4                 # Number of ICP-optim iterations (building ICP matches then optimizing them) to perform.
+    LM_max_iter: 15                 # Max number of iterations of the Levenberg-Marquardt optimizer to solve the ICP problem.
+    max_neighbors_distance: 5.      # [m] Max distance allowed between a current keypoint and its neighbors.
+    edge_nb_neighbors: 8            # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
+    edge_min_nb_neighbors: 3        # [>=2] Min number of resulting filtered edge neighbors (max 1 per scan line) to approximate the corresponding line model.
+    edge_pca_factor: 5.             # To check the line neighborhood shape, the PCA eigenvalues must respect: factor * V1 <= V2
+    edge_max_model_error: 0.2       # [m] Max RMSE allowed between neighborhood and its fitted line model.
+    plane_nb_neighbors: 5           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
+    plane_pca_factor1: 35.          # To check the plane neighborhood shape, the PCA eigenvalues must respect:
+    plane_pca_factor2: 8.           #     factor1 * V0 <= V1 and V2 <= factor2 * V1
+    plane_max_model_error: 0.2      # [m] Max RMSE allowed between neighborhood and its fitted plane model.
+    init_saturation_distance: 5.    # [m] Initial distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
+    final_saturation_distance: 1.   # [m] Final distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
   # ICP and LM parameters for Localization step
   localization:
-    ICP_max_iter: 3                     # Max number of iterations of ICP matching.
-    LM_max_iter: 15                     # Max number of iteration in the ego motion LM optimization step.
-    line_distance_nbr_neighbors: 10     # Number of nearest neighbors to look for in map to build line model.
-    minimum_line_neighbor_rejection: 4  # Min number of valid nearest neighbors (close to line model) to keep neighborhood to conisder line model.
-    line_distance_factor: 5.            # PCA eigenvalues ratio to consider a neighborhood fits a line model (V2 > factor * V1).
-    plane_distance_nbr_neighbors: 5     # Number of nearest neighbors to look for in map to build plane model.
-    plane_distance_factor1: 35.         # PCA eigenvalues ratio to consider a neighborhood fits a plane model :
-    plane_distance_factor2: 8.          #   V2 < factor2 * V1  and  V1 > factor1 * V0
-    max_line_distance: 0.2              # [m] Max RMSE between neighbors and line model allowed to use the match.
-    max_plane_distance: 0.2             # [m] Max RMSE between neighbors and plane model allowed to use the match.
-    init_saturation_distance: 2.        # Initial distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.
-    final_saturation_distance: 0.5      # Final distance beyon which residuals are saturated using Tukey loss to limit outlier contribution.
+    ICP_max_iter: 3                 # Number of ICP-optim iterations (building ICP matches then optimizing them) to perform.
+    LM_max_iter: 15                 # Max number of iterations of the Levenberg-Marquardt optimizer to solve the ICP problem
+    max_neighbors_distance: 5.      # [m] Max distance allowed between a current keypoint and its neighbors.
+    edge_nb_neighbors: 10           # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
+    edge_min_nb_neighbors: 4        # [>=2] Min number of resulting filtered edge neighbors (close to best line candidate) to approximate the corresponding line model.
+    edge_pca_factor: 5.             # To check the line neighborhood shape, the PCA eigenvalues must respect: factor * V1 <= V2
+    edge_max_model_error: 0.2       # [m] Max RMSE allowed between neighborhood and its fitted line model.
+    plane_nb_neighbors: 5           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
+    plane_pca_factor1: 35.          # To check the plane neighborhood shape, the PCA eigenvalues must respect:
+    plane_pca_factor2: 8.           #     factor1 * V0 <= V1 and V2 <= factor2 * V1
+    plane_max_model_error: 0.2      # [m] Max RMSE allowed between neighborhood and its fitted plane model.
+    blob_nb_neighbors: 10           # [>=4] Number of blob neighbors to extract to approximate the corresponding ellipsoid model.
+    init_saturation_distance: 2.    # [m] Initial distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
+    final_saturation_distance: 0.5  # [m] Final distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
 
   # Keyframes parameters. Only keyframes points are added to the maps.
   keyframes:
