@@ -232,9 +232,11 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   if (!this->CheckFrames(frames))
     return;
   this->CurrentFrames = frames;
+  auto time = this->CurrentFrames[0]->header.stamp;
 
   PRINT_VERBOSE(2, "\n#########################################################");
-  PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
+  PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed <<
+                   " (at time " << time / 1000000 << "." << time % 1000000 << ")");
   PRINT_VERBOSE(2, "#########################################################\n");
 
   // Compute the edge and planar keypoints
@@ -278,7 +280,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, Utils::Timer::Init("Logging"));
-  this->LogCurrentFrameState(Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp), this->WorldFrameId);
+  this->LogCurrentFrameState(Utils::PclStampToSec(time), this->WorldFrameId);
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
