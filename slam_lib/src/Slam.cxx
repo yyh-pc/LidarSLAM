@@ -97,6 +97,7 @@ namespace LidarSlam
 {
 
 using KDTree = KDTreePCLAdaptor<Slam::Point>;
+constexpr double MAX_EXTRAPOLATION_RATIO = 3.;
 
 namespace Utils
 {
@@ -543,8 +544,6 @@ Transform Slam::GetWorldTransform() const
 //-----------------------------------------------------------------------------
 Transform Slam::GetLatencyCompensatedWorldTransform() const
 {
-  constexpr double MAX_EXTRAPOLATION_RATIO = 3.;
-
   // Get 2 last transforms
   unsigned int trajectorySize = this->LogTrajectory.size();
   if (trajectorySize == 0)
@@ -806,8 +805,13 @@ void Slam::ComputeEgoMotion()
     const double t = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
     const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
     const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
-    Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
-    this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
+    if (std::abs((t - t1) / (t1 - t0)) > MAX_EXTRAPOLATION_RATIO)
+      PRINT_WARNING("Unable to extrapolate scan pose from previous motion : extrapolation time is too far.")
+    else
+    {
+      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
+      this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
+    }
   }
 
   // Refine Trelative estimation by registering current frame on previous one
@@ -1243,10 +1247,8 @@ Eigen::Isometry3d Slam::InterpolateScanPose(double time)
   if (this->LogTrajectory.empty())
     return this->Tworld;
 
-  constexpr double MAX_EXTRAPOLATION_RATIO = 3.;
   const double prevPoseTime = this->LogTrajectory.back().time;
   const double currPoseTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-
   if (std::abs(time / (currPoseTime - prevPoseTime)) > MAX_EXTRAPOLATION_RATIO)
   {
     PRINT_WARNING("Unable to interpolate scan pose from motion : extrapolation time is too far.");
