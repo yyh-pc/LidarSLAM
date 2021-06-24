@@ -655,6 +655,12 @@ private:
 
   // Parameters
 
+  // Extrapolating a pose farther from this time ratio is forbidden and will abort.
+  // i.e, if using 2 frames with timestamps t1 and t2, extrapolating at t3 is
+  // allowed only if abs((t3 - t2)/(t2 - t1)) < MaxExtrapolationRatio.
+  // Otherwise, extrapolation will return the pose at t2.
+  double MaxExtrapolationRatio = 3.;
+
   // Min number of matches to consider the optimization problem usable.
   // Below this threshold, we consider that there are not enough matches to
   // provide good enough optimization results, and registration is aborted.

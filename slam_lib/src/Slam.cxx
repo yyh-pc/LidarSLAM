@@ -97,7 +97,6 @@ namespace LidarSlam
 {
 
 using KDTree = KDTreePCLAdaptor<Slam::Point>;
-constexpr double MAX_EXTRAPOLATION_RATIO = 3.;
 
 namespace Utils
 {
@@ -564,7 +563,7 @@ Transform Slam::GetLatencyCompensatedWorldTransform() const
     return current;
   }
   // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
-  if (std::abs(this->Latency / (current.time - previous.time)) > MAX_EXTRAPOLATION_RATIO)
+  if (std::abs(this->Latency / (current.time - previous.time)) > this->MaxExtrapolationRatio)
   {
     PRINT_WARNING("Unable to compute latency-compensated transform : extrapolation time is too far.");
     return current;
@@ -805,7 +804,7 @@ void Slam::ComputeEgoMotion()
     const double t = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
     const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
     const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
-    if (std::abs((t - t1) / (t1 - t0)) > MAX_EXTRAPOLATION_RATIO)
+    if (std::abs((t - t1) / (t1 - t0)) > this->MaxExtrapolationRatio)
       PRINT_WARNING("Unable to extrapolate scan pose from previous motion : extrapolation time is too far.")
     else
     {
@@ -1249,7 +1248,7 @@ Eigen::Isometry3d Slam::InterpolateScanPose(double time)
 
   const double prevPoseTime = this->LogTrajectory.back().time;
   const double currPoseTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  if (std::abs(time / (currPoseTime - prevPoseTime)) > MAX_EXTRAPOLATION_RATIO)
+  if (std::abs(time / (currPoseTime - prevPoseTime)) > this->MaxExtrapolationRatio)
   {
     PRINT_WARNING("Unable to interpolate scan pose from motion : extrapolation time is too far.");
     return this->Tworld;
