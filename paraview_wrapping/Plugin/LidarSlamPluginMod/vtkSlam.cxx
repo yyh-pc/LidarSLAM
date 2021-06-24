@@ -696,10 +696,10 @@ void vtkSlam::PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr pc, vtkPolyD
   poly->GetPointData()->AddArray(intensityArray);
 
   // Init and register cells
-  vtkNew<vtkIdTypeArray> cells;
-  cells->SetNumberOfValues(nbPoints * 2);
+  vtkNew<vtkIdTypeArray> connectivity;
+  connectivity->SetNumberOfValues(nbPoints);
   vtkNew<vtkCellArray> cellArray;
-  cellArray->SetCells(nbPoints, cells);
+  cellArray->SetData(1 , connectivity);
   poly->SetVerts(cellArray);
 
   // Fill points and cells values
@@ -711,9 +711,7 @@ void vtkSlam::PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr pc, vtkPolyD
     intensityArray->SetTuple1(i, p.intensity);
     // TODO : add other fields (time, laserId)?
 
-    // Set cell
-    cells->SetValue(i * 2,     1);
-    cells->SetValue(i * 2 + 1, i);
+    connectivity->SetValue(i, i); //TODO can we iota this thing
   }
 }
 
