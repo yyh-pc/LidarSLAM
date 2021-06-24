@@ -122,6 +122,10 @@ void vtkSlam::Reset()
   }
   // Enable overlap computation only if advanced return mode is activated
   this->SlamAlgo->SetOverlapSamplingRatio(this->AdvancedReturnMode ? this->OverlapSamplingRatio : 0.);
+  // Enable motion limitation checks if advanced return mode is activated
+  this->SlamAlgo->SetTimeWindowDuration(this->AdvancedReturnMode ? this->TimeWindowDuration : 0.);
+  // Log the necessary poses if advanced return mode is activated
+  this->SlamAlgo->SetLoggingTimeout(this->AdvancedReturnMode ? 1.1 * this->TimeWindowDuration : 0.);
 
   // Refresh view
   this->Modified();
@@ -687,6 +691,8 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
       }
       // Enable overlap computation
       this->SlamAlgo->SetOverlapSamplingRatio(this->OverlapSamplingRatio);
+      this->SlamAlgo->SetTimeWindowDuration(this->TimeWindowDuration);
+      this->SlamAlgo->SetLoggingTimeout(1.1 * this->TimeWindowDuration);
     }
 
     // If AdvancedReturnMode is being disabled
@@ -697,6 +703,8 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
         this->Trajectory->GetPointData()->RemoveArray(it.first.c_str());
       // Disable overlap computation
       this->SlamAlgo->SetOverlapSamplingRatio(0.);
+      this->SlamAlgo->SetTimeWindowDuration(0.);
+      this->SlamAlgo->SetLoggingTimeout(0.);
     }
 
     this->AdvancedReturnMode = _arg;
@@ -821,4 +829,23 @@ void vtkSlam::SetVelocityLimits(float linearVel, float angularVel)
 {
   this->SlamAlgo->SetVelocityLimits({linearVel, angularVel});
   this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetTimeWindowDuration(float time)
+{
+  // Change parameter value if it is modified
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting TimeWindowDuration to " << ratio);
+  if (this->TimeWindowDuration != time)
+  {
+    this->TimeWindowDuration = time;
+    this->ParametersModificationTime.Modified();
+  }
+
+  // Forward this parameter change to SLAM if Advanced Return Mode is enabled
+  if (this->AdvancedReturnMode)
+  {
+    this->SlamAlgo->SetTimeWindowDuration(this->TimeWindowDuration);
+    this->SlamAlgo->SetLoggingTimeout(1.1 * this->TimeWindowDuration);
+  }
 }

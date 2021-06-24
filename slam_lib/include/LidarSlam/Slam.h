@@ -387,6 +387,9 @@ public:
   GetMacro(VelocityLimits, Eigen::Array2f)
   SetMacro(VelocityLimits, const Eigen::Array2f&)
 
+  GetMacro(TimeWindowDuration, float)
+  SetMacro(TimeWindowDuration, float)
+
   GetMacro(ComplyMotionLimits, bool)
 
 private:
@@ -676,6 +679,11 @@ private:
   Eigen::Array2f VelocityLimits     = {FLT_MAX, FLT_MAX};
   // Local acceleration thresholds in BASE
   Eigen::Array2f AccelerationLimits = {FLT_MAX, FLT_MAX};
+
+  // Duration on which to estimate the local velocity
+  // This window is used to smooth values to get a more accurate velocity estimation
+  // If 0, motion limits won't be checked.
+  float TimeWindowDuration = 0.f;
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods

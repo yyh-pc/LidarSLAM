@@ -261,6 +261,9 @@ public:
   virtual void SetAccelerationLimits(float linearAcc, float angularAcc);
   virtual void SetVelocityLimits(float linearVel, float angularVel);
 
+  virtual void SetTimeWindowDuration(float time);
+  vtkCustomGetMacro(TimeWindowDuration, float)
+
 protected:
   vtkSlam();
 
@@ -348,6 +351,8 @@ private:
 
   // Internal variable to store overlap sampling ratio when advanced return mode is disabled.
   float OverlapSamplingRatio = 0.25;
+  // Internal variable to store window time to estimate local velocity when advanced return mode is disabled.
+  float TimeWindowDuration = 0.5;
 };
 
 #endif // VTK_SLAM_H

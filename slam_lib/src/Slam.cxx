@@ -264,11 +264,15 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization"));
 
   // Compute and check pose confidence estimators
-  IF_VERBOSE(3, Utils::Timer::Init("Confidence estimators computation"));
-  if (this->OverlapSamplingRatio > 0)
-    this->EstimateOverlap();
-  this->CheckMotionLimits();
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Confidence estimators computation"));
+  if (this->OverlapSamplingRatio > 0 || this->TimeWindowDuration > 0)
+  {
+    IF_VERBOSE(3, Utils::Timer::Init("Confidence estimators computation"));
+    if (this->OverlapSamplingRatio > 0)
+      this->EstimateOverlap();
+    if (this->TimeWindowDuration > 0)
+      this->CheckMotionLimits();
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Confidence estimators computation"));
+  }
 
   // Update keypoints maps : add current keypoints to map using Tworld
   if (this->UpdateMap)
@@ -1363,23 +1367,62 @@ void Slam::EstimateOverlap()
 //-----------------------------------------------------------------------------
 void Slam::CheckMotionLimits()
 {
-  this->ComplyMotionLimits = true;
-  if (this->NbrFrameProcessed == 0)
+  int nPoses = this->LogTrajectory.size();
+  if (nPoses == 0)
     return;
 
+  // Extract number of poses to comply with the required window time, and relative time duration.
+  double currentTimeStamp = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
+  double deltaTime = currentTimeStamp - this->LogTrajectory.back().time;
+  double nextDeltaTime = FLT_MAX;
+  // Index of the last pose that defines the window starting bound
+  // The window ends on current pose
+  int startIndex = nPoses - 1;
+  // If the time between current pose and the last pose is l.t. TimeWindowDuration, look for the window's starting bound pose
+  if (deltaTime < this->TimeWindowDuration)
+  {
+    // Search an interval containing TimeWindowDuration : [deltaTime, nextDeltaTime]
+    while (startIndex >= 0)
+    {
+      deltaTime = nextDeltaTime;
+      nextDeltaTime = currentTimeStamp - this->LogTrajectory[startIndex].time;
+      if (nextDeltaTime >= this->TimeWindowDuration)
+        break;
+      --startIndex;
+    }
+
+    // If startIndex is negative, no interval containing TimeWindowDuration was found, the oldest logged pose is taken
+    if (startIndex < 0)
+      PRINT_WARNING("Not enough logged trajectory poses to get the required time window to estimate velocity, using a smaller time window of " 
+                    << nextDeltaTime << "s")
+
+    // Choose which bound of the interval is the best window's starting bound
+    if (std::abs(deltaTime - this->TimeWindowDuration) < std::abs(nextDeltaTime - this->TimeWindowDuration))
+      ++startIndex;
+    
+    // Actualize deltaTime with the best startIndex
+    deltaTime = currentTimeStamp - this->LogTrajectory[startIndex].time;
+  }
+  // If the time between current pose and the last pose is g.t. TimeWindowDuration, take the last pose as window's starting bound
+  else
+    PRINT_WARNING("The required time window is too short to estimate velocity, using motion since last pose")
+
+  this->ComplyMotionLimits = true;
+
+  // Compute transform between the two pose bounds of the window
+  Eigen::Isometry3d TWindow = this->LogTrajectory[startIndex].GetIsometry().inverse() * this->Tworld;
+
   // Compute angular part
-  // NOTE : It is not possible to detect an angular acceleration or velocity greater than PI
+  // NOTE : It is not possible to detect an angle greater than PI,
+  // the detectable velocity and acceleration are limited on deltaTime
   // Rotation angle in [0, 2pi]
-  float angle = Eigen::AngleAxisd(this->Trelative.linear()).angle();
+  float angle = Eigen::AngleAxisd(TWindow.linear()).angle();
   // Rotation angle in [0, pi]
   if (angle > M_PI)
     angle = 2 * M_PI - angle;
   angle = Utils::Rad2Deg(angle);
   // Compute linear part
-  float distance = this->Trelative.translation().norm();
-
-  // Compute time spent
-  float deltaTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp) - this->LogTrajectory.back().time;
+  float distance = TWindow.translation().norm();
 
   // Compute velocity
   Eigen::Array2f velocity = {distance / deltaTime, angle / deltaTime};

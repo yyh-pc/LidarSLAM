@@ -1090,10 +1090,24 @@
         </Hints>
       </DoubleVectorProperty>
 
+      <DoubleVectorProperty name="Time window duration"
+                            command="SetTimeWindowDuration"
+                            number_of_elements="1"
+                            default_values="0.5"
+                            panel_visibility="advanced">
+        <Documentation>
+          Duration of the window on poses to estimate the velocity in seconds.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
       <PropertyGroup label="Confidence estimator parameters">
         <Property name="Overlap sampling ratio" />
         <Property name="Velocity limits" />
         <Property name="Acceleration limits" />
+        <Property name="Time window duration" />
       </PropertyGroup>
 
     </SourceProxy>
