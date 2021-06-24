@@ -690,6 +690,7 @@ void LidarSlamNode::SetSlamParameters()
   std::vector<float> vel;
   if (this->PrivNh.getParam("slam/confidence/motion_limits/velocity", vel) && vel.size() == 2)
     this->LidarSlam.SetVelocityLimits(Eigen::Map<const Eigen::Array2f>(vel.data()));
+  SetSlamParam(float, "slam/confidence/motion_limits/time_window_duration", TimeWindowDuration)
 
   // Keyframes
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
