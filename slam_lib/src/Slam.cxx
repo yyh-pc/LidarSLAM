@@ -232,9 +232,11 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   if (!this->CheckFrames(frames))
     return;
   this->CurrentFrames = frames;
+  auto time = this->CurrentFrames[0]->header.stamp;
 
   PRINT_VERBOSE(2, "\n#########################################################");
-  PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed);
+  PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed <<
+                   " (at time " << time / 1000000 << "." << time % 1000000 << ")");
   PRINT_VERBOSE(2, "#########################################################\n");
 
   // Compute the edge and planar keypoints
@@ -278,7 +280,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, Utils::Timer::Init("Logging"));
-  this->LogCurrentFrameState(Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp), this->WorldFrameId);
+  this->LogCurrentFrameState(Utils::PclStampToSec(time), this->WorldFrameId);
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
@@ -541,8 +543,6 @@ Transform Slam::GetWorldTransform() const
 //-----------------------------------------------------------------------------
 Transform Slam::GetLatencyCompensatedWorldTransform() const
 {
-  constexpr double MAX_EXTRAPOLATION_RATIO = 3.;
-
   // Get 2 last transforms
   unsigned int trajectorySize = this->LogTrajectory.size();
   if (trajectorySize == 0)
@@ -563,7 +563,7 @@ Transform Slam::GetLatencyCompensatedWorldTransform() const
     return current;
   }
   // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
-  if (std::abs(this->Latency / (current.time - previous.time)) > MAX_EXTRAPOLATION_RATIO)
+  if (std::abs(this->Latency / (current.time - previous.time)) > this->MaxExtrapolationRatio)
   {
     PRINT_WARNING("Unable to compute latency-compensated transform : extrapolation time is too far.");
     return current;
@@ -804,8 +804,13 @@ void Slam::ComputeEgoMotion()
     const double t = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
     const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
     const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
-    Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
-    this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
+    if (std::abs((t - t1) / (t1 - t0)) > this->MaxExtrapolationRatio)
+      PRINT_WARNING("Unable to extrapolate scan pose from previous motion : extrapolation time is too far.")
+    else
+    {
+      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
+      this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
+    }
   }
 
   // Refine Trelative estimation by registering current frame on previous one
@@ -1241,11 +1246,9 @@ Eigen::Isometry3d Slam::InterpolateScanPose(double time)
   if (this->LogTrajectory.empty())
     return this->Tworld;
 
-  constexpr double MAX_EXTRAPOLATION_RATIO = 3.;
   const double prevPoseTime = this->LogTrajectory.back().time;
   const double currPoseTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-
-  if (std::abs(time / (currPoseTime - prevPoseTime)) > MAX_EXTRAPOLATION_RATIO)
+  if (std::abs(time / (currPoseTime - prevPoseTime)) > this->MaxExtrapolationRatio)
   {
     PRINT_WARNING("Unable to interpolate scan pose from motion : extrapolation time is too far.");
     return this->Tworld;
