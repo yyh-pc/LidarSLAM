@@ -11,7 +11,7 @@ set(ServerManagerSources
 set(ServerManagerXML
   Slam.xml)
 
-add_paraview_plugin(LidarSlamPlugin "1.4"
+add_paraview_plugin(LidarSlamPlugin ${PROJECT_VERSION}
   SERVER_MANAGER_XML ${ServerManagerXML}
   SERVER_MANAGER_SOURCES ${ServerManagerSources}
   DOCUMENTATION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doc/"

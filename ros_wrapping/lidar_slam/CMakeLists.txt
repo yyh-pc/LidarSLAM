@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.9)
-project(lidar_slam)
+project(lidar_slam VERSION 1.4)
 
 # If you're not familiar with catkin, please have a look at these useful links.
 # Catkin documentation:

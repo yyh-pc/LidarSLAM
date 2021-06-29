@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
 
-project(LidarSlam LANGUAGES CXX)
+project(LidarSlam
+        LANGUAGES CXX
+        VERSION 1.4)
 
 #-------------------------
 #  CMake parameters
