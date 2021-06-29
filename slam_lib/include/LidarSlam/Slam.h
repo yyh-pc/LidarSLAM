@@ -432,6 +432,8 @@ private:
   //   previous data older than LoggingTimeout seconds.
   // WARNING : A big value of LoggingTimeout may lead to an important memory
   //           consumption if SLAM is run for a long time.
+  // WARNING : the value must be greater than the duration of the time window
+  // in order to comply with this required value.
   double LoggingTimeout = 0.;
 
   // Wether to use octree compression during keypoints logging.
@@ -683,6 +685,8 @@ private:
   // Duration on which to estimate the local velocity
   // This window is used to smooth values to get a more accurate velocity estimation
   // If 0, motion limits won't be checked.
+  // WARNING : the logging time out must be greater
+  // in order to comply with this required value.
   float TimeWindowDuration = 0.f;
 
   // ---------------------------------------------------------------------------

@@ -1393,11 +1393,14 @@ void Slam::CheckMotionLimits()
 
     // If startIndex is negative, no interval containing TimeWindowDuration was found, the oldest logged pose is taken
     if (startIndex < 0)
+    {
       PRINT_WARNING("Not enough logged trajectory poses to get the required time window to estimate velocity, using a smaller time window of " 
                     << nextDeltaTime << "s")
+      startIndex = 0;
+    }
 
     // Choose which bound of the interval is the best window's starting bound
-    if (std::abs(deltaTime - this->TimeWindowDuration) < std::abs(nextDeltaTime - this->TimeWindowDuration))
+    else if (std::abs(deltaTime - this->TimeWindowDuration) < std::abs(nextDeltaTime - this->TimeWindowDuration))
       ++startIndex;
     
     // Actualize deltaTime with the best startIndex

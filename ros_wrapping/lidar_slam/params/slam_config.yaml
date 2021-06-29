@@ -142,7 +142,9 @@ slam:
   #  - A value of 0. will disable logging.
   #  - A negative value will log all incoming data, without any timeout.
   #  - A positive value will keep only most recent data, forgetting all previous data older than LoggingTimeout seconds.
-  # Logged data will be used for pose graph optimization or GPS antenna/LiDAR sensor calibration using GPS data.
+  # Logged data will be used for pose graph optimization, GPS antenna/LiDAR sensor calibration using GPS data
+  # and velocity/acceleration estimations.
+  # WARNING : the time window duration must be set lower than this value.
   logging_timeout: 0.  # [s]
 
   # How to store pointclouds data during keypoints logging (if logging_timeout != 0):
@@ -200,6 +202,7 @@ slam:
       velocity:     [.inf, .inf] # [linear_vel (m/s ), angular_vel (°/s )] Velocity limits.
       time_window_duration:  0.  # [s] Duration on which to compute the local velocity/acceleration.
                                  # 0 disables motion limits check.
+                                 # WARNING : the logging time out must be set greater than this value.
 
   # Keypoints maps, saved as downsampled voxel grids
   voxel_grid:
