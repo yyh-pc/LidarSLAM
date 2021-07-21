@@ -31,6 +31,7 @@
 #include <vtkInformationVector.h>
 #include <vtkLine.h>
 #include <vtkMath.h>
+#include <vtkMultiBlockDataSet.h>
 #include <vtkNew.h>
 #include <vtkObjectFactory.h>
 #include <vtkPointData.h>
@@ -141,6 +142,19 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 
   // Get the input
   vtkPolyData* input = vtkPolyData::GetData(inputVector[LIDAR_FRAME_INPUT_PORT], 0);
+  // Check if input is a multiblock
+  if (!input)
+  {
+    vtkMultiBlockDataSet* mb = vtkMultiBlockDataSet::GetData(inputVector[LIDAR_FRAME_INPUT_PORT], 0);
+    // Extract first block if it is a vtkPolyData
+    input = vtkPolyData::SafeDownCast(mb->GetBlock(0));
+  }
+  // If the input could not be cast, return
+  if (!input)
+  {
+    vtkErrorMacro(<< "Unable to cast input into a vtkPolyData");
+    return 0;
+  }
   vtkTable* calib = vtkTable::GetData(inputVector[CALIBRATION_INPUT_PORT], 0);
   this->IdentifyInputArrays(input, calib);
   std::vector<size_t> laserMapping = GetLaserIdMapping(calib);
