@@ -999,6 +999,87 @@
         </Documentation>
       </DoubleVectorProperty>
 
+      <IntVectorProperty name="Edges map sampling mode"
+                         command="SetVoxelGridSamplingModeEdges"
+                         number_of_elements="1"
+                         default_values="2">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="First"/>
+          <Entry value="1" text="Last"/>
+          <Entry value="2" text="Intensity"/>
+          <Entry value="3" text="Center point"/>
+          <Entry value="4" text="Centroid"/>
+        </EnumerationDomain>
+        <Documentation>
+          Which point to set in a voxel when downsampling the map using a voxel grid.
+
+          If FIRST, the first point acquired is kept,
+
+          If LAST, the last point acquired is selected,
+
+          If INTENSITY, the point with max intensity is selected,
+
+          If CENTER_POINT, the point closest to the voxel center is selected,
+
+          If CENTROID, the centroid of all points having landed to the voxel is computed.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Planes map sampling mode"
+                         command="SetVoxelGridSamplingModePlanes"
+                         number_of_elements="1"
+                         default_values="2">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="First"/>
+          <Entry value="1" text="Last"/>
+          <Entry value="2" text="Intensity"/>
+          <Entry value="3" text="Center point"/>
+          <Entry value="4" text="Centroid"/>
+        </EnumerationDomain>
+        <Documentation>
+          Which point to set in a voxel when downsampling the map using a voxel grid.
+
+          If FIRST, the first point acquired is kept,
+
+          If LAST, the last point acquired is selected,
+
+          If INTENSITY, the point with max intensity is selected,
+
+          If CENTER_POINT, the point closest to the voxel center is selected,
+
+          If CENTROID, the centroid of all points having landed to the voxel is computed.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Blobs map sampling mode"
+                         command="SetVoxelGridSamplingModeBlobs"
+                         number_of_elements="1"
+                         default_values="2">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="First"/>
+          <Entry value="1" text="Last"/>
+          <Entry value="2" text="Intensity"/>
+          <Entry value="3" text="Center point"/>
+          <Entry value="4" text="Centroid"/>
+        </EnumerationDomain>
+        <Documentation>
+          Which point to set in a voxel when downsampling the map using a voxel grid.
+
+          If FIRST, the first point acquired is kept,
+
+          If LAST, the last point acquired is selected,
+
+          If INTENSITY, the point with max intensity is selected,
+
+          If CENTER_POINT, the point closest to the voxel center is selected,
+
+          If CENTROID, the centroid of all points having landed to the voxel is computed.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use blobs" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
       <DoubleVectorProperty name="Edges map resolution"
                             command="SetVoxelGridLeafSizeEdges"
                             number_of_elements="1"
@@ -1078,6 +1159,9 @@
       <PropertyGroup label="Map parameters">
         <Property name="Keyframe distance threshold" />
         <Property name="Keyframe angle threshold" />
+        <Property name="Edges map sampling mode" />
+        <Property name="Planes map sampling mode" />
+        <Property name="Blobs map sampling mode" />
         <Property name="Edges map resolution" />
         <Property name="Planes map resolution" />
         <Property name="Blobs map resolution" />

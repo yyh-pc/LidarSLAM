@@ -851,6 +851,36 @@ void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
 }
 
 //-----------------------------------------------------------------------------
+int vtkSlam::GetVoxelGridSamplingMode(LidarSlam::Keypoint k)
+{
+  LidarSlam::SamplingMode sampling = this->SlamAlgo->GetVoxelGridSamplingMode(k);
+  int sm = static_cast<int>(sampling);
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning sampling mode : " << sm);
+  return sm;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetVoxelGridSamplingMode(LidarSlam::Keypoint k, int mode)
+{
+  LidarSlam::SamplingMode sampling = static_cast<LidarSlam::SamplingMode>(mode);
+  if (sampling != LidarSlam::SamplingMode::FIRST         &&
+      sampling != LidarSlam::SamplingMode::LAST          &&
+      sampling != LidarSlam::SamplingMode::MAX_INTENSITY &&
+      sampling != LidarSlam::SamplingMode::CENTER_POINT  &&
+      sampling != LidarSlam::SamplingMode::CENTROID)
+  {
+    vtkErrorMacro("Invalid sampling mode (" << mode << "), ignoring setting.");
+    return;
+  }
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting sampling mode to " << mode);
+  if (this->SlamAlgo->GetVoxelGridSamplingMode(k) != sampling)
+  {
+    this->SlamAlgo->SetVoxelGridSamplingMode(k, sampling);
+    this->ParametersModificationTime.Modified();
+  }
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::SetOverlapSamplingRatio(double ratio)
 {
   // Change parameter value if it is modified

@@ -242,16 +242,32 @@ public:
   vtkCustomSetMacro(KfAngleThreshold, double)
 
   // Set RollingGrid Parameters
+
+  virtual int GetVoxelGridSamplingMode(LidarSlam::Keypoint k);
+  virtual void SetVoxelGridSamplingMode(LidarSlam::Keypoint k, int sm);
+
+  // For edges
+  virtual int GetVoxelGridSamplingModeEdges() { return this->GetVoxelGridSamplingMode(LidarSlam::Keypoint::EDGE); }
+  virtual void SetVoxelGridSamplingModeEdges(int sm)  { this->SetVoxelGridSamplingMode(LidarSlam::Keypoint::EDGE, sm);  }
+
+  // For planes
+  virtual int GetVoxelGridSamplingModePlanes() { return this->GetVoxelGridSamplingMode(LidarSlam::Keypoint::PLANE); }
+  virtual void SetVoxelGridSamplingModePlanes(int sm) { this->SetVoxelGridSamplingMode(LidarSlam::Keypoint::PLANE, sm); }
+
+  // For blobs
+  virtual int GetVoxelGridSamplingModeBlobs() { return this->GetVoxelGridSamplingMode(LidarSlam::Keypoint::BLOB); }
+  virtual void SetVoxelGridSamplingModeBlobs(int sm)  { this->SetVoxelGridSamplingMode(LidarSlam::Keypoint::BLOB, sm);  }
+
   virtual void SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s);
 
   // For edges
-  virtual void SetVoxelGridLeafSizeEdges(double s)  { SetVoxelGridLeafSize(LidarSlam::Keypoint::EDGE, s);  }
+  virtual void SetVoxelGridLeafSizeEdges(double s)  { this->SetVoxelGridLeafSize(LidarSlam::Keypoint::EDGE, s);  }
 
   // For planes
-  virtual void SetVoxelGridLeafSizePlanes(double s) { SetVoxelGridLeafSize(LidarSlam::Keypoint::PLANE, s); }
+  virtual void SetVoxelGridLeafSizePlanes(double s) { this->SetVoxelGridLeafSize(LidarSlam::Keypoint::PLANE, s); }
 
   // For blobs
-  virtual void SetVoxelGridLeafSizeBlobs(double s)  { SetVoxelGridLeafSize(LidarSlam::Keypoint::BLOB, s);  }
+  virtual void SetVoxelGridLeafSizeBlobs(double s)  { this->SetVoxelGridLeafSize(LidarSlam::Keypoint::BLOB, s);  }
 
   vtkCustomSetMacroNoCheck(VoxelGridSize, int)
   vtkCustomSetMacroNoCheck(VoxelGridResolution, double)
