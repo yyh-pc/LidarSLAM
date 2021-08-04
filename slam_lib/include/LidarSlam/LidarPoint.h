@@ -34,6 +34,18 @@ struct LidarPoint
   {
     data[3] = 1.0f;
   }
+  inline LidarPoint& operator=(const LidarSlam::LidarPoint& p)
+  {
+    x = p.x;
+    y = p.y;
+    z = p.z;
+    time = p.time;
+    intensity = p.intensity;
+    laser_id = p.laser_id;
+    device_id = p.device_id;
+    label = p.label;
+    return *this;
+  }
   inline LidarPoint () : x(0.0f), y(0.0f), z(0.0f), time(0.0), intensity(0.0f), laser_id(0), device_id(0), label(0)
   {
     data[3] = 1.0f;
