@@ -158,7 +158,7 @@ public:
   // If worldCoordinates=true, it returns keypoints in WORLD coordinates.
   // NOTE: The requested keypoints are lazy-transformed: if the requested WORLD
   // keypoints are not directly available in case they have not already been
-  // internally transformed, this will be done on first call of this method. 
+  // internally transformed, this will be done on first call of this method.
   PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = false);
 
   // Get current registered (and optionally undistorted) input points.
@@ -337,10 +337,10 @@ public:
   SetMacro(LocalizationFinalSaturationDistance, double)
 
   // Sensor parameters
-  void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);} 
+  void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);}
   double GetWheelOdomWeight() const {return this->WheelOdomManager.GetWeight();}
 
-  void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);} 
+  void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);}
   double GetGravityWeight() const {return this->ImuManager.GetWeight();}
 
   // The time offset must be computed as FrameFirstPointTimestamp - FrameReceptionPOSIXTime
@@ -360,6 +360,9 @@ public:
 
   GetMacro(KfAngleThreshold, double)
   SetMacro(KfAngleThreshold, double)
+
+  SamplingMode GetVoxelGridSamplingMode(Keypoint k);
+  void SetVoxelGridSamplingMode(Keypoint k, SamplingMode sm);
 
   // Set RollingGrid Parameters
   void ClearMaps();
@@ -541,7 +544,13 @@ private:
   // Number of keyrames
   int KfCounter = 0;
 
-  // keypoints local map
+  // How to downsample the points in the keypoints' maps
+  // This mode parameter allows to choose how to select the remaining point in each voxel.
+  // It can be taking the first/last acquired point, taking the max intensity point,
+  // considering the closest point to the voxel center or averaging the points.
+  SamplingMode DownSampling = SamplingMode::MAX_INTENSITY;
+
+  // Keypoints local map
   std::map<Keypoint, std::shared_ptr<RollingGrid>> LocalMaps;
 
   // ---------------------------------------------------------------------------
@@ -702,7 +711,7 @@ private:
   void ExtractKeypoints();
 
   // Compute constraints provided by external sensors
-  void ComputeSensorConstraints();  
+  void ComputeSensorConstraints();
 
   // Estimate the ego motion since last frame.
   // Extrapolate new pose with a constant velocity model and/or

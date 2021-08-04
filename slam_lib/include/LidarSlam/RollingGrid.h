@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include "LidarSlam/Enums.h"
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/KDTreePCLAdaptor.h"
 #include <unordered_map>
@@ -28,6 +29,19 @@
 
 namespace LidarSlam
 {
+
+namespace Utils
+{
+  
+//! Compute the voxel coordinates in which a point lies
+//! Origin must be the center of the first voxel (0, 0, 0)
+template<typename T>
+inline Eigen::Array3i PositionToVoxel(const T& position, const T& origin, double resolution)
+{
+  return ( (position - origin) / resolution ).array().round().template cast<int>();
+}
+
+} // end of Utils namespace
 
 /*!
  * @brief Rolling voxel grid to store and access pointclouds of specific areas.
@@ -44,20 +58,32 @@ class RollingGrid
 {
 public:
 
-  // Usefull types
+  // Useful types
   using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
   using KDTree = KDTreePCLAdaptor<Point>;
+
+  // Voxel structure to store the remaining point
+  // after downsampling and to count the number
+  // of updates that have been performed on the voxel
+  struct Voxel
+  {
+    Point point;
+    unsigned int count = 0;
+  };
+
+  using SamplingVG = std::unordered_map<int, Voxel>;
+  using RollingVG  = std::unordered_map<int, SamplingVG>;
 
   //============================================================================
   //   Initialization and parameters setters
   //============================================================================
 
   //! Init a Rolling grid centered near a given position
-  RollingGrid(const Eigen::Vector3d& position = Eigen::Vector3d::Zero());
+  RollingGrid(const Eigen::Vector3f& position = Eigen::Vector3f::Zero());
 
   //! Reset map (clear voxels, reset position, ...)
-  void Reset(const Eigen::Vector3d& position = Eigen::Vector3d::Zero());
+  void Reset(const Eigen::Vector3f& position = Eigen::Vector3f::Zero());
 
   //! Remove all points from all voxels and clear the submap KD-tree
   void Clear();
@@ -77,6 +103,9 @@ public:
   SetMacro(LeafSize, double)
   GetMacro(LeafSize, double)
 
+  SetMacro(Sampling, SamplingMode)
+  GetMacro(Sampling, SamplingMode)
+
   //============================================================================
   //   Main rolling grid use
   //============================================================================
@@ -88,7 +117,7 @@ public:
   unsigned int Size() const {return this->NbPoints; }
 
   //! Roll the grid so that input bounding box can fit it in rolled map
-  void Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
+  void Roll(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint);
 
   //! Add some points to the grid
   //! If roll is true, the map is rolled first so that all new points to add can fit in rolled map.
@@ -103,7 +132,7 @@ public:
   //! the given bounding box.
   //! This KD-tree can then be used for fast NN queries in this submap.
   void BuildSubMapKdTree();
-  void BuildSubMapKdTree(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint);
+  void BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint);
 
   //! Check if the KD-tree built on top of the submap is valid or if it needs to be updated.
   //! The KD-tree is cleared every time the map is modified.
@@ -127,13 +156,14 @@ private:
   //! [m] Size of the leaf used to downsample the pointcloud with a VoxelGrid filter within each voxel
   double LeafSize = 0.2;
 
-  //! VoxelGrid of pointcloud
-  //! To avoid intanciating a dense grid, only non empty voxels are stored.
-  //! Each voxel can be accessed using a flattened 1D index.
-  std::unordered_map<int, PointCloud::Ptr> Voxels;
+  //! Outer voxelGrid to roll map, build a target submap and add keypoints efficiently.
+  //! Each voxel contains an inner voxel grid (=sampling vg) that has at most one point per voxel
+  //! These sampling vg are used to downsample the grid when adding new keypoints
+  //! Each outer voxel can be accessed using a flattened 1D index.
+  RollingVG Voxels;
 
-  //! [m, m, m] Current position of the center of the VoxelGrid
-  Eigen::Array3d VoxelGridPosition;
+  //! [m, m, m] Current position of the center of the outer VoxelGrid
+  Eigen::Array3f VoxelGridPosition;
 
   //! Total number of points stored in the rolling grid
   unsigned int NbPoints;
@@ -141,14 +171,14 @@ private:
   //! KD-Tree built on top of local sub-map for fast NN queries in sub-map
   KDTree KdTree;
 
-private:
 
-  //! Compute the voxel coordinates in which fits a point
-  template<typename T>
-  inline Eigen::Array3i PositionToVoxel(const T& position) const
-  {
-    return (position / this->VoxelResolution).array().floor().template cast<int>();
-  }
+  //! The grid is filtered to contain at most one point per inner voxel
+  //! This mode parameter allows to choose how to select the remaining point
+  //! It can be : taking the first/last acquired point, taking the max intensity point,
+  //! considering the closest point to the voxel center or averaging the points.
+  SamplingMode Sampling = SamplingMode::MAX_INTENSITY;
+
+private:
 
   //! Conversion from 3D voxel index to 1D flattened index
   int To1d(const Eigen::Array3i& voxelId3d) const;

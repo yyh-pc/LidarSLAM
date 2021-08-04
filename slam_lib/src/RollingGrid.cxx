@@ -20,12 +20,7 @@
 #include "LidarSlam/RollingGrid.h"
 #include "LidarSlam/Utilities.h"
 
-// A new PCL Point is added so we need to recompile PCL to be able to use
-// filters (pcl::VoxelGrid) with this new type
-#ifndef PCL_NO_PRECOMPILE
-#define PCL_NO_PRECOMPILE
-#endif
-#include <pcl/filters/voxel_grid.h>
+#include <pcl/common/common.h>
 
 namespace LidarSlam
 {
@@ -35,13 +30,13 @@ namespace LidarSlam
 //==============================================================================
 
 //------------------------------------------------------------------------------
-RollingGrid::RollingGrid(const Eigen::Vector3d& position)
+RollingGrid::RollingGrid(const Eigen::Vector3f& position)
 {
   this->Reset(position);
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::Reset(const Eigen::Vector3d& position)
+void RollingGrid::Reset(const Eigen::Vector3f& position)
 {
   // Clear/reset empty voxel grid
   this->Clear();
@@ -76,7 +71,10 @@ void RollingGrid::SetGridSize(int size)
 //------------------------------------------------------------------------------
 void RollingGrid::SetVoxelResolution(double resolution)
 {
-  this->VoxelResolution = resolution;
+  // We cannot compel the leaf size (inner voxel grid resolution) with the
+  // outer voxel grid resolution if we want equally sized inner voxels.
+  // Therefore, the Voxel resolution will be slightly different from the input value.
+  this->VoxelResolution = int (resolution / this->LeafSize) * this->LeafSize;
 
   // Round down VoxelGrid center position to be a multiple of resolution
   this->VoxelGridPosition = (this->VoxelGridPosition / this->VoxelResolution).floor() * this->VoxelResolution;
@@ -96,25 +94,30 @@ void RollingGrid::SetVoxelResolution(double resolution)
 RollingGrid::PointCloud::Ptr RollingGrid::Get() const
 {
   // Merge all points into a single pointcloud
-  PointCloud::Ptr intersection(new PointCloud);
-  intersection->reserve(this->NbPoints);
-  for (const auto& kv : this->Voxels)
-    *intersection += *(kv.second);
+  PointCloud::Ptr pc(new PointCloud);
+  pc->reserve(this->NbPoints);
+  // Loop on the outer voxels (rolling vg)
+  for (const auto& kvOut : this->Voxels)
+  {
+    // Loop on the inner voxels (sampling vg)
+    for (const auto& kvIn : kvOut.second)
+      pc->emplace_back(kvIn.second.point);
+  }
 
-  return intersection;
+  return pc;
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint)
+void RollingGrid::Roll(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint)
 {
   // Very basic implementation where the grid is not circular.
   // This only moves VoxelGrid so that the given bounding box can entirely fit in rolled map.
 
   // Compute how much the new frame does not fit in current grid
   double halfGridSize = static_cast<double>(this->GridSize) / 2 * this->VoxelResolution;
-  Eigen::Array3d downOffset = minPoint - (VoxelGridPosition - halfGridSize);
-  Eigen::Array3d upOffset   = maxPoint - (VoxelGridPosition + halfGridSize);
-  Eigen::Array3d offset = (upOffset + downOffset) / 2;
+  Eigen::Array3f downOffset = minPoint - (VoxelGridPosition - halfGridSize);
+  Eigen::Array3f upOffset   = maxPoint - (VoxelGridPosition + halfGridSize);
+  Eigen::Array3f offset = (upOffset + downOffset) / 2;
 
   // Clamp the rolling movement so that it only moves what is really necessary
   offset = offset.max(downOffset.min(0)).min(upOffset.max(0));
@@ -126,25 +129,25 @@ void RollingGrid::Roll(const Eigen::Array3d& minPoint, const Eigen::Array3d& max
 
   // Fill new voxel grid
   unsigned int newNbPoints = 0;
-  std::unordered_map<int, PointCloud::Ptr> newVoxels;
-  for (const auto& kv : this->Voxels)
+  RollingVG newVoxels;
+  for (const auto& kvOut : this->Voxels)
   {
     // Compute new voxel position
-    Eigen::Array3i newIdx3d = this->To3d(kv.first) - voxelsOffset;
+    Eigen::Array3i newIdx3d = this->To3d(kvOut.first) - voxelsOffset;
 
     // Move voxel and keep it only if it lies within bounds
     if (((0 <= newIdx3d) && (newIdx3d < this->GridSize)).all())
     {
       int newIdx1d = this->To1d(newIdx3d);
-      newNbPoints += kv.second->size();
-      newVoxels[newIdx1d] = std::move(kv.second);
+      newNbPoints += kvOut.second.size();
+      newVoxels[newIdx1d] = std::move(kvOut.second);
     }
   }
 
   // Update the voxel grid
   this->NbPoints = newNbPoints;
   this->Voxels.swap(newVoxels);
-  this->VoxelGridPosition += voxelsOffset.cast<double>() * this->VoxelResolution;
+  this->VoxelGridPosition += voxelsOffset.cast<float>() * this->VoxelResolution;
 }
 
 //------------------------------------------------------------------------------
@@ -161,59 +164,140 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
   {
     Eigen::Vector4f minPoint, maxPoint;
     pcl::getMinMax3D(*pointcloud, minPoint, maxPoint);
-    this->Roll(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+    this->Roll(minPoint.head<3>().cast<float>().array(), maxPoint.head<3>().cast<float>().array());
   }
 
-  // Number of points added in each voxel
-  std::unordered_map<int, unsigned int> addedPoints;
+  // Compute the 3D position of the center of the first voxel
+  Eigen::Array3f voxelGridOrigin = this->VoxelGridPosition - int(this->GridSize / 2) * this->VoxelResolution;
 
-  // Compute the "position" of the lowest cell of the VoxelGrid in voxels dimensions
-  Eigen::Array3i voxelGridOrigin = this->PositionToVoxel(this->VoxelGridPosition) - this->GridSize / 2;
-
+  // Boolean grid to check if a voxel has already been reached by another
+  // added point to decide whether to update the count attribute or not
+  std::unordered_map<int, std::unordered_map<int, bool>> seen;
+  // Voxels' states info (for CENTROID sampling mode) :
+  // mean point of current added points in each voxel
+  std::unordered_map<int, std::unordered_map<int, Voxel>> meanPts;
+  // Boolean to check if the tree will need update
+  bool updated = false;
   // Add points in the rolling grid
   for (const Point& point : *pointcloud)
   {
-    // Find the voxel containing this point
-    Eigen::Array3i cubeIdx = this->PositionToVoxel(point.getArray3fMap()) - voxelGridOrigin;
+    // Find the outer voxel containing this point
+    Eigen::Array3i voxelCoordOut = Utils::PositionToVoxel<Eigen::Array3f>(point.getArray3fMap(), voxelGridOrigin, this->VoxelResolution);
 
     // Add point to grid if it is indeed within bounds
-    if (((0 <= cubeIdx) && (cubeIdx < this->GridSize)).all())
+    if (((0 <= voxelCoordOut) && (voxelCoordOut < this->GridSize)).all())
     {
-      int id1d = this->To1d(cubeIdx);
+      // Compute the position of the center of the inner voxel grid (=sampling voxel grid)
+      // which is the center of the outer voxel (from the rolling voxel grid)
+      Eigen::Array3f voxelGridCenterIn = voxelCoordOut.cast<float>() * this->VoxelResolution + voxelGridOrigin;
+      // Find the inner voxel containing this point (from the sampling vg)
+      Eigen::Array3i voxelCoordIn = Utils::PositionToVoxel<Eigen::Array3f>(point.getArray3fMap(), voxelGridCenterIn, this->LeafSize);
+      unsigned int idxOut = this->To1d(voxelCoordOut);
+      unsigned int idxIn = this->To1d(voxelCoordIn);
+      // If the outer voxel or the inner voxel are empty, add new point
+      if (!this->Voxels.count(idxOut) ||
+          !this->Voxels[idxOut].count(idxIn))
+      {
+        this->Voxels[idxOut][idxIn].point = point;
+        ++this->NbPoints;
+        // Notify that the voxel point has been updated
+        updated = true;
+      }
+      else
+      {
+        // Shortcut to voxel
+        auto& voxel = this->Voxels[idxOut][idxIn];
+        switch(this->Sampling)
+        {
+          // If first mode enabled,
+          // use the first acquired keypoint in the voxel
+          case SamplingMode::FIRST:
+          {
+            // keep the previous point
+            break;
+          }
+          // If last mode enabled,
+          // use the last acquired keypoint in the voxel
+          case SamplingMode::LAST:
+          {
+            // Update the point
+            voxel.point = point;
+            // Notify that the voxel point has been updated
+            updated = true;
+            break;
+          }
+          // If max_intensity mode enabled,
+          // keep the keypoint with maximum intensity
+          case SamplingMode::MAX_INTENSITY:
+          {
+            if (point.intensity > voxel.point.intensity)
+            {
+              voxel.point = point;
+              // Notify that the voxel point has been updated
+              updated = true;
+            }
+            break;
+          }
+          // If center point mode enabled,
+          // keep the closest point to the voxel center
+          case SamplingMode::CENTER_POINT:
+          {
+            // Check if the new point is closer to the voxel center than the current voxel point
+            Eigen::Vector3f voxelCenter = voxelGridCenterIn - this->VoxelResolution / 2.f + this->LeafSize * voxelCoordIn.cast<float>();
+            if ((point.getVector3fMap()- voxelCenter).norm() < (voxel.point.getVector3fMap() - voxelCenter).norm())
+            {
+              voxel.point = point;
+              // Notify that the voxel point has been updated
+              updated = true;
+            }
+            break;
+          }
+          // If centroid mode enabled,
+          // compute the mean point of the added points laying in this voxel.
+          // Then, the voxel point will be the average of all the mean points computed in this voxel.
+          case SamplingMode::CENTROID:
+          {
+            // Shortcut to voxel of added keypoints cloud
+            Voxel& v = meanPts[idxOut][idxIn];
+            // Compute mean point of current added points in the voxel
+            v.point.getVector3fMap() = (v.point.getVector3fMap() * v.count + point.getVector3fMap()) / (v.count + 1);
+            ++v.count;
+            break;
+          }
+        }
+      }
 
-      auto& voxel = this->Voxels[id1d];
-      if (!voxel)
-        voxel.reset(new PointCloud);
-      voxel->push_back(point);
+      // For centroid mode, compute average point
+      if (this->Sampling == SamplingMode::CENTROID)
+      {
+        for (auto& vOut : meanPts)
+        {
+          // Extract coordinates of voxel
+          unsigned int idxOut = vOut.first;
+          for (auto& vIn : vOut.second)
+          {
+            unsigned int idxIn = vIn.first;
+            // Get voxel using its coordinates
+            auto& voxel = this->Voxels[idxOut][idxIn];
+            // Update the voxel point computing the centroid of all mean points laying in it
+            voxel.point.getVector3fMap() = (voxel.point.getVector3fMap() * voxel.count + vIn.second.point.getVector3fMap()) / (voxel.count + 1);
+          }
+        }
+      }
 
-      addedPoints[id1d] += 1;
+      // Shortcut to voxel
+      auto& voxel = this->Voxels[idxOut][idxIn];
+      if (!seen.count(idxOut) || !seen[idxOut].count(idxIn))
+      {
+        ++voxel.count;
+        seen[idxOut][idxIn] = true;
+      }
     }
   }
 
-  // Exit if no points need to be added
-  if (addedPoints.empty())
-    return;
-
-  // Filter the modified voxels
-  // All the points belonging to the same voxel will be approximated
-  // (i.e., downsampled) with their centroid. The mean operator is applied to
-  // each field (X, Y, Z, intensity, time, ...).
-  pcl::VoxelGrid<Point> downSizeFilter;
-  downSizeFilter.setLeafSize(this->LeafSize, this->LeafSize, this->LeafSize);
-  for (const auto& kv : addedPoints)
-  {
-    // Number of points in the voxel before filtering
-    auto& voxel = this->Voxels[kv.first];
-    unsigned int voxelPrevSize = voxel->size() - kv.second;
-    // Downsample the current voxel
-    downSizeFilter.setInputCloud(voxel);
-    downSizeFilter.filter(*voxel);
-    // Update the voxel's number of points
-    this->NbPoints += voxel->size() - voxelPrevSize;
-  }
-
-  // Clear the deprecated KD-tree as the map has been updated
-  this->KdTree.Reset();
+  // Clear the deprecated KD-tree if the map has been updated
+  if (updated)
+    this->KdTree.Reset();
 }
 
 //==============================================================================
@@ -229,25 +313,37 @@ void RollingGrid::BuildSubMapKdTree()
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::BuildSubMapKdTree(const Eigen::Array3d& minPoint, const Eigen::Array3d& maxPoint)
+void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint)
 {
   // Compute the position of the origin cell (0, 0, 0) of the grid
-  Eigen::Array3i voxelGridOrigin = this->PositionToVoxel(this->VoxelGridPosition) - this->GridSize / 2;
+  Eigen::Array3f voxelGridOrigin = this->VoxelGridPosition - int(this->GridSize / 2) * this->VoxelResolution;
 
   // Get sub-VoxelGrid bounds
-  Eigen::Array3i intersectionMin = (this->PositionToVoxel(minPoint) - voxelGridOrigin).max(0);
-  Eigen::Array3i intersectionMax = (this->PositionToVoxel(maxPoint) - voxelGridOrigin).min(this->GridSize - 1);
+  Eigen::Array3i intersectionMin = Utils::PositionToVoxel<Eigen::Array3f>(minPoint, voxelGridOrigin, this->VoxelResolution).max(0);
+  Eigen::Array3i intersectionMax = Utils::PositionToVoxel<Eigen::Array3f>(maxPoint, voxelGridOrigin, this->VoxelResolution).min(this->GridSize - 1);
 
-  // Get all points from voxels in intersection
+  // Intersection points
   PointCloud::Ptr intersection(new PointCloud);
-  for (const auto& kv : this->Voxels)
+  // reserve too much space to not have to reallocate memory
+  intersection->reserve(this->NbPoints);
+
+  // Loop on the outer voxels
+  // to extract all intersecting voxels
+  for (const auto& kvOut : this->Voxels)
   {
-    // Add points if the voxel lies within bounds
-    Eigen::Array3i idx3d = this->To3d(kv.first);
-    if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
-      *intersection += *(kv.second);
+   // Check if the voxel lies within bounds
+   Eigen::Array3i idx3d = this->To3d(kvOut.first);
+   if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
+   {
+     for (const auto& kvIn : kvOut.second)
+      intersection->emplace_back(kvIn.second.point);
+   }
   }
 
+  if (intersection->empty())
+    PRINT_WARNING("No intersecting voxels found with current scan");
+
+  // Aggregate points found in intersectVoxels into a new pointcloud
   // Build the internal KD-Tree for fast NN queries in sub-map
   this->KdTree.Reset(intersection);
 }

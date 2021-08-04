@@ -212,16 +212,16 @@ void Slam::SetNbThreads(int n)
   // Set number of threads for main processes
   this->NbThreads = n;
   // Set number of threads for keypoints extraction
-  for (const auto& kv : this->KeyPointsExtractors) 
-    kv.second->SetNbThreads(n); 
+  for (const auto& kv : this->KeyPointsExtractors)
+    kv.second->SetNbThreads(n);
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SetSensorTimeOffset(double timeOffset) 
+void Slam::SetSensorTimeOffset(double timeOffset)
 {
   this->WheelOdomManager.SetTimeOffset(timeOffset);
   this->ImuManager.SetTimeOffset(timeOffset);
-} 
+}
 
 //-----------------------------------------------------------------------------
 void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
@@ -464,8 +464,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     {
       Eigen::Vector4f minPoint, maxPoint;
       pcl::getMinMax3D(keypoints[k], minPoint, maxPoint);
-      this->LocalMaps[k]->Roll(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
       this->LocalMaps[k]->Add(aggregatedKeypointsMap[k], false);
+      this->LocalMaps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
     }
   }
 
@@ -825,7 +825,7 @@ void Slam::ComputeEgoMotion()
     // among the keypoints of the previous pointcloud
     IF_VERBOSE(3, Utils::Timer::Init("EgoMotion : build KD tree"));
     std::map<Keypoint, KDTree> kdtreePrevious;
-    // Kdtrees map initialization to parallelize their 
+    // Kdtrees map initialization to parallelize their
     // construction using OMP and avoid concurrency issues
     for (auto k : {EDGE, PLANE})
       kdtreePrevious[k] = KDTree();
@@ -979,7 +979,7 @@ void Slam::Localization()
   }
 
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
-  IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::Init("Localization : map keypoints extraction"));
 
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
@@ -1007,7 +1007,7 @@ void Slam::Localization()
         pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
 
         // Build submap of all points lying in this bounding box
-        this->LocalMaps[k]->BuildSubMapKdTree(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+        this->LocalMaps[k]->BuildSubMapKdTree(minPoint.head<3>().array(), maxPoint.head<3>().array());
       }
     }
   }
@@ -1021,7 +1021,7 @@ void Slam::Localization()
     std::cout << std::endl;
   }
 
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : map keypoints extraction"));
   IF_VERBOSE(3, Utils::Timer::Init("Localization : whole ICP-LM loop"));
 
   // Reset ICP results
@@ -1394,7 +1394,7 @@ void Slam::CheckMotionLimits()
     // If startIndex is negative, no interval containing TimeWindowDuration was found, the oldest logged pose is taken
     if (startIndex < 0)
     {
-      PRINT_WARNING("Not enough logged trajectory poses to get the required time window to estimate velocity, using a smaller time window of " 
+      PRINT_WARNING("Not enough logged trajectory poses to get the required time window to estimate velocity, using a smaller time window of "
                     << nextDeltaTime << "s")
       startIndex = 0;
     }
@@ -1402,7 +1402,7 @@ void Slam::CheckMotionLimits()
     // Choose which bound of the interval is the best window's starting bound
     else if (std::abs(deltaTime - this->TimeWindowDuration) < std::abs(nextDeltaTime - this->TimeWindowDuration))
       ++startIndex;
-    
+
     // Actualize deltaTime with the best startIndex
     deltaTime = currentTimeStamp - this->LogTrajectory[startIndex].time;
   }
@@ -1617,6 +1617,18 @@ void Slam::ClearMaps()
 {
   for (auto k : KeypointTypes)
     this->LocalMaps[k]->Reset();
+}
+
+//-----------------------------------------------------------------------------
+SamplingMode Slam::GetVoxelGridSamplingMode(Keypoint k)
+{
+  return this->LocalMaps[k]->GetSampling();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetVoxelGridSamplingMode(Keypoint k, SamplingMode sm)
+{
+  this->LocalMaps[k]->SetSampling(sm);
 }
 
 //-----------------------------------------------------------------------------
