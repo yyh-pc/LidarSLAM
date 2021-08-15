@@ -243,6 +243,9 @@ public:
 
   // Set RollingGrid Parameters
 
+  virtual unsigned int GetMapUpdate();
+  virtual void SetMapUpdate(unsigned int mode);
+
   virtual int GetVoxelGridSamplingMode(LidarSlam::Keypoint k);
   virtual void SetVoxelGridSamplingMode(LidarSlam::Keypoint k, int sm);
 

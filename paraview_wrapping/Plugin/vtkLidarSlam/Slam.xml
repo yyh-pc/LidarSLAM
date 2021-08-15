@@ -977,6 +977,28 @@
 
       <!-- ======================== Map Parameters ========================= -->
 
+      <IntVectorProperty name="Mapping mode"
+                         command="SetMapUpdate"
+                         number_of_elements="1"
+                         default_values="2">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Disabled"/>
+          <Entry value="1" text="Add keypoints"/>
+          <Entry value="2" text="Update"/>
+        </EnumerationDomain>
+        <Documentation>
+          How to update the map.
+
+          If DISABLED, the map is not updated. Only the initialization map is used.
+
+          If ADD KEYPOINTS, the current keypoints are added to the map in unexplored areas but initial map points remain untouched.
+
+          If UPDATE, all the current keypoints are added to the map and the initial map points can disappear.
+
+          Warning : the first mode can be set only if an initial map exists
+        </Documentation>
+      </IntVectorProperty>
+
       <DoubleVectorProperty name="Keyframe distance threshold"
                             command="SetKfDistanceThreshold"
                             number_of_elements="1"
@@ -1157,6 +1179,7 @@
       </DoubleVectorProperty>
 
       <PropertyGroup label="Map parameters">
+        <Property name="Mapping mode" />
         <Property name="Keyframe distance threshold" />
         <Property name="Keyframe angle threshold" />
         <Property name="Edges map sampling mode" />

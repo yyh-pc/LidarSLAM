@@ -843,6 +843,33 @@ void vtkSlam::SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor* _arg)
 }
 
 //-----------------------------------------------------------------------------
+unsigned int vtkSlam::GetMapUpdate()
+{
+  unsigned int mapUpdate = static_cast<unsigned int>(this->SlamAlgo->GetMapUpdate());
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning mapping mode of " << mapUpdate);
+  return mapUpdate;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetMapUpdate(unsigned int mode)
+{
+  LidarSlam::MappingMode mapUpdate = static_cast<LidarSlam::MappingMode>(mode);
+  if (mapUpdate != LidarSlam::MappingMode::NONE         &&
+      mapUpdate != LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP &&
+      mapUpdate != LidarSlam::MappingMode::UPDATE)
+  {
+    vtkErrorMacro("Invalid mapping mode (" << mode << "), ignoring setting.");
+    return;
+  }
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting mapping mode to " << mode);
+  if (this->SlamAlgo->GetMapUpdate() != mapUpdate)
+  {
+    this->SlamAlgo->SetMapUpdate(mapUpdate);
+    this->ParametersModificationTime.Modified();
+  }
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
 {
   vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting VoxelGridLeafSize to " << s);
