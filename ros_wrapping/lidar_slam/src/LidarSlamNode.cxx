@@ -707,6 +707,30 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/voxel_grid/resolution", VoxelGridResolution)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
 
+  // Helper lambda function to set the sampling mode for each map
+  auto SetSamplingMode = [&](std::string paramName, LidarSlam::Keypoint k)
+  {
+    int samplingMode;
+    if (this->PrivNh.getParam(paramName, samplingMode))
+    {
+      LidarSlam::SamplingMode sampling = static_cast<LidarSlam::SamplingMode>(samplingMode);
+      if (sampling != LidarSlam::SamplingMode::FIRST &&
+          sampling != LidarSlam::SamplingMode::LAST &&
+          sampling != LidarSlam::SamplingMode::MAX_INTENSITY &&
+          sampling != LidarSlam::SamplingMode::CENTER_POINT &&
+          sampling != LidarSlam::SamplingMode::CENTROID)
+      {
+        ROS_ERROR_STREAM("Invalid sampling mode (" << samplingMode << ") for " << paramName << ". Setting it to 'MAX_INTENSITY'.");
+        sampling = LidarSlam::SamplingMode::MAX_INTENSITY;
+      }
+      this->LidarSlam.SetVoxelGridSamplingMode(k, sampling);
+    }
+  };
+
+  SetSamplingMode("slam/voxel_grid/sampling_mode_edges", LidarSlam::Keypoint::EDGE);
+  SetSamplingMode("slam/voxel_grid/sampling_mode_planes", LidarSlam::Keypoint::PLANE);
+  SetSamplingMode("slam/voxel_grid/sampling_mode_blobs", LidarSlam::Keypoint::BLOB);
+
   // Keypoint extractors
   auto InitKeypointsExtractor = [this](auto& ke, const std::string& prefix)
   {

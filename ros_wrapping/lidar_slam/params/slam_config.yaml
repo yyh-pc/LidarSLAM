@@ -211,6 +211,15 @@ slam:
     leaf_size_blobs: 0.30   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
     size: 50                # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
     resolution: 10.         # [m/voxel] Resolution of a voxel.
+    # The sampling modes allow to decide which point to keep when downsampling the map using a voxel grid.
+    # 0) Keep the first point scanned in the voxel,
+    # 1) Get the last point scanned in the voxel,
+    # 2) Select the point with max intensity,
+    # 3) Select the closest point to the voxel center,
+    # 4) Compute the centroid of all points laying in the voxel.
+    sampling_mode_edges: 2
+    sampling_mode_planes: 2
+    sampling_mode_blobs: 2
 
   # Keypoint extractor for each LiDAR sensor
   ke:
