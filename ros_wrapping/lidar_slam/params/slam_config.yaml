@@ -49,10 +49,6 @@ maps:
   # This could be useful to set if you're using an initial map estimate, but without starting at the map origin
   initial_pose: [0., 0., 0., 0., 0., 0.]
 
-  # Allow to update SLAM maps with keypoints from new scans.
-  # This is equivalent to publishing SlamCommand::DISABLE_SLAM_MAP_UPDATE/ENABLE_SLAM_MAP_UPDATE to 'slam_command' topic at startup.
-  # WARNING: Do not set this parameter to false if no initial maps have been loaded!
-  update_maps: true
 
   # PCD file format to use to save SLAM maps: 0) ascii, 1) binary, 2) binary_compressed.
   # To save keypoints maps, send command SlamCommand::SAVE_KEYPOINTS_MAPS to 'slam_command' topic.
@@ -206,6 +202,18 @@ slam:
 
   # Keypoints maps, saved as downsampled voxel grids
   voxel_grid:
+    # How to update the maps:
+    #  0) No update is performed. Initial maps are kept as they are.
+    #     WARNING: Do not set this parameter to 0 if no initial maps have been loaded!
+    #  1) New keypoints are added if they lie in a free voxel relatively to an initial map
+    #  2) All new keypoints are added and the map is updated (initial keypoints can disappear)
+    #     1) and 2) will be equivalent if no initial maps have been loaded.
+    # This is equivalent to publishing :
+    #          *SlamCommand::DISABLE_SLAM_MAP_UPDATE
+    #          *SlamCommand::ENABLE_SLAM_MAP_EXPANSION
+    #          *SlamCommand::ENABLE_SLAM_MAP_UPDATE
+    # to 'slam_command' topic at startup.
+    update_maps: 3
     leaf_size_edges: 0.30   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
     leaf_size_planes: 0.60  # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
     leaf_size_blobs: 0.30   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.

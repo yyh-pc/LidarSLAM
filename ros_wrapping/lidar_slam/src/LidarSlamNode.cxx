@@ -74,13 +74,6 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     this->LidarSlam.LoadMapsFromPCD(mapsPathPrefix);
   }
 
-  // Freeze SLAM maps if requested
-  if (!priv_nh.param("maps/update_maps", true))
-  {
-    this->LidarSlam.SetUpdateMap(false);
-    ROS_WARN_STREAM("Disabling SLAM maps update.");
-  }
-
   // Set initial SLAM pose if requested
   std::vector<double> initialPose;
   if (priv_nh.getParam("maps/initial_pose", initialPose) && initialPose.size() == 6)
@@ -280,16 +273,22 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       break;
     }
 
-    // Enable SLAM maps update
-    case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_UPDATE:
-      this->LidarSlam.SetUpdateMap(true);
-      ROS_WARN_STREAM("Enabling SLAM maps update.");
-      break;
-
     // Disable SLAM maps update
     case lidar_slam::SlamCommand::DISABLE_SLAM_MAP_UPDATE:
-      this->LidarSlam.SetUpdateMap(false);
+      this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::NONE);
       ROS_WARN_STREAM("Disabling SLAM maps update.");
+      break;
+
+    // Enable the agregation of keypoints to a fixed initial map
+    case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_EXPANSION:
+      this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP);
+      ROS_WARN_STREAM("Enabling maps expansion with new keypoints.");
+      break;
+
+    // Enable the update of the map with new keypoints
+    case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_UPDATE:
+      this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::UPDATE);
+      ROS_WARN_STREAM("Enabling SLAM maps update with new keypoints.");
       break;
 
     // Save SLAM keypoints maps to PCD files
@@ -612,7 +611,7 @@ void LidarSlamNode::SetSlamParameters()
       ROS_ERROR_STREAM("Invalid ego-motion mode (" << egoMotionMode << "). Setting it to 'MOTION_EXTRAPOLATION'.");
       egoMotion = LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION;
     }
-    LidarSlam.SetEgoMotion(egoMotion);
+    this->LidarSlam.SetEgoMotion(egoMotion);
   }
   int undistortionMode;
   if (this->PrivNh.getParam("slam/undistortion", undistortionMode))
@@ -696,7 +695,20 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
   SetSlamParam(double, "slam/keyframes/angle_threshold", KfAngleThreshold)
 
-  // Rolling grids
+  // Maps
+  int mapUpdateMode;
+  if (this->PrivNh.getParam("slam/voxel_grid/update_maps", mapUpdateMode))
+  {
+    LidarSlam::MappingMode mapUpdate = static_cast<LidarSlam::MappingMode>(mapUpdateMode);
+    if (mapUpdate != LidarSlam::MappingMode::NONE &&
+        mapUpdate != LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP &&
+        mapUpdate != LidarSlam::MappingMode::UPDATE)
+    {
+      ROS_ERROR_STREAM("Invalid map update mode (" << mapUpdateMode << "). Setting it to 'UPDATE'.");
+      mapUpdate = LidarSlam::MappingMode::UPDATE;
+    }
+    this->LidarSlam.SetMapUpdate(mapUpdate);
+  }
   double size;
   if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_edges", size))
     this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::EDGE, size);

@@ -28,10 +28,12 @@ uint8 GPS_SLAM_POSE_GRAPH_OPTIMIZATION = 2
 #       executed in order to match GPS and SLAM coordinates systems.
 uint8 SET_SLAM_POSE_FROM_GPS = 4
 
-# Disable/enable SLAM maps update with new frames keypoints. This can be usefull
-# if we want to keep the pose graph optimized SLAM map untouched.
+# Disable/enable SLAM maps update with new frames keypoints. This can be useful
+# if we want to keep the pose graph optimized SLAM map
+# or any initially loaded map untouched
 uint8 DISABLE_SLAM_MAP_UPDATE = 8
-uint8 ENABLE_SLAM_MAP_UPDATE = 9
+uint8 ENABLE_SLAM_MAP_EXPANSION = 9
+uint8 ENABLE_SLAM_MAP_UPDATE = 10
 
 # Save/Load keypoints maps (edges, planes and blobs if used) to/from disk.
 # Use 'string_arg' to indicate path prefix of maps : "/path/to/slam_map_" will
