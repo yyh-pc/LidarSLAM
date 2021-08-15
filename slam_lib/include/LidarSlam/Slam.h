@@ -215,9 +215,6 @@ public:
   SetMacro(LoggingStorage, PointCloudStorageType)
   GetMacro(LoggingStorage, PointCloudStorageType)
 
-  SetMacro(UpdateMap, bool)
-  GetMacro(UpdateMap, bool)
-
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
   // ---------------------------------------------------------------------------
@@ -361,6 +358,9 @@ public:
   GetMacro(KfAngleThreshold, double)
   SetMacro(KfAngleThreshold, double)
 
+  GetMacro(MapUpdate, MappingMode)
+  SetMacro(MapUpdate, MappingMode)
+
   SamplingMode GetVoxelGridSamplingMode(Keypoint k);
   void SetVoxelGridSamplingMode(Keypoint k, SamplingMode sm);
 
@@ -442,12 +442,6 @@ private:
   // Wether to use octree compression during keypoints logging.
   // This reduces about 5 times the memory consumption, but slows down logging (and PGO).
   PointCloudStorageType LoggingStorage = PointCloudStorageType::PCL_CLOUD;
-
-  // Should the keypoints features maps be updated at each step.
-  // It is usually set to true, but forbiding maps update can be usefull in case
-  // of post-SLAM optimization with GPS and then run localization only in fixed
-  // optimized map.
-  bool UpdateMap = true;
 
   // Number of frames that have been processed by SLAM (number of poses in trajectory)
   unsigned int NbrFrameProcessed = 0;
@@ -543,6 +537,11 @@ private:
 
   // Number of keyrames
   int KfCounter = 0;
+
+  // How to update the map
+  // The map can be updated more or less with new input keypoints
+  // from current scanned points depending on the initial map reliability.
+  MappingMode MapUpdate = MappingMode::UPDATE;
 
   // How to downsample the points in the keypoints' maps
   // This mode parameter allows to choose how to select the remaining point in each voxel.

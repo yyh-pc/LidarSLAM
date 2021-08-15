@@ -151,7 +151,7 @@ void RollingGrid::Roll(const Eigen::Array3f& minPoint, const Eigen::Array3f& max
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
+void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, bool roll)
 {
   if (pointcloud->empty())
   {
@@ -207,6 +207,11 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
       {
         // Shortcut to voxel
         auto& voxel = this->Voxels[idxOut][idxIn];
+
+        // Check if the voxel contains a fixed point
+        if (voxel.point.label == 1)
+          continue;
+
         switch(this->Sampling)
         {
           // If first mode enabled,
@@ -287,6 +292,12 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool roll)
 
       // Shortcut to voxel
       auto& voxel = this->Voxels[idxOut][idxIn];
+      voxel.point.time = currentTime;
+      // Point added is not fixed
+      if (fixed)
+        voxel.point.label = 1;
+      else
+        voxel.point.label = 0;
       if (!seen.count(idxOut) || !seen[idxOut].count(idxIn))
       {
         ++voxel.count;

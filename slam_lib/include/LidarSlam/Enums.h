@@ -93,6 +93,27 @@ enum class EgoMotionMode
 };
 
 //------------------------------------------------------------------------------
+//! How to update the map
+enum class MappingMode
+{
+  //! Do not update map, use initial map
+  //! Performant in static environment and
+  //! more robust to moving objects
+  // Forbiding maps update can be useful for example in case
+  // of post-SLAM optimization with GPS and then run localization only in fixed
+  // optimized map or when performing two SLAM steps (mapping + localization)
+  NONE = 0,
+
+  //! Expand the map with new keypoints
+  //! The points of the initial maps (if some were loaded) will not be modified
+  ADD_KPTS_TO_FIXED_MAP = 1,
+
+  //! Update map with new keypoints
+  //! The points of the initial maps can disappear
+  UPDATE = 2,
+};
+
+//------------------------------------------------------------------------------
 //! How to downsample the map
 // A voxel grid is used and various downsampling modes
 // are possible to select the remaining point in each voxel

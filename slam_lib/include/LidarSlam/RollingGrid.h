@@ -32,7 +32,7 @@ namespace LidarSlam
 
 namespace Utils
 {
-  
+
 //! Compute the voxel coordinates in which a point lies
 //! Origin must be the center of the first voxel (0, 0, 0)
 template<typename T>
@@ -120,9 +120,10 @@ public:
   void Roll(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint);
 
   //! Add some points to the grid
+  //! If fixed is true, the points added will not be modified afterwards
   //! If roll is true, the map is rolled first so that all new points to add can fit in rolled map.
   //! If points are added, the sub-map KD-tree is cleared.
-  void Add(const PointCloud::Ptr& pointcloud, bool roll = true);
+  void Add(const PointCloud::Ptr& pointcloud, bool fixed = false, bool roll = true);
 
   //============================================================================
   //   Sub map use

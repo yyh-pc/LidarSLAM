@@ -274,8 +274,10 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Confidence estimators computation"));
   }
 
-  // Update keypoints maps : add current keypoints to map using Tworld
-  if (this->UpdateMap)
+  // Update keypoints maps if required: add current keypoints to map using Tworld
+  // If mapping mode is ADD_KPTS_TO_FIXED_MAP the initial map points will remain untouched
+  // If mapping mode is UPDATE, the initial map points can disappear.
+  if (this->MapUpdate == MappingMode::ADD_KPTS_TO_FIXED_MAP || this->MapUpdate == MappingMode::UPDATE)
   {
     IF_VERBOSE(3, Utils::Timer::Init("Maps update"));
     this->UpdateMapsUsingTworld();
@@ -464,7 +466,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     {
       Eigen::Vector4f minPoint, maxPoint;
       pcl::getMinMax3D(keypoints[k], minPoint, maxPoint);
-      this->LocalMaps[k]->Add(aggregatedKeypointsMap[k], false);
+      this->LocalMaps[k]->Add(aggregatedKeypointsMap[k], false, false);
       this->LocalMaps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
     }
   }
@@ -527,7 +529,10 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
     if (pcl::io::loadPCDFile(path, *keypoints) == 0)
     {
       std::cout << "SLAM keypoints map successfully loaded from " << path << std::endl;
-      this->LocalMaps[k]->Add(keypoints);
+      // If mapping mode is NONE or ADD_DECAYING_KPTS, the first map points are fixed,
+      // else, the initial map points can be updated
+      bool fixedMap = this->MapUpdate == MappingMode::NONE || this->MapUpdate == MappingMode::ADD_KPTS_TO_FIXED_MAP;
+      this->LocalMaps[k]->Add(keypoints, fixedMap);
     }
   }
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
@@ -991,9 +996,9 @@ void Slam::Localization()
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
     if (this->UseKeypoints[k] && !this->LocalMaps[k]->IsSubMapKdTreeValid())
     {
-      // If maps are fixed, we can build a single KD-tree of the entire map
-      // to avoid rebuilding it again
-      if (!this->UpdateMap)
+      // If maps are fixed, we can build a single KD-tree
+      // of the entire map to avoid rebuilding it again
+      if (this->MapUpdate == MappingMode::NONE)
         this->LocalMaps[k]->BuildSubMapKdTree();
 
       // Otherwise, we only extract the local sub maps to build a local and
@@ -1193,6 +1198,7 @@ void Slam::UpdateMapsUsingTworld()
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
+    // Add not fixed points
     if (this->UseKeypoints[k])
       this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k]);
   }
