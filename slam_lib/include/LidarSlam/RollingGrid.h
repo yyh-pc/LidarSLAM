@@ -103,6 +103,9 @@ public:
   SetMacro(LeafSize, double)
   GetMacro(LeafSize, double)
 
+  SetMacro(MinFramesPerVoxel, unsigned int)
+  GetMacro(MinFramesPerVoxel, unsigned int)
+
   SetMacro(Sampling, SamplingMode)
   GetMacro(Sampling, SamplingMode)
 
@@ -115,8 +118,9 @@ public:
   //   Main rolling grid use
   //============================================================================
 
-  //! Get all points
-  PointCloud::Ptr Get() const;
+  //! Get all points in the grid
+  //! clean allows to remove the moving objects
+  PointCloud::Ptr Get(bool clean = false) const;
 
   //! Get the total number of points in rolling grid
   unsigned int Size() const {return this->NbPoints; }
@@ -135,18 +139,25 @@ public:
   //   Sub map use
   //============================================================================
 
-  //! Build a KD-tree from all points in the map, or from all points lying in
-  //! the given bounding box.
-  //! This KD-tree can then be used for fast NN queries in this submap.
+  //! Build a KD-tree from all points in the map
+  //! This KD-tree can then be used for fast NN queries in the whole map.
   void BuildSubMapKdTree();
-  void BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint);
+  //! Build a KD-tree from the points laying in the input bounding box
+  //! This KD-tree can then be used for fast NN queries.
+  //! Keypoints laying on moving objects are rejected using the MinFramesPerVoxel criterion
+  //! minNbPoints allows to not take this threshold into account if the extracted submap is not dense enough
+  //! if minNbPoints is negative, all points are taken (no moving objects rejection)
+  void BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint, int minNbPoints = -1);
 
   //! Check if the KD-tree built on top of the submap is valid or if it needs to be updated.
   //! The KD-tree is cleared every time the map is modified.
-  bool IsSubMapKdTreeValid() const {return !this->KdTree.GetInputCloud()->empty(); };
+  bool IsSubMapKdTreeValid() const {return this->KdTree.GetInputCloud() && !this->KdTree.GetInputCloud()->empty();}
 
   //! Get the KD-Tree of the submap for fast NN queries
-  const KDTree& GetSubMapKdTree() const {return this->KdTree; };
+  const KDTree& GetSubMapKdTree() const {return this->KdTree;}
+
+  //! Get the sub map lastly computed
+   const PointCloud::Ptr GetSubMap() const {return this->SubMap;}
 
   //! Remove too old voxels from the map
   //! relatively to the DecayingThreshold parameter
@@ -170,6 +181,7 @@ private:
   //! Outer voxelGrid to roll map, build a target submap and add keypoints efficiently.
   //! Each voxel contains an inner voxel grid (=sampling vg) that has at most one point per voxel
   //! These sampling vg are used to downsample the grid when adding new keypoints
+  //! and to filter moving objects if required.
   //! Each outer voxel can be accessed using a flattened 1D index.
   RollingVG Voxels;
 
@@ -182,6 +194,12 @@ private:
   //! KD-Tree built on top of local sub-map for fast NN queries in sub-map
   KDTree KdTree;
 
+  //! Local sub-map stored for further visualization
+  PointCloud::Ptr SubMap;
+
+  //! Minimum number of points in a voxel
+  //! to extract it in a submap
+  unsigned int MinFramesPerVoxel = 0;
 
   //! The grid is filtered to contain at most one point per inner voxel
   //! This mode parameter allows to choose how to select the remaining point

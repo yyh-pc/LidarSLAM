@@ -507,7 +507,7 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) con
   for (auto k : KeypointTypes)
   {
     if (this->UseKeypoints.at(k))
-      savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k),  pcdFormat, true);
+      savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k, true),  pcdFormat, true);
   }
 
   // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
@@ -667,13 +667,23 @@ Slam::PointCloud::Ptr Slam::GetRegisteredFrame()
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetMap(Keypoint k) const
+Slam::PointCloud::Ptr Slam::GetMap(Keypoint k, bool clean) const
 {
-  PointCloud::Ptr map = this->LocalMaps.at(k)->Get();
+  PointCloud::Ptr map = this->LocalMaps.at(k)->Get(clean);
   map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
                                       this->WorldFrameId,
                                       this->NbrFrameProcessed);
   return map;
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetTargetSubMap(Keypoint k) const
+{
+  PointCloud::Ptr subMap = this->LocalMaps.at(k)->GetSubMap();
+  subMap->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
+                                         this->WorldFrameId,
+                                         this->NbrFrameProcessed);
+  return subMap;
 }
 
 //-----------------------------------------------------------------------------
@@ -1021,7 +1031,9 @@ void Slam::Localization()
         pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
 
         // Build submap of all points lying in this bounding box
-        this->LocalMaps[k]->BuildSubMapKdTree(minPoint.head<3>().array(), maxPoint.head<3>().array());
+        // Moving objects are rejected but the constraint is removed
+        // if less than half the number of current keypoints are extracted from the map
+        this->LocalMaps[k]->BuildSubMapKdTree(minPoint.head<3>().array(), maxPoint.head<3>().array(), currWorldKeypoints.size() / 2);
       }
     }
   }
@@ -1677,6 +1689,13 @@ void Slam::SetVoxelGridResolution(double resolution)
 {
   for (auto k : KeypointTypes)
     this->LocalMaps[k]->SetVoxelResolution(resolution);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetVoxelGridMinFramesPerVoxel(unsigned int minFrames)
+{
+  for (auto k : KeypointTypes)
+    this->LocalMaps[k]->SetMinFramesPerVoxel(minFrames);
 }
 
 } // end of LidarSlam namespace

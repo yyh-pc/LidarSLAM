@@ -32,6 +32,7 @@ namespace LidarSlam
 //------------------------------------------------------------------------------
 RollingGrid::RollingGrid(const Eigen::Vector3f& position)
 {
+  this->SubMap.reset(new PointCloud);
   this->Reset(position);
 }
 
@@ -91,7 +92,7 @@ void RollingGrid::SetVoxelResolution(double resolution)
 //==============================================================================
 
 //------------------------------------------------------------------------------
-RollingGrid::PointCloud::Ptr RollingGrid::Get() const
+RollingGrid::PointCloud::Ptr RollingGrid::Get(bool clean) const
 {
   // Merge all points into a single pointcloud
   PointCloud::Ptr pc(new PointCloud);
@@ -101,7 +102,12 @@ RollingGrid::PointCloud::Ptr RollingGrid::Get() const
   {
     // Loop on the inner voxels (sampling vg)
     for (const auto& kvIn : kvOut.second)
-      pc->emplace_back(kvIn.second.point);
+    {
+      // If all points can be used or if the point
+      // does not lie in a moving object, extract it.
+      if (!clean || kvIn.second.count > this->MinFramesPerVoxel)
+        pc->emplace_back(kvIn.second.point);
+    }
   }
 
   return pc;
@@ -347,12 +353,13 @@ void RollingGrid::ClearOldPoints(double currentTime)
 void RollingGrid::BuildSubMapKdTree()
 {
   // Get all points from all voxels
+  this->SubMap = this->Get();
   // Build the internal KD-Tree for fast NN queries in map
-  this->KdTree.Reset(this->Get());
+  this->KdTree.Reset(this->SubMap);
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint)
+void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint, int minNbPoints)
 {
   // Compute the position of the origin cell (0, 0, 0) of the grid
   Eigen::Array3f voxelGridOrigin = this->VoxelGridPosition - int(this->GridSize / 2) * this->VoxelResolution;
@@ -362,29 +369,76 @@ void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen:
   Eigen::Array3i intersectionMax = Utils::PositionToVoxel<Eigen::Array3f>(maxPoint, voxelGridOrigin, this->VoxelResolution).min(this->GridSize - 1);
 
   // Intersection points
-  PointCloud::Ptr intersection(new PointCloud);
+  this->SubMap.reset(new PointCloud);
   // reserve too much space to not have to reallocate memory
-  intersection->reserve(this->NbPoints);
+  this->SubMap->reserve(this->NbPoints);
 
-  // Loop on the outer voxels
-  // to extract all intersecting voxels
-  for (const auto& kvOut : this->Voxels)
+  // If we don't want to filter moving objects
+  if (minNbPoints < 0 || this->MinFramesPerVoxel <= 1)
   {
-   // Check if the voxel lies within bounds
-   Eigen::Array3i idx3d = this->To3d(kvOut.first);
-   if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
-   {
-     for (const auto& kvIn : kvOut.second)
-      intersection->emplace_back(kvIn.second.point);
-   }
+    // Loop on the outer voxels
+    // to extract all intersecting voxels
+    for (const auto& kvOut : this->Voxels)
+    {
+     // Check if the voxel lies within bounds
+     Eigen::Array3i idx3d = this->To3d(kvOut.first);
+     if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
+     {
+       for (const auto& kvIn : kvOut.second)
+        this->SubMap->emplace_back(kvIn.second.point);
+     }
+    }
+  }
+  // If we want to reject moving objects
+  else
+  {
+    // Loop on the outer voxels (rolling vg)
+    // to extract intersecting voxels which do not contain moving objects
+    for (const auto& kvOut : this->Voxels)
+    {
+     // Check if the voxel lies within bounds
+     Eigen::Array3i idx3d = this->To3d(kvOut.first);
+     if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
+     {
+       // Loop on the inner voxels (sampling vg)
+       for (const auto& kvIn : kvOut.second)
+       {
+         // Check if enough points lie in the voxel
+         // or if the points are fixed before adding it
+         if (kvIn.second.count >= this->MinFramesPerVoxel || kvIn.second.point.label == 1)
+          this->SubMap->emplace_back(kvIn.second.point);
+       }
+     }
+    }
+
+    // If the constraint was too strong
+    // remove the constraint
+    if (int(this->SubMap->size()) < minNbPoints)
+    {
+      PRINT_WARNING("Moving objects constraint was too strong, removing constraint");
+      // Loop on the outer voxels
+      // to extract intersecting voxels which contains a potential moving objects
+      for (const auto& kvOut : this->Voxels)
+      {
+       // Check if the voxel lies within bounds
+       Eigen::Array3i idx3d = this->To3d(kvOut.first);
+       if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
+       {
+         for (const auto& kvIn : kvOut.second)
+         {
+           // Invert constraint to add the other points
+           if (kvIn.second.count < this->MinFramesPerVoxel && kvIn.second.point.label != 1)
+              this->SubMap->emplace_back(kvIn.second.point);
+         }
+       }
+      }
+    }
   }
 
-  if (intersection->empty())
+  if (this->SubMap->empty())
     PRINT_WARNING("No intersecting voxels found with current scan");
-
-  // Aggregate points found in intersectVoxels into a new pointcloud
   // Build the internal KD-Tree for fast NN queries in sub-map
-  this->KdTree.Reset(intersection);
+  this->KdTree.Reset(this->SubMap);
 }
 
 //==============================================================================

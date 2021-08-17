@@ -151,7 +151,11 @@ public:
   std::vector<std::array<double, 36>> GetCovariances() const;
 
   // Get keypoints maps
-  PointCloud::Ptr GetMap(Keypoint k) const;
+  // If clean is true, the moving objects are removed from map
+  PointCloud::Ptr GetMap(Keypoint k, bool clean = false) const;
+
+  // Get target keypoints for current scan
+  PointCloud::Ptr GetTargetSubMap(Keypoint k) const;
 
   // Get extracted and optionally undistorted keypoints from current frame.
   // If worldCoordinates=false, it returns keypoints in BASE coordinates,
@@ -372,6 +376,7 @@ public:
   void SetVoxelGridLeafSize(Keypoint k, double size);
   void SetVoxelGridSize(int size);
   void SetVoxelGridResolution(double resolution);
+  void SetVoxelGridMinFramesPerVoxel(unsigned int minFrames);
 
   // ---------------------------------------------------------------------------
   //   Confidence estimation
