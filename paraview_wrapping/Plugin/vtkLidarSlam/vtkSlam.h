@@ -27,6 +27,17 @@
 // LOCAL
 #include <LidarSlam/Slam.h>
 
+//! Which keypoints' maps to output
+enum OutputKeypointsMapsMode
+{
+  //! No maps output
+  NONE = 0,
+  //! Output the whole keypoints' maps
+  FULL_MAPS = 1,
+  //! Output the target sub maps used for the current frame registration
+  SUB_MAPS = 2
+};
+
 // This custom macro is needed to make the SlamManager time agnostic.
 // The SlamManager needs to know when RequestData is called, if it's due
 // to a new timestep being requested or due to SLAM parameters being changed.
@@ -95,8 +106,8 @@ public:
   vtkGetMacro(OutputCurrentKeypoints, bool)
   vtkSetMacro(OutputCurrentKeypoints, bool)
 
-  vtkGetMacro(OutputKeypointsMaps, bool)
-  vtkSetMacro(OutputKeypointsMaps, bool)
+  virtual int GetOutputKeypointsMaps();
+  virtual void SetOutputKeypointsMaps(int mode);
 
   vtkGetMacro(MapsUpdateStep, unsigned int)
   vtkSetMacro(MapsUpdateStep, unsigned int)
@@ -278,6 +289,8 @@ public:
   vtkCustomSetMacroNoCheck(VoxelGridSize, int)
   vtkCustomSetMacroNoCheck(VoxelGridResolution, double)
 
+  vtkCustomSetMacroNoCheck(VoxelGridMinFramesPerVoxel, unsigned int)
+
   // ---------------------------------------------------------------------------
   //   Confidence estimator parameters
   // ---------------------------------------------------------------------------
@@ -341,6 +354,7 @@ protected:
 
 private:
 
+  OutputKeypointsMapsMode PreviousMapOutputMode = OutputKeypointsMapsMode::FULL_MAPS;
   // Polydata which represents the computed trajectory
   vtkSmartPointer<vtkPolyData> Trajectory;
 
@@ -351,9 +365,9 @@ private:
   //  - Extracted keypoints : ICP matching results
   bool AdvancedReturnMode = false;
 
-  // If enabled, SLAM filter will output keypoints maps.
-  // Otherwise, these filter outputs are left empty to save time.
-  bool OutputKeypointsMaps = true;
+  // Allows to choose which map keypoints to output
+  OutputKeypointsMapsMode OutputKeypointsMaps = FULL_MAPS;
+
   // Update keypoints maps only each MapsUpdateStep frame
   // (ex: every frame, every 2 frames, 3 frames, ...)
   unsigned int MapsUpdateStep = 1;

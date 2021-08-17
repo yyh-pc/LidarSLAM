@@ -233,14 +233,21 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Output keypoints maps"
+      <IntVectorProperty name="Keypoint maps output mode"
                          command="SetOutputKeypointsMaps"
                          number_of_elements="1"
                          default_values="1">
-        <BooleanDomain name="bool" />
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Disabled"/>
+          <Entry value="1" text="Full maps"/>
+          <Entry value="2" text="Sub-maps"/>
+        </EnumerationDomain>
         <Documentation>
-          If enabled, SLAM filter will output keypoints maps.
-          Otherwise, these filter outputs are left empty to save time.
+          If DISABLED, no maps are outputed
+
+          If FULL_MAPS, all the keypoints from maps are outputed
+
+          If SUB_MAPS, only the keypoints used as target for the current frame are outputed
         </Documentation>
       </IntVectorProperty>
 
@@ -253,7 +260,7 @@
           SLAM filter will update keypoints maps only 1 frame over *step* to save time.
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="Output keypoints maps" value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="Keypoint maps output mode" inverse="1" value="0" />
         </Hints>
       </IntVectorProperty>
 
@@ -296,7 +303,7 @@
         <Property name="Elevation angles calibration" />
         <Property name="Time to seconds factor" />
         <Property name="Advanced return mode" />
-        <Property name="Output keypoints maps" />
+        <Property name="Keypoint maps output mode" />
         <Property name="Keypoints maps update step" />
         <Property name="Output current keypoints" />
         <Property name="Output keypoints in WORLD coordinates" />
@@ -1191,6 +1198,21 @@
         </Documentation>
       </DoubleVectorProperty>
 
+      <IntVectorProperty name="Min number of frames per voxel"
+                            command="SetVoxelGridMinFramesPerVoxel"
+                            number_of_elements="1"
+                            default_values="0"
+                            panel_visibility="advanced">
+        <Documentation>
+          Minimum number of frames that must have reached a map voxel
+          to consider the voxel contains a target keypoint.
+          It is used to reject moving objects from the map.
+          WARNING: this parameter may need to be adapted to the velocity of the robot,
+          and the parameterization, notably the leaf sizes (directly linked) and keyframes parameters (inversely linked).
+          0 disables the moving objects rejection and takes all keypoints available from the maps.
+        </Documentation>
+      </IntVectorProperty>
+
       <PropertyGroup label="Map parameters">
         <Property name="Mapping mode" />
         <Property name="Decaying threshold" />
@@ -1204,6 +1226,7 @@
         <Property name="Blobs map resolution" />
         <Property name="Rolling grid dimension" />
         <Property name="Rolling grid resolution" />
+        <Property name="Min number of frames per voxel" />
       </PropertyGroup>
 
       <!-- ================ Confidence estimator parameters ================ -->
