@@ -849,7 +849,7 @@ void vtkSlam::SetVelocityLimits(float linearVel, float angularVel)
 void vtkSlam::SetTimeWindowDuration(float time)
 {
   // Change parameter value if it is modified
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting TimeWindowDuration to " << ratio);
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting TimeWindowDuration to " << time);
   if (this->TimeWindowDuration != time)
   {
     this->TimeWindowDuration = time;
