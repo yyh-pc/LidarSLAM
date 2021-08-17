@@ -151,7 +151,7 @@ void RollingGrid::Roll(const Eigen::Array3f& minPoint, const Eigen::Array3f& max
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, bool roll)
+void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, double currentTime, bool roll)
 {
   if (pointcloud->empty())
   {
@@ -314,6 +314,34 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, bool roll)
 //==============================================================================
 //   Sub map use
 //==============================================================================
+
+//------------------------------------------------------------------------------
+void RollingGrid::ClearOldPoints(double currentTime)
+{
+  // Loop on the outer voxels (rolling vg)
+  auto itVoxelsOut = this->Voxels.begin();
+  while(itVoxelsOut != this->Voxels.end())
+  {
+    // Loop on the inner voxels (sampling vg)
+    auto itVoxelsIn = itVoxelsOut->second.begin();
+    while(itVoxelsIn != itVoxelsOut->second.end())
+    {
+      // Shortcut to voxel
+      Voxel& voxel = itVoxelsIn->second;
+      // If voxel is removable and too old, remove it
+      if (!voxel.point.label && currentTime - voxel.point.time > this->DecayingThreshold)
+        itVoxelsIn = itVoxelsOut->second.erase(itVoxelsIn);
+      else
+        ++itVoxelsIn;
+    }
+
+    // Remove empty outer voxels
+    if (itVoxelsOut->second.empty())
+      itVoxelsOut = this->Voxels.erase(itVoxelsOut);
+    else
+      ++itVoxelsOut;
+  }
+}
 
 //------------------------------------------------------------------------------
 void RollingGrid::BuildSubMapKdTree()

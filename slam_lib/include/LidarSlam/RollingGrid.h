@@ -106,6 +106,11 @@ public:
   SetMacro(Sampling, SamplingMode)
   GetMacro(Sampling, SamplingMode)
 
+  SetMacro(DecayingThreshold, double)
+  GetMacro(DecayingThreshold, double)
+
+  // Check if keypoints time decaying is enabled
+  bool IsTimeThreshold() const {return DecayingThreshold > 0;}
   //============================================================================
   //   Main rolling grid use
   //============================================================================
@@ -119,11 +124,12 @@ public:
   //! Roll the grid so that input bounding box can fit it in rolled map
   void Roll(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint);
 
-  //! Add some points to the grid
-  //! If fixed is true, the points added will not be modified afterwards
+  //! Add some points to the grid.
+  //! If fixed is true, the points added will not be modified afterwards.
+  //! currentTime is the timestamp that will be associated to the added point.
   //! If roll is true, the map is rolled first so that all new points to add can fit in rolled map.
   //! If points are added, the sub-map KD-tree is cleared.
-  void Add(const PointCloud::Ptr& pointcloud, bool fixed = false, bool roll = true);
+  void Add(const PointCloud::Ptr& pointcloud, bool fixed = false, double currentTime = -1., bool roll = true);
 
   //============================================================================
   //   Sub map use
@@ -141,6 +147,10 @@ public:
 
   //! Get the KD-Tree of the submap for fast NN queries
   const KDTree& GetSubMapKdTree() const {return this->KdTree; };
+
+  //! Remove too old voxels from the map
+  //! relatively to the DecayingThreshold parameter
+  void ClearOldPoints(double currentTime);
 
   //============================================================================
   //   Attributes and helper methods
@@ -178,6 +188,10 @@ private:
   //! It can be : taking the first/last acquired point, taking the max intensity point,
   //! considering the closest point to the voxel center or averaging the points.
   SamplingMode Sampling = SamplingMode::MAX_INTENSITY;
+
+  //! Time threshold to discard removable keypoints
+  //! If negative, the keypoints are never removed
+  double DecayingThreshold = -1;
 
 private:
 

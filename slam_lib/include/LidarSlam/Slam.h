@@ -361,6 +361,9 @@ public:
   GetMacro(MapUpdate, MappingMode)
   SetMacro(MapUpdate, MappingMode)
 
+  double GetVoxelGridDecayingThreshold();
+  void SetVoxelGridDecayingThreshold(double decay);
+
   SamplingMode GetVoxelGridSamplingMode(Keypoint k);
   void SetVoxelGridSamplingMode(Keypoint k, SamplingMode sm);
 
@@ -446,6 +449,8 @@ private:
   // Number of frames that have been processed by SLAM (number of poses in trajectory)
   unsigned int NbrFrameProcessed = 0;
 
+  // Timestamp of the current input frame
+  double CurrentTime = 0.;
   // ---------------------------------------------------------------------------
   //   Trajectory, transforms and undistortion
   // ---------------------------------------------------------------------------

@@ -71,6 +71,9 @@
 // - WORLD {W} : The world coordinate system {W} coincides with BASE at the
 //   initial position. The output trajectory describes BASE origin in WORLD.
 
+// GENERIC
+#include <ctime>
+
 // LOCAL
 #include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
@@ -232,11 +235,11 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   if (!this->CheckFrames(frames))
     return;
   this->CurrentFrames = frames;
-  double time = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
+  this->CurrentTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
 
   PRINT_VERBOSE(2, "\n#########################################################");
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed << std::fixed << std::setprecision(9) <<
-                   " (at time " << time << ")" << std::scientific);
+                   " (at time " << this->CurrentTime << ")" << std::scientific);
   PRINT_VERBOSE(2, "#########################################################\n");
 
   // Compute the edge and planar keypoints
@@ -286,7 +289,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, Utils::Timer::Init("Logging"));
-  this->LogCurrentFrameState(time, this->WorldFrameId);
+  this->LogCurrentFrameState(this->CurrentTime, this->WorldFrameId);
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
@@ -466,7 +469,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     {
       Eigen::Vector4f minPoint, maxPoint;
       pcl::getMinMax3D(keypoints[k], minPoint, maxPoint);
-      this->LocalMaps[k]->Add(aggregatedKeypointsMap[k], false, false);
+      this->LocalMaps[k]->Add(aggregatedKeypointsMap[k], false, -1., false);
       this->LocalMaps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
     }
   }
@@ -532,7 +535,7 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
       // If mapping mode is NONE or ADD_DECAYING_KPTS, the first map points are fixed,
       // else, the initial map points can be updated
       bool fixedMap = this->MapUpdate == MappingMode::NONE || this->MapUpdate == MappingMode::ADD_KPTS_TO_FIXED_MAP;
-      this->LocalMaps[k]->Add(keypoints, fixedMap);
+      this->LocalMaps[k]->Add(keypoints, fixedMap, std::time(nullptr));
     }
   }
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
@@ -1005,6 +1008,12 @@ void Slam::Localization()
       // smaller KD-tree
       else
       {
+        if (this->LocalMaps[k]->IsTimeThreshold())
+        {
+          IF_VERBOSE(3, Utils::Timer::Init("Localization : clearing old points"));
+          this->LocalMaps[k]->ClearOldPoints(this->CurrentTime);
+          IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : clearing old points"));
+        }
         // Estimate current keypoints bounding box
         PointCloud currWordKeypoints;
         pcl::transformPointCloud(*this->CurrentUndistortedKeypoints[k], currWordKeypoints, this->Tworld.matrix());
@@ -1200,7 +1209,7 @@ void Slam::UpdateMapsUsingTworld()
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
     // Add not fixed points
     if (this->UseKeypoints[k])
-      this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k]);
+      this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k], false, this->CurrentTime);
   }
 }
 
@@ -1623,6 +1632,19 @@ void Slam::ClearMaps()
 {
   for (auto k : KeypointTypes)
     this->LocalMaps[k]->Reset();
+}
+
+//-----------------------------------------------------------------------------
+double Slam::GetVoxelGridDecayingThreshold()
+{
+    return this->LocalMaps.begin()->second->GetDecayingThreshold();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetVoxelGridDecayingThreshold(double decay)
+{
+  for (auto k : KeypointTypes)
+    this->LocalMaps[k]->SetDecayingThreshold(decay);
 }
 
 //-----------------------------------------------------------------------------
