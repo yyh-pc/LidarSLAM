@@ -37,6 +37,10 @@ enum Output
   PLANES_MAP,            // Publish plane keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
   BLOBS_MAP,             // Publish blob keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
 
+  EDGES_SUBMAP,          // Publish edge keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/edges'.
+  PLANES_SUBMAP,         // Publish plane keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/planes'.
+  BLOBS_SUBMAP,          // Publish blob keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/blobs'.
+
   EDGE_KEYPOINTS,        // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
   PLANE_KEYPOINTS,       // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
   BLOB_KEYPOINTS,        // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
@@ -102,6 +106,10 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   initPublisher(EDGES_MAP,  "maps/edges",  CloudS, "output/maps/edges",  true, 1, false);
   initPublisher(PLANES_MAP, "maps/planes", CloudS, "output/maps/planes", true, 1, false);
   initPublisher(BLOBS_MAP,  "maps/blobs",  CloudS, "output/maps/blobs",  true, 1, false);
+
+  initPublisher(EDGES_SUBMAP,  "submaps/edges",  CloudS, "output/submaps/edges",  true, 1, false);
+  initPublisher(PLANES_SUBMAP, "submaps/planes", CloudS, "output/submaps/planes", true, 1, false);
+  initPublisher(BLOBS_SUBMAP,  "submaps/blobs",  CloudS, "output/submaps/blobs",  true, 1, false);
 
   initPublisher(EDGE_KEYPOINTS,  "keypoints/edges",  CloudS, "output/keypoints/edges",  true, 1, false);
   initPublisher(PLANE_KEYPOINTS, "keypoints/planes", CloudS, "output/keypoints/planes", true, 1, false);
@@ -282,7 +290,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     // Enable the agregation of keypoints to a fixed initial map
     case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_EXPANSION:
       this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP);
-      ROS_WARN_STREAM("Enabling maps expansion with new keypoints.");
+      ROS_WARN_STREAM("Enabling SLAM maps expansion with new keypoints.");
       break;
 
     // Enable the update of the map with new keypoints
@@ -295,6 +303,8 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
     {
       ROS_INFO_STREAM("Saving keypoints maps to PCD.");
+      if (this->LidarSlam.GetMapUpdate() == LidarSlam::MappingMode::NONE)
+        ROS_WARN_STREAM("The initially loaded maps were not modified but are saved anyway.");
       int pcdFormatInt = this->PrivNh.param("maps/export_pcd_format", static_cast<int>(LidarSlam::PCDFormat::BINARY_COMPRESSED));
       LidarSlam::PCDFormat pcdFormat = static_cast<LidarSlam::PCDFormat>(pcdFormatInt);
       if (pcdFormat != LidarSlam::PCDFormat::ASCII &&
@@ -563,6 +573,11 @@ void LidarSlamNode::PublishOutput()
   publishPointCloud(PLANES_MAP, this->LidarSlam.GetMap(LidarSlam::PLANE));
   publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetMap(LidarSlam::BLOB));
 
+  // Keypoints submaps
+  publishPointCloud(EDGES_SUBMAP,  this->LidarSlam.GetTargetSubMap(LidarSlam::EDGE));
+  publishPointCloud(PLANES_SUBMAP, this->LidarSlam.GetTargetSubMap(LidarSlam::PLANE));
+  publishPointCloud(BLOBS_SUBMAP,  this->LidarSlam.GetTargetSubMap(LidarSlam::BLOB));
+
   // Current keypoints
   publishPointCloud(EDGE_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::EDGE));
   publishPointCloud(PLANE_KEYPOINTS, this->LidarSlam.GetKeypoints(LidarSlam::PLANE));
@@ -719,6 +734,7 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/voxel_grid/resolution", VoxelGridResolution)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
   SetSlamParam(double, "slam/voxel_grid/decaying_threshold", VoxelGridDecayingThreshold)
+  SetSlamParam(int,    "slam/voxel_grid/min_frames_per_voxel", VoxelGridMinFramesPerVoxel)
 
   // Helper lambda function to set the sampling mode for each map
   auto SetSamplingMode = [&](std::string paramName, LidarSlam::Keypoint k)
