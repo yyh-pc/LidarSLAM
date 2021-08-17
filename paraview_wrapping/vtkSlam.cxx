@@ -103,7 +103,12 @@ void vtkSlam::Reset()
 {
   this->SlamAlgo->Reset(true);
 
-  // init the output SLAM trajectory
+  // Init the SLAM state (map + pose)
+  if (!this->InitMapPrefix.empty())
+    this->SlamAlgo->LoadMapsFromPCD(this->InitMapPrefix);
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Transform(this->InitPose));
+
+  // Init the output SLAM trajectory
   this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
   auto pts = vtkSmartPointer<vtkPoints>::New();
   this->Trajectory->SetPoints(pts);
@@ -130,6 +135,38 @@ void vtkSlam::Reset()
 
   // Refresh view
   this->Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetInitialMap(const std::string& mapsPathPrefix)
+{
+  this->InitMapPrefix = mapsPathPrefix;
+  if (this->InitMapPrefix.empty())
+    return;
+  if (this->InitMapPrefix.substr(this->InitMapPrefix.find('.') + 1, this->InitMapPrefix.size()) == "pcd")
+    vtkErrorMacro(<< "Could not load the initial map : only the prefix path must be supplied (not the complete path)");
+  this->SlamAlgo->LoadMapsFromPCD(this->InitMapPrefix);
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetInitialPoseTranslation(double x, double y, double z)
+{
+  this->InitPose.x() = x;
+  this->InitPose.y() = y;
+  this->InitPose.z() = z;
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Transform(this->InitPose));
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetInitialPoseRotation(double roll, double pitch, double yaw)
+{
+  this->InitPose(3) = roll;
+  this->InitPose(4) = pitch;
+  this->InitPose(5) = yaw;
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Transform(this->InitPose));
+  this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
@@ -171,7 +208,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   double frameReceptionPOSIXTime = inInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
   double absCurrentOffset = std::abs(this->SlamAlgo->GetSensorTimeOffset());
   double potentialOffset = frameFirstPointTime - frameReceptionPOSIXTime;
-  // We exclude the first frame cause frameReceptionPOSIXTime can be badly set 
+  // We exclude the first frame cause frameReceptionPOSIXTime can be badly set
   if (this->SlamAlgo->GetNbrFrameProcessed() > 0 && (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset))
     this->SlamAlgo->SetSensorTimeOffset(potentialOffset);
 

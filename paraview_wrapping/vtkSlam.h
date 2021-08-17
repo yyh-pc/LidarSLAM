@@ -77,6 +77,12 @@ public:
 
   void Reset();
 
+  // Initialization
+  void SetInitialMap(const std::string& mapsPathPrefix);
+  void SetInitialPoseTranslation(double x, double y, double z);
+  void SetInitialPoseRotation(double roll, double pitch, double yaw);
+
+  // Getters / Setters
   vtkGetMacro(AutoDetectInputArrays, bool)
   vtkSetMacro(AutoDetectInputArrays, bool)
 
@@ -348,6 +354,10 @@ private:
   std::string VerticalCalibArrayName;  ///< Calibration column used to sort laser rings by elevation angle
   double TimeToSecondsFactor;          ///< Coef to apply to TimeArray values to express time in seconds
   double TimeToSecondsFactorSetting;   ///< Duplicated parameter used to store the value set by user
+
+  // SLAM initialization
+  std::string InitMapPrefix; ///< Path prefix of initial maps
+  Eigen::Vector6d InitPose;  ///< Initial pose of the SLAM
 
   // Internal variable to store overlap sampling ratio when advanced return mode is disabled.
   float OverlapSamplingRatio = 0.25;
