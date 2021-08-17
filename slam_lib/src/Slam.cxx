@@ -503,7 +503,7 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) con
 {
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
 
-  // Save keypoints maps
+  // Save keypoint maps
   for (auto k : KeypointTypes)
   {
     if (this->UseKeypoints.at(k))
@@ -1014,8 +1014,8 @@ void Slam::Localization()
       if (this->MapUpdate == MappingMode::NONE)
         this->LocalMaps[k]->BuildSubMapKdTree();
 
-      // Otherwise, we only extract the local sub maps to build a local and
-      // smaller KD-tree
+      // Otherwise, we only extract the local sub maps
+      // to build a local and smaller KD-tree
       else
       {
         if (this->LocalMaps[k]->IsTimeThreshold())
@@ -1025,10 +1025,10 @@ void Slam::Localization()
           IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : clearing old points"));
         }
         // Estimate current keypoints bounding box
-        PointCloud currWordKeypoints;
-        pcl::transformPointCloud(*this->CurrentUndistortedKeypoints[k], currWordKeypoints, this->Tworld.matrix());
+        PointCloud currWorldKeypoints;
+        pcl::transformPointCloud(*this->CurrentUndistortedKeypoints[k], currWorldKeypoints, this->Tworld.matrix());
         Eigen::Vector4f minPoint, maxPoint;
-        pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
+        pcl::getMinMax3D(currWorldKeypoints, minPoint, maxPoint);
 
         // Build submap of all points lying in this bounding box
         // Moving objects are rejected but the constraint is removed
