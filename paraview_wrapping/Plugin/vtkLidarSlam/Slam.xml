@@ -999,6 +999,19 @@
         </Documentation>
       </IntVectorProperty>
 
+      <DoubleVectorProperty name="Decaying threshold"
+                            command="SetVoxelGridDecayingThreshold"
+                            number_of_elements="1"
+                            default_values="-1."
+                            panel_visibility="advanced">
+        <Documentation>
+          Time threshold (in seconds) to deprecate a removable keypoint.
+          This allows the map to be dynamic. Warning: if no keyframe is added during this time
+          (motion is null), the entire removable maps will disappear.
+          -1 to disable this feature.
+        </Documentation>
+      </DoubleVectorProperty>
+
       <DoubleVectorProperty name="Keyframe distance threshold"
                             command="SetKfDistanceThreshold"
                             number_of_elements="1"
@@ -1180,6 +1193,7 @@
 
       <PropertyGroup label="Map parameters">
         <Property name="Mapping mode" />
+        <Property name="Decaying threshold" />
         <Property name="Keyframe distance threshold" />
         <Property name="Keyframe angle threshold" />
         <Property name="Edges map sampling mode" />

@@ -246,6 +246,9 @@ public:
   virtual unsigned int GetMapUpdate();
   virtual void SetMapUpdate(unsigned int mode);
 
+  vtkCustomGetMacro(VoxelGridDecayingThreshold, double)
+  vtkCustomSetMacro(VoxelGridDecayingThreshold, double)
+
   virtual int GetVoxelGridSamplingMode(LidarSlam::Keypoint k);
   virtual void SetVoxelGridSamplingMode(LidarSlam::Keypoint k, int sm);
 
