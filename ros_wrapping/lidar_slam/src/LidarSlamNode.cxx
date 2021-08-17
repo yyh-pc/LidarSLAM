@@ -718,6 +718,7 @@ void LidarSlamNode::SetSlamParameters()
     this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::BLOB, size);
   SetSlamParam(double, "slam/voxel_grid/resolution", VoxelGridResolution)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
+  SetSlamParam(double, "slam/voxel_grid/decaying_threshold", VoxelGridDecayingThreshold)
 
   // Helper lambda function to set the sampling mode for each map
   auto SetSamplingMode = [&](std::string paramName, LidarSlam::Keypoint k)

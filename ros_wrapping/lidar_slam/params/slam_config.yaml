@@ -228,6 +228,7 @@ slam:
     sampling_mode_edges: 2
     sampling_mode_planes: 2
     sampling_mode_blobs: 2
+    decaying_threshold: -1  # [s] Time duration after which to eliminate a not fixed keypoint from the map.
 
   # Keypoint extractor for each LiDAR sensor
   ke:
