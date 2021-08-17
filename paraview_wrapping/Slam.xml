@@ -429,6 +429,57 @@
         <Property name="Number of threads" />
       </PropertyGroup>
 
+      <!-- ============================ Initialization ============================ -->
+      <!-- Path prefix of SLAM maps (if empty, no map is loaded).
+           The files must be pcd.
+           The new maps replace the previous computed ones-->
+      <StringVectorProperty name="Initial map files prefix"
+                            command="SetInitialMap"
+                            number_of_elements="1"
+                            animateable="0"
+                            panel_visibility="advanced">
+        <FileListDomain name="files"/>
+        <Hints>
+          <FileChooser extensions="pcd" file_description="pcd file format" />
+        </Hints>
+        <Documentation>
+          The path prefix of the initial map files.
+
+          3 maps will be searched and loaded if found:
+              path/to/maps/prefix*edges.pcd*
+              path/to/maps/prefix*planes.pcd*
+              path/to/maps/prefix*blobs.pcd*
+        </Documentation>
+      </StringVectorProperty>
+
+      <!-- Reset the pose of the SLAM
+           Warning: a click on the Reset button applies this pose again-->
+      <DoubleVectorProperty name="Initial pose XYZ"
+                            command="SetInitialPoseTranslation"
+                            number_of_elements="3"
+                            default_values="0. 0. 0."
+                            panel_visibility="advanced">
+        <Documentation>
+          Translation elements of the initial SLAM pose in format X, Y, Z
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Initial pose RPY"
+                            command="SetInitialPoseRotation"
+                            number_of_elements="3"
+                            default_values="0. 0. 0."
+                            panel_visibility="advanced">
+        <Documentation>
+          Rotation elements of the initial SLAM pose in format Roll, Pitch, Yaw
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <PropertyGroup label="SLAM initialization">
+        <Property name="Initial map files prefix" />
+        <Property name="Initial pose XYZ" />
+        <Property name="Initial pose RPY" />
+      </PropertyGroup>
+
       <!-- ================ Keypoints extraction Parameters ================ -->
 
       <ProxyProperty name="KeyPointsExtractor"
