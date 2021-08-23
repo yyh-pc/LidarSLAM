@@ -1,102 +1,262 @@
+//==============================================================================
+// Copyright 2019-2020 Kitware, Inc., Kitware SAS
+// Author: Julia Sanchez (Kitware SAS)
+// Creation date: 2021-03-15
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//==============================================================================
+
+#pragma once
+
 #include "LidarSlam/CeresCostFunctions.h" // for residual structure + ceres
 #include "LidarSlam/Utilities.h"
+#include <list>
+#include <cfloat>
+#include <mutex>
 
 namespace LidarSlam
 {
-  
+
 #define SetSensorMacro(name,type) void Set##name (type _arg) { this->name = _arg; }
 #define GetSensorMacro(name,type) type Get##name () const { return this->name; }
 
 namespace SensorConstraints
 {
 
+// ---------------------------------------------------------------------------
 struct WheelOdomMeasurement
 {
   double Time = 0.;
   double Distance = 0.;
 };
 
+// ---------------------------------------------------------------------------
 struct GravityMeasurement
 {
   double Time = 0.;
   Eigen::Vector3d Acceleration = Eigen::Vector3d::Zero();
 };
 
+// ---------------------------------------------------------------------------
 template <typename T>
 class SensorManager
 {
 public:
-  //Setters/Getters
+  SensorManager(const std::string& name = "BaseSensor")
+  : SensorName(name), PreviousIt(Measures.begin()) {}
+
+  SensorManager(double w, double timeOffset, double timeThreshold,
+                unsigned int maxMeas, const std::string& name = "BaseSensor")
+  : TimeOffset(timeOffset),
+    Weight(w),
+    TimeThreshold(timeThreshold),
+    MaxMeasures(maxMeas),
+    SensorName(name),
+    PreviousIt(Measures.begin())
+  {}
+
+  // -----------------Setters/Getters-----------------
+  GetSensorMacro(SensorName, std::string)
+  SetSensorMacro(SensorName, std::string)
+
   GetSensorMacro(Weight, double)
   SetSensorMacro(Weight, double)
 
   GetSensorMacro(TimeOffset, double)
   SetSensorMacro(TimeOffset, double)
 
-  GetSensorMacro(Measures, std::vector<T>)
-  SetSensorMacro(Measures, const std::vector<T>&)
+  GetSensorMacro(TimeThreshold, double)
+  SetSensorMacro(TimeThreshold, double)
+
+  GetSensorMacro(MaxMeasures, unsigned int)
+  void SetMaxMeasures(unsigned int maxMeas)
+  {
+    std::lock_guard<std::mutex> lock(this->Mtx);
+    this->MaxMeasures = maxMeas;
+    while (this->Measures.size() > this->MaxMeasures)
+    {
+      if (this->PreviousIt == this->Measures.begin())
+        ++this->PreviousIt;
+      this->Measures.pop_front();
+    }
+  }
+
+  std::list<T> GetMeasures() const
+  {
+    std::lock_guard<std::mutex> lock(this->Mtx);
+    return this->Measures;
+  }
 
   GetSensorMacro(Residual, CeresTools::Residual)
+
+  // -----------------Basic functions-----------------
+
+  // ------------------
+  // Add one measure at a time in measures list
+  void AddMeasurement(const T& m)
+  {
+    std::lock_guard<std::mutex> lock(this->Mtx);
+    this->Measures.emplace_back(m);
+    if (this->Measures.size() > this->MaxMeasures)
+    {
+      if (this->PreviousIt == this->Measures.begin())
+        ++this->PreviousIt;
+      this->Measures.pop_front();
+    }
+  }
+
+  // ------------------
+  void Reset()
+  {
+    this->ResetResidual();
+    std::lock_guard<std::mutex> lock(this->Mtx);
+    this->Measures.clear();
+    this->PreviousIt = this->Measures.begin();
+    this->TimeOffset = 0.;
+  }
+
+  // ------------------
+  // Check if sensor can be used in optimization
+  // The weight must be not null and the measures list must contain
+  // at leat 2 elements to be able to interpolate
+  bool CanBeUsed()
+  {
+    std::lock_guard<std::mutex> lock(this->Mtx);
+    return this->Weight > 1e-6 && this->Measures.size() > 1;
+  }
+
+  virtual bool ComputeConstraint(double lidarTime, bool verbose = false){return false;};
+
+protected:
+  // ------------------
+  // Reset the current residual
   void ResetResidual()
   {
     this->Residual.Cost.reset();
     this->Residual.Robustifier.reset();
   }
 
-  // Add one measure at a time in measures vector
-  void AddMeasurement(const T& m) {this->Measures.emplace_back(m);}
-  void Reset()
+  // ------------------
+  std::pair<typename std::list<T>::iterator, typename std::list<T>::iterator> GetMeasureBounds(double lidarTime, bool verbose = false)
   {
-    this->ResetResidual();
-    this->Measures.clear();
-    this->PreviousIdx = -1;
-    this->TimeOffset = 0.;
+    // Check if the measurements can be interpolated (or slightly extrapolated)
+    if (lidarTime < this->Measures.front().Time || lidarTime > this->Measures.back().Time + this->TimeThreshold)
+    {
+      if (verbose)
+        PRINT_INFO(std::fixed << std::setprecision(9)
+                   << "\t Measures contained in : [" << this->Measures.front().Time << ","
+                   << this->Measures.back().Time <<"]\n"
+                   << "\t -> " << this->SensorName << " not used"
+                   << std::scientific)
+      return std::make_pair(this->Measures.begin(), this->Measures.begin());
+    }
+
+    // Reset if the timeline has been modified (and if there is memory of a previous pose)
+    if (this->PreviousIt == this->Measures.end() || this->PreviousIt->Time > lidarTime)
+      this->PreviousIt = this->Measures.begin();
+
+    // Get iterator pointing to the first measurement after LiDAR time
+    auto postIt = std::upper_bound(this->PreviousIt,
+                                   this->Measures.end(),
+                                   lidarTime,
+                                   [&](double time, const T& measure) {return time < measure.Time;});
+
+    // If the last measure was taken before Lidar points
+    // extract the two last measures (for extrapolation)
+    if (postIt == this->Measures.end())
+      --postIt;
+
+    // Get iterator pointing to the last measurement before LiDAR time
+    auto preIt = postIt;
+    --preIt;
+
+    // Update the previous iterator for next call
+    this->PreviousIt = preIt;
+
+    // If the time between the 2 measurements is too long
+    // Do not use the current measures
+    if (postIt->Time - preIt->Time > this->TimeThreshold)
+    {
+      if (verbose)
+        PRINT_INFO("\t The two last " << this->SensorName << " measures can not be interpolated (too much time difference)"
+                   << "-> " << this->SensorName << " not used")
+      return std::make_pair(this->Measures.begin(), this->Measures.begin());
+    }
+    return std::make_pair(preIt, postIt);
   }
 
-  // Check if sensor can be used in optimization
-  // The weight must be not null and the measures vector must contain elements
-  bool CanBeUsed() {return this->Weight > 1e-6 && !this->Measures.empty();}
-
 protected:
-  // Index of measurement used for previous frame
-  int PreviousIdx = -1;
+  // Sensor name for output
+  std::string SensorName;
   // Measures stored
-  std::vector<T> Measures;
+  std::list<T> Measures;
+  // Iterator pointing to the last measure used
+  // This allows to keep a time track
+  typename std::list<T>::iterator PreviousIt;
+  // Measures length limit
+  // The oldest measures are forgotten
+  unsigned int MaxMeasures = 1e6;
   // Weight to apply to sensor constraint
   double Weight = 0.;
   // Time offset to make external sensors/Lidar correspondance
   double TimeOffset = 0.;
+  // Time threshold between 2 measures to consider they can be interpolated
+  double TimeThreshold = 0.5;
   // Resulting residual
   CeresTools::Residual Residual;
+  // Mutex to handle the data from outside the library
+  mutable std::mutex Mtx;
 };
 
+// ---------------------------------------------------------------------------
 class WheelOdometryManager : public SensorManager<WheelOdomMeasurement>
 {
 public:
+  WheelOdometryManager(const std::string& name = "Wheel odometer"): SensorManager(name){}
   //Setters/Getters
   GetSensorMacro(PreviousPose, Eigen::Isometry3d)
   SetSensorMacro(PreviousPose, const Eigen::Isometry3d&)
 
+  GetSensorMacro(Relative, bool)
+  SetSensorMacro(Relative, bool)
+
+  GetSensorMacro(RefDistance, double)
+  SetSensorMacro(RefDistance, double)
+
   // Wheel odometry constraint (unoriented)
-  void ComputeWheelOdomConstraint(double lidarTime);
-  // Wheel absolute abscisse constraint (unoriented)
-  void ComputeWheelAbsoluteConstraint(double lidarTime);
+  // Can be relative since last frame or absolute since first pose
+  bool ComputeConstraint(double lidarTime, bool verbose = false) override;
 
 private:
   // Members used when using the relative distance with last estimated pose
   Eigen::Isometry3d PreviousPose = Eigen::Isometry3d::Identity();
-  double PreviousDistance = 0.;
+  double RefDistance = FLT_MAX;
+  // Boolean to indicate whether to compute an absolute constraint (since first frame)
+  // or relative constraint (since last acquired frame)
+  bool Relative = false;
 };
 
+// ---------------------------------------------------------------------------
 class ImuManager : public SensorManager<GravityMeasurement>
 {
 public:
+  ImuManager(const std::string& name = "IMU"): SensorManager(name){}
   //Setters/Getters
   GetSensorMacro(GravityRef, Eigen::Vector3d)
   SetSensorMacro(GravityRef, const Eigen::Vector3d&)
 
   // IMU constraint (gravity)
-  void ComputeGravityConstraint(double lidarTime);
+  bool ComputeConstraint(double lidarTime, bool verbose = false) override;
   // Compute Reference gravity vector from IMU measurements
   void ComputeGravityRef(double deltaAngle);
 

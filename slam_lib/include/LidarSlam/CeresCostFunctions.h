@@ -29,7 +29,7 @@
 //------------------------------------------------------------------------------
 /**
  * \brief Factory to ease the construction of the auto-diff residual objects
- * 
+ *
  * Type: the residual functor type
  * ResidualSize: int, the size of the output residual block
  * ...: int(s), the size(s) of the input parameter block(s)
@@ -59,7 +59,7 @@ namespace
 {
 //------------------------------------------------------------------------------
 /**
- * \brief Build rotation matrix from euler angles.
+ * \brief Build rotation matrix from Euler angles.
  *
  * It estimates R using the Euler-Angle mapping between R^3 and SO(3) :
  *   R(rx, ry, rz) = Rz(rz) * Ry(ry) * Rx(rx)
@@ -228,10 +228,10 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     // The applied isometry will be the linear interpolation between them :
     // (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
     const Isometry3T H = transformInterpolator(Time);
-    
+
     // Transform point with rotation and translation
     const Vector3T Y = H.linear() * X + H.translation();
-    
+
     // Compute residual
     Eigen::Map<Vector3T> residualVec(residual);
     residualVec = A * (Y - P);
@@ -255,13 +255,13 @@ private:
 /**
  * \class OdometerDistanceResidual
  * \brief Cost function to optimize the translation of the affine isometry
- *        transformation (rotation and translation) so that the distance 
+ *        transformation (rotation and translation) so that the distance
  *        from a previous known pose corresponds to an external sensor odometry measure.
  *
  * This function takes one 6D parameters block :
  *   - 3 first parameters to encode translation : X, Y, Z
  *   - [unused] 3 last parameters to encode rotation with euler angles : rX, rY, rZ
- * 
+ *
  * It outputs a 1D residual block.
  */
 struct OdometerDistanceResidual
@@ -305,7 +305,7 @@ private:
  * This function takes one 6D parameters block :
  *   - [unused] 3 first parameters to encode translation : X, Y, Z
  *   - 3 last parameters to encode rotation with euler angles : rX, rY, rZ
- * 
+ *
  * It outputs a 3D residual block.
  */
 struct ImuGravityAlignmentResidual
@@ -322,7 +322,7 @@ struct ImuGravityAlignmentResidual
     using Matrix3T = Eigen::Matrix<T, 3, 3>;
     using Vector3T = Eigen::Matrix<T, 3, 1>;
 
-    // Get rotation part 
+    // Get rotation part
     Matrix3T rot = Utils::RotationMatrixFromRPY(w[3], w[4], w[5]);
 
     // Compute residual

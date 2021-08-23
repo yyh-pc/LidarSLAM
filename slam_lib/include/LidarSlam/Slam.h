@@ -327,20 +327,34 @@ public:
   GetMacro(LocalizationFinalSaturationDistance, double)
   SetMacro(LocalizationFinalSaturationDistance, double)
 
-  // Sensor parameters
-  void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);}
-  double GetWheelOdomWeight() const {return this->WheelOdomManager.GetWeight();}
+  // External Sensor parameters
 
-  void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);}
-  double GetGravityWeight() const {return this->ImuManager.GetWeight();}
-
-  // The time offset must be computed as FrameFirstPointTimestamp - FrameReceptionPOSIXTime
+  // General
+  GetMacro(SensorTimeOffset, double)
   void SetSensorTimeOffset(double timeOffset);
-  double GetSensorTimeOffset() const {return this->ImuManager.GetTimeOffset();}
+
+  GetMacro(SensorTimeThreshold, double)
+  void SetSensorTimeThreshold(double timeOffset);
+
+  GetMacro(SensorMaxMeasures, unsigned int)
+  void SetSensorMaxMeasures(unsigned int max);
+
+  void ClearSensorMeasurements();
+
+  // Odometer
+  double GetWheelOdomWeight() const {return this->WheelOdomManager.GetWeight();}
+  void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);}
+
+  bool GetWheelOdomRelative() const {return this->WheelOdomManager.GetRelative();}
+  void SetWheelOdomRelative(bool relative) {this->WheelOdomManager.SetRelative(relative);}
+
+  void AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om);
+
+  // IMU
+  double GetGravityWeight() const {return this->ImuManager.GetWeight();}
+  void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);}
 
   void AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm);
-  void AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om);
-  void ClearSensorMeasurements();
 
   // ---------------------------------------------------------------------------
   //   Key frames and Maps parameters
@@ -566,16 +580,29 @@ private:
   LocalOptimizer::RegistrationError LocalizationUncertainty;
 
   // Odometry manager
-  // Compute the residual with a weight, a measurements list and
+  // It computes the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
-  // The sensor measurements must be filled and cleared from outside this lib
+  // The odometry measurements must be filled and cleared from outside this lib
   SensorConstraints::WheelOdometryManager WheelOdomManager;
 
   // IMU manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
-  // The sensor measurements must be filled and cleared from outside this lib
+  // The IMU measurements must be filled and cleared from outside this lib
   SensorConstraints::ImuManager ImuManager;
+
+  // Time difference between Lidar's measurements and external sensors'
+  // not null if they are not expressed relatively to the same time reference
+  double SensorTimeOffset = 0.;
+
+  // Maximum time difference (s) between two measurements to
+  // allow the measures interpolation and the integration
+  // of a sensor constraint in the optimization
+  double SensorTimeThreshold = 0.5;
+
+  // Maximum number of sensor measurements stored
+  // Above this number, the oldest measurements are forgotten
+  unsigned int SensorMaxMeasures = 1e6;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters

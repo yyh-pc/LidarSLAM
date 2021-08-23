@@ -196,6 +196,10 @@ void Slam::Reset(bool resetLog)
   for (auto k : KeypointTypes)
     this->LocalizationMatchingResults[k] = KeypointsMatcher::MatchingResults();
 
+  // Reset external sensor managers
+  this->WheelOdomManager.SetRefDistance(FLT_MAX);
+  this->ImuManager.SetGravityRef(Eigen::Vector3d::Zero());
+
   // Reset log history
   if (resetLog)
   {
@@ -217,13 +221,6 @@ void Slam::SetNbThreads(int n)
   // Set number of threads for keypoints extraction
   for (const auto& kv : this->KeyPointsExtractors)
     kv.second->SetNbThreads(n);
-}
-
-//-----------------------------------------------------------------------------
-void Slam::SetSensorTimeOffset(double timeOffset)
-{
-  this->WheelOdomManager.SetTimeOffset(timeOffset);
-  this->ImuManager.SetTimeOffset(timeOffset);
 }
 
 //-----------------------------------------------------------------------------
@@ -255,9 +252,9 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 
   if (this->WheelOdomManager.CanBeUsed() || this->ImuManager.CanBeUsed())
   {
-    IF_VERBOSE(3, Utils::Timer::Init("Sensor constraints computation"));
+    IF_VERBOSE(3, Utils::Timer::Init("External sensor constraints computation"));
     this->ComputeSensorConstraints();
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Sensor constraints computation"));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("External sensor constraints computation"));
   }
 
   // Perform Localization : update Tworld from map and current frame keypoints
@@ -347,8 +344,10 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 void Slam::ComputeSensorConstraints()
 {
   double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  this->WheelOdomManager.ComputeWheelAbsoluteConstraint(currLidarTime);
-  this->ImuManager.ComputeGravityConstraint(currLidarTime);
+  if (this->WheelOdomManager.CanBeUsed())
+    this->WheelOdomManager.ComputeConstraint(currLidarTime, this->Verbosity >= 3);
+  if (this->ImuManager.CanBeUsed())
+    this->ImuManager.ComputeConstraint(currLidarTime, this->Verbosity >= 3);
 }
 
 //-----------------------------------------------------------------------------
@@ -1578,23 +1577,52 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
 }
 
 //==============================================================================
-//   Sensor data setting
+//   External sensors
 //==============================================================================
 
+// Sensor data
+//-----------------------------------------------------------------------------
 void Slam::AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm)
 {
   this->ImuManager.AddMeasurement(gm);
 }
 
+//-----------------------------------------------------------------------------
 void Slam::AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om)
 {
   this->WheelOdomManager.AddMeasurement(om);
 }
 
+//-----------------------------------------------------------------------------
 void Slam::ClearSensorMeasurements()
 {
   this->WheelOdomManager.Reset();
   this->ImuManager.Reset();
+}
+
+// Sensors' parameters
+//-----------------------------------------------------------------------------
+void Slam::SetSensorTimeOffset(double timeOffset)
+{
+  this->WheelOdomManager.SetTimeOffset(timeOffset);
+  this->ImuManager.SetTimeOffset(timeOffset);
+  this->SensorTimeOffset = timeOffset;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetSensorTimeThreshold(double thresh)
+{
+  this->WheelOdomManager.SetTimeThreshold(thresh);
+  this->ImuManager.SetTimeThreshold(thresh);
+  this->SensorTimeThreshold = thresh;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetSensorMaxMeasures(unsigned int max)
+{
+  this->WheelOdomManager.SetMaxMeasures(max);
+  this->ImuManager.SetMaxMeasures(max);
+  this->SensorMaxMeasures = max;
 }
 
 //==============================================================================
