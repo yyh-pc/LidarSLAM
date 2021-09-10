@@ -106,7 +106,7 @@ RollingGrid::PointCloud::Ptr RollingGrid::Get(bool clean) const
       // If all points can be used or if the point
       // does not lie in a moving object, extract it.
       if (!clean || kvIn.second.count > this->MinFramesPerVoxel)
-        pc->emplace_back(kvIn.second.point);
+        pc->push_back(kvIn.second.point);
     }
   }
 
@@ -385,7 +385,7 @@ void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen:
      if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
      {
        for (const auto& kvIn : kvOut.second)
-        this->SubMap->emplace_back(kvIn.second.point);
+        this->SubMap->push_back(kvIn.second.point);
      }
     }
   }
@@ -406,7 +406,7 @@ void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen:
          // Check if enough points lie in the voxel
          // or if the points are fixed before adding it
          if (kvIn.second.count >= this->MinFramesPerVoxel || kvIn.second.point.label == 1)
-          this->SubMap->emplace_back(kvIn.second.point);
+          this->SubMap->push_back(kvIn.second.point);
        }
      }
     }
@@ -428,7 +428,7 @@ void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen:
          {
            // Invert constraint to add the other points
            if (kvIn.second.count < this->MinFramesPerVoxel && kvIn.second.point.label != 1)
-              this->SubMap->emplace_back(kvIn.second.point);
+              this->SubMap->push_back(kvIn.second.point);
          }
        }
       }
