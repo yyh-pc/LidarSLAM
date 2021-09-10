@@ -499,7 +499,7 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) const
+void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat, bool filtered) const
 {
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
 
@@ -507,10 +507,8 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) con
   for (auto k : KeypointTypes)
   {
     if (this->UseKeypoints.at(k))
-      savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k, true),  pcdFormat, true);
+      savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k, filtered),  pcdFormat, true);
   }
-
-  // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints maps saving to PCD"));
 }
