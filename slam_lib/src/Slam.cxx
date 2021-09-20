@@ -1633,7 +1633,8 @@ void Slam::AddLandmarkMeasurement(int id, const SensorConstraints::LandmarkMeasu
     this->LandmarksManagers[id] = SensorConstraints::LandmarkManager(this->LandmarkWeight,
                                                                      this->SensorTimeOffset,
                                                                      this->SensorTimeThreshold,
-                                                                     this->SensorMaxMeasures);
+                                                                     this->SensorMaxMeasures,
+                                                                     this->LandmarkSaturationDistance);
   this->LandmarksManagers[id].AddMeasurement(lm);
 }
 
@@ -1653,7 +1654,8 @@ void Slam::AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const
     this->LandmarksManagers[id] = SensorConstraints::LandmarkManager(this->LandmarkWeight,
                                                                      this->SensorTimeOffset,
                                                                      this->SensorTimeThreshold,
-                                                                     this->SensorMaxMeasures);
+                                                                     this->SensorMaxMeasures,
+                                                                     this->LandmarkSaturationDistance);
   this->LandmarksManagers[id].SetAbsolutePose(absolutePose, absolutePoseCovariance);
 }
 
@@ -1694,6 +1696,14 @@ void Slam::SetLandmarkWeight(double weight)
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetWeight(weight);
   this->LandmarkWeight = weight;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetLandmarkSaturationDistance(float dist)
+{
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.SetSaturationDistance(dist);
+  this->LandmarkSaturationDistance = dist;
 }
 
 //==============================================================================

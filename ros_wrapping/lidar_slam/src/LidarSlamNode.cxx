@@ -936,6 +936,7 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(float,  "external_sensors/max_measures", SensorMaxMeasures)
   SetSlamParam(float,  "external_sensors/time_threshold", SensorTimeThreshold)
   SetSlamParam(float,  "external_sensors/landmark_detector/weight", LandmarkWeight)
+  SetSlamParam(float,  "external_sensors/landmark_detector/saturation_distance", LandmarkSaturationDistance)
   this->PrivNh.getParam("external_sensors/landmark_detector/publish_tags", this->PublishTags);
 
   // Confidence estimators

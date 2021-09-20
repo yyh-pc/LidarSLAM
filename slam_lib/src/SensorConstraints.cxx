@@ -143,8 +143,10 @@ void ImuManager::ComputeGravityRef(double deltaAngle)
 }
 
 // ---------------------------------------------------------------------------
-LandmarkManager::LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas, const std::string& name)
-                : SensorManager(w, timeOffset, timeThresh, maxMeas, name)
+LandmarkManager::LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+                                 double sat, const std::string& name)
+                : SensorManager(w, timeOffset, timeThresh, maxMeas, name),
+                  SaturationDistance(sat)
 {}
 
 // ---------------------------------------------------------------------------
@@ -153,6 +155,7 @@ LandmarkManager::LandmarkManager(const LandmarkManager& lmManager)
                                   lmManager.GetTimeOffset(),
                                   lmManager.GetTimeThreshold(),
                                   lmManager.GetMaxMeasures(),
+                                  lmManager.GetSaturationDistance(),
                                   lmManager.GetSensorName())
 {
   this->Measures = lmManager.GetMeasures();
@@ -167,6 +170,7 @@ void LandmarkManager::operator=(const LandmarkManager& lmManager)
   this->TimeOffset = lmManager.GetTimeOffset();
   this->TimeThreshold = lmManager.GetTimeThreshold();
   this->MaxMeasures = lmManager.GetMaxMeasures();
+  this->SaturationDistance = lmManager.GetSaturationDistance();
   this->Measures = lmManager.GetMeasures();
   this->PreviousIt = this->Measures.begin();
 }
@@ -241,7 +245,24 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
   // The user must play with the weight parameter to get the best result depending on the tag detection accuracy.
   // this->Residual.Cost = CeresCostFunctions::LandmarkResidual::Create(this->RelativeTransform, this->AbsolutePose);
   this->Residual.Cost = CeresCostFunctions::LandmarkPositionResidual::Create(this->RelativeTransform, this->AbsolutePose);
-  this->Residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
+  // Use a robustifier to limit the contribution of an outlier tag detection (the tag may have been moved)
+  // Tukey loss applied on residual square:
+  //   rho(residual^2) = a^2 / 3 * ( 1 - (1 - residual^2 / a^2)^3 )   for residual^2 <= a^2,
+  //   rho(residual^2) = a^2 / 3                                      for residual^2 >  a^2.
+  // a is the scaling parameter of the function
+  // See http://ceres-solver.org/nnls_modeling.html#theory for details
+  auto* robustifier = new ceres::TukeyLoss(this->SaturationDistance);
+
+  // Weight the contribution of the given match by its reliability
+  // WARNING : in CERES version < 2.0.0, the Tukey loss is badly implemented, so we have to correct the weight by a factor 2
+  // See https://github.com/ceres-solver/ceres-solver/commit/6da364713f5b78ddf15b0e0ad92c76362c7c7683 for details
+  // This is important for covariance scaling
+  #if (CERES_VERSION_MAJOR < 2)
+    this->Residual.Robustifier.reset(new ceres::ScaledLoss(robustifier, 2.0 * this->Weight, ceres::TAKE_OWNERSHIP));
+  // If Ceres version >= 2.0.0, the Tukey loss is corrected.
+  #else
+    this->Residual.Robustifier.reset(new ceres::ScaledLoss(robustifier, this->Weight, ceres::TAKE_OWNERSHIP));
+  #endif
 
   return true;
 }

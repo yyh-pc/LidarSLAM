@@ -279,7 +279,8 @@ class LandmarkManager: public SensorManager<LandmarkMeasurement>
 public:
   LandmarkManager(const std::string& name = "Tag detector") : SensorManager(name){}
   LandmarkManager(const LandmarkManager& lmManager);
-  LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas, const std::string& name = "Tag detector");
+  LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+                  double sat, const std::string& name = "Tag detector");
 
   void operator=(const LandmarkManager& lmManager);
 
@@ -288,6 +289,9 @@ public:
   // or will be detected online, averaging the previous detections
   GetSensorMacro(AbsolutePose, Eigen::Vector6d)
   GetSensorMacro(AbsolutePoseCovariance, Eigen::Matrix6d)
+
+  GetSensorMacro(SaturationDistance, float)
+  SetSensorMacro(SaturationDistance, float)
 
   // Set the initial absolute pose
   // NOTE : the absolute pose can be updated if UpdateAbsolutePose is called
@@ -313,6 +317,10 @@ private:
   // This is used to average the pose in case the absolute poses
   // were not supplied initially and are updated (cf. UpdateAbsolutePose)
   int Count = 0;
+  // Threshold distance to not take into account the landmark constraint
+  // (The tag may have been moved or the SLAM has drifted too much)
+  // This distance is used in a robustifier to weight the landmark residuals
+  float SaturationDistance = 5.f;
 };
 
 } // end of SensorConstraints namespace

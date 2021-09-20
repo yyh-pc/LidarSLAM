@@ -99,6 +99,8 @@ external_sensors:
     weight: 0.               # Weight to apply to one landmark constraint in the local optimization
                              # 0 disables the feature
                              # It is to be compared to each geometric constraint defined by a keypoint match
+    saturation_distance: 0.5 # [m] Saturation distance beyond which the landmark constraint
+                             # is not taken into account in the local optimization
     # Two constraints are usable: the relative constraint and the absolute constraint
     # The absolute constraint requires loading the landmarks absolute pose in the global frame initially
     # whereas the relative constraint uses the landmarks as common keypoints.
