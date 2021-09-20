@@ -419,10 +419,19 @@ void vtkSlam::SetSensorData(const std::string& fileName)
 
   // Extract the table.
   vtkTable* csvTable = reader->GetOutput();
-  if (csvTable->GetRowData()->HasArray("time")
-   && csvTable->GetRowData()->HasArray("odom"))
+
+  // Check if time exists and extract it
+  if (!csvTable->GetRowData()->HasArray("time"))
+    return;
+  auto arrayTime = csvTable->GetRowData()->GetArray("time");
+  if (arrayTime->GetNumberOfTuples() == 0)
+    return;
+  // Set the maximum number of measurements stored in the SLAM filter
+  this->SlamAlgo->SetSensorMaxMeasures(arrayTime->GetNumberOfTuples());
+
+  // Process wheel odometry measures
+  if (csvTable->GetRowData()->HasArray("odom"))
   {
-    auto arrayTime = csvTable->GetRowData()->GetArray("time");
     auto arrayOdom = csvTable->GetRowData()->GetArray("odom");
     for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
     {
@@ -431,15 +440,12 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       odomMeasurement.Distance = arrayOdom->GetTuple1(i);
       this->SlamAlgo->AddWheelOdomMeasurement(odomMeasurement);
     }
-    if (arrayTime->GetNumberOfTuples() > 0)
-      std::cout << "Odometry data successfully loaded " << std::endl;
+    std::cout << "Odometry data successfully loaded " << std::endl;
   }
-  if (csvTable->GetRowData()->HasArray("time")
-   && csvTable->GetRowData()->HasArray("acc_x")
+  if (csvTable->GetRowData()->HasArray("acc_x")
    && csvTable->GetRowData()->HasArray("acc_y")
    && csvTable->GetRowData()->HasArray("acc_z"))
   {
-    auto arrayTime = csvTable->GetRowData()->GetArray("time");
     auto arrayAccX = csvTable->GetRowData()->GetArray("acc_x");
     auto arrayAccY = csvTable->GetRowData()->GetArray("acc_y");
     auto arrayAccZ = csvTable->GetRowData()->GetArray("acc_z");
@@ -452,8 +458,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       gravityMeasurement.Acceleration.z() = arrayAccZ->GetTuple1(i);
       this->SlamAlgo->AddGravityMeasurement(gravityMeasurement);
     }
-    if (arrayTime->GetNumberOfTuples() > 0)
-      std::cout << "IMU data successfully loaded " << std::endl;
+    std::cout << "IMU data successfully loaded " << std::endl;
   }
 }
 
