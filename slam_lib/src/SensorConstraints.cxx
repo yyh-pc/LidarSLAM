@@ -144,9 +144,10 @@ void ImuManager::ComputeGravityRef(double deltaAngle)
 
 // ---------------------------------------------------------------------------
 LandmarkManager::LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
-                                 double sat, const std::string& name)
+                                 double sat, bool positionOnly, const std::string& name)
                 : SensorManager(w, timeOffset, timeThresh, maxMeas, name),
-                  SaturationDistance(sat)
+                  SaturationDistance(sat),
+                  PositionOnly(positionOnly)
 {}
 
 // ---------------------------------------------------------------------------
@@ -156,6 +157,7 @@ LandmarkManager::LandmarkManager(const LandmarkManager& lmManager)
                                   lmManager.GetTimeThreshold(),
                                   lmManager.GetMaxMeasures(),
                                   lmManager.GetSaturationDistance(),
+                                  lmManager.GetPositionOnly(),
                                   lmManager.GetSensorName())
 {
   this->Measures = lmManager.GetMeasures();
@@ -171,6 +173,7 @@ void LandmarkManager::operator=(const LandmarkManager& lmManager)
   this->TimeThreshold = lmManager.GetTimeThreshold();
   this->MaxMeasures = lmManager.GetMaxMeasures();
   this->SaturationDistance = lmManager.GetSaturationDistance();
+  this->PositionOnly = lmManager.GetPositionOnly();
   this->Measures = lmManager.GetMeasures();
   this->PreviousIt = this->Measures.begin();
 }
@@ -243,8 +246,10 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
   // Build constraint
   // NOTE : the covariances are not used because the uncertainty is not comparable with common keypoint constraints
   // The user must play with the weight parameter to get the best result depending on the tag detection accuracy.
-  // this->Residual.Cost = CeresCostFunctions::LandmarkResidual::Create(this->RelativeTransform, this->AbsolutePose);
-  this->Residual.Cost = CeresCostFunctions::LandmarkPositionResidual::Create(this->RelativeTransform, this->AbsolutePose);
+  if (this->PositionOnly)
+    this->Residual.Cost = CeresCostFunctions::LandmarkPositionResidual::Create(this->RelativeTransform, this->AbsolutePose);
+  else
+    this->Residual.Cost = CeresCostFunctions::LandmarkResidual::Create(this->RelativeTransform, this->AbsolutePose);
   // Use a robustifier to limit the contribution of an outlier tag detection (the tag may have been moved)
   // Tukey loss applied on residual square:
   //   rho(residual^2) = a^2 / 3 * ( 1 - (1 - residual^2 / a^2)^3 )   for residual^2 <= a^2,

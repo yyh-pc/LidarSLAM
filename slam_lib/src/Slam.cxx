@@ -1634,7 +1634,8 @@ void Slam::AddLandmarkMeasurement(int id, const SensorConstraints::LandmarkMeasu
                                                                      this->SensorTimeOffset,
                                                                      this->SensorTimeThreshold,
                                                                      this->SensorMaxMeasures,
-                                                                     this->LandmarkSaturationDistance);
+                                                                     this->LandmarkSaturationDistance,
+                                                                     this->LandmarkPositionOnly);
   this->LandmarksManagers[id].AddMeasurement(lm);
 }
 
@@ -1655,7 +1656,8 @@ void Slam::AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const
                                                                      this->SensorTimeOffset,
                                                                      this->SensorTimeThreshold,
                                                                      this->SensorMaxMeasures,
-                                                                     this->LandmarkSaturationDistance);
+                                                                     this->LandmarkSaturationDistance,
+                                                                     this->LandmarkPositionOnly);
   this->LandmarksManagers[id].SetAbsolutePose(absolutePose, absolutePoseCovariance);
 }
 
@@ -1704,6 +1706,14 @@ void Slam::SetLandmarkSaturationDistance(float dist)
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetSaturationDistance(dist);
   this->LandmarkSaturationDistance = dist;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetLandmarkPositionOnly(bool positionOnly)
+{
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.SetPositionOnly(positionOnly);
+  this->LandmarkPositionOnly = positionOnly;
 }
 
 //==============================================================================

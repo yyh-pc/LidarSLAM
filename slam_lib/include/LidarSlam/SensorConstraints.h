@@ -280,7 +280,7 @@ public:
   LandmarkManager(const std::string& name = "Tag detector") : SensorManager(name){}
   LandmarkManager(const LandmarkManager& lmManager);
   LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
-                  double sat, const std::string& name = "Tag detector");
+                  double sat, bool positionOnly = true, const std::string& name = "Tag detector");
 
   void operator=(const LandmarkManager& lmManager);
 
@@ -292,6 +292,9 @@ public:
 
   GetSensorMacro(SaturationDistance, float)
   SetSensorMacro(SaturationDistance, float)
+
+  GetSensorMacro(PositionOnly, bool)
+  SetSensorMacro(PositionOnly, bool)
 
   // Set the initial absolute pose
   // NOTE : the absolute pose can be updated if UpdateAbsolutePose is called
@@ -321,6 +324,9 @@ private:
   // (The tag may have been moved or the SLAM has drifted too much)
   // This distance is used in a robustifier to weight the landmark residuals
   float SaturationDistance = 5.f;
+  // The constraint created can use the whole position (orientation + position) -> false
+  // or only the position -> true (if the orientation is not reliable enough)
+  bool PositionOnly = true;
 };
 
 } // end of SensorConstraints namespace

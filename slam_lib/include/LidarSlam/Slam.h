@@ -363,6 +363,9 @@ public:
   GetMacro(LandmarkSaturationDistance, float)
   void SetLandmarkSaturationDistance(float dist);
 
+  GetMacro(LandmarkPositionOnly, bool)
+  void SetLandmarkPositionOnly(bool positionOnly);
+
   GetMacro(LandmarkConstraintLocal, bool)
   SetMacro(LandmarkConstraintLocal, bool)
 
@@ -621,6 +624,9 @@ private:
   bool LandmarkConstraintLocal = false;
   // Saturation distance beyond which the tags are not taken into account in the optimization
   float LandmarkSaturationDistance = 5.f;
+  // Boolean to check whether to use the whole tag pose (position + orientation)
+  // or only the position to create a constraint in the optimization
+  bool LandmarkPositionOnly = true;
 
   // Time difference between Lidar's measurements and external sensors'
   // not null if they are not expressed relatively to the same time reference
