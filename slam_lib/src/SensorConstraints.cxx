@@ -142,5 +142,109 @@ void ImuManager::ComputeGravityRef(double deltaAngle)
   this->GravityRef.normalize();
 }
 
+// ---------------------------------------------------------------------------
+LandmarkManager::LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas, const std::string& name)
+                : SensorManager(w, timeOffset, timeThresh, maxMeas, name)
+{}
+
+// ---------------------------------------------------------------------------
+LandmarkManager::LandmarkManager(const LandmarkManager& lmManager)
+                : LandmarkManager(lmManager.GetWeight(),
+                                  lmManager.GetTimeOffset(),
+                                  lmManager.GetTimeThreshold(),
+                                  lmManager.GetMaxMeasures(),
+                                  lmManager.GetSensorName())
+{
+  this->Measures = lmManager.GetMeasures();
+  this->PreviousIt = this->Measures.begin();
+}
+
+// ---------------------------------------------------------------------------
+void LandmarkManager::operator=(const LandmarkManager& lmManager)
+{
+  this->SensorName = lmManager.GetSensorName();
+  this->Weight = lmManager.GetWeight();
+  this->TimeOffset = lmManager.GetTimeOffset();
+  this->TimeThreshold = lmManager.GetTimeThreshold();
+  this->MaxMeasures = lmManager.GetMaxMeasures();
+  this->Measures = lmManager.GetMeasures();
+  this->PreviousIt = this->Measures.begin();
+}
+
+// ---------------------------------------------------------------------------
+void LandmarkManager::SetAbsolutePose(const Eigen::Vector6d& pose, const Eigen::Matrix6d& cov = Eigen::Matrix6d::Identity())
+{
+  this->AbsolutePose = pose;
+  this->AbsolutePoseCovariance = cov;
+  this->HasAbsolutePose = true;
+}
+
+// ---------------------------------------------------------------------------
+void LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform)
+{
+  std::lock_guard<std::mutex> lock(this->Mtx);
+  if (!this->RelativeTransformUpdated)
+    return;
+  // If it is the first time the tag is detected
+  // or if the last time the tag has been seen was long ago
+  // (re)set the absolute pose using the current base transform and
+  // the relative transform measured
+  auto itEnd = this->Measures.end();
+  --itEnd;
+  if (!this->HasAbsolutePose || itEnd->Time - (--itEnd)->Time > this->TimeThreshold)
+  {
+    this->AbsolutePose = Utils::IsometryToXYZRPY(baseTransform * this->RelativeTransform);
+    this->HasAbsolutePose = true;
+    this->Count = 1;
+  }
+  // If it has already been seen, the absolute pose is updated averaging the computed poses
+  else
+  {
+    Eigen::Vector6d newAbsolutePose = Utils::IsometryToXYZRPY(baseTransform * this->RelativeTransform);
+    this->AbsolutePose = ( (this->AbsolutePose * this->Count) + newAbsolutePose ) / (this->Count + 1);
+    ++this->Count;
+  }
+  this->RelativeTransformUpdated = false;
+}
+
+// ---------------------------------------------------------------------------
+bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
+{
+  this->ResetResidual();
+
+  if (!this->CanBeUsed())
+    return false;
+
+  std::lock_guard<std::mutex> lock(this->Mtx);
+  // Compute the two closest measures to current Lidar frame
+  lidarTime -= this->TimeOffset;
+  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  if (bounds.first == bounds.second)
+    return false;
+  // Interpolate landmark relative pose at LiDAR timestamp
+  this->RelativeTransform = LinearInterpolation(bounds.first->TransfoRelative, bounds.second->TransfoRelative, lidarTime, bounds.first->Time, bounds.second->Time);
+
+  // Notify the relative transform is updated to update the absolute reference tag pose
+  // when the sensor absolute pose will be estimated (if required).
+  this->RelativeTransformUpdated = true;
+
+  // Check if the absolute pose has been computed
+  // If not, the next tag detection is waited
+  if (!this->HasAbsolutePose)
+  {
+    PRINT_WARNING("\t No absolute pose, waiting for next detection")
+    return false;
+  }
+
+  // Build constraint
+  // NOTE : the covariances are not used because the uncertainty is not comparable with common keypoint constraints
+  // The user must play with the weight parameter to get the best result depending on the tag detection accuracy.
+  // this->Residual.Cost = CeresCostFunctions::LandmarkResidual::Create(this->RelativeTransform, this->AbsolutePose);
+  this->Residual.Cost = CeresCostFunctions::LandmarkPositionResidual::Create(this->RelativeTransform, this->AbsolutePose);
+  this->Residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
+
+  return true;
+}
+
 } // end of SensorConstraints namespace
 } // end of LidarSlam namespace

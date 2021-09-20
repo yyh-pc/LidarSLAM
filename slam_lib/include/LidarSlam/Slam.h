@@ -356,6 +356,17 @@ public:
 
   void AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm);
 
+  // Landmark detector
+  GetMacro(LandmarkWeight, double)
+  void SetLandmarkWeight(double weight);
+
+  GetMacro(LandmarkConstraintLocal, bool)
+  SetMacro(LandmarkConstraintLocal, bool)
+
+  void AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const Eigen::Matrix6d& absolutePoseCovariance);
+
+  void AddLandmarkMeasurement(int id, const SensorConstraints::LandmarkMeasurement& lm);
+
   // ---------------------------------------------------------------------------
   //   Key frames and Maps parameters
   // ---------------------------------------------------------------------------
@@ -590,6 +601,21 @@ private:
   // taking account of the acquisition time correspondance
   // The IMU measurements must be filled and cleared from outside this lib
   SensorConstraints::ImuManager ImuManager;
+
+  // Landmarks manager
+  // Each landmark has its own manager and is identified by its ID.
+  // This map can be initialized from outside the lib if the absolute poses of the tags are known
+  // If not, it will be filled at each new detection.
+  // The managers compute the residuals with a weight, measurements lists and
+  // taking account of the acquisition time correspondance
+  // The tag measurements must be filled and cleared from outside this lib
+  std::unordered_map<int, SensorConstraints::LandmarkManager> LandmarksManagers;
+  // Variable to store the landmark weight to init correctly the landmark managers
+  float LandmarkWeight = 0.f;
+  // Boolean to choose whether to compute the reference pose of
+  // the tag locally from observations when updating the model (true)
+  // or to use the absolute tag pose supplied at init (false)
+  bool LandmarkConstraintLocal = false;
 
   // Time difference between Lidar's measurements and external sensors'
   // not null if they are not expressed relatively to the same time reference

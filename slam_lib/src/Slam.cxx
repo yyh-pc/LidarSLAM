@@ -250,7 +250,17 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->ComputeEgoMotion();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
 
-  if (this->WheelOdomManager.CanBeUsed() || this->ImuManager.CanBeUsed())
+  bool lmCanBeUsed = false;
+  for (auto& idLm : this->LandmarksManagers)
+  {
+    if (idLm.second.CanBeUsed())
+    {
+      lmCanBeUsed = true;
+      break;
+    }
+  }
+
+  if (this->WheelOdomManager.CanBeUsed() || this->ImuManager.CanBeUsed() || lmCanBeUsed)
   {
     IF_VERBOSE(3, Utils::Timer::Init("External sensor constraints computation"));
     this->ComputeSensorConstraints();
@@ -344,10 +354,16 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 void Slam::ComputeSensorConstraints()
 {
   double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  if (this->WheelOdomManager.CanBeUsed())
-    this->WheelOdomManager.ComputeConstraint(currLidarTime, this->Verbosity >= 3);
-  if (this->ImuManager.CanBeUsed())
-    this->ImuManager.ComputeConstraint(currLidarTime, this->Verbosity >= 3);
+  if (this->WheelOdomManager.ComputeConstraint(currLidarTime, this->Verbosity >= 3))
+    PRINT_VERBOSE(3, "Adding wheel odometry constraint")
+  if (this->ImuManager.ComputeConstraint(currLidarTime, this->Verbosity >= 3))
+    PRINT_VERBOSE(3, "Adding IMU constraint")
+  for (auto& idLm : this->LandmarksManagers)
+  {
+    PRINT_VERBOSE(3, "Checking state of tag #" << idLm.first)
+    if (idLm.second.ComputeConstraint(currLidarTime, this->Verbosity >= 3))
+      PRINT_VERBOSE(3, "\t Adding constraint for tag #" << idLm.first)
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -1129,6 +1145,15 @@ void Slam::Localization()
     if (this->ImuManager.GetResidual().Cost)
       optimizer.AddResidual(this->ImuManager.GetResidual());
 
+    // Add available landmark constraints
+    for (auto& idLm : this->LandmarksManagers)
+    {
+      // Add landmark constraint
+      // if constraint has been successfully created
+      if (idLm.second.GetResidual().Cost)
+        optimizer.AddResidual(idLm.second.GetResidual());
+    }
+
     // Run LM optimization
     ceres::Solver::Summary summary = optimizer.Solve();
     PRINT_VERBOSE(4, summary.BriefReport());
@@ -1183,7 +1208,15 @@ void Slam::UpdateMapsUsingTworld()
   PRINT_VERBOSE(3, "Motion since last keyframe " << this->KfCounter << ": "
                                                  << transSinceLastKf << " m, "
                                                  << Utils::Rad2Deg(rotSinceLastKf) << " °");
-
+  // Update the tags if requested
+  if (this->LandmarkConstraintLocal)
+  {
+    for (auto& idLm : this->LandmarksManagers)
+    {
+      PRINT_VERBOSE(3, "Check if reference pose of tag #" << idLm.first << " must be updated");
+      idLm.second.UpdateAbsolutePose(this->Tworld);
+    }
+  }
   // Check if current frame is a new keyframe
   // If we don't have enough keyframes yet, the threshold is linearly lowered
   constexpr double MIN_KF_NB = 10.;
@@ -1594,10 +1627,34 @@ void Slam::AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement
 }
 
 //-----------------------------------------------------------------------------
+void Slam::AddLandmarkMeasurement(int id, const SensorConstraints::LandmarkMeasurement& lm)
+{
+  if (!this->LandmarksManagers.count(id))
+    this->LandmarksManagers[id] = SensorConstraints::LandmarkManager(this->LandmarkWeight,
+                                                                     this->SensorTimeOffset,
+                                                                     this->SensorTimeThreshold,
+                                                                     this->SensorMaxMeasures);
+  this->LandmarksManagers[id].AddMeasurement(lm);
+}
+
+//-----------------------------------------------------------------------------
 void Slam::ClearSensorMeasurements()
 {
   this->WheelOdomManager.Reset();
   this->ImuManager.Reset();
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.Reset();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const Eigen::Matrix6d& absolutePoseCovariance)
+{
+  if (!this->LandmarksManagers.count(id))
+    this->LandmarksManagers[id] = SensorConstraints::LandmarkManager(this->LandmarkWeight,
+                                                                     this->SensorTimeOffset,
+                                                                     this->SensorTimeThreshold,
+                                                                     this->SensorMaxMeasures);
+  this->LandmarksManagers[id].SetAbsolutePose(absolutePose, absolutePoseCovariance);
 }
 
 // Sensors' parameters
@@ -1606,6 +1663,8 @@ void Slam::SetSensorTimeOffset(double timeOffset)
 {
   this->WheelOdomManager.SetTimeOffset(timeOffset);
   this->ImuManager.SetTimeOffset(timeOffset);
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.SetTimeOffset(timeOffset);
   this->SensorTimeOffset = timeOffset;
 }
 
@@ -1614,6 +1673,8 @@ void Slam::SetSensorTimeThreshold(double thresh)
 {
   this->WheelOdomManager.SetTimeThreshold(thresh);
   this->ImuManager.SetTimeThreshold(thresh);
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.SetTimeThreshold(thresh);
   this->SensorTimeThreshold = thresh;
 }
 
@@ -1622,7 +1683,17 @@ void Slam::SetSensorMaxMeasures(unsigned int max)
 {
   this->WheelOdomManager.SetMaxMeasures(max);
   this->ImuManager.SetMaxMeasures(max);
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.SetMaxMeasures(max);
   this->SensorMaxMeasures = max;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetLandmarkWeight(double weight)
+{
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.SetWeight(weight);
+  this->LandmarkWeight = weight;
 }
 
 //==============================================================================

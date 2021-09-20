@@ -34,6 +34,15 @@ namespace SensorConstraints
 {
 
 // ---------------------------------------------------------------------------
+struct LandmarkMeasurement
+{
+  double Time = 0.;
+  // Relative transform between the tracking frame and the tag
+  Eigen::Isometry3d TransfoRelative = Eigen::Isometry3d::Identity();
+  Eigen::Matrix6d Covariance = Eigen::Matrix6d::Identity();
+};
+
+// ---------------------------------------------------------------------------
 struct WheelOdomMeasurement
 {
   double Time = 0.;
@@ -262,6 +271,48 @@ public:
 
 private:
   Eigen::Vector3d GravityRef = Eigen::Vector3d::Zero();
+};
+
+// ---------------------------------------------------------------------------
+class LandmarkManager: public SensorManager<LandmarkMeasurement>
+{
+public:
+  LandmarkManager(const std::string& name = "Tag detector") : SensorManager(name){}
+  LandmarkManager(const LandmarkManager& lmManager);
+  LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas, const std::string& name = "Tag detector");
+
+  void operator=(const LandmarkManager& lmManager);
+
+  // Setters/Getters
+  // The absolute pose can be set from outside the lib
+  // or will be detected online, averaging the previous detections
+  GetSensorMacro(AbsolutePose, Eigen::Vector6d)
+  GetSensorMacro(AbsolutePoseCovariance, Eigen::Matrix6d)
+
+  // Set the initial absolute pose
+  // NOTE : the absolute pose can be updated if UpdateAbsolutePose is called
+  void SetAbsolutePose(const Eigen::Vector6d& pose, const Eigen::Matrix6d& cov);
+
+  // Landmark constraint
+  bool ComputeConstraint(double lidarTime, bool verbose = false) override;
+
+  // Update the absolute pose in case the tags are used as relative constraints
+  // (i.e, no absolute poses of the tags are supplied)
+  void UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform);
+
+private:
+  // Absolute pose of the landmark in the global frame
+  Eigen::Vector6d AbsolutePose = Eigen::Vector6d::Zero();
+  Eigen::Matrix6d AbsolutePoseCovariance = Eigen::Matrix6d::Zero();
+  Eigen::Isometry3d RelativeTransform = Eigen::Isometry3d::Identity();
+  // Boolean to check the absolute pose has been loaded
+  // or if the tag has already been seen
+  bool HasAbsolutePose = false;
+  bool RelativeTransformUpdated = false;
+  // Counter to check how many frames the tag was seen on
+  // This is used to average the pose in case the absolute poses
+  // were not supplied initially and are updated (cf. UpdateAbsolutePose)
+  int Count = 0;
 };
 
 } // end of SensorConstraints namespace
