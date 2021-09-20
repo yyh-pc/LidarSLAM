@@ -19,7 +19,7 @@ Since 2020, this SLAM plugin is natively included and available in [LidarView](h
 
 ## Installing LidarView or one of its derivative with SLAM support
 
-Pre-built binaries of LidarView with this SLAM plugin are available for download [here](https://drive.google.com/drive/folders/1etSkoaR_863MYyRNXgv6PFTiUcggBAcx?usp=sharing).
+Pre-built binaries of LidarView with this SLAM plugin are available for download [here](https://drive.google.com/drive/folders/1ouNd3KD2p62a0XqRu4eJ2Tus6LJ-LBE8?usp=sharing).
 
 As these binaries may not always be up-to-date with the latest SLAM release, you may want to compile LidarView with SLAM support from source.
 Follow [LidarView's Developer Guide](https://gitlab.kitware.com/LidarView/lidarview-core/-/blob/master/Documentation/LidarView_Developer_Guide.md) instructions to build LidarView on Windows or Linux.
