@@ -28,7 +28,7 @@ It has been successfully tested on data from several common LiDAR sensors:
 - RoboSense (RS-LiDAR-16)
 - Hesai (Pandar128)
 
-Have a look at our [SLAM demo video](https://drive.google.com/file/d/1r74UKsQBaHpn1uugsH7_ZndLtfh5aMyE/view?usp=sharing)!
+Have a look at our [SLAM demo video](https://vimeo.com/524848891)!
 
 This codebase is under active development. If you're interested by new features, new sensors' support or any project that could be using this SLAM, do not hesitate to contact us at kitware@kitware.com.
 
@@ -148,4 +148,4 @@ Currently, all features are not available in ParaView plugin. Features such as G
 
 This *LidarSlamPlugin* is natively included in [LidarView](https://www.paraview.org/lidarview/). For more detailed information on how to enable and use SLAM filter in LidarView, see [paraview_wrapping/doc/How_to_SLAM_with_LidarView.md](paraview_wrapping/doc/How_to_SLAM_with_LidarView.md).
 
-Pre-built binaries of LidarView with this SLAM plugin are available for download [here](https://drive.google.com/drive/folders/1etSkoaR_863MYyRNXgv6PFTiUcggBAcx?usp=sharing).
+Pre-built binaries of LidarView with this SLAM plugin are available for download [here](https://drive.google.com/drive/folders/1ouNd3KD2p62a0XqRu4eJ2Tus6LJ-LBE8?usp=sharing).
