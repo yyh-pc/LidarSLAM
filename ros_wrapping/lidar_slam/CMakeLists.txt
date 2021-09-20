@@ -27,6 +27,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   nav_msgs
   message_generation
+  apriltag_ros
 )
 
 ################################################
@@ -58,7 +59,7 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
   LIBRARIES LidarSlam
-  CATKIN_DEPENDS roscpp tf2_ros pcl_ros pcl_conversions std_msgs geometry_msgs sensor_msgs nav_msgs message_runtime
+  CATKIN_DEPENDS roscpp tf2_ros pcl_ros pcl_conversions std_msgs geometry_msgs sensor_msgs nav_msgs message_runtime apriltag_ros
 )
 
 ###########
@@ -72,7 +73,7 @@ add_subdirectory(../.. ${CMAKE_BINARY_DIR}/slam)
 include_directories(${catkin_INCLUDE_DIRS})
 
 # Add LiDAR SLAM ROS node
-add_executable(lidar_slam_node 
+add_executable(lidar_slam_node
   src/LidarSlamNode.cxx
   src/LidarSlamNode_main.cxx
 )

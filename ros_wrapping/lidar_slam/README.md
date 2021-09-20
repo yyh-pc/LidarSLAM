@@ -106,7 +106,7 @@ At any time, a pose message (`PoseWithCovarianceStamped`) can be sent through th
 If GPS use is enabled, *LidarSlamNode* subscribes to the GPS odometry on topic '*gps_odom*', and records the most recent GPS positions. To use GPS data, we transform GPS WGS84 fix into cartesian space using UTM projection. This can be used to estimate calibration between GPS and SLAM trajectories, or post-optimize SLAM trajectory with pose graph optimization (PGO).
 
 To use GPS data :
-- enable gps use : `gps/use_gps = true`:
+- enable gps use : `external_sensors/gps/use_gps = true`:
 - enable logging of previous poses, covariances and keypoints : `slam/logging_timeout != 0`
 
 **NOTE** : If GPS odometry expresses the pose of a *gps_frame* different from *tracking_frame*, please ensure a valid static TF is beeing broadcasted.

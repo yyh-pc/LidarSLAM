@@ -490,5 +490,80 @@ private:
   const Vector6d AbsolutePoseRef;
 };
 
+//------------------------------------------------------------------------------
+struct Rotate {
+  Rotate(const Eigen::Matrix3d& rotation): Rotation(rotation) {}
+
+  template <typename T>
+  bool operator()(const T* const poseEuler, T* residual) const
+  {
+    using Matrix3T = Eigen::Matrix<T, 3, 3>;
+    using Vector3T = Eigen::Matrix<T, 3, 1>;
+
+    Matrix3T rot = this->Rotation.cast<T>();
+    // Get translation part of the pose
+    Eigen::Map<const Vector3T> xyz(&poseEuler[0]);
+    // Rotate XYZ coordinates
+    // The translation is not needed as it won't impact the Jacobian
+    residual[0] = rot.row(0) * xyz;
+    residual[1] = rot.row(1) * xyz;
+    residual[2] = rot.row(2) * xyz;
+
+    // Compute rotation matrix of current pose from Euler angles (RPY convention)
+    Matrix3T R = Utils::RotationMatrixFromRPY(poseEuler[3], poseEuler[4], poseEuler[5]);
+    // Compute new rotation matrix relative to rotated pose
+    Matrix3T Rtot = rot * R;
+    // Extract Euler angles of new rotated pose
+    residual[3] = ceres::atan2(Rtot(2, 1), Rtot(2, 2));
+    residual[4] = -ceres::asin(Rtot(2, 0));
+    residual[5] = ceres::atan2(Rtot(1, 0), Rtot(0, 0));
+    return true;
+  }
+
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(Rotate, 6, 6)
+
+private:
+  // Rotation to transform covariance
+  const Eigen::Matrix3d Rotation;
+};
+
 } // end of namespace CeresCostFunctions
+
+namespace CeresTools
+{
+//------------------------------------------------------------------------------
+/*!
+ * @brief Rotate a covariance to change the reference frame
+ *        Theory : the variables of the pose X represented in frame F1 are associated with a covariance C
+ *                 If we want to express the pose X in a new reference frame F2, we apply the function f to X
+ *                 The covariance associated to f(X) (pose expressed in frame F2) is JCJ^T (J being the Jacobian of the f function)
+ * @param[in] pose : pose associated to the covariance
+ * @param[in] covariance : covariance matrix to rotate
+ * @param[in] rotation : 3x3 rotation matrix to apply
+ */
+inline Eigen::Matrix<double, 6, 6> RotateCovariance(Eigen::Matrix<double, 6, 1>& pose, const Eigen::Matrix<double, 6, 6>& covariance, const Eigen::Matrix3d& rotation)
+{
+  ceres::CostFunction* F = new ceres::AutoDiffCostFunction<CeresCostFunctions::Rotate, 6, 6>(new CeresCostFunctions::Rotate(rotation));
+  ceres::Problem problem;
+  problem.AddResidualBlock(F, nullptr, pose.data());
+
+  double cost = 0.0;
+  ceres::CRSMatrix jacobian;
+  problem.Evaluate(ceres::Problem::EvaluateOptions(), &cost, nullptr, nullptr, &jacobian);
+  Eigen::Matrix<double, 6, 6> J;
+  // convert CRSMatrix to Eigen matrix
+  std::vector<double> values = jacobian.values;
+  std::vector<int> rows = jacobian.rows;
+  std::vector<int> cols = jacobian.cols;
+  int nRows = jacobian.num_rows;
+  for (int i = 0; i < nRows; ++i)
+  {
+    for (int j = rows[i]; j < rows[i+1]; ++j)
+      J(i, cols[j]) = values[j];
+  }
+  return J * covariance * J.inverse();
+}
+} // end of namespace CeresTools
+
 } // end of LidarSlam namespace

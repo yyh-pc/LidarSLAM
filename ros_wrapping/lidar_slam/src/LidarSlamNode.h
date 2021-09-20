@@ -29,6 +29,8 @@
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <lidar_slam/SlamCommand.h>
 #include <lidar_slam/Confidence.h>
+#include <apriltag_ros/AprilTagDetection.h>
+#include <apriltag_ros/AprilTagDetectionArray.h>
 
 // SLAM
 #include <LidarSlam/Slam.h>
@@ -37,7 +39,7 @@ class LidarSlamNode
 {
 public:
 
-  using PointS = LidarSlam::Slam::Point;    
+  using PointS = LidarSlam::Slam::Point;
   using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM
 
   //----------------------------------------------------------------------------
@@ -93,6 +95,13 @@ public:
 
   //----------------------------------------------------------------------------
   /*!
+   * @brief     Optional tag detection callback, adding a landmark relative pose to the SLAM
+   * @param[in] msg april tag node output message
+   */
+  void TagCallback(const apriltag_ros::AprilTagDetectionArray& tagInfo);
+
+  //----------------------------------------------------------------------------
+  /*!
    * @brief     Set SLAM pose from external guess.
    * @param[in] msg The pose to use.
    *
@@ -122,7 +131,7 @@ protected:
   //----------------------------------------------------------------------------
   /*!
    * @brief Publish SLAM outputs as requested by user.
-   * 
+   *
    * It is possible to send :
    *  - pose and covariance as Odometry msg or TF
    *  - extracted keypoints from current frame
@@ -139,10 +148,29 @@ protected:
 
   //----------------------------------------------------------------------------
   /*!
+   * @brief Get and fill landmarks managers with absolute pose information
+   *        provided by the user in a csv file.
+   *        The fields must be : idx, x, y, z, roll, pitch, yaw, cov0, ..., cov35
+   *        The delimiters can be "," ";" " " "/t"
+   *        /!\ order matters
+   *        A header line can be added
+   */
+  void LoadLandmarks(const std::string& path);
+
+  //----------------------------------------------------------------------------
+  /*!
    * @brief Run GPS/SLAM calibration from recorded GPS and SLAM poses, and
    *        publish static TF to link OdometryFrameId to GPS frame.
    */
   void GpsSlamCalibration();
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief Build an id for the april tag output message
+   *        if it gives the info of one landmark, the id is the one of this landMark
+   *        if it gives the info of a tag bundle, the id is built as [idN [...] id1 id0]
+   */
+  int BuildId(const std::vector<int>& ids);
 
   //----------------------------------------------------------------------------
   /*!
@@ -172,6 +200,15 @@ protected:
   tf2_ros::TransformListener TfListener;
   tf2_ros::TransformBroadcaster TfBroadcaster;
   tf2_ros::StaticTransformBroadcaster StaticTfBroadcaster;
+
+  // External sensors
+  // Multithreaded reception of sensor data
+  std::shared_ptr<ros::AsyncSpinner> ExternalSpinnerPtr;
+  ros::CallbackQueue ExternalQueue;
+  // Landmarks
+  bool UseTags = false;
+  ros::Subscriber LandmarksSub;
+  bool PublishTags = false;
 
   // Optional use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization (PGO).
   bool UseGps = false;                          ///< Enable GPS data logging for Pose Graph Optimization or GPS/SLAM calibration.

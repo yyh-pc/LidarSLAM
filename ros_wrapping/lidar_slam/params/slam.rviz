@@ -54,7 +54,7 @@ Visualization Manager:
       Value: true
     - Class: rviz/TF
       Enabled: true
-      Frame Timeout: 15
+      Frame Timeout: 1.
       Frames:
         All Enabled: false
         base_link:

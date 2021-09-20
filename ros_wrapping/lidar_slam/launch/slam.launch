@@ -5,6 +5,7 @@
   <arg name="outdoor" default="true" doc="Decide which set of parameters to use"/>
   <arg name="rviz" default="true" doc="Visualize results with RViz."/>
   <arg name="gps" default="false" doc="If true, use GPS data to calibrate SLAM output. Otherwise, provide calibration."/>
+  <arg name="tags_topic" default="tag_detections" doc="topic from which to get the tag measurements"/>
 
   <!-- LiDAR pointclouds conversions args. These are only used to generate
        approximate point-wise timestamps if 'time' field is not usable).
@@ -19,7 +20,7 @@
   <group if="$(arg rviz)">
     <node pkg="rviz" type="rviz" name="rviz" args="-d $(find lidar_slam)/params/slam.rviz"/>
   </group>
-  
+
   <!-- Velodyne points conversion -->
   <node name="velodyne_conversion" pkg="lidar_conversions" type="velodyne_conversion_node" output="screen">
     <param name="rpm" value="$(arg rpm)"/>
@@ -31,6 +32,7 @@
     <rosparam if="$(arg outdoor)" file="$(find lidar_slam)/params/slam_config_outdoor.yaml" command="load"/>
     <rosparam unless="$(arg outdoor)" file="$(find lidar_slam)/params/slam_config_indoor.yaml" command="load"/>
     <param name="gps/use_gps" value="$(arg gps)"/>
+    <remap from="tag_detections" to="$(arg tags_topic)"/>
   </node>
 
   <!-- Launch GPS/UTM conversions nodes -->
