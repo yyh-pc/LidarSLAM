@@ -126,7 +126,7 @@ protected:
    * @param[in] lidarFrameId The input LiDAR pointcloud frame_id.
    * @param[in] lidarDeviceId The numerical identifier of the LiDAR sensor.
    */
-  void UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint8_t lidarDeviceId);
+  bool UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint8_t lidarDeviceId);
 
   //----------------------------------------------------------------------------
   /*!

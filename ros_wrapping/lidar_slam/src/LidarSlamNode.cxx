@@ -203,7 +203,8 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
     this->LidarSlam.SetSensorTimeOffset(potentialOffset);
 
   // Update TF from BASE to LiDAR
-  this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id);
+  if (!this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id))
+    return;
 
   // Set the SLAM main input frame at first position
   this->Frames.insert(this->Frames.begin(), cloudS_ptr);
@@ -226,7 +227,8 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
   }
 
   // Update TF from BASE to LiDAR for this device
-  this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id);
+  if (!this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id))
+    return;
 
   // Add new frame to SLAM input frames
   this->Frames.push_back(cloudS_ptr);
@@ -726,7 +728,7 @@ void LidarSlamNode::PoseGraphOptimization()
 //==============================================================================
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint8_t lidarDeviceId)
+bool LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint8_t lidarDeviceId)
 {
   // If tracking frame is different from input frame, get TF from LiDAR to BASE
   if (lidarFrameId != this->TrackingFrameId)
@@ -736,7 +738,10 @@ void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uin
     Eigen::Isometry3d baseToLidar;
     if (Utils::Tf2LookupTransform(baseToLidar, this->TfBuffer, this->TrackingFrameId, lidarFrameId))
       this->LidarSlam.SetBaseToLidarOffset(baseToLidar, lidarDeviceId);
+    else
+      return false;
   }
+  return true;
 }
 
 //------------------------------------------------------------------------------
