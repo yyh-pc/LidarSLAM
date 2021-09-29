@@ -61,6 +61,9 @@ find_package(Ceres REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common kdtree registration io)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
+#We do not want VTK for now, FIX WIN32 command too long issue
+#PCL is linked finds VTK in paraview/src rather than paraview/build
+list(FILTER PCL_LIBRARIES EXCLUDE REGEX "VTK::.*")
 
 # Find optional g2o (only used for pose graph optimization)
 option(ENABLE_g2o "Use G2O, necessary for pose graph optimization." ON)
