@@ -52,7 +52,7 @@ default:
     - Invoke-CmdScript "${vcvarsall_script_location}/vcvarsall.bat" $architecture
   variables:
     # Paraview only supports MSVC 14 (2015) and Ninja generator yet
-    vcvarsall_script_location: 'C:/Program Files (x86)/Microsoft Visual Studio 14.0/VC'
+    vcvarsall_script_location: 'C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Auxiliary/Build'
     architecture: x86_amd64
     cmake_option_GENERATOR: -GNinja
 
