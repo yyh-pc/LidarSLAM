@@ -36,6 +36,7 @@ list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_
 option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
 if (SLAM_PARAVIEW_PLUGIN)
   # Find ParaView
+  include(GNUInstallDirs) #Required
   find_package(ParaView REQUIRED)
   # As the PV plugin is a shared library, we also need to ensure that the core
   # SLAM lib is compatible with position independent code.
