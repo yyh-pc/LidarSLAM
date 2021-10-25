@@ -366,6 +366,9 @@ public:
   GetMacro(LandmarkPositionOnly, bool)
   void SetLandmarkPositionOnly(bool positionOnly);
 
+  GetMacro(LandmarkCovarianceRotation, bool)
+  void SetLandmarkCovarianceRotation(bool rotate);
+
   GetMacro(LandmarkConstraintLocal, bool)
   SetMacro(LandmarkConstraintLocal, bool)
 
@@ -627,6 +630,10 @@ private:
   // Boolean to check whether to use the whole tag pose (position + orientation)
   // or only the position to create a constraint in the optimization
   bool LandmarkPositionOnly = true;
+  // Boolean to decide whether to rotate the covariance
+  // during measures interpolation or not. Covariances are only used
+  // in pose graph optimization, not in local optimization
+  bool LandmarkCovarianceRotation = true;
 
   // Time difference between Lidar's measurements and external sensors'
   // not null if they are not expressed relatively to the same time reference

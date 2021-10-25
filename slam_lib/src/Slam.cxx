@@ -1719,6 +1719,14 @@ void Slam::SetLandmarkPositionOnly(bool positionOnly)
   this->LandmarkPositionOnly = positionOnly;
 }
 
+//-----------------------------------------------------------------------------
+void Slam::SetLandmarkCovarianceRotation(bool rotate)
+{
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.SetCovarianceRotation(rotate);
+  this->LandmarkCovarianceRotation = rotate;
+}
+
 //==============================================================================
 //   Keypoints extraction parameters setting
 //==============================================================================
