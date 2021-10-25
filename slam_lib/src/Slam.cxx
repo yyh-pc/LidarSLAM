@@ -372,6 +372,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                     Eigen::Isometry3d& gpsToSensorOffset,
                                     const std::string& g2oFileName)
 {
+  PRINT_ERROR("Pose graph optimization with GPS data has been disabled");
+  #if 0
   #ifdef USE_G2O
   IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
   IF_VERBOSE(3, Utils::Timer::Init("PGO : optimization"));
@@ -499,6 +501,7 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
   UNUSED(gpsPositions); UNUSED(gpsCovariances); UNUSED(gpsToSensorOffset); UNUSED(g2oFileName);
   PRINT_ERROR("SLAM PoseGraphOptimization requires G2O, but it was not found.");
   #endif  // USE_G2O
+  #endif
 }
 
 //-----------------------------------------------------------------------------
