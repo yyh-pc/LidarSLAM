@@ -166,6 +166,36 @@ rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 4"    # If the st
 ...  # Run 2nd real test or bag file
 ```
 
+## Optional Landmarks use
+
+### Local optimization
+
+If tags use is enabled, *LidarSlamNode* subscribes to the tag odometry on topic '*tag_detections*', and records the most recent tag relative poses.
+
+One can use landmarks with a camera to detect them. The use conditions are the following :
+1. The landmarks info must come under the shape of `apriltag_ros` messages.
+2. The default reception topic is `tag_detections`.
+3. The landmark detector (e.g. a camera) transform relatively to *tracking_frame* must be supplied as a `TF2 static transform`.
+4. The parameter `use_tags` must be set to `true`.
+5. Log enough tag measurements so an interpolation can be performed to synchronize them with the Lidar. `max_measures >= N`, with N being the number of the newest tag detections that must be stored so that when the SLAM needs a synchronized measure it finds two bounding measures in the N ones. It mostly depends on the memory capacity and the camera frequency.
+
+***WARNING***: A virtual package of apriltag_ros exists in this wrapping for compilation issue and must be ignored if one wants to use the actual apriltag_ros package.
+
+**NOTE** : You can specify the tag topic directly in the launch command with the argument : `tags_topic:="your_tag_topic"`.
+
+Then, the lidar_slam node will receive the tag detection messages and a constraint will be built to be included in the local optimization together with the internal geometric constraints.
+
+Various relative parameters are available :
+1. `weight` : floating value to mitigate the tag impact on the optimization relatively to geometric matches.
+2. `position_only=true` : only use the tags' positions and not the orientations provided by the detector. Orientation is usually less accurate.
+3. `saturation_distance` : reject the measurements that seem clearly wrong relatively to the geometric matches.
+4. `publish_tags=true` : publish the tag as TF2 transform for visualization purposes mostly (parameter ).
+5. `landmarks_file_path` : name of a file to load, to initially set absolute poses of the tags. The tag constraints are built relatively to these absolute reference poses and they will never be modified along iterations. If no file is loaded, the reference poses in the constraints are computed using previous detections and are refined along iterations or reset if the tag is not seen in a while. Note that if a file is loaded in mapping mode and some drift appears, it can lead to some jumps and a map distortion. The file format must be csv with one header line : *id,x,y,z,roll,pitch,yaw,cov0,[...],cov35*.
+
+All these parameters are described in the supplied config files.
+
+***WARNING***: Please make sure no error occured in the file loading step in the terminal output before supplying data.
+
 ## About the published TF tree
 
 Here is an example of the complete TF tree that can be maintained by different nodes as well as descriptions of each frame (default frame names) :
@@ -177,6 +207,7 @@ utm
       └─ odom
          └─ base_link
             ├─ lidar
+            ├─ landmark_detector
             └─ gps
 ```
 
@@ -186,4 +217,5 @@ utm
 - **odom**: origin of the SLAM. The TF `map -> odom` can be published by a custom node, by `lidar_slam/lidar_slam_node` node (in case of GPS/SLAM auto-calibration or PGO), or manually set with tf2 static publishers in [`launch/slam.launch`](launch/slam.launch) (in case of pre-defined calibration).
 - **base_link**: current pose computed by SLAM algorithm (here `base_link` is the tracking frame). The TF `odom -> base_link` can be published by `lidar_slam/lidar_slam_node` node.
 - **lidar**: pose of the LiDAR sensor on the moving base. The TF `base_link -> lidar` should be published by a `tf2_ros/static_transform_publisher` node.
+- **landmark_detector**: pose of the landmark detector on the moving base. The TF `base_link -> landmark_detector` must be published by a `tf2_ros/static_transform_publisher` node.
 - **gps**: pose of the GPS sensor on the moving base. The TF `base_link -> gps` should be published by a `tf2_ros/static_transform_publisher` node.
