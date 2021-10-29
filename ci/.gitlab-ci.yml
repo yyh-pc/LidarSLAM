@@ -77,7 +77,7 @@ default:
     - cmake
       $cmake_option_GENERATOR
       -DCMAKE_BUILD_TYPE=Release
-      -DBUILD_SHARED_LIBS=ON
+      -DBUILD_SHARED_LIBS=OFF
       $slam_cmake_option_Eigen_DIR
       $slam_cmake_option_Ceres_DIR
       $slam_cmake_option_nanoflann_DIR
