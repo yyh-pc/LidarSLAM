@@ -25,6 +25,11 @@ set(SLAM_INSTALL_INCLUDE_DIR "include" CACHE STRING "Directory where to install 
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_DIR}")
 
+# MSVC enforce MT
+if(WIN32 AND MSVC)
+	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+endif()
+
 #-------------------------
 #  Find dependencies
 #-------------------------
