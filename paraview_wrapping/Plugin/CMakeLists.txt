@@ -5,8 +5,8 @@ endif()
 # Create Plugin
 paraview_add_plugin(LidarSlamPlugin 
   VERSION ${LidarSlam_VERSION}
-  MODULES LidarSlamPluginMod
-  MODULE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/LidarSlamPluginMod/vtk.module"
+  MODULES vtkLidarSlam
+  MODULE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/vtkLidarSlam/vtk.module"
   DOCUMENTATION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doc/"
   MODULE_ARGS
     LICENSE_DESTINATION "${LV_INSTALL_INCLUDE_DIR}" #wip Temporary fix

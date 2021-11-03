@@ -1,5 +1,5 @@
 NAME
-  LidarSlamPluginMod
+  vtkLidarSlam
 DEPENDS
   VTK::CommonColor
   VTK::CommonComputationalGeometry
