@@ -568,7 +568,7 @@
                             default_values="5."
                             panel_visibility="advanced">
         <Documentation>
-          Max distance allowed between a keypoint and its neighbors from the
+          Max distance (in meters) allowed between a keypoint and its neighbors from the
           previous frame to build an ICP match
         </Documentation>
       </DoubleVectorProperty>
@@ -621,7 +621,7 @@
                             default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
-          Max RMSE allowed between neighborhood and its fitted line model to
+          Max RMSE (in meters) allowed between neighborhood and its fitted line model to
           keep only accurate models
         </Documentation>
       </DoubleVectorProperty>
@@ -678,7 +678,7 @@
                             default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
-          Max RMSE allowed between neighborhood and its fitted plane model to
+          Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
           keep only accurate models
         </Documentation>
       </DoubleVectorProperty>
@@ -799,7 +799,7 @@
                             default_values="5."
                             panel_visibility="advanced">
         <Documentation>
-          Max distance allowed between a keypoint and its neighbors from the map
+          Max distance (in meters) allowed between a keypoint and its neighbors from the map
           to build an ICP match
         </Documentation>
       </DoubleVectorProperty>
@@ -852,7 +852,7 @@
                             default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
-          Max RMSE allowed between neighborhood and its fitted line model to
+          Max RMSE (in meters) allowed between neighborhood and its fitted line model to
           keep only accurate models
         </Documentation>
       </DoubleVectorProperty>
@@ -909,7 +909,7 @@
                             default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
-          Max RMSE allowed between neighborhood and its fitted plane model to
+          Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
           keep only accurate models
         </Documentation>
       </DoubleVectorProperty>
@@ -1025,7 +1025,7 @@
                             default_values="0.5"
                             panel_visibility="advanced">
         <Documentation>
-          Minimum distance to travel since last keyframe to add a new one.
+          Minimum distance (in meters) to travel since last keyframe to add a new one.
           Only keyframes' points are added to the map.
         </Documentation>
       </DoubleVectorProperty>
@@ -1128,7 +1128,7 @@
                             default_values="0.3"
                             panel_visibility="advanced">
         <Documentation>
-          Minimum size of a leaf when downsampling the edges map using
+          Minimum size of a leaf (in meters) when downsampling the edges map using
           a voxel grid filter. It should not be too big or some high
           frequency geometric information will be lost. It should not
           be too low or the geometric information will be too local and
@@ -1142,7 +1142,7 @@
                             default_values="0.6"
                             panel_visibility="advanced">
         <Documentation>
-          Minimum size of a leaf when downsampling the planes map using
+          Minimum size of a leaf (in meters) when downsampling the planes map using
           a voxel grid filter. It should not be too big or some high
           frequency geometric information will be lost. It should not
           be too low or the geometric information will be too local and
@@ -1156,7 +1156,7 @@
                             default_values="0.3"
                             panel_visibility="advanced">
         <Documentation>
-          Minimum size of a leaf when downsampling the blobs map using
+          Minimum size of a leaf (in meters) when downsampling the blobs map using
           a voxel grid filter. It should not be too big or some high
           frequency geometric information will be lost. It should not
           be too low or the geometric information will be too local and
@@ -1191,7 +1191,7 @@
                             default_values="10."
                             panel_visibility="advanced">
         <Documentation>
-          Resolution of a voxel of the rolling grid (meters per voxel).
+          Resolution of a voxel of the rolling grid (in meters per voxel).
           It should not be too big or too much points will be considered when
           trying to match the frame at the current position.
           This does not impact accuracy but only speed.
