@@ -267,6 +267,8 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization"));
 
   // Compute and check pose confidence estimators
+  // Must be set before maps update because the overlap computation
+  // requires the current KdTree. This KdTree is reset in the maps update.
   if (this->OverlapSamplingRatio > 0 || this->TimeWindowDuration > 0)
   {
     IF_VERBOSE(3, Utils::Timer::Init("Confidence estimators computation"));

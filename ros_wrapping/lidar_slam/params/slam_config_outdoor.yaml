@@ -198,7 +198,7 @@ slam:
   # Confidence estimators on pose output
   confidence:
     overlap:                     # Estimate how much the current scan is well registered on the current maps.
-      sampling_ratio: 0.         # [0-1] Ratio of points to compute overlap on to save some time.
+      sampling_ratio: 0.33       # [0-1] Ratio of points to compute overlap on to save some time.
                                  # 1 uses all points, 0.5 uses 1 point over 2, etc., 0 disables overlap computation.
     motion_limits:               # Physical constraints on motion to check pose credibility.
       acceleration: [.inf, .inf] # [linear_acc (m/s2), angular_acc (°/s2)] Acceleration limits.

@@ -21,13 +21,13 @@ Wrapping for Kitware LiDAR-only SLAM. It can also use GPS data to publish SLAM o
 
 The SLAM node subscribes to one or several topics of LiDAR pointclouds, and computes current pose of the tracked frame relative to the fixed odometry frame. It can output various data, such as SLAM pose (as Odometry msg or TF), keypoint maps, etc.
 
-SLAM node supports massive configuration from ROS parameter server (even if default values are already provided). An example of configuration file can be found in [`params/slam_config.yaml`](params/slam_config.yaml). All parameters have to be set as private parameters.
+SLAM node supports massive configuration from ROS parameter server (even if default values are already provided). Examples of yaml configuration files can be found in [`params/`](params/). All parameters have to be set as private parameters.
 
 To start only raw LiDAR SLAM, just start *lidar_slam_node*:
 ```bash
 rosrun lidar_slam lidar_slam_node
 ```
-If you want to specify parameters, you should consider using a launchfile.
+If you want to specify parameters, you should consider using a launchfile. One launch file is provided in the folder [`launch/`](launch/) (see after for detailed usage).
 
 ### More advanced usage
 
@@ -64,7 +64,7 @@ SLAM outputs can also be configured out to publish :
 - keypoints maps as *sensor_msgs/PointCloud2* on topics '*maps/{edges,planes,blobs}*';
 - Current target keypoints maps (i.e submaps) as *sensor_msgs/PointCloud2* on topics '*submaps/{edges,planes,blobs}*';
 - registered and undistorted point cloud from current frame, in odometry frame, as *sensor_msgs/PointCloud2* on topic '*slam_registered_points*';
-- confidence estimations on pose output, as *lidar_slam/Confidence* custom message on topic '*slam_confidence*'. It contains the pose covariance, an overlap estimation, the number of matched keypoints and a binary estimator to check motion limitations.
+- confidence estimations on pose output, as *lidar_slam/Confidence* custom message on topic '*slam_confidence*'. It contains the pose covariance, an overlap estimation, the number of matched keypoints, a binary estimator to check motion limitations and the computation time.
 
 UTM/GPS conversion node can output SLAM pose as a *gps_common/GPSFix* message on topic '*slam_fix*'.
 

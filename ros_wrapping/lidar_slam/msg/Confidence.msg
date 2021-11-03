@@ -22,6 +22,9 @@ float32 overlap
 # Bad values are lower than 50
 int16 nb_matches
 
-# This value indicates if the estimated pose 
+# This value indicates if the estimated pose
 # respects the specified physical constraints on velocity and acceleration
 bool comply_motion_limits
+
+# This value indicates the computation time from data reception to pose output
+float32 computation_time

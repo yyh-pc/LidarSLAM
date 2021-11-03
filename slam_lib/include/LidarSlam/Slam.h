@@ -219,6 +219,8 @@ public:
   SetMacro(LoggingStorage, PointCloudStorageType)
   GetMacro(LoggingStorage, PointCloudStorageType)
 
+  GetMacro(Latency, double)
+
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
   // ---------------------------------------------------------------------------

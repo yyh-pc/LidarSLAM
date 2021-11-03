@@ -612,6 +612,7 @@ void LidarSlamNode::PublishOutput()
     confidenceMsg.header.stamp = ros::Time(odomToBase.time);
     confidenceMsg.header.frame_id = this->OdometryFrameId;
     confidenceMsg.overlap = this->LidarSlam.GetOverlapEstimation();
+    confidenceMsg.computation_time = this->LidarSlam.GetLatency();
     auto covar = this->LidarSlam.GetTransformCovariance();
     std::copy(covar.begin(), covar.end(), confidenceMsg.covariance.begin());
     confidenceMsg.nb_matches = this->LidarSlam.GetTotalMatchedKeypoints();
