@@ -31,6 +31,8 @@ If you want to specify parameters, you should consider using a launchfile.
 
 ### More advanced usage
 
+#### Detailed pipeline
+
 SLAM is often used with a multi-sensor system, for navigation or mapping purposes. Therefore, for easier fusion procedure, it can be useful to output SLAM pose in an other frame than LiDAR sensor's or as a world GPS coordinate. In that case, consider using the given launchfile :
 - To start SLAM when replaying rosbag file, run :
 ```bash
@@ -66,6 +68,17 @@ SLAM outputs can also be configured out to publish :
 UTM/GPS conversion node can output SLAM pose as a *gps_common/GPSFix* message on topic '*slam_fix*'.
 
 **NOTE** : It is possible to track any *tracking_frame* in *odometry_frame*, using a pointcloud expressed in an *lidar_frame*. However, please ensure that a valid TF tree is beeing published to link *lidar_frame* to *tracking_frame*.
+
+#### Online configuration
+
+##### Map update modes
+At any time, commands `lidar_slam/SlamCommand/DISABLE_SLAM_MAP_UPDATE`, `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_EXPANSION` or `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_UPDATE` can be published to '*slam_command*' topic to change SLAM map update mode.
+-DISABLE_SLAM_MAP_UPDATE : when an initial map is loaded, it is kept untouched through the SLAM process.
+-ENABLE_SLAM_MAP_EXPANSION : when an initial map is loaded, its points are remained untouched but new points can be added if they lay in an unexplored area
+-ENABLE_SLAM_MAP_UPDATE : the map is updated at any time
+
+##### Set pose
+At any time, a pose message (`PoseWithCovarianceStamped`) can be sent through the topic `set_slam_pose` to reset the current pose
 
 ## Optional GPS use
 
@@ -114,9 +127,9 @@ rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 2"  # Trigger PGO
 
 ### Running SLAM on same zone at different times (e.g. refining/aggregating map or running localization only on fixed map)
 
-#### Enabling/disabling SLAM map udpate
+#### Changing SLAM map udpate mode
 
-At any time, command `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_UPDATE` or `lidar_slam/SlamCommand/DISABLE_SLAM_MAP_UPDATE` can be published to '*slam_command*' topic to enable or disable SLAM map update. During normal SLAM behavior, map update is enabled, which means SLAM performs keypoints registration in the odometry frame to aggregate previous frames to be able to run localization in this local map. However, it is possibe to disable this map update and to run localization only in the fixed keypoints map. This can be useful when the map has been pre-optimized with PGO and we don't want to pollute it with unreliable new frames.
+At any time, commands `lidar_slam/SlamCommand/DISABLE_SLAM_MAP_UPDATE`, `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_EXPANSION` or `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_UPDATE` can be published to '*slam_command*' topic to change SLAM map update mode. During normal SLAM behavior, map update is enabled, which means SLAM performs keypoints registration in the odometry frame to aggregate previous frames to be able to run localization in this local map. However, it is possible to disable completely this map update and to run localization only in the fixed keypoints map (loaded initially) or to keep the initial map untouched but to add keypoints laying in not explored areas (expansion mode).
 
 #### Setting SLAM pose from GPS pose guess
 
