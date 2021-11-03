@@ -1,0 +1,15 @@
+#####################################
+#     SLAM evaluation parameters    #
+#####################################
+
+# Path to the folder containing the reference results to compare with
+ref_path: ""
+# Path to the folder where to store the results
+res_path: ""
+
+# Thresholds on one pose comparison with reference
+time_threshold: 0.005    # [s] Maximum tolerated time difference to consider the test succeeded
+angle_threshold: 5       # [°] Maximum tolerated anle difference to consider the test succeeded
+position_threshold: 0.01 # [m] Maximum tolerated position difference to consider the test succeeded
+
+verbose: false
