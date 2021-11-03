@@ -21,6 +21,11 @@ default:
       echo "slam_cmake_option_g2o_DIR=$slam_cmake_option_g2o_DIR"
       echo "slam_cmake_option_ParaView_DIR=$slam_cmake_option_ParaView_DIR"
       echo "slam_cmake_option_Qt5_DIR=$slam_cmake_option_Qt5_DIR"
+      echo "slam_cmake_option_ZLIB_LIB=$slam_cmake_option_ZLIB_LIB"
+      echo "slam_cmake_option_ZLIB_INC=$slam_cmake_option_ZLIB_INC"
+      echo "slam_cmake_option_PNG_LIB=$slam_cmake_option_PNG_LIB"
+      echo "slam_cmake_option_PNG_PNG_INC=$slam_cmake_option_PNG_PNG_INC"
+      echo "slam_cmake_option_PYTHON=$slam_cmake_option_PYTHON"
 
 # Windows specific configuration
 .windows_runner_config:
@@ -72,7 +77,7 @@ default:
     - cmake
       $cmake_option_GENERATOR
       -DCMAKE_BUILD_TYPE=Release
-      -DBUILD_SHARED_LIBS=ON
+      -DBUILD_SHARED_LIBS=OFF
       $slam_cmake_option_Eigen_DIR
       $slam_cmake_option_Ceres_DIR
       $slam_cmake_option_nanoflann_DIR
@@ -149,6 +154,11 @@ linux_ros_wrapping:
       $slam_cmake_option_g2o_DIR
       $slam_cmake_option_ParaView_DIR
       $slam_cmake_option_Qt5_DIR
+      $slam_cmake_option_ZLIB_LIB
+      $slam_cmake_option_ZLIB_INC
+      $slam_cmake_option_PNG_LIB
+      $slam_cmake_option_PNG_PNG_INC
+      $slam_cmake_option_PYTHON
       $CI_PROJECT_DIR
     - cmake --build $build_dir -j 4
 

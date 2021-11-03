@@ -1,25 +1,24 @@
-set(SLAM_INSTALL_PARAVIEW_PLUGIN_DIR ${SLAM_INSTALL_LIBRARY_DIR} CACHE STRING "Directory where to install Paraview LidarSlamPlugin")
+cmake_minimum_required(VERSION 3.16)
+project(LidarSlamPlugin  C CXX)
 
-set(ServerManagerSources
-  vtkSlam.cxx
-  vtkSlam.h
-  vtkSlamManager.cxx
-  vtkSlamManager.h
-  vtkSpinningSensorKeypointExtractor.cxx
-  vtkSpinningSensorKeypointExtractor.h)
+paraview_plugin_scan(
+  PLUGIN_FILES      "${CMAKE_CURRENT_LIST_DIR}/Plugin/paraview.plugin"
+  ENABLE_BY_DEFAULT ON #You can use this instead of the variables above
+  PROVIDES_PLUGINS  plugins
+  REQUIRES_MODULES  required_modules)
 
-set(ServerManagerXML
-  Slam.xml)
+foreach (module IN LISTS required_modules)
+  if (NOT TARGET "${module}")
+    message(FATAL_ERROR "LidarSlamPlugin missing required module ${module}")
+  endif ()
+endforeach ()
 
-add_paraview_plugin(LidarSlamPlugin ${PROJECT_VERSION}
-  SERVER_MANAGER_XML ${ServerManagerXML}
-  SERVER_MANAGER_SOURCES ${ServerManagerSources}
-  DOCUMENTATION_DIR "${CMAKE_CURRENT_SOURCE_DIR}/doc/"
+paraview_plugin_build(
+  HEADERS_DESTINATION   "${LV_INSTALL_INCLUDE_DIR}"
+  RUNTIME_DESTINATION   "${LV_INSTALL_RUNTIME_DIR}"
+  LIBRARY_DESTINATION   "${LV_INSTALL_LIBRARY_DIR}"
+  LIBRARY_SUBDIRECTORY  "${LV_PLUGIN_BUILD_SUBDIRECTORY}"
+  PLUGINS_FILE_NAME "lidarview.LidarSlamPlugin.xml"
+  PLUGINS ${plugins}
+  AUTOLOAD LidarSlamPlugin
 )
-
-target_link_libraries(LidarSlamPlugin PUBLIC LidarSlam)
-
-install(TARGETS LidarSlamPlugin
-        RUNTIME DESTINATION ${SLAM_INSTALL_PARAVIEW_PLUGIN_DIR}
-        LIBRARY DESTINATION ${SLAM_INSTALL_PARAVIEW_PLUGIN_DIR}
-        COMPONENT Runtime)

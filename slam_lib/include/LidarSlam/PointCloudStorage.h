@@ -28,11 +28,10 @@
 
 #include "LidarSlam/Utilities.h"
 
-// PCL Octree compression does not compile properly on Windows with MSVC 2015
-// and below. Therefore, we cannot compile OctreeCompressedPointCloud.
-// If we use this code with MSVC 2015 and below, OctreeCompressedPointCloud
-// becomes just an alias for basic PCLPointCloud.
-#if defined(_MSC_VER) && _MSC_VER < 1910
+// PCL Octree compression does not compile properly on Windows with MSVC
+// This issue may not be present on PCL version higher than 1.10.1
+// OctreeCompressedPointCloud is aliased into a basic PCLPointCloud.
+#if defined(_MSC_VER)
 #define PCL_OCTREE_COMPRESSION_NOT_AVAILABLE
 #else
 

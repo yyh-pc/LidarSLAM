@@ -25,6 +25,14 @@ set(SLAM_INSTALL_INCLUDE_DIR "include" CACHE STRING "Directory where to install 
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_DIR}")
 
+# MSVC enforce MT
+if(WIN32 AND MSVC)
+	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+endif()
+
+# Boost do not use STATIC libs (Superbuild like), coherent with BUILD_SHARED_LIBS ON
+set(Boost_USE_STATIC_LIBS OFF)
+
 #-------------------------
 #  Find dependencies
 #-------------------------
@@ -36,9 +44,8 @@ list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_
 option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
 if (SLAM_PARAVIEW_PLUGIN)
   # Find ParaView
+  include(GNUInstallDirs) #Required
   find_package(ParaView REQUIRED)
-  message(STATUS "PARAVIEW_USE_FILE: ${PARAVIEW_USE_FILE}")
-  include(${PARAVIEW_USE_FILE})
   # As the PV plugin is a shared library, we also need to ensure that the core
   # SLAM lib is compatible with position independent code.
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -63,6 +70,9 @@ find_package(Ceres REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common kdtree registration io)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
+#We do not want VTK for now, FIX WIN32 command too long issue
+#PCL is linked finds VTK in paraview/src rather than paraview/build
+list(FILTER PCL_LIBRARIES EXCLUDE REGEX "VTK::.*")
 
 # Find optional g2o (only used for pose graph optimization)
 option(ENABLE_g2o "Use G2O, necessary for pose graph optimization." ON)

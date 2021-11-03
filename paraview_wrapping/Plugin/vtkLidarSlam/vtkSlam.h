@@ -62,14 +62,14 @@ virtual type Get##name()                                                        
 class vtkSpinningSensorKeypointExtractor;
 class vtkTable;
 
-class VTK_EXPORT vtkSlam : public vtkPolyDataAlgorithm
+class vtkSlam : public vtkPolyDataAlgorithm
 {
 public:
   static vtkSlam* New();
   vtkTypeMacro(vtkSlam, vtkPolyDataAlgorithm)
-  void PrintSelf(ostream& os, vtkIndent indent);
+  void PrintSelf(ostream& os, vtkIndent indent) override;
 
-  virtual vtkMTimeType GetMTime();
+  virtual vtkMTimeType GetMTime() override;
 
   // ---------------------------------------------------------------------------
   //   General stuff and flags

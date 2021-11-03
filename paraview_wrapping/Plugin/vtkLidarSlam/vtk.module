@@ -1,0 +1,18 @@
+NAME
+  vtkLidarSlam
+DEPENDS
+  VTK::CommonColor
+  VTK::CommonComputationalGeometry
+  VTK::CommonCore
+  VTK::CommonDataModel
+  VTK::CommonExecutionModel
+  VTK::CommonMath
+  VTK::CommonMisc
+  VTK::CommonSystem
+  VTK::CommonTransforms
+  VTK::FiltersGeneral
+  VTK::FiltersSources
+  VTK::FiltersGeometry
+PRIVATE_DEPENDS
+  VTK::CommonCore
+  VTK::IOInfovis

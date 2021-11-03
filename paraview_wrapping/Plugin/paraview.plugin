@@ -1,0 +1,16 @@
+NAME
+  LidarSlamPlugin
+DESCRIPTION
+  Kitware SLAM lib available as a Paraview Plugin
+REQUIRES_MODULES
+  VTK::CommonColor
+  VTK::CommonComputationalGeometry
+  VTK::CommonCore
+  VTK::CommonDataModel
+  VTK::CommonExecutionModel
+  VTK::CommonMath
+  VTK::CommonMisc
+  VTK::CommonSystem
+  VTK::CommonTransforms
+  VTK::FiltersGeneral
+  VTK::FiltersSources
