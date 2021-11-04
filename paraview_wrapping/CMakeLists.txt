@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 project(LidarSlamPlugin  C CXX)
 
+# Build Shared ParaView Plugin
+set(BUILD_SHARED_LIBS ON)
+
 paraview_plugin_scan(
   PLUGIN_FILES      "${CMAKE_CURRENT_LIST_DIR}/Plugin/paraview.plugin"
   ENABLE_BY_DEFAULT ON #You can use this instead of the variables above

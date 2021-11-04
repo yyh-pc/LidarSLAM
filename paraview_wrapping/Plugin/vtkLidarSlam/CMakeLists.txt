@@ -1,3 +1,7 @@
+
+# Build Static vtk Module
+set(BUILD_SHARED_LIBS OFF)
+
 set(lidarslam_sources)
 
 set(lidarslam_classes
