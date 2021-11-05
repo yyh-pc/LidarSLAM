@@ -220,7 +220,7 @@ slam:
     #          *SlamCommand::ENABLE_SLAM_MAP_EXPANSION
     #          *SlamCommand::ENABLE_SLAM_MAP_UPDATE
     # to 'slam_command' topic at startup.
-    update_maps: 3
+    update_maps: 2
     leaf_size_edges: 0.30   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
     leaf_size_planes: 0.60  # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
     leaf_size_blobs: 0.30   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
