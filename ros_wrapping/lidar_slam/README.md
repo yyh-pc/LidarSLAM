@@ -62,6 +62,7 @@ SLAM outputs can also be configured out to publish :
 - current pose as an *nav_msgs/Odometry* message on topic '*slam_odom*' and/or a TF from '*odometry_frame*' to '*tracking_frame*';
 - extracted keypoints from current frame as *sensor_msgs/PointCloud2* on topics '*keypoints/{edges,planes,blobs}*';
 - keypoints maps as *sensor_msgs/PointCloud2* on topics '*maps/{edges,planes,blobs}*';
+- Current target keypoints maps (i.e submaps) as *sensor_msgs/PointCloud2* on topics '*submaps/{edges,planes,blobs}*';
 - registered and undistorted point cloud from current frame, in odometry frame, as *sensor_msgs/PointCloud2* on topic '*slam_registered_points*';
 - confidence estimations on pose output, as *lidar_slam/Confidence* custom message on topic '*slam_confidence*'. It contains the pose covariance, an overlap estimation, the number of matched keypoints and a binary estimator to check motion limitations.
 
@@ -72,10 +73,30 @@ UTM/GPS conversion node can output SLAM pose as a *gps_common/GPSFix* message on
 #### Online configuration
 
 ##### Map update modes
-At any time, commands `lidar_slam/SlamCommand/DISABLE_SLAM_MAP_UPDATE`, `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_EXPANSION` or `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_UPDATE` can be published to '*slam_command*' topic to change SLAM map update mode.
--DISABLE_SLAM_MAP_UPDATE : when an initial map is loaded, it is kept untouched through the SLAM process.
--ENABLE_SLAM_MAP_EXPANSION : when an initial map is loaded, its points are remained untouched but new points can be added if they lay in an unexplored area
--ENABLE_SLAM_MAP_UPDATE : the map is updated at any time
+
+At any time, commands `lidar_slam/SlamCommand/DISABLE_SLAM_MAP_UPDATE`, `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_EXPANSION` and `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_UPDATE` can be published to '*slam_command*' topic to change SLAM map update mode.
+- `DISABLE_SLAM_MAP_UPDATE` : when an initial map is loaded, it is kept untouched through the SLAM process.
+- `ENABLE_SLAM_MAP_EXPANSION` : when an initial map is loaded, its points are remained untouched but new points can be added if they lay in an unexplored area
+- `ENABLE_SLAM_MAP_UPDATE` : the map is updated at any time
+
+_NOTE_ : if no initial map is loaded, ENABLE_SLAM_MAP_EXPANSION and ENABLE_SLAM_MAP_UPDATE will have the same effect.
+
+Example :
+```bash
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 9"
+```
+
+##### Save maps
+
+The current maps can be saved as PCD at any time publishing the command `SAVE_KEYPOINTS_MAPS` (to save the whole maps) or the command `SAVE_FILTERED_KEYPOINTS_MAPS` (to remove the potential moving objects) to `slam_command` topic:
+
+```bash
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 16, string_arg: /path/to/maps/prefix}"
+```
+OR
+```bash
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 17, string_arg: /path/to/maps_filtered/prefix}"
+```
 
 ##### Set pose
 At any time, a pose message (`PoseWithCovarianceStamped`) can be sent through the topic `set_slam_pose` to reset the current pose
@@ -126,10 +147,6 @@ rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 2"  # Trigger PGO
 ```
 
 ### Running SLAM on same zone at different times (e.g. refining/aggregating map or running localization only on fixed map)
-
-#### Changing SLAM map udpate mode
-
-At any time, commands `lidar_slam/SlamCommand/DISABLE_SLAM_MAP_UPDATE`, `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_EXPANSION` or `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_UPDATE` can be published to '*slam_command*' topic to change SLAM map update mode. During normal SLAM behavior, map update is enabled, which means SLAM performs keypoints registration in the odometry frame to aggregate previous frames to be able to run localization in this local map. However, it is possible to disable completely this map update and to run localization only in the fixed keypoints map (loaded initially) or to keep the initial map untouched but to add keypoints laying in not explored areas (expansion mode).
 
 #### Setting SLAM pose from GPS pose guess
 
