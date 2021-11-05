@@ -260,34 +260,52 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : basic output conversions"));
 
   // ===== Aggregated Keypoints maps =====
-  if (this->OutputKeypointsMaps)
+  IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : output keypoints maps"));
+
+  // Get the previous outputs
+  auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
+  auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
+  auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
+
+  // Cache maps to update them only every MapsUpdateStep frames
+  static vtkPolyData* cacheEdgeMap = vtkPolyData::New();
+  static vtkPolyData* cachePlanarMap = vtkPolyData::New();
+  static vtkPolyData* cacheBlobMap = vtkPolyData::New();
+  // Update the output maps if required or if the mode was changed
+  bool updateMaps = this->OutputKeypointsMaps != this->PreviousMapOutputMode ||
+                    (this->SlamAlgo->GetNbrFrameProcessed() - 1) % this->MapsUpdateStep == 0;
+
+  // The expected maps can be the whole maps or the submaps
+  // If the maps is fixed by the user, the whole map and the submap are equal but the submap is outputed (faster)
+  if (updateMaps && (this->OutputKeypointsMaps == OutputKeypointsMapsMode::FULL_MAPS && this->SlamAlgo->GetMapUpdate() != LidarSlam::MappingMode::NONE))
   {
-    IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : output keypoints maps"));
-
-    // Cache maps to update them only every MapsUpdateStep frames
-    static vtkPolyData* cacheEdgeMap = vtkPolyData::New();
-    static vtkPolyData* cachePlanarMap = vtkPolyData::New();
-    static vtkPolyData* cacheBlobMap = vtkPolyData::New();
-    if ((this->SlamAlgo->GetNbrFrameProcessed() - 1) % this->MapsUpdateStep == 0)
-    {
-      this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::EDGE), cacheEdgeMap);
-      this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::PLANE), cachePlanarMap);
-      this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::BLOB), cacheBlobMap);
-    }
-
-    // Fill outputs from cache
-    // Output : Edge points map
-    auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
-    edgeMap->ShallowCopy(cacheEdgeMap);
-    // Output : Planar points map
-    auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
-    planarMap->ShallowCopy(cachePlanarMap);
-    // Output : Blob points map
-    auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
-    blobMap->ShallowCopy(cacheBlobMap);
-
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : output keypoints maps"));
+    this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::EDGE), cacheEdgeMap);
+    this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::PLANE), cachePlanarMap);
+    this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::BLOB), cacheBlobMap);
+    this->PreviousMapOutputMode = this->OutputKeypointsMaps;
   }
+  else if (updateMaps && (this->OutputKeypointsMaps == OutputKeypointsMapsMode::SUB_MAPS || this->SlamAlgo->GetMapUpdate() == LidarSlam::MappingMode::NONE))
+  {
+    this->PointCloudToPolyData(this->SlamAlgo->GetTargetSubMap(LidarSlam::EDGE), cacheEdgeMap);
+    this->PointCloudToPolyData(this->SlamAlgo->GetTargetSubMap(LidarSlam::PLANE), cachePlanarMap);
+    this->PointCloudToPolyData(this->SlamAlgo->GetTargetSubMap(LidarSlam::BLOB), cacheBlobMap);
+    this->PreviousMapOutputMode = this->OutputKeypointsMaps;
+  }
+  // If the output is disabled, reset it.
+  else if (this->OutputKeypointsMaps != this->PreviousMapOutputMode && this->OutputKeypointsMaps == OutputKeypointsMapsMode::NONE)
+  {
+    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheEdgeMap);
+    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cachePlanarMap);
+    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheBlobMap);
+    this->PreviousMapOutputMode = this->OutputKeypointsMaps;
+  }
+
+  // Fill outputs from cache
+  edgeMap->ShallowCopy(cacheEdgeMap);
+  planarMap->ShallowCopy(cachePlanarMap);
+  blobMap->ShallowCopy(cacheBlobMap);
+
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : output keypoints maps"));
 
   // ===== Extracted keypoints from current frame =====
   if (this->OutputCurrentKeypoints)
@@ -762,6 +780,33 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
 }
 
 //-----------------------------------------------------------------------------
+int vtkSlam::GetOutputKeypointsMaps()
+{
+  int outputMaps = static_cast<int>(this->OutputKeypointsMaps);
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning output keypoints maps mode : " << outputMaps);
+  return outputMaps;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetOutputKeypointsMaps(int mode)
+{
+  OutputKeypointsMapsMode outputMaps = static_cast<OutputKeypointsMapsMode>(mode);
+  if (outputMaps != OutputKeypointsMapsMode::NONE      &&
+      outputMaps != OutputKeypointsMapsMode::FULL_MAPS &&
+      outputMaps != OutputKeypointsMapsMode::SUB_MAPS)
+  {
+    vtkErrorMacro("Invalid output keypoints maps mode (" << mode << "), ignoring setting.");
+    return;
+  }
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting output keypoints maps mode to " << mode);
+  if (this->OutputKeypointsMaps != outputMaps)
+  {
+    this->OutputKeypointsMaps = outputMaps;
+    this->ParametersModificationTime.Modified();
+  }
+}
+
+//-----------------------------------------------------------------------------
 int vtkSlam::GetEgoMotion()
 {
   int egoMotion = static_cast<int>(this->SlamAlgo->GetEgoMotion());
@@ -773,9 +818,9 @@ int vtkSlam::GetEgoMotion()
 void vtkSlam::SetEgoMotion(int mode)
 {
   LidarSlam::EgoMotionMode egoMotion = static_cast<LidarSlam::EgoMotionMode>(mode);
-  if (egoMotion != LidarSlam::EgoMotionMode::NONE         &&
+  if (egoMotion != LidarSlam::EgoMotionMode::NONE                 &&
       egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION &&
-      egoMotion != LidarSlam::EgoMotionMode::REGISTRATION &&
+      egoMotion != LidarSlam::EgoMotionMode::REGISTRATION         &&
       egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
   {
     vtkErrorMacro("Invalid ego-motion mode (" << mode << "), ignoring setting.");
@@ -843,11 +888,68 @@ void vtkSlam::SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor* _arg)
 }
 
 //-----------------------------------------------------------------------------
+unsigned int vtkSlam::GetMapUpdate()
+{
+  unsigned int mapUpdate = static_cast<unsigned int>(this->SlamAlgo->GetMapUpdate());
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning mapping mode of " << mapUpdate);
+  return mapUpdate;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetMapUpdate(unsigned int mode)
+{
+  LidarSlam::MappingMode mapUpdate = static_cast<LidarSlam::MappingMode>(mode);
+  if (mapUpdate != LidarSlam::MappingMode::NONE         &&
+      mapUpdate != LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP &&
+      mapUpdate != LidarSlam::MappingMode::UPDATE)
+  {
+    vtkErrorMacro("Invalid mapping mode (" << mode << "), ignoring setting.");
+    return;
+  }
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting mapping mode to " << mode);
+  if (this->SlamAlgo->GetMapUpdate() != mapUpdate)
+  {
+    this->SlamAlgo->SetMapUpdate(mapUpdate);
+    this->ParametersModificationTime.Modified();
+  }
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
 {
   vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting VoxelGridLeafSize to " << s);
   this->SlamAlgo->SetVoxelGridLeafSize(k, s);
   this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+int vtkSlam::GetVoxelGridSamplingMode(LidarSlam::Keypoint k)
+{
+  LidarSlam::SamplingMode sampling = this->SlamAlgo->GetVoxelGridSamplingMode(k);
+  int sm = static_cast<int>(sampling);
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning sampling mode : " << sm);
+  return sm;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetVoxelGridSamplingMode(LidarSlam::Keypoint k, int mode)
+{
+  LidarSlam::SamplingMode sampling = static_cast<LidarSlam::SamplingMode>(mode);
+  if (sampling != LidarSlam::SamplingMode::FIRST         &&
+      sampling != LidarSlam::SamplingMode::LAST          &&
+      sampling != LidarSlam::SamplingMode::MAX_INTENSITY &&
+      sampling != LidarSlam::SamplingMode::CENTER_POINT  &&
+      sampling != LidarSlam::SamplingMode::CENTROID)
+  {
+    vtkErrorMacro("Invalid sampling mode (" << mode << "), ignoring setting.");
+    return;
+  }
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting sampling mode to " << mode);
+  if (this->SlamAlgo->GetVoxelGridSamplingMode(k) != sampling)
+  {
+    this->SlamAlgo->SetVoxelGridSamplingMode(k, sampling);
+    this->ParametersModificationTime.Modified();
+  }
 }
 
 //-----------------------------------------------------------------------------

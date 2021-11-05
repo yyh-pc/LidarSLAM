@@ -27,6 +27,17 @@
 // LOCAL
 #include <LidarSlam/Slam.h>
 
+//! Which keypoints' maps to output
+enum OutputKeypointsMapsMode
+{
+  //! No maps output
+  NONE = 0,
+  //! Output the whole keypoints' maps
+  FULL_MAPS = 1,
+  //! Output the target sub maps used for the current frame registration
+  SUB_MAPS = 2
+};
+
 // This custom macro is needed to make the SlamManager time agnostic.
 // The SlamManager needs to know when RequestData is called, if it's due
 // to a new timestep being requested or due to SLAM parameters being changed.
@@ -95,8 +106,8 @@ public:
   vtkGetMacro(OutputCurrentKeypoints, bool)
   vtkSetMacro(OutputCurrentKeypoints, bool)
 
-  vtkGetMacro(OutputKeypointsMaps, bool)
-  vtkSetMacro(OutputKeypointsMaps, bool)
+  virtual int GetOutputKeypointsMaps();
+  virtual void SetOutputKeypointsMaps(int mode);
 
   vtkGetMacro(MapsUpdateStep, unsigned int)
   vtkSetMacro(MapsUpdateStep, unsigned int)
@@ -242,19 +253,43 @@ public:
   vtkCustomSetMacro(KfAngleThreshold, double)
 
   // Set RollingGrid Parameters
+
+  virtual unsigned int GetMapUpdate();
+  virtual void SetMapUpdate(unsigned int mode);
+
+  vtkCustomGetMacro(VoxelGridDecayingThreshold, double)
+  vtkCustomSetMacro(VoxelGridDecayingThreshold, double)
+
+  virtual int GetVoxelGridSamplingMode(LidarSlam::Keypoint k);
+  virtual void SetVoxelGridSamplingMode(LidarSlam::Keypoint k, int sm);
+
+  // For edges
+  virtual int GetVoxelGridSamplingModeEdges() { return this->GetVoxelGridSamplingMode(LidarSlam::Keypoint::EDGE); }
+  virtual void SetVoxelGridSamplingModeEdges(int sm)  { this->SetVoxelGridSamplingMode(LidarSlam::Keypoint::EDGE, sm);  }
+
+  // For planes
+  virtual int GetVoxelGridSamplingModePlanes() { return this->GetVoxelGridSamplingMode(LidarSlam::Keypoint::PLANE); }
+  virtual void SetVoxelGridSamplingModePlanes(int sm) { this->SetVoxelGridSamplingMode(LidarSlam::Keypoint::PLANE, sm); }
+
+  // For blobs
+  virtual int GetVoxelGridSamplingModeBlobs() { return this->GetVoxelGridSamplingMode(LidarSlam::Keypoint::BLOB); }
+  virtual void SetVoxelGridSamplingModeBlobs(int sm)  { this->SetVoxelGridSamplingMode(LidarSlam::Keypoint::BLOB, sm);  }
+
   virtual void SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s);
 
   // For edges
-  virtual void SetVoxelGridLeafSizeEdges(double s)  { SetVoxelGridLeafSize(LidarSlam::Keypoint::EDGE, s);  }
+  virtual void SetVoxelGridLeafSizeEdges(double s)  { this->SetVoxelGridLeafSize(LidarSlam::Keypoint::EDGE, s);  }
 
   // For planes
-  virtual void SetVoxelGridLeafSizePlanes(double s) { SetVoxelGridLeafSize(LidarSlam::Keypoint::PLANE, s); }
+  virtual void SetVoxelGridLeafSizePlanes(double s) { this->SetVoxelGridLeafSize(LidarSlam::Keypoint::PLANE, s); }
 
   // For blobs
-  virtual void SetVoxelGridLeafSizeBlobs(double s)  { SetVoxelGridLeafSize(LidarSlam::Keypoint::BLOB, s);  }
+  virtual void SetVoxelGridLeafSizeBlobs(double s)  { this->SetVoxelGridLeafSize(LidarSlam::Keypoint::BLOB, s);  }
 
   vtkCustomSetMacroNoCheck(VoxelGridSize, int)
   vtkCustomSetMacroNoCheck(VoxelGridResolution, double)
+
+  vtkCustomSetMacroNoCheck(VoxelGridMinFramesPerVoxel, unsigned int)
 
   // ---------------------------------------------------------------------------
   //   Confidence estimator parameters
@@ -319,6 +354,7 @@ protected:
 
 private:
 
+  OutputKeypointsMapsMode PreviousMapOutputMode = OutputKeypointsMapsMode::FULL_MAPS;
   // Polydata which represents the computed trajectory
   vtkSmartPointer<vtkPolyData> Trajectory;
 
@@ -329,9 +365,9 @@ private:
   //  - Extracted keypoints : ICP matching results
   bool AdvancedReturnMode = false;
 
-  // If enabled, SLAM filter will output keypoints maps.
-  // Otherwise, these filter outputs are left empty to save time.
-  bool OutputKeypointsMaps = true;
+  // Allows to choose which map keypoints to output
+  OutputKeypointsMapsMode OutputKeypointsMaps = FULL_MAPS;
+
   // Update keypoints maps only each MapsUpdateStep frame
   // (ex: every frame, every 2 frames, 3 frames, ...)
   unsigned int MapsUpdateStep = 1;

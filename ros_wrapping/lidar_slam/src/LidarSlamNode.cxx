@@ -37,6 +37,10 @@ enum Output
   PLANES_MAP,            // Publish plane keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
   BLOBS_MAP,             // Publish blob keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
 
+  EDGES_SUBMAP,          // Publish edge keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/edges'.
+  PLANES_SUBMAP,         // Publish plane keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/planes'.
+  BLOBS_SUBMAP,          // Publish blob keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/blobs'.
+
   EDGE_KEYPOINTS,        // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
   PLANE_KEYPOINTS,       // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
   BLOB_KEYPOINTS,        // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
@@ -74,13 +78,6 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     this->LidarSlam.LoadMapsFromPCD(mapsPathPrefix);
   }
 
-  // Freeze SLAM maps if requested
-  if (!priv_nh.param("maps/update_maps", true))
-  {
-    this->LidarSlam.SetUpdateMap(false);
-    ROS_WARN_STREAM("Disabling SLAM maps update.");
-  }
-
   // Set initial SLAM pose if requested
   std::vector<double> initialPose;
   if (priv_nh.getParam("maps/initial_pose", initialPose) && initialPose.size() == 6)
@@ -109,6 +106,10 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   initPublisher(EDGES_MAP,  "maps/edges",  CloudS, "output/maps/edges",  true, 1, false);
   initPublisher(PLANES_MAP, "maps/planes", CloudS, "output/maps/planes", true, 1, false);
   initPublisher(BLOBS_MAP,  "maps/blobs",  CloudS, "output/maps/blobs",  true, 1, false);
+
+  initPublisher(EDGES_SUBMAP,  "submaps/edges",  CloudS, "output/submaps/edges",  true, 1, false);
+  initPublisher(PLANES_SUBMAP, "submaps/planes", CloudS, "output/submaps/planes", true, 1, false);
+  initPublisher(BLOBS_SUBMAP,  "submaps/blobs",  CloudS, "output/submaps/blobs",  true, 1, false);
 
   initPublisher(EDGE_KEYPOINTS,  "keypoints/edges",  CloudS, "output/keypoints/edges",  true, 1, false);
   initPublisher(PLANE_KEYPOINTS, "keypoints/planes", CloudS, "output/keypoints/planes", true, 1, false);
@@ -280,22 +281,30 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       break;
     }
 
-    // Enable SLAM maps update
-    case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_UPDATE:
-      this->LidarSlam.SetUpdateMap(true);
-      ROS_WARN_STREAM("Enabling SLAM maps update.");
-      break;
-
     // Disable SLAM maps update
     case lidar_slam::SlamCommand::DISABLE_SLAM_MAP_UPDATE:
-      this->LidarSlam.SetUpdateMap(false);
+      this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::NONE);
       ROS_WARN_STREAM("Disabling SLAM maps update.");
+      break;
+
+    // Enable the agregation of keypoints to a fixed initial map
+    case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_EXPANSION:
+      this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP);
+      ROS_WARN_STREAM("Enabling SLAM maps expansion with new keypoints.");
+      break;
+
+    // Enable the update of the map with new keypoints
+    case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_UPDATE:
+      this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::UPDATE);
+      ROS_WARN_STREAM("Enabling SLAM maps update with new keypoints.");
       break;
 
     // Save SLAM keypoints maps to PCD files
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
     {
       ROS_INFO_STREAM("Saving keypoints maps to PCD.");
+      if (this->LidarSlam.GetMapUpdate() == LidarSlam::MappingMode::NONE)
+        ROS_WARN_STREAM("The initially loaded maps were not modified but are saved anyway.");
       int pcdFormatInt = this->PrivNh.param("maps/export_pcd_format", static_cast<int>(LidarSlam::PCDFormat::BINARY_COMPRESSED));
       LidarSlam::PCDFormat pcdFormat = static_cast<LidarSlam::PCDFormat>(pcdFormatInt);
       if (pcdFormat != LidarSlam::PCDFormat::ASCII &&
@@ -305,7 +314,24 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
         ROS_ERROR_STREAM("Incorrect PCD format value (" << pcdFormat << "). Setting it to 'BINARY_COMPRESSED'.");
         pcdFormat = LidarSlam::PCDFormat::BINARY_COMPRESSED;
       }
-      this->LidarSlam.SaveMapsToPCD(msg.string_arg, pcdFormat);
+      this->LidarSlam.SaveMapsToPCD(msg.string_arg, pcdFormat, false);
+      break;
+    }
+
+    // Save SLAM keypoints submaps to PCD files
+    case lidar_slam::SlamCommand::SAVE_FILTERED_KEYPOINTS_MAPS:
+    {
+      ROS_INFO_STREAM("Saving keypoints submaps to PCD.");
+      int pcdFormatInt = this->PrivNh.param("maps/export_pcd_format", static_cast<int>(LidarSlam::PCDFormat::BINARY_COMPRESSED));
+      LidarSlam::PCDFormat pcdFormat = static_cast<LidarSlam::PCDFormat>(pcdFormatInt);
+      if (pcdFormat != LidarSlam::PCDFormat::ASCII &&
+          pcdFormat != LidarSlam::PCDFormat::BINARY &&
+          pcdFormat != LidarSlam::PCDFormat::BINARY_COMPRESSED)
+      {
+        ROS_ERROR_STREAM("Incorrect PCD format value (" << pcdFormat << "). Setting it to 'BINARY_COMPRESSED'.");
+        pcdFormat = LidarSlam::PCDFormat::BINARY_COMPRESSED;
+      }
+      this->LidarSlam.SaveMapsToPCD(msg.string_arg, pcdFormat, true);
       break;
     }
 
@@ -564,6 +590,11 @@ void LidarSlamNode::PublishOutput()
   publishPointCloud(PLANES_MAP, this->LidarSlam.GetMap(LidarSlam::PLANE));
   publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetMap(LidarSlam::BLOB));
 
+  // Keypoints submaps
+  publishPointCloud(EDGES_SUBMAP,  this->LidarSlam.GetTargetSubMap(LidarSlam::EDGE));
+  publishPointCloud(PLANES_SUBMAP, this->LidarSlam.GetTargetSubMap(LidarSlam::PLANE));
+  publishPointCloud(BLOBS_SUBMAP,  this->LidarSlam.GetTargetSubMap(LidarSlam::BLOB));
+
   // Current keypoints
   publishPointCloud(EDGE_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::EDGE));
   publishPointCloud(PLANE_KEYPOINTS, this->LidarSlam.GetKeypoints(LidarSlam::PLANE));
@@ -612,7 +643,7 @@ void LidarSlamNode::SetSlamParameters()
       ROS_ERROR_STREAM("Invalid ego-motion mode (" << egoMotionMode << "). Setting it to 'MOTION_EXTRAPOLATION'.");
       egoMotion = LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION;
     }
-    LidarSlam.SetEgoMotion(egoMotion);
+    this->LidarSlam.SetEgoMotion(egoMotion);
   }
   int undistortionMode;
   if (this->PrivNh.getParam("slam/undistortion", undistortionMode))
@@ -696,7 +727,20 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
   SetSlamParam(double, "slam/keyframes/angle_threshold", KfAngleThreshold)
 
-  // Rolling grids
+  // Maps
+  int mapUpdateMode;
+  if (this->PrivNh.getParam("slam/voxel_grid/update_maps", mapUpdateMode))
+  {
+    LidarSlam::MappingMode mapUpdate = static_cast<LidarSlam::MappingMode>(mapUpdateMode);
+    if (mapUpdate != LidarSlam::MappingMode::NONE &&
+        mapUpdate != LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP &&
+        mapUpdate != LidarSlam::MappingMode::UPDATE)
+    {
+      ROS_ERROR_STREAM("Invalid map update mode (" << mapUpdateMode << "). Setting it to 'UPDATE'.");
+      mapUpdate = LidarSlam::MappingMode::UPDATE;
+    }
+    this->LidarSlam.SetMapUpdate(mapUpdate);
+  }
   double size;
   if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_edges", size))
     this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::EDGE, size);
@@ -706,6 +750,32 @@ void LidarSlamNode::SetSlamParameters()
     this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::BLOB, size);
   SetSlamParam(double, "slam/voxel_grid/resolution", VoxelGridResolution)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
+  SetSlamParam(double, "slam/voxel_grid/decaying_threshold", VoxelGridDecayingThreshold)
+  SetSlamParam(int,    "slam/voxel_grid/min_frames_per_voxel", VoxelGridMinFramesPerVoxel)
+
+  // Helper lambda function to set the sampling mode for each map
+  auto SetSamplingMode = [&](std::string paramName, LidarSlam::Keypoint k)
+  {
+    int samplingMode;
+    if (this->PrivNh.getParam(paramName, samplingMode))
+    {
+      LidarSlam::SamplingMode sampling = static_cast<LidarSlam::SamplingMode>(samplingMode);
+      if (sampling != LidarSlam::SamplingMode::FIRST &&
+          sampling != LidarSlam::SamplingMode::LAST &&
+          sampling != LidarSlam::SamplingMode::MAX_INTENSITY &&
+          sampling != LidarSlam::SamplingMode::CENTER_POINT &&
+          sampling != LidarSlam::SamplingMode::CENTROID)
+      {
+        ROS_ERROR_STREAM("Invalid sampling mode (" << samplingMode << ") for " << paramName << ". Setting it to 'MAX_INTENSITY'.");
+        sampling = LidarSlam::SamplingMode::MAX_INTENSITY;
+      }
+      this->LidarSlam.SetVoxelGridSamplingMode(k, sampling);
+    }
+  };
+
+  SetSamplingMode("slam/voxel_grid/sampling_mode_edges", LidarSlam::Keypoint::EDGE);
+  SetSamplingMode("slam/voxel_grid/sampling_mode_planes", LidarSlam::Keypoint::PLANE);
+  SetSamplingMode("slam/voxel_grid/sampling_mode_blobs", LidarSlam::Keypoint::BLOB);
 
   // Keypoint extractors
   auto InitKeypointsExtractor = [this](auto& ke, const std::string& prefix)

@@ -233,14 +233,21 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Output keypoints maps"
+      <IntVectorProperty name="Keypoint maps output mode"
                          command="SetOutputKeypointsMaps"
                          number_of_elements="1"
                          default_values="1">
-        <BooleanDomain name="bool" />
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Disabled"/>
+          <Entry value="1" text="Full maps"/>
+          <Entry value="2" text="Sub-maps"/>
+        </EnumerationDomain>
         <Documentation>
-          If enabled, SLAM filter will output keypoints maps.
-          Otherwise, these filter outputs are left empty to save time.
+          If DISABLED, no maps are outputed
+
+          If FULL_MAPS, all the keypoints from maps are outputed
+
+          If SUB_MAPS, only the keypoints used as target for the current frame are outputed
         </Documentation>
       </IntVectorProperty>
 
@@ -253,7 +260,7 @@
           SLAM filter will update keypoints maps only 1 frame over *step* to save time.
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="Output keypoints maps" value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="Keypoint maps output mode" inverse="1" value="0" />
         </Hints>
       </IntVectorProperty>
 
@@ -296,7 +303,7 @@
         <Property name="Elevation angles calibration" />
         <Property name="Time to seconds factor" />
         <Property name="Advanced return mode" />
-        <Property name="Output keypoints maps" />
+        <Property name="Keypoint maps output mode" />
         <Property name="Keypoints maps update step" />
         <Property name="Output current keypoints" />
         <Property name="Output keypoints in WORLD coordinates" />
@@ -561,7 +568,7 @@
                             default_values="5."
                             panel_visibility="advanced">
         <Documentation>
-          Max distance allowed between a keypoint and its neighbors from the
+          Max distance (in meters) allowed between a keypoint and its neighbors from the
           previous frame to build an ICP match
         </Documentation>
       </DoubleVectorProperty>
@@ -614,7 +621,7 @@
                             default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
-          Max RMSE allowed between neighborhood and its fitted line model to
+          Max RMSE (in meters) allowed between neighborhood and its fitted line model to
           keep only accurate models
         </Documentation>
       </DoubleVectorProperty>
@@ -671,7 +678,7 @@
                             default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
-          Max RMSE allowed between neighborhood and its fitted plane model to
+          Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
           keep only accurate models
         </Documentation>
       </DoubleVectorProperty>
@@ -792,7 +799,7 @@
                             default_values="5."
                             panel_visibility="advanced">
         <Documentation>
-          Max distance allowed between a keypoint and its neighbors from the map
+          Max distance (in meters) allowed between a keypoint and its neighbors from the map
           to build an ICP match
         </Documentation>
       </DoubleVectorProperty>
@@ -845,7 +852,7 @@
                             default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
-          Max RMSE allowed between neighborhood and its fitted line model to
+          Max RMSE (in meters) allowed between neighborhood and its fitted line model to
           keep only accurate models
         </Documentation>
       </DoubleVectorProperty>
@@ -902,7 +909,7 @@
                             default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
-          Max RMSE allowed between neighborhood and its fitted plane model to
+          Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
           keep only accurate models
         </Documentation>
       </DoubleVectorProperty>
@@ -977,13 +984,48 @@
 
       <!-- ======================== Map Parameters ========================= -->
 
+      <IntVectorProperty name="Mapping mode"
+                         command="SetMapUpdate"
+                         number_of_elements="1"
+                         default_values="2">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Disabled"/>
+          <Entry value="1" text="Add keypoints"/>
+          <Entry value="2" text="Update"/>
+        </EnumerationDomain>
+        <Documentation>
+          How to update the map.
+
+          If DISABLED, the map is not updated. Only the initialization map is used.
+
+          If ADD KEYPOINTS, the current keypoints are added to the map in unexplored areas but initial map points remain untouched.
+
+          If UPDATE, all the current keypoints are added to the map and the initial map points can disappear.
+
+          Warning : the first mode can be set only if an initial map exists
+        </Documentation>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Decaying threshold"
+                            command="SetVoxelGridDecayingThreshold"
+                            number_of_elements="1"
+                            default_values="-1."
+                            panel_visibility="advanced">
+        <Documentation>
+          Time threshold (in seconds) to deprecate a removable keypoint.
+          This allows the map to be dynamic. Warning: if no keyframe is added during this time
+          (motion is null), the entire removable maps will disappear.
+          -1 to disable this feature.
+        </Documentation>
+      </DoubleVectorProperty>
+
       <DoubleVectorProperty name="Keyframe distance threshold"
                             command="SetKfDistanceThreshold"
                             number_of_elements="1"
                             default_values="0.5"
                             panel_visibility="advanced">
         <Documentation>
-          Minimum distance to travel since last keyframe to add a new one.
+          Minimum distance (in meters) to travel since last keyframe to add a new one.
           Only keyframes' points are added to the map.
         </Documentation>
       </DoubleVectorProperty>
@@ -999,13 +1041,94 @@
         </Documentation>
       </DoubleVectorProperty>
 
+      <IntVectorProperty name="Edges map sampling mode"
+                         command="SetVoxelGridSamplingModeEdges"
+                         number_of_elements="1"
+                         default_values="2">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="First"/>
+          <Entry value="1" text="Last"/>
+          <Entry value="2" text="Intensity"/>
+          <Entry value="3" text="Center point"/>
+          <Entry value="4" text="Centroid"/>
+        </EnumerationDomain>
+        <Documentation>
+          Which point to set in a voxel when downsampling the map using a voxel grid.
+
+          If FIRST, the first point acquired is kept,
+
+          If LAST, the last point acquired is selected,
+
+          If INTENSITY, the point with max intensity is selected,
+
+          If CENTER_POINT, the point closest to the voxel center is selected,
+
+          If CENTROID, the centroid of all points having landed to the voxel is computed.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Planes map sampling mode"
+                         command="SetVoxelGridSamplingModePlanes"
+                         number_of_elements="1"
+                         default_values="2">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="First"/>
+          <Entry value="1" text="Last"/>
+          <Entry value="2" text="Intensity"/>
+          <Entry value="3" text="Center point"/>
+          <Entry value="4" text="Centroid"/>
+        </EnumerationDomain>
+        <Documentation>
+          Which point to set in a voxel when downsampling the map using a voxel grid.
+
+          If FIRST, the first point acquired is kept,
+
+          If LAST, the last point acquired is selected,
+
+          If INTENSITY, the point with max intensity is selected,
+
+          If CENTER_POINT, the point closest to the voxel center is selected,
+
+          If CENTROID, the centroid of all points having landed to the voxel is computed.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Blobs map sampling mode"
+                         command="SetVoxelGridSamplingModeBlobs"
+                         number_of_elements="1"
+                         default_values="2">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="First"/>
+          <Entry value="1" text="Last"/>
+          <Entry value="2" text="Intensity"/>
+          <Entry value="3" text="Center point"/>
+          <Entry value="4" text="Centroid"/>
+        </EnumerationDomain>
+        <Documentation>
+          Which point to set in a voxel when downsampling the map using a voxel grid.
+
+          If FIRST, the first point acquired is kept,
+
+          If LAST, the last point acquired is selected,
+
+          If INTENSITY, the point with max intensity is selected,
+
+          If CENTER_POINT, the point closest to the voxel center is selected,
+
+          If CENTROID, the centroid of all points having landed to the voxel is computed.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use blobs" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
       <DoubleVectorProperty name="Edges map resolution"
                             command="SetVoxelGridLeafSizeEdges"
                             number_of_elements="1"
                             default_values="0.3"
                             panel_visibility="advanced">
         <Documentation>
-          Minimum size of a leaf when downsampling the edges map using
+          Minimum size of a leaf (in meters) when downsampling the edges map using
           a voxel grid filter. It should not be too big or some high
           frequency geometric information will be lost. It should not
           be too low or the geometric information will be too local and
@@ -1019,7 +1142,7 @@
                             default_values="0.6"
                             panel_visibility="advanced">
         <Documentation>
-          Minimum size of a leaf when downsampling the planes map using
+          Minimum size of a leaf (in meters) when downsampling the planes map using
           a voxel grid filter. It should not be too big or some high
           frequency geometric information will be lost. It should not
           be too low or the geometric information will be too local and
@@ -1033,7 +1156,7 @@
                             default_values="0.3"
                             panel_visibility="advanced">
         <Documentation>
-          Minimum size of a leaf when downsampling the blobs map using
+          Minimum size of a leaf (in meters) when downsampling the blobs map using
           a voxel grid filter. It should not be too big or some high
           frequency geometric information will be lost. It should not
           be too low or the geometric information will be too local and
@@ -1068,21 +1191,42 @@
                             default_values="10."
                             panel_visibility="advanced">
         <Documentation>
-          Resolution of a voxel of the rolling grid (meters per voxel).
+          Resolution of a voxel of the rolling grid (in meters per voxel).
           It should not be too big or too much points will be considered when
           trying to match the frame at the current position.
           This does not impact accuracy but only speed.
         </Documentation>
       </DoubleVectorProperty>
 
+      <IntVectorProperty name="Min number of frames per voxel"
+                            command="SetVoxelGridMinFramesPerVoxel"
+                            number_of_elements="1"
+                            default_values="0"
+                            panel_visibility="advanced">
+        <Documentation>
+          Minimum number of frames that must have reached a map voxel
+          to consider the voxel contains a target keypoint.
+          It is used to reject moving objects from the map.
+          WARNING: this parameter may need to be adapted to the velocity of the robot,
+          and the parameterization, notably the leaf sizes (directly linked) and keyframes parameters (inversely linked).
+          0 disables the moving objects rejection and takes all keypoints available from the maps.
+        </Documentation>
+      </IntVectorProperty>
+
       <PropertyGroup label="Map parameters">
+        <Property name="Mapping mode" />
+        <Property name="Decaying threshold" />
         <Property name="Keyframe distance threshold" />
         <Property name="Keyframe angle threshold" />
+        <Property name="Edges map sampling mode" />
+        <Property name="Planes map sampling mode" />
+        <Property name="Blobs map sampling mode" />
         <Property name="Edges map resolution" />
         <Property name="Planes map resolution" />
         <Property name="Blobs map resolution" />
         <Property name="Rolling grid dimension" />
         <Property name="Rolling grid resolution" />
+        <Property name="Min number of frames per voxel" />
       </PropertyGroup>
 
       <!-- ================ Confidence estimator parameters ================ -->

@@ -71,6 +71,9 @@
 // - WORLD {W} : The world coordinate system {W} coincides with BASE at the
 //   initial position. The output trajectory describes BASE origin in WORLD.
 
+// GENERIC
+#include <ctime>
+
 // LOCAL
 #include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
@@ -212,16 +215,16 @@ void Slam::SetNbThreads(int n)
   // Set number of threads for main processes
   this->NbThreads = n;
   // Set number of threads for keypoints extraction
-  for (const auto& kv : this->KeyPointsExtractors) 
-    kv.second->SetNbThreads(n); 
+  for (const auto& kv : this->KeyPointsExtractors)
+    kv.second->SetNbThreads(n);
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SetSensorTimeOffset(double timeOffset) 
+void Slam::SetSensorTimeOffset(double timeOffset)
 {
   this->WheelOdomManager.SetTimeOffset(timeOffset);
   this->ImuManager.SetTimeOffset(timeOffset);
-} 
+}
 
 //-----------------------------------------------------------------------------
 void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
@@ -232,11 +235,11 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   if (!this->CheckFrames(frames))
     return;
   this->CurrentFrames = frames;
-  double time = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
+  this->CurrentTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
 
   PRINT_VERBOSE(2, "\n#########################################################");
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed << std::fixed << std::setprecision(9) <<
-                   " (at time " << time << ")" << std::scientific);
+                   " (at time " << this->CurrentTime << ")" << std::scientific);
   PRINT_VERBOSE(2, "#########################################################\n");
 
   // Compute the edge and planar keypoints
@@ -274,8 +277,10 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Confidence estimators computation"));
   }
 
-  // Update keypoints maps : add current keypoints to map using Tworld
-  if (this->UpdateMap)
+  // Update keypoints maps if required: add current keypoints to map using Tworld
+  // If mapping mode is ADD_KPTS_TO_FIXED_MAP the initial map points will remain untouched
+  // If mapping mode is UPDATE, the initial map points can disappear.
+  if (this->MapUpdate == MappingMode::ADD_KPTS_TO_FIXED_MAP || this->MapUpdate == MappingMode::UPDATE)
   {
     IF_VERBOSE(3, Utils::Timer::Init("Maps update"));
     this->UpdateMapsUsingTworld();
@@ -284,7 +289,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, Utils::Timer::Init("Logging"));
-  this->LogCurrentFrameState(time, this->WorldFrameId);
+  this->LogCurrentFrameState(this->CurrentTime, this->WorldFrameId);
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
@@ -464,8 +469,8 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
     {
       Eigen::Vector4f minPoint, maxPoint;
       pcl::getMinMax3D(keypoints[k], minPoint, maxPoint);
-      this->LocalMaps[k]->Roll(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
-      this->LocalMaps[k]->Add(aggregatedKeypointsMap[k], false);
+      this->LocalMaps[k]->Add(aggregatedKeypointsMap[k], false, -1., false);
+      this->LocalMaps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
     }
   }
 
@@ -494,18 +499,16 @@ void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat) const
+void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat, bool filtered) const
 {
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
 
-  // Save keypoints maps
+  // Save keypoint maps
   for (auto k : KeypointTypes)
   {
     if (this->UseKeypoints.at(k))
-      savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k),  pcdFormat, true);
+      savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k, filtered),  pcdFormat, true);
   }
-
-  // TODO : save map origin (in which coordinates?) in title or VIEWPOINT field
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints maps saving to PCD"));
 }
@@ -527,7 +530,10 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
     if (pcl::io::loadPCDFile(path, *keypoints) == 0)
     {
       std::cout << "SLAM keypoints map successfully loaded from " << path << std::endl;
-      this->LocalMaps[k]->Add(keypoints);
+      // If mapping mode is NONE or ADD_DECAYING_KPTS, the first map points are fixed,
+      // else, the initial map points can be updated
+      bool fixedMap = this->MapUpdate == MappingMode::NONE || this->MapUpdate == MappingMode::ADD_KPTS_TO_FIXED_MAP;
+      this->LocalMaps[k]->Add(keypoints, fixedMap, std::time(nullptr));
     }
   }
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
@@ -659,13 +665,23 @@ Slam::PointCloud::Ptr Slam::GetRegisteredFrame()
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::GetMap(Keypoint k) const
+Slam::PointCloud::Ptr Slam::GetMap(Keypoint k, bool clean) const
 {
-  PointCloud::Ptr map = this->LocalMaps.at(k)->Get();
+  PointCloud::Ptr map = this->LocalMaps.at(k)->Get(clean);
   map->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
                                       this->WorldFrameId,
                                       this->NbrFrameProcessed);
   return map;
+}
+
+//-----------------------------------------------------------------------------
+Slam::PointCloud::Ptr Slam::GetTargetSubMap(Keypoint k) const
+{
+  PointCloud::Ptr subMap = this->LocalMaps.at(k)->GetSubMap();
+  subMap->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
+                                         this->WorldFrameId,
+                                         this->NbrFrameProcessed);
+  return subMap;
 }
 
 //-----------------------------------------------------------------------------
@@ -825,7 +841,7 @@ void Slam::ComputeEgoMotion()
     // among the keypoints of the previous pointcloud
     IF_VERBOSE(3, Utils::Timer::Init("EgoMotion : build KD tree"));
     std::map<Keypoint, KDTree> kdtreePrevious;
-    // Kdtrees map initialization to parallelize their 
+    // Kdtrees map initialization to parallelize their
     // construction using OMP and avoid concurrency issues
     for (auto k : {EDGE, PLANE})
       kdtreePrevious[k] = KDTree();
@@ -979,7 +995,7 @@ void Slam::Localization()
   }
 
   // Get keypoints from maps and build kd-trees for fast nearest neighbors search
-  IF_VERBOSE(3, Utils::Timer::Init("Localization : keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::Init("Localization : map keypoints extraction"));
 
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
@@ -991,23 +1007,31 @@ void Slam::Localization()
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
     if (this->UseKeypoints[k] && !this->LocalMaps[k]->IsSubMapKdTreeValid())
     {
-      // If maps are fixed, we can build a single KD-tree of the entire map
-      // to avoid rebuilding it again
-      if (!this->UpdateMap)
+      // If maps are fixed, we can build a single KD-tree
+      // of the entire map to avoid rebuilding it again
+      if (this->MapUpdate == MappingMode::NONE)
         this->LocalMaps[k]->BuildSubMapKdTree();
 
-      // Otherwise, we only extract the local sub maps to build a local and
-      // smaller KD-tree
+      // Otherwise, we only extract the local sub maps
+      // to build a local and smaller KD-tree
       else
       {
+        if (this->LocalMaps[k]->IsTimeThreshold())
+        {
+          IF_VERBOSE(3, Utils::Timer::Init("Localization : clearing old points"));
+          this->LocalMaps[k]->ClearOldPoints(this->CurrentTime);
+          IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : clearing old points"));
+        }
         // Estimate current keypoints bounding box
-        PointCloud currWordKeypoints;
-        pcl::transformPointCloud(*this->CurrentUndistortedKeypoints[k], currWordKeypoints, this->Tworld.matrix());
+        PointCloud currWorldKeypoints;
+        pcl::transformPointCloud(*this->CurrentUndistortedKeypoints[k], currWorldKeypoints, this->Tworld.matrix());
         Eigen::Vector4f minPoint, maxPoint;
-        pcl::getMinMax3D(currWordKeypoints, minPoint, maxPoint);
+        pcl::getMinMax3D(currWorldKeypoints, minPoint, maxPoint);
 
         // Build submap of all points lying in this bounding box
-        this->LocalMaps[k]->BuildSubMapKdTree(minPoint.head<3>().cast<double>().array(), maxPoint.head<3>().cast<double>().array());
+        // Moving objects are rejected but the constraint is removed
+        // if less than half the number of current keypoints are extracted from the map
+        this->LocalMaps[k]->BuildSubMapKdTree(minPoint.head<3>().array(), maxPoint.head<3>().array(), currWorldKeypoints.size() / 2);
       }
     }
   }
@@ -1021,7 +1045,7 @@ void Slam::Localization()
     std::cout << std::endl;
   }
 
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : map keypoints extraction"));
   IF_VERBOSE(3, Utils::Timer::Init("Localization : whole ICP-LM loop"));
 
   // Reset ICP results
@@ -1193,8 +1217,9 @@ void Slam::UpdateMapsUsingTworld()
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
     Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
+    // Add not fixed points
     if (this->UseKeypoints[k])
-      this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k]);
+      this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k], false, this->CurrentTime);
   }
 }
 
@@ -1394,7 +1419,7 @@ void Slam::CheckMotionLimits()
     // If startIndex is negative, no interval containing TimeWindowDuration was found, the oldest logged pose is taken
     if (startIndex < 0)
     {
-      PRINT_WARNING("Not enough logged trajectory poses to get the required time window to estimate velocity, using a smaller time window of " 
+      PRINT_WARNING("Not enough logged trajectory poses to get the required time window to estimate velocity, using a smaller time window of "
                     << nextDeltaTime << "s")
       startIndex = 0;
     }
@@ -1402,7 +1427,7 @@ void Slam::CheckMotionLimits()
     // Choose which bound of the interval is the best window's starting bound
     else if (std::abs(deltaTime - this->TimeWindowDuration) < std::abs(nextDeltaTime - this->TimeWindowDuration))
       ++startIndex;
-    
+
     // Actualize deltaTime with the best startIndex
     deltaTime = currentTimeStamp - this->LogTrajectory[startIndex].time;
   }
@@ -1620,6 +1645,31 @@ void Slam::ClearMaps()
 }
 
 //-----------------------------------------------------------------------------
+double Slam::GetVoxelGridDecayingThreshold()
+{
+    return this->LocalMaps.begin()->second->GetDecayingThreshold();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetVoxelGridDecayingThreshold(double decay)
+{
+  for (auto k : KeypointTypes)
+    this->LocalMaps[k]->SetDecayingThreshold(decay);
+}
+
+//-----------------------------------------------------------------------------
+SamplingMode Slam::GetVoxelGridSamplingMode(Keypoint k)
+{
+  return this->LocalMaps[k]->GetSampling();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetVoxelGridSamplingMode(Keypoint k, SamplingMode sm)
+{
+  this->LocalMaps[k]->SetSampling(sm);
+}
+
+//-----------------------------------------------------------------------------
 void Slam::SetVoxelGridLeafSize(Keypoint k, double size)
 {
   this->LocalMaps[k]->SetLeafSize(size);
@@ -1637,6 +1687,13 @@ void Slam::SetVoxelGridResolution(double resolution)
 {
   for (auto k : KeypointTypes)
     this->LocalMaps[k]->SetVoxelResolution(resolution);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetVoxelGridMinFramesPerVoxel(unsigned int minFrames)
+{
+  for (auto k : KeypointTypes)
+    this->LocalMaps[k]->SetMinFramesPerVoxel(minFrames);
 }
 
 } // end of LidarSlam namespace

@@ -92,4 +92,53 @@ enum class EgoMotionMode
   MOTION_EXTRAPOLATION_AND_REGISTRATION = 3
 };
 
+//------------------------------------------------------------------------------
+//! How to update the map
+enum class MappingMode
+{
+  //! Do not update map, use initial map
+  //! Performant in static environment and
+  //! more robust to moving objects
+  // Forbiding maps update can be useful for example in case
+  // of post-SLAM optimization with GPS and then run localization only in fixed
+  // optimized map or when performing two SLAM steps (mapping + localization)
+  NONE = 0,
+
+  //! Expand the map with new keypoints
+  //! The points of the initial maps (if some were loaded) will not be modified
+  ADD_KPTS_TO_FIXED_MAP = 1,
+
+  //! Update map with new keypoints
+  //! The points of the initial maps can disappear
+  UPDATE = 2,
+};
+
+//------------------------------------------------------------------------------
+//! How to downsample the map
+// A voxel grid is used and various downsampling modes
+// are possible to select the remaining point in each voxel
+enum class SamplingMode
+{
+  //! Use the first point acquired
+  //! Useful for performances issues
+  FIRST = 0,
+
+  //! Use the last point acquired
+  //! Useful in dynamic environments
+  LAST = 1,
+
+  //! Use the point with maximum intensity
+  //! The max intensity points can be the most acurate
+  MAX_INTENSITY = 2,
+
+  //! Use the closest point to the voxel center
+  //! This allows the most uniform sampling but can be biased
+  CENTER_POINT = 3,
+
+  //! Use the centroid of the voxel
+  //! This smoothes the points (can be useful for planes)
+  //! /!\ The sampling process is longer
+  CENTROID = 4
+};
+
 } // end of LidarSlam namespace

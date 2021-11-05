@@ -151,14 +151,18 @@ public:
   std::vector<std::array<double, 36>> GetCovariances() const;
 
   // Get keypoints maps
-  PointCloud::Ptr GetMap(Keypoint k) const;
+  // If clean is true, the moving objects are removed from map
+  PointCloud::Ptr GetMap(Keypoint k, bool clean = false) const;
+
+  // Get target keypoints for current scan
+  PointCloud::Ptr GetTargetSubMap(Keypoint k) const;
 
   // Get extracted and optionally undistorted keypoints from current frame.
   // If worldCoordinates=false, it returns keypoints in BASE coordinates,
   // If worldCoordinates=true, it returns keypoints in WORLD coordinates.
   // NOTE: The requested keypoints are lazy-transformed: if the requested WORLD
   // keypoints are not directly available in case they have not already been
-  // internally transformed, this will be done on first call of this method. 
+  // internally transformed, this will be done on first call of this method.
   PointCloud::Ptr GetKeypoints(Keypoint k, bool worldCoordinates = false);
 
   // Get current registered (and optionally undistorted) input points.
@@ -185,7 +189,7 @@ public:
   void SetWorldTransformFromGuess(const Transform& poseGuess);
 
   // Save keypoints maps to disk for later use
-  void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::BINARY_COMPRESSED) const;
+  void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::BINARY_COMPRESSED, bool submap = true) const;
 
   // Load keypoints maps from disk (and reset SLAM maps)
   void LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps = true);
@@ -214,9 +218,6 @@ public:
 
   SetMacro(LoggingStorage, PointCloudStorageType)
   GetMacro(LoggingStorage, PointCloudStorageType)
-
-  SetMacro(UpdateMap, bool)
-  GetMacro(UpdateMap, bool)
 
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
@@ -337,10 +338,10 @@ public:
   SetMacro(LocalizationFinalSaturationDistance, double)
 
   // Sensor parameters
-  void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);} 
+  void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);}
   double GetWheelOdomWeight() const {return this->WheelOdomManager.GetWeight();}
 
-  void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);} 
+  void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);}
   double GetGravityWeight() const {return this->ImuManager.GetWeight();}
 
   // The time offset must be computed as FrameFirstPointTimestamp - FrameReceptionPOSIXTime
@@ -361,11 +362,21 @@ public:
   GetMacro(KfAngleThreshold, double)
   SetMacro(KfAngleThreshold, double)
 
+  GetMacro(MapUpdate, MappingMode)
+  SetMacro(MapUpdate, MappingMode)
+
+  double GetVoxelGridDecayingThreshold();
+  void SetVoxelGridDecayingThreshold(double decay);
+
+  SamplingMode GetVoxelGridSamplingMode(Keypoint k);
+  void SetVoxelGridSamplingMode(Keypoint k, SamplingMode sm);
+
   // Set RollingGrid Parameters
   void ClearMaps();
   void SetVoxelGridLeafSize(Keypoint k, double size);
   void SetVoxelGridSize(int size);
   void SetVoxelGridResolution(double resolution);
+  void SetVoxelGridMinFramesPerVoxel(unsigned int minFrames);
 
   // ---------------------------------------------------------------------------
   //   Confidence estimation
@@ -440,15 +451,11 @@ private:
   // This reduces about 5 times the memory consumption, but slows down logging (and PGO).
   PointCloudStorageType LoggingStorage = PointCloudStorageType::PCL_CLOUD;
 
-  // Should the keypoints features maps be updated at each step.
-  // It is usually set to true, but forbiding maps update can be usefull in case
-  // of post-SLAM optimization with GPS and then run localization only in fixed
-  // optimized map.
-  bool UpdateMap = true;
-
   // Number of frames that have been processed by SLAM (number of poses in trajectory)
   unsigned int NbrFrameProcessed = 0;
 
+  // Timestamp of the current input frame
+  double CurrentTime = 0.;
   // ---------------------------------------------------------------------------
   //   Trajectory, transforms and undistortion
   // ---------------------------------------------------------------------------
@@ -541,7 +548,18 @@ private:
   // Number of keyrames
   int KfCounter = 0;
 
-  // keypoints local map
+  // How to update the map
+  // The map can be updated more or less with new input keypoints
+  // from current scanned points depending on the initial map reliability.
+  MappingMode MapUpdate = MappingMode::UPDATE;
+
+  // How to downsample the points in the keypoints' maps
+  // This mode parameter allows to choose how to select the remaining point in each voxel.
+  // It can be taking the first/last acquired point, taking the max intensity point,
+  // considering the closest point to the voxel center or averaging the points.
+  SamplingMode DownSampling = SamplingMode::MAX_INTENSITY;
+
+  // Keypoints local map
   std::map<Keypoint, std::shared_ptr<RollingGrid>> LocalMaps;
 
   // ---------------------------------------------------------------------------
@@ -702,7 +720,7 @@ private:
   void ExtractKeypoints();
 
   // Compute constraints provided by external sensors
-  void ComputeSensorConstraints();  
+  void ComputeSensorConstraints();
 
   // Estimate the ego motion since last frame.
   // Extrapolate new pose with a constant velocity model and/or
