@@ -27,7 +27,7 @@ list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_
 
 # MSVC enforce MT
 if(WIN32 AND MSVC)
-	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
+	set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 endif()
 
 # Boost do not use STATIC libs (Superbuild like), coherent with BUILD_SHARED_LIBS ON
