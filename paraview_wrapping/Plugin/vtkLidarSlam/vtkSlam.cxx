@@ -589,6 +589,15 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
       CheckKEParameter("Ouster", NeighborWidth, > 4);
     }
 
+    // Test if LiDAR data is Hesai
+    else if (CheckAndSetScanArrays("Timestamp", "Intensity", "LaserID"))
+    {
+      this->TimeToSecondsFactor = 1.;
+      CheckKEParameter("Hesai", EdgeIntensityGapThreshold, > 1e6);
+      CheckKEParameter("Hesai", NeighborWidth, > 4);
+      CheckKEParameter("Hesai", MinDistanceToSensor, < 1);
+    }
+
     // Failed to recognize LiDAR vendor
     else
       vtkErrorMacro(<< "Unable to identify LiDAR arrays to use.");
