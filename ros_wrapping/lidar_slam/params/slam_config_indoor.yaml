@@ -89,7 +89,7 @@ gps:
 slam:
 
   # General parameters
-  n_threads: 8      # Max number of threads to use for parallel processing (default: 1)
+  n_threads: 4      # Max number of threads to use for parallel processing (default: 1)
   2d_mode: false    # Optimize only 2D pose (X, Y, rZ) of tracking_frame relatively to odometry_frame.
   use_blobs: false  # Use only edge and planar keypoints (do not use blob keypoints)
 
