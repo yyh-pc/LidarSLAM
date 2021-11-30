@@ -1,6 +1,11 @@
+variables:
+  data_folder: /usr/src/app/data
+  refbranch: $CI_DEFAULT_BRANCH
+
 stages:
   - slam_lib
-  - ros_wrapping
+  - ros_wrapping_build
+  - ros_test
   - paraview_wrapping
 
 # Default parameters for all jobs
@@ -103,16 +108,25 @@ windows_slam_lib:
 #   Build ROS wrapping
 # ------------------------------------------------------------------------------
 
-.ros_wrapping:
-  stage: ros_wrapping
+.ros_wrapping_build:
+  stage: ros_wrapping_build
   needs: []
-  variables:
-    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_ros_wrapping
+  cache:
+    - key: "ros-build"
+      paths:
+        - catkin_ws/
+      policy: push
   script:
-    - cmake -E remove_directory $build_dir
-    - cmake -E make_directory $build_dir/src
-    - cmake -E create_symlink $CI_PROJECT_DIR $build_dir/src/slam
-    - cd $build_dir
+    # Create a hidden catkin workspace folder beside sources
+    # This is used to move all files from the current directory
+    - cmake -E make_directory .catkin_ws/src/slam
+    # Move sources to workspace
+    - mv * .catkin_ws/src/slam
+    # Convert to not hidden folder to be able to cache it for next jobs
+    - mv .catkin_ws catkin_ws
+    # Compile
+    - cd catkin_ws
+    - source /opt/ros/noetic/setup.bash
     - catkin_make
       -DCMAKE_BUILD_TYPE=Release
       $slam_cmake_option_Eigen_DIR
@@ -124,9 +138,118 @@ windows_slam_lib:
       -j 4
 
 # Build ROS wrapping on Linux
-linux_ros_wrapping:
+linux_ros_wrapping_build:
   tags: [linux, ros]
-  extends: .ros_wrapping
+  extends: .ros_wrapping_build
+
+# ------------------------------------------------------------------------------
+#   ROS tests
+# ------------------------------------------------------------------------------
+
+# Create a reference for any test from master branch
+.ros_make_reference:
+  stage: ros_test
+  tags: [linux, ros]
+  needs: [linux_ros_wrapping_build]
+  variables:
+    GIT_STRATEGY: none
+  cache:
+    - key: "ros-build"
+      paths:
+        - catkin_ws/
+      policy: pull
+    - key: "log"
+      paths:
+        - log/
+      policy: pull-push
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $ref_branch && $CI_PIPELINE_SOURCE == "push"'
+  script:
+    - echo "Creating reference log files for $test_name for next lib improvements"
+    - cmake -E remove_directory log/$test_name/reference
+    - cmake -E make_directory log/$test_name/reference
+    - cd catkin_ws
+    - source /opt/ros/noetic/setup.bash
+    - source devel/setup.bash
+    - roslaunch lidar_slam_test slam.launch
+      test_data:=$data_folder/$test_name/$test_name.bag
+      outdoor:=$outdoor
+      vlp16:=$vlp16
+      wait_init:=$wait_init
+      res_path:=$CI_PROJECT_DIR/log/$test_name/reference
+      2>&1
+      | grep "comparison ignored"
+
+# Perform test
+.ros_test:
+  stage: ros_test
+  tags: [linux, ros]
+  needs: [linux_ros_wrapping_build]
+  variables:
+    GIT_STRATEGY: none
+  cache:
+    - key: "ros-build"
+      paths:
+        - catkin_ws/
+      policy: pull
+    - key: "log"
+      paths:
+        - log/
+      policy: pull
+  rules:
+    - if: '$CI_COMMIT_BRANCH != $ref_branch && $CI_PIPELINE_SOURCE == "push"'
+  script:
+    - echo $test_name
+    - cmake -E remove_directory log/$test_name/result
+    - cmake -E make_directory log/$test_name/result
+    - cd catkin_ws
+    - source /opt/ros/noetic/setup.bash
+    - source devel/setup.bash
+    - roslaunch lidar_slam_test slam.launch
+      test_data:=$data_folder/$test_name/$test_name.bag
+      outdoor:=$outdoor
+      vlp16:=$vlp16
+      wait_init:=$wait_init
+      ref_path:=$CI_PROJECT_DIR/log/$test_name/reference
+      res_path:=$CI_PROJECT_DIR/log/$test_name/result
+      2>&1
+      | grep "Test successfully passed"
+
+# Create a reference for test1 from master branch
+ros_make_reference1:
+  extends: .ros_make_reference
+  variables:
+    test_name: "test1"
+    outdoor: "true"
+    vlp16: "false"
+    wait_init: "1" # To have time to init the process
+
+# Create a reference for test2 from master branch
+ros_make_reference2:
+  extends: .ros_make_reference
+  variables:
+    test_name: "test2"
+    outdoor: "false"
+    vlp16: "true"
+    wait_init: "1" # To have time to init the process
+
+# Perform test 1
+ros_test1:
+  extends: .ros_test
+  variables:
+    test_name: "test1"
+    outdoor: "true"
+    vlp16: "false"
+    wait_init: "2" # To have time to load the reference files
+
+# Perform test 2
+ros_test2:
+  extends: .ros_test
+  variables:
+    test_name: "test2"
+    outdoor: "false"
+    vlp16: "true"
+    wait_init: "4" # To have time to load the reference files
 
 # ------------------------------------------------------------------------------
 #   Build PV wrapping

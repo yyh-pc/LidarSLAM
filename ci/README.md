@@ -32,3 +32,21 @@ To register a new docker runner:
 - Install [Docker](https://docs.docker.com/install/linux/docker-ce/ubuntu/#install-using-the-repository)
 - Get the image either from the [Package/Container Registery](../../container_registry), build it from the [Dockerfile](Dockerfile) or from an available image on the [Docker Hub](https://hub.docker.com/search?q=&type=image) .
 - Change the runner [docker pull policy](https://docs.gitlab.com/runner/executors/docker.html#using-the-if-not-present-pull-policy) to `if-not-present`. This will enable to use the local image you just get. To do so, open your [runner configuration file](https://docs.gitlab.com/runner/configuration/advanced-configuration.html).
+
+## Add a test
+
+Architecture choices :
+- The test data are included in the image using the COPY command
+- Build data are stored in cache after build job for next test job
+- When the pipeline is triggered for master branch, log data are stored in cache
+- When the pipeline is triggered on another branch, the log data are computed and compared with the master log data
+
+Therefore, these are the detailed steps to add a test :
+1. Add a *testk* (for test #**k**) folder to the gitlab-runner/Testing/SLAM folder containing the new bag file on which to test the SLAM
+2. Add a COPY line to the Dockerfile for these new test data
+3. Build the new docker image on CI PC
+  ```
+  docker build -t slam-ros-noetic-perception path/to/new/DockerFile
+  ```
+4. Add a make_reference job with the *testk* variable and its specific parameters (vlp16, outdoor...)
+5. Add a test job with the same config as the one used in reference creation

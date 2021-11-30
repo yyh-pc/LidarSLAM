@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>lidar_slam_test</name>
+  <version>1.0.0</version>
+  <description>ROS tests on LiDAR SLAM library.</description>
+
+  <!-- One maintainer tag required, multiple allowed, one person per tag -->
+  <maintainer email="julia.sanchez@kitware.com">Julia Sanchez</maintainer>
+
+
+  <!-- One license tag required, multiple allowed, one license per tag -->
+  <!-- Commonly used license strings: -->
+  <!--   BSD, MIT, Boost Software License, GPLv2, GPLv3, LGPLv2.1, LGPLv3 -->
+  <license>Apache License Version 2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>message_generation</build_depend>
+
+  <depend>roscpp</depend>
+  <depend>lidar_slam</depend> <!-- for message type + execution -->
+  <depend>nav_msgs</depend>
+
+  <exec_depend>message_runtime</exec_depend>
+
+</package>

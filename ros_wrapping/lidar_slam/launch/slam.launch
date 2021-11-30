@@ -2,6 +2,7 @@
 
   <!-- General args -->
   <arg name="use_sim_time" default="true" doc="Use simulation time when replaying rosbags with '--clock' option."/>
+  <arg name="outdoor" default="true" doc="Decide which set of parameters to use"/>
   <arg name="rviz" default="true" doc="Visualize results with RViz."/>
   <arg name="gps" default="false" doc="If true, use GPS data to calibrate SLAM output. Otherwise, provide calibration."/>
 
@@ -27,7 +28,8 @@
 
   <!-- LiDAR SLAM : compute TF slam_init -> velodyne -->
   <node name="lidar_slam" pkg="lidar_slam" type="lidar_slam_node" output="screen">
-    <rosparam file="$(find lidar_slam)/params/slam_config.yaml" command="load"/>
+    <rosparam if="$(arg outdoor)" file="$(find lidar_slam)/params/slam_config_outdoor.yaml" command="load"/>
+    <rosparam unless="$(arg outdoor)" file="$(find lidar_slam)/params/slam_config_indoor.yaml" command="load"/>
     <param name="gps/use_gps" value="$(arg gps)"/>
   </node>
 
