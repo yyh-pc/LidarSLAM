@@ -1,6 +1,5 @@
 variables:
   data_folder: /usr/src/app/data
-  refbranch: $CI_DEFAULT_BRANCH
 
 stages:
   - slam_lib
@@ -162,8 +161,8 @@ linux_ros_wrapping_build:
       paths:
         - log/
       policy: pull-push
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $ref_branch && $CI_PIPELINE_SOURCE == "push"'
+  only:
+    - master
   script:
     - echo "Creating reference log files for $test_name for next lib improvements"
     - cmake -E remove_directory log/$test_name/reference
@@ -196,8 +195,8 @@ linux_ros_wrapping_build:
       paths:
         - log/
       policy: pull
-  rules:
-    - if: '$CI_COMMIT_BRANCH != $ref_branch && $CI_PIPELINE_SOURCE == "push"'
+  except:
+    - master
   script:
     - echo $test_name
     - cmake -E remove_directory log/$test_name/result
