@@ -1,6 +1,6 @@
-#####################################
-#  Real-time LiDAR SLAM parameters  #
-#####################################
+#########################################################
+#  Real-time LiDAR SLAM parameters for outdoor contexts #
+#########################################################
 
 # SLAM will compute the pose of tracking_frame in odometry_frame coordinates system, using measurements in input pointcloud frames.
 odometry_frame: "odom"       # Frame in which SLAM odometry and maps are expressed (default: odom)

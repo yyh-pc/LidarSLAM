@@ -1,6 +1,6 @@
-#####################################
-#  Real-time LiDAR SLAM parameters  #
-#####################################
+########################################################
+#  Real-time LiDAR SLAM parameters for indoor contexts #
+########################################################
 
 # SLAM will compute the pose of tracking_frame in odometry_frame coordinates system, using measurements in input pointcloud frames.
 odometry_frame: "odom"       # Frame in which SLAM odometry and maps are expressed (default: odom)
@@ -32,6 +32,11 @@ output:
     edges: true            # Publish edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
     planes: true           # Publish planes keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
     blobs: true            # Publish blobs keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
+  submaps:
+    edges: true            # Publish edges keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/edges'.
+    planes: true           # Publish planes keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/planes'.
+    blobs: true            # Publish blobs keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/blobs'.
+  # WARNING : The submaps only exist if update_maps is not 0 (the map is not fixed)
   keypoints:
     edges: true            # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
     planes: true           # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
@@ -49,10 +54,6 @@ maps:
   # This could be useful to set if you're using an initial map estimate, but without starting at the map origin
   initial_pose: [0., 0., 0., 0., 0., 0.]
 
-  # Allow to update SLAM maps with keypoints from new scans.
-  # This is equivalent to publishing SlamCommand::DISABLE_SLAM_MAP_UPDATE/ENABLE_SLAM_MAP_UPDATE to 'slam_command' topic at startup.
-  # WARNING: Do not set this parameter to false if no initial maps have been loaded!
-  update_maps: true
 
   # PCD file format to use to save SLAM maps: 0) ascii, 1) binary, 2) binary_compressed.
   # To save keypoints maps, send command SlamCommand::SAVE_KEYPOINTS_MAPS to 'slam_command' topic.
@@ -159,22 +160,22 @@ slam:
   ego_motion_registration:
     ICP_max_iter: 4                 # Number of ICP-optim iterations (building ICP matches then optimizing them) to perform.
     LM_max_iter: 15                 # Max number of iterations of the Levenberg-Marquardt optimizer to solve the ICP problem.
-    max_neighbors_distance: 5.      # [m] Max distance allowed between a current keypoint and its neighbors.
+    max_neighbors_distance: 3.      # [m] Max distance allowed between a current keypoint and its neighbors.
     edge_nb_neighbors: 8            # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
     edge_min_nb_neighbors: 3        # [>=2] Min number of resulting filtered edge neighbors (max 1 per scan line) to approximate the corresponding line model.
     edge_pca_factor: 5.             # To check the line neighborhood shape, the PCA eigenvalues must respect: factor * V1 <= V2
-    edge_max_model_error: 0.2       # [m] Max RMSE allowed between neighborhood and its fitted line model.
+    edge_max_model_error: 0.1       # [m] Max RMSE allowed between neighborhood and its fitted line model.
     plane_nb_neighbors: 5           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
-    plane_pca_factor1: 35.          # To check the plane neighborhood shape, the PCA eigenvalues must respect:
-    plane_pca_factor2: 8.           #     factor1 * V0 <= V1 and V2 <= factor2 * V1
-    plane_max_model_error: 0.2      # [m] Max RMSE allowed between neighborhood and its fitted plane model.
+    plane_pca_factor1: 5.           # To check the plane neighborhood shape, the PCA eigenvalues must respect:
+    plane_pca_factor2: 10.          #     factor1 * V0 <= V1 and V2 <= factor2 * V1
+    plane_max_model_error: 0.1      # [m] Max RMSE allowed between neighborhood and its fitted plane model.
     init_saturation_distance: 5.    # [m] Initial distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
     final_saturation_distance: 1.   # [m] Final distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
   # ICP and LM parameters for Localization step
   localization:
     ICP_max_iter: 3                 # Number of ICP-optim iterations (building ICP matches then optimizing them) to perform.
     LM_max_iter: 15                 # Max number of iterations of the Levenberg-Marquardt optimizer to solve the ICP problem
-    max_neighbors_distance: 5.      # [m] Max distance allowed between a current keypoint and its neighbors.
+    max_neighbors_distance: 3.      # [m] Max distance allowed between a current keypoint and its neighbors.
     edge_nb_neighbors: 9            # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
     edge_min_nb_neighbors: 5        # [>=2] Min number of resulting filtered edge neighbors (close to best line candidate) to approximate the corresponding line model.
     edge_pca_factor: 5.             # To check the line neighborhood shape, the PCA eigenvalues must respect: factor * V1 <= V2
@@ -191,6 +192,8 @@ slam:
   keyframes:
     distance_threshold: 0.2  # [m] Min distance to travel since last KF to add a new one
     angle_threshold: 5.      # [°] Min angle to rotate since last KF to add a new one
+  # WARNING : these parameters are linked to the confidence threshold parameter
+  # If they are reduced, the confidence threshold may need to be increased to not take too many moving objects
 
   # Confidence estimators on pose output
   confidence:
@@ -206,11 +209,40 @@ slam:
 
   # Keypoints maps, saved as downsampled voxel grids
   voxel_grid:
+    # How to update the maps:
+    #  0) No update is performed. Initial maps are kept as they are.
+    #     WARNING: Do not set this parameter to 0 if no initial maps have been loaded!
+    #  1) New keypoints are added if they lie in a free voxel relatively to an initial map
+    #  2) All new keypoints are added and the map is updated (initial keypoints can disappear)
+    #     1) and 2) will be equivalent if no initial maps have been loaded.
+    # This is equivalent to publishing :
+    #          *SlamCommand::DISABLE_SLAM_MAP_UPDATE
+    #          *SlamCommand::ENABLE_SLAM_MAP_EXPANSION
+    #          *SlamCommand::ENABLE_SLAM_MAP_UPDATE
+    # to 'slam_command' topic at startup.
+    update_maps: 2
     leaf_size_edges: 0.20   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
     leaf_size_planes: 0.30  # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
     leaf_size_blobs: 0.30   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
+    # WARNING: the leaf sizes are linked with the confidence threshold parameter
+    # if they are reduced the confidence threshold may need to by reduced as well to extract enough target keypoints
     size: 50                # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
     resolution: 5.          # [m/voxel] Resolution of a voxel.
+    # The sampling modes allow to decide which point to keep when downsampling the map using a voxel grid.
+    # 0) Keep the first point scanned in the voxel,
+    # 1) Get the last point scanned in the voxel,
+    # 2) Select the point with max intensity,
+    # 3) Select the closest point to the voxel center,
+    # 4) Compute the centroid of all points laying in the voxel.
+    sampling_mode_edges: 2
+    sampling_mode_planes: 2
+    sampling_mode_blobs: 2
+    decaying_threshold: -1  # [s] Time duration after which to eliminate a not fixed keypoint from the map.
+    min_frames_per_voxel: 0 # Minimum number of frames that must have reached a map voxel
+                            # to consider the voxel contains a target keypoint.
+                            # It is used to reject moving objects from the map
+                            # WARNING: this parameter may need to be adapted to the velocity of the robot,
+                            # and the parameterization : see leaf_size keyframes parameters for more details
 
   # Keypoint extractor for each LiDAR sensor
   ke:
