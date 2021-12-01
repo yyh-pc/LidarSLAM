@@ -1424,7 +1424,7 @@
       <DoubleVectorProperty name="Min distance to sensor"
                             command="SetMinDistanceToSensor"
                             number_of_elements="1"
-                            default_values="3."
+                            default_values="1.5"
                             panel_visibility="advanced">
         <Documentation>
           Minimum distance between a point and the sensor to be processed for

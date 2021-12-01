@@ -247,7 +247,7 @@ slam:
   # Keypoint extractor for each LiDAR sensor
   ke:
     # Single LiDAR input
-    min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
+    min_distance_to_sensor: 1.5        # [m] Minimal point to sensor distance to consider a point as valid.
     min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).

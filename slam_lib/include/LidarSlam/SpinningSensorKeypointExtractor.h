@@ -129,7 +129,7 @@ private:
   int NeighborWidth = 4;
 
   // Minimal point/sensor sensor to consider a point as valid
-  float MinDistanceToSensor = 3.0;  // [m]
+  float MinDistanceToSensor = 1.5;  // [m]
 
   // Minimum angle between laser beam and surface to consider a point as valid
   float MinBeamSurfaceAngle = 10; // [°]
