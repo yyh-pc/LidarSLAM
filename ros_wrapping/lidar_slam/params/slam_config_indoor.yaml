@@ -163,12 +163,11 @@ slam:
     max_neighbors_distance: 3.      # [m] Max distance allowed between a current keypoint and its neighbors.
     edge_nb_neighbors: 8            # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
     edge_min_nb_neighbors: 3        # [>=2] Min number of resulting filtered edge neighbors (max 1 per scan line) to approximate the corresponding line model.
-    edge_pca_factor: 5.             # To check the line neighborhood shape, the PCA eigenvalues must respect: factor * V1 <= V2
     edge_max_model_error: 0.1       # [m] Max RMSE allowed between neighborhood and its fitted line model.
     plane_nb_neighbors: 5           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
-    plane_pca_factor1: 5.           # To check the plane neighborhood shape, the PCA eigenvalues must respect:
-    plane_pca_factor2: 10.          #     factor1 * V0 <= V1 and V2 <= factor2 * V1
     plane_max_model_error: 0.1      # [m] Max RMSE allowed between neighborhood and its fitted plane model.
+    planarity_threshold: 0.04       # Min ratio between the 2 highest eigen values of the plane neighborhood to create a point to plane constraint :
+                                    # Contained in [0, 1]. OK if l1/l2 > planarity_threshold (with l2>l1>l0)
     init_saturation_distance: 5.    # [m] Initial distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
     final_saturation_distance: 1.   # [m] Final distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
   # ICP and LM parameters for Localization step
@@ -178,12 +177,11 @@ slam:
     max_neighbors_distance: 3.      # [m] Max distance allowed between a current keypoint and its neighbors.
     edge_nb_neighbors: 9            # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
     edge_min_nb_neighbors: 5        # [>=2] Min number of resulting filtered edge neighbors (close to best line candidate) to approximate the corresponding line model.
-    edge_pca_factor: 5.             # To check the line neighborhood shape, the PCA eigenvalues must respect: factor * V1 <= V2
     edge_max_model_error: 0.1       # [m] Max RMSE allowed between neighborhood and its fitted line model.
     plane_nb_neighbors: 7           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
-    plane_pca_factor1: 5.           # To check the plane neighborhood shape, the PCA eigenvalues must respect:
-    plane_pca_factor2: 10.          #     factor1 * V0 <= V1 and V2 <= factor2 * V1
     plane_max_model_error: 0.1      # [m] Max RMSE allowed between neighborhood and its fitted plane model.
+    planarity_threshold: 0.04       # Min ratio between the 2 highest eigen values of the plane neighborhood to create a point to plane constraint :
+                                    # Contained in [0, 1]. OK if l1/l2 > planarity_threshold (with l2>l1>l0)
     blob_nb_neighbors: 10           # [>=4] Number of blob neighbors to extract to approximate the corresponding ellipsoid model.
     init_saturation_distance: 2.    # [m] Initial distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
     final_saturation_distance: 0.5  # [m] Final distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.

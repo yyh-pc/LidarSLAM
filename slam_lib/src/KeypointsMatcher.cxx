@@ -148,12 +148,6 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildLineMatch(co
   Eigen::Matrix3d eigVecs;
   Utils::ComputeMeanAndPCA(*previousEdges.GetInputCloud(), knnIndices, mean, eigVecs, eigVals);
 
-  // If the first eigen value is significantly higher than the second one,
-  // it means that the sourrounding points are distributed on an edge line.
-  // Otherwise, discard this bad unstructured neighborhood.
-  if (eigVals(2) < this->Params.EdgePcaFactor * eigVals(1))
-    return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0., CeresTools::Residual() };
-
   // =============================================
   // Compute point-to-line optimization parameters
 
@@ -237,8 +231,7 @@ KeypointsMatcher::MatchingResults::MatchInfo KeypointsMatcher::BuildPlaneMatch(c
   // If the second eigen value is close to the highest one and bigger than the
   // smallest one, it means that the points are distributed along a plane.
   // Otherwise, discard this bad unstructured neighborhood.
-  if (eigVals(1) < this->Params.PlanePcaFactor1 * eigVals(0) || 
-      this->Params.PlanePcaFactor2 * eigVals(1) < eigVals(2))
+  if (eigVals(1) / eigVals(2) < this->Params.PlanarityThreshold)
     return { MatchingResults::MatchStatus::BAD_PCA_STRUCTURE, 0., CeresTools::Residual() };
 
   // ==============================================

@@ -272,17 +272,11 @@ public:
   GetMacro(EgoMotionEdgeMinNbNeighbors, unsigned int)
   SetMacro(EgoMotionEdgeMinNbNeighbors, unsigned int)
 
-  GetMacro(EgoMotionEdgePcaFactor, double)
-  SetMacro(EgoMotionEdgePcaFactor, double)
-
   GetMacro(EgoMotionPlaneNbNeighbors, unsigned int)
   SetMacro(EgoMotionPlaneNbNeighbors, unsigned int)
 
-  GetMacro(EgoMotionPlanePcaFactor1, double)
-  SetMacro(EgoMotionPlanePcaFactor1, double)
-
-  GetMacro(EgoMotionPlanePcaFactor2, double)
-  SetMacro(EgoMotionPlanePcaFactor2, double)
+  GetMacro(EgoMotionPlanarityThreshold, double)
+  SetMacro(EgoMotionPlanarityThreshold, double)
 
   GetMacro(EgoMotionEdgeMaxModelError, double)
   SetMacro(EgoMotionEdgeMaxModelError, double)
@@ -312,17 +306,11 @@ public:
   GetMacro(LocalizationEdgeMinNbNeighbors, unsigned int)
   SetMacro(LocalizationEdgeMinNbNeighbors, unsigned int)
 
-  GetMacro(LocalizationEdgePcaFactor, double)
-  SetMacro(LocalizationEdgePcaFactor, double)
-
   GetMacro(LocalizationPlaneNbNeighbors, unsigned int)
   SetMacro(LocalizationPlaneNbNeighbors, unsigned int)
 
-  GetMacro(LocalizationPlanePcaFactor1, double)
-  SetMacro(LocalizationPlanePcaFactor1, double)
-
-  GetMacro(LocalizationPlanePcaFactor2, double)
-  SetMacro(LocalizationPlanePcaFactor2, double)
+  GetMacro(LocalizationPlanarityThreshold, double)
+  SetMacro(LocalizationPlanarityThreshold, double)
 
   GetMacro(LocalizationEdgeMaxModelError, double)
   SetMacro(LocalizationEdgeMaxModelError, double)
@@ -629,21 +617,17 @@ private:
   // Edge keypoints matching: point-to-line distance
   unsigned int EgoMotionEdgeNbNeighbors = 8;
   unsigned int EgoMotionEdgeMinNbNeighbors = 3;
-  double EgoMotionEdgePcaFactor = 5.;
   double EgoMotionEdgeMaxModelError = 0.2;
   unsigned int LocalizationEdgeNbNeighbors = 10;
   unsigned int LocalizationEdgeMinNbNeighbors = 4;
-  double LocalizationEdgePcaFactor = 5.0;
   double LocalizationEdgeMaxModelError = 0.2;
 
   // Plane keypoints matching: point-to-plane distance
   unsigned int EgoMotionPlaneNbNeighbors = 5;
-  double EgoMotionPlanePcaFactor1 = 35.0;
-  double EgoMotionPlanePcaFactor2 = 8.0;
+  double EgoMotionPlanarityThreshold = 0.04;
   double EgoMotionPlaneMaxModelError = 0.2;
   unsigned int LocalizationPlaneNbNeighbors = 5;
-  double LocalizationPlanePcaFactor1 = 35.0;
-  double LocalizationPlanePcaFactor2 = 8.0;
+  double LocalizationPlanarityThreshold = 0.04;
   double LocalizationPlaneMaxModelError = 0.2;
 
   // Blob keypoints matching: point-to-ellipsoid distance
