@@ -158,31 +158,40 @@ slam:
 
   # ICP and LM parameters for Ego-Motion registration step (used only if ego_motion is 2 or 3)
   ego_motion_registration:
-    ICP_max_iter: 4                 # Number of ICP-optim iterations (building ICP matches then optimizing them) to perform.
-    LM_max_iter: 15                 # Max number of iterations of the Levenberg-Marquardt optimizer to solve the ICP problem.
+    # Match
     max_neighbors_distance: 3.      # [m] Max distance allowed between a current keypoint and its neighbors.
+    # Point to edge match
     edge_nb_neighbors: 8            # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
     edge_min_nb_neighbors: 3        # [>=2] Min number of resulting filtered edge neighbors (max 1 per scan line) to approximate the corresponding line model.
-    edge_max_model_error: 0.1       # [m] Max RMSE allowed between neighborhood and its fitted line model.
+    edge_max_model_error: 0.1       # [m] Max RMSE allowed between neighborhood and its fitted line model to create a point to line constraint.
+    # Point to plane match
     plane_nb_neighbors: 5           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
-    plane_max_model_error: 0.1      # [m] Max RMSE allowed between neighborhood and its fitted plane model.
     planarity_threshold: 0.04       # Min ratio between the 2 highest eigen values of the plane neighborhood to create a point to plane constraint :
                                     # Contained in [0, 1]. OK if l1/l2 > planarity_threshold (with l2>l1>l0)
+    plane_max_model_error: 0.1      # [m] Max RMSE allowed between neighborhood and its fitted plane model to create a point to plane constraint.
+    # Optimization
+    ICP_max_iter: 4                 # Number of ICP-optim iterations (building ICP matches then optimizing them) to perform.
+    LM_max_iter: 15                 # Max number of iterations of the Levenberg-Marquardt optimizer to solve the ICP problem.
     init_saturation_distance: 5.    # [m] Initial distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
     final_saturation_distance: 1.   # [m] Final distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
   # ICP and LM parameters for Localization step
   localization:
-    ICP_max_iter: 3                 # Number of ICP-optim iterations (building ICP matches then optimizing them) to perform.
-    LM_max_iter: 15                 # Max number of iterations of the Levenberg-Marquardt optimizer to solve the ICP problem
+    # Match
     max_neighbors_distance: 3.      # [m] Max distance allowed between a current keypoint and its neighbors.
+    # Point to edge match
     edge_nb_neighbors: 9            # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
     edge_min_nb_neighbors: 5        # [>=2] Min number of resulting filtered edge neighbors (close to best line candidate) to approximate the corresponding line model.
-    edge_max_model_error: 0.1       # [m] Max RMSE allowed between neighborhood and its fitted line model.
+    edge_max_model_error: 0.1       # [m] Max RMSE allowed between neighborhood and its fitted line model to create a point to line constraint.
+    # Point to plane match
     plane_nb_neighbors: 7           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
-    plane_max_model_error: 0.1      # [m] Max RMSE allowed between neighborhood and its fitted plane model.
     planarity_threshold: 0.04       # Min ratio between the 2 highest eigen values of the plane neighborhood to create a point to plane constraint :
                                     # Contained in [0, 1]. OK if l1/l2 > planarity_threshold (with l2>l1>l0)
+    plane_max_model_error: 0.1      # [m] Max RMSE allowed between neighborhood and its fitted plane model to create a point to plane constraint.
+    # Point to blob match
     blob_nb_neighbors: 10           # [>=4] Number of blob neighbors to extract to approximate the corresponding ellipsoid model.
+    # Optimization
+    ICP_max_iter: 3                 # Number of ICP-optim iterations (building ICP matches then optimizing them) to perform.
+    LM_max_iter: 15                 # Max number of iterations of the Levenberg-Marquardt optimizer to solve the ICP problem.
     init_saturation_distance: 2.    # [m] Initial distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
     final_saturation_distance: 0.5  # [m] Final distance beyond which residuals are saturated using Tukey loss to limit outlier contribution.
 
