@@ -601,20 +601,6 @@
         </Documentation>
       </IntVectorProperty>
 
-      <DoubleVectorProperty name="Edge PCA factor EM"
-                            command="SetEgoMotionEdgePcaFactor"
-                            number_of_elements="1"
-                            default_values="5."
-                            panel_visibility="advanced">
-        <Documentation>
-          To check the line neighborhood shape, the PCA eigenvalues must respect:
-
-          *EigenValue2 >= Factor x EigenValue1*
-
-          with *EigenValue2 >= EigenValue1 >= EigenValue0*
-        </Documentation>
-      </DoubleVectorProperty>
-
       <DoubleVectorProperty name="Edge max model error EM"
                             command="SetEgoMotionEdgeMaxModelError"
                             number_of_elements="1"
@@ -640,42 +626,26 @@
         </Documentation>
       </IntVectorProperty>
 
-      <DoubleVectorProperty name="Plane PCA factor 1 EM"
-                            command="SetEgoMotionPlanePcaFactor1"
+      <DoubleVectorProperty name="Planarity threshold EM"
+                            command="SetEgoMotionPlanarityThreshold"
                             number_of_elements="1"
-                            default_values="35."
+                            default_values="0.04"
                             panel_visibility="advanced">
         <Documentation>
           To check the plane neighborhood shape, the PCA eigenvalues must respect:
 
-          *EigenValue1 >= Factor1 x EigenValue0*
-
-          *Factor2 x EigenValue1 >= EigenValue2*
+          *EigenValue1 / EigenValue2 >= planarityThreshold*
 
           with *EigenValue2 >= EigenValue1 >= EigenValue0*
-        </Documentation>
-      </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Plane PCA factor 2 EM"
-                            command="SetEgoMotionPlanePcaFactor2"
-                            number_of_elements="1"
-                            default_values="8."
-                            panel_visibility="advanced">
-        <Documentation>
-          To check the plane neighborhood shape, the PCA eigenvalues must respect:
-
-          *EigenValue1 >= Factor1 x EigenValue0*
-
-          *Factor2 x EigenValue1 >= EigenValue2*
-
-          with *EigenValue2 >= EigenValue1 >= EigenValue0*
+          The thickness of the plane can be checked with the max model error.
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Plane max model error EM"
                             command="SetEgoMotionPlaneMaxModelError"
                             number_of_elements="1"
-                            default_values="0.2"
+                            default_values="0.1"
                             panel_visibility="advanced">
         <Documentation>
           Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
@@ -721,11 +691,9 @@
         <Property name="Max neighbors distance EM" />
         <Property name="Edge nb of neighbors EM" />
         <Property name="Edge nb min filtered neighbors EM" />
-        <Property name="Edge PCA factor EM" />
         <Property name="Edge max model error EM" />
         <Property name="Plane nb of neighbors EM" />
-        <Property name="Plane PCA factor 1 EM" />
-        <Property name="Plane PCA factor 2 EM" />
+        <Property name="Planarity threshold EM" />
         <Property name="Plane max model error EM" />
         <Property name="Init saturation distance EM" />
         <Property name="Final saturation distance EM" />
@@ -832,20 +800,6 @@
         </Documentation>
       </IntVectorProperty>
 
-      <DoubleVectorProperty name="Edge PCA factor"
-                            command="SetLocalizationEdgePcaFactor"
-                            number_of_elements="1"
-                            default_values="5."
-                            panel_visibility="advanced">
-        <Documentation>
-          To check the line neighborhood shape, the PCA eigenvalues must respect:
-
-          *EigenValue2 >= Factor x EigenValue1*
-
-          with *EigenValue2 >= EigenValue1 >= EigenValue0*
-        </Documentation>
-      </DoubleVectorProperty>
-
       <DoubleVectorProperty name="Edge max model error"
                             command="SetLocalizationEdgeMaxModelError"
                             number_of_elements="1"
@@ -871,42 +825,26 @@
         </Documentation>
       </IntVectorProperty>
 
-      <DoubleVectorProperty name="Plane PCA factor 1"
-                            command="SetLocalizationPlanePcaFactor1"
+      <DoubleVectorProperty name="Planarity threshold"
+                            command="SetLocalizationPlanarityThreshold"
                             number_of_elements="1"
-                            default_values="35."
+                            default_values="0.04"
                             panel_visibility="advanced">
         <Documentation>
           To check the plane neighborhood shape, the PCA eigenvalues must respect:
 
-          *EigenValue1 >= Factor1 x EigenValue0*
-
-          *Factor2 x EigenValue1 >= EigenValue2*
+          *EigenValue1 / EigenValue2 >= planarityThreshold*
 
           with *EigenValue2 >= EigenValue1 >= EigenValue0*
-        </Documentation>
-      </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Plane PCA factor 2"
-                            command="SetLocalizationPlanePcaFactor2"
-                            number_of_elements="1"
-                            default_values="8."
-                            panel_visibility="advanced">
-        <Documentation>
-          To check the plane neighborhood shape, the PCA eigenvalues must respect:
-
-          *EigenValue1 >= Factor1 x EigenValue0*
-
-          *Factor2 x EigenValue1 >= EigenValue2*
-
-          with *EigenValue2 >= EigenValue1 >= EigenValue0*
+          The thickness of the plane can be checked with the max model error.
         </Documentation>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Plane max model error"
                             command="SetLocalizationPlaneMaxModelError"
                             number_of_elements="1"
-                            default_values="0.2"
+                            default_values="0.1"
                             panel_visibility="advanced">
         <Documentation>
           Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
@@ -971,11 +909,9 @@
         <Property name="Max neighbors distance" />
         <Property name="Edge nb of neighbors" />
         <Property name="Edge nb min filtered neighbors" />
-        <Property name="Edge PCA factor" />
         <Property name="Edge max model error" />
         <Property name="Plane nb of neighbors" />
-        <Property name="Plane PCA factor 1" />
-        <Property name="Plane PCA factor 2" />
+        <Property name="Planarity threshold" />
         <Property name="Plane max model error" />
         <Property name="Blob nb of neighbors" />
         <Property name="Init saturation distance" />
@@ -1424,7 +1360,7 @@
       <DoubleVectorProperty name="Min distance to sensor"
                             command="SetMinDistanceToSensor"
                             number_of_elements="1"
-                            default_values="3."
+                            default_values="1.5"
                             panel_visibility="advanced">
         <Documentation>
           Minimum distance between a point and the sensor to be processed for

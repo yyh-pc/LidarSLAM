@@ -880,11 +880,9 @@ void Slam::ComputeEgoMotion()
     matchingParams.MaxNeighborsDistance = this->EgoMotionMaxNeighborsDistance;
     matchingParams.EdgeNbNeighbors = this->EgoMotionEdgeNbNeighbors;
     matchingParams.EdgeMinNbNeighbors = this->EgoMotionEdgeMinNbNeighbors;
-    matchingParams.EdgePcaFactor = this->EgoMotionEdgePcaFactor;
     matchingParams.EdgeMaxModelError = this->EgoMotionEdgeMaxModelError;
     matchingParams.PlaneNbNeighbors = this->EgoMotionPlaneNbNeighbors;
-    matchingParams.PlanePcaFactor1 = this->EgoMotionPlanePcaFactor1;
-    matchingParams.PlanePcaFactor2 = this->EgoMotionPlanePcaFactor2;
+    matchingParams.PlanarityThreshold = this->EgoMotionPlanarityThreshold;
     matchingParams.PlaneMaxModelError = this->EgoMotionPlaneMaxModelError;
 
     // ICP - Levenberg-Marquardt loop
@@ -1060,11 +1058,9 @@ void Slam::Localization()
   matchingParams.MaxNeighborsDistance = this->LocalizationMaxNeighborsDistance;
   matchingParams.EdgeNbNeighbors = this->LocalizationEdgeNbNeighbors;
   matchingParams.EdgeMinNbNeighbors = this->LocalizationEdgeMinNbNeighbors;
-  matchingParams.EdgePcaFactor = this->LocalizationEdgePcaFactor;
   matchingParams.EdgeMaxModelError = this->LocalizationEdgeMaxModelError;
   matchingParams.PlaneNbNeighbors = this->LocalizationPlaneNbNeighbors;
-  matchingParams.PlanePcaFactor1 = this->LocalizationPlanePcaFactor1;
-  matchingParams.PlanePcaFactor2 = this->LocalizationPlanePcaFactor2;
+  matchingParams.PlanarityThreshold = this->LocalizationPlanarityThreshold;
   matchingParams.PlaneMaxModelError = this->LocalizationPlaneMaxModelError;
   matchingParams.BlobNbNeighbors = this->LocalizationBlobNbNeighbors;
 

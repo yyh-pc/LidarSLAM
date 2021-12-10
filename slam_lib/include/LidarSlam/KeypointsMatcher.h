@@ -58,13 +58,11 @@ public:
     // Edge keypoints matching: point-to-line distance
     unsigned int EdgeNbNeighbors = 10;   ///< [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates
     unsigned int EdgeMinNbNeighbors = 4; ///< [>=2] Min number of resulting filtered edge neighbors to approximate the corresponding line model
-    double EdgePcaFactor = 5.0;          ///< To check the line neighborhood shape, the PCA eigenvalues must respect: factor * V1 <= V2
     double EdgeMaxModelError = 0.2;      ///< [m] Max RMSE allowed between neighborhood and its fitted line model
 
     // Plane keypoints matching: point-to-plane distance
     unsigned int PlaneNbNeighbors = 5;   ///< [>=3] Number of plane neighbors to extract to approximate the corresponding plane model
-    double PlanePcaFactor1 = 35.0;       ///< To check the plane neighborhood shape, the PCA eigenvalues must respect:
-    double PlanePcaFactor2 = 8.0;        ///<     factor1 * V0 <= V1 and V2 <= factor2 * V1
+    double PlanarityThreshold = 0.04;    ///< Threshold to filter reliable planes : l1/l2 > PlanarityThreshold (warning l = std^2)
     double PlaneMaxModelError = 0.2;     ///< [m] Max RMSE allowed between neighborhood and its fitted plane model
 
     // Blob keypoints matching: point-to-ellipsoid distance
