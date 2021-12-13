@@ -1,12 +1,95 @@
 # SLAM changes history
 
+## *v1.5 (2021/12/13)*
+
+This release mainly brings new features (keyframes structure, integration of IMU/wheel odometry constraints, moving objects rejection, confidence estimators integration, CI implementation) and contains some refactoring, notably in the map structure and in the keypoint types management.
+
+The changes are summarized below.
+
+### Core lib
+
+**Major new features:**
+
+* Simplify some parameters for model fitting (matches validation) (!98)
+* Auto compute angular resolution for SSKE (!102)
+* Add invalidation parameter for oblique surfaces (!115)
+* Add 2D optimization mode (!118)
+* Add only keyframes points to maps (!117)
+* Add wheel odometry and IMU constraints to optimization (!114)
+* Add an optional overlap estimator (!127 and !131)
+* Add motion limitations to detect failures (!129)
+* Add a mapping mode + a sampling mode (!147)
+* Add an option to reject moving objects (!147)
+* Add an option to add temporal keypoints (!147)
+
+**Refactoring and code architecture changes:**
+
+* Change keypoint invalidation criteria to use max oblique plane (!93)
+* Gather all keypoint types relative structures and functions (!103)
+* Split Matching and optimization (!101)
+* Fix refactoring bugs (!108)
+* Update README and LidarView tutorial (!113)
+* Clean, correct and refactor keypoints matching (!136, !140)
+* Replace the pcl voxel grid by a custom one (!147)
+
+**Performance improvements:**
+
+* Add NbPoints attribute to RollingGrid to accelerate Size method (!128)
+* Store rolling grid as unordered_map instead of stacked vectors (!130)
+* Accelerate outputs transformations (!132)
+* Avoid rebuilding KD-trees (!135)
+* Change susbsampling strategy in overlap computation (!138)
+
+**Bug fixes:**
+
+* Fix keypoints extraction (!100)
+* Fix warning, laser id mapping and undistortion time range (!105)
+* Correct debug array error (!109)
+* Fix Keypoints extraction and matching bugs and rename variables (!112)
+* Add criterion to add keyframe (!124)
+* Add checks to estimated resolution angle (!125)
+* Check timestamp before ego motion extrapolation (!142, !151)
+* Add a temporal window to estimate velocity (!141 and !143)
+* Fix build in debug mode (!148)
+
+**Compilation / CMake related changes / CI:**
+
+* Add missing include to allow compilation on Win10 MSVC 2015 (!107)
+* Allow to build LidarSlam lib as STATIC (!119 and !120)
+* Add CI build jobs (!123)
+* Specify CMake project version (!144)
+* Fix build in debug mode (!148)
+* Update to fit PV5.9 requirements (!157)
+* Add regression tests on CI (!159)
+
+### ROS wrapping
+
+* Fix and clean ROS/catkin dependencies, compilation and installation (!121)
+* Set initial maps and pose (!122)
+* Include confidence in ROS documentation (!134)
+* Allow to change the mapping mode online (!147)
+* Add computation time to confidence estimation output (!159)
+* Add config file for indoor context (!159)
+* Complete documentation (!161)
+
+### ParaView wrapping
+
+* Optional calibration in PV wrapping (!106)
+* Remove label field in xml to solve python access to variables (!116)
+* Rename ENABLE_slam to LIDARVIEW_BUILD_SLAM (!126)
+* Reformat XML proxy (!139)
+* Allow to choose the mapping mode + the sampling mode (!147)
+* Allow to load an initial map (!149)
+* Update to fit PV5.9 requirements (!152, !153, !155, !157, !158, !163, !164)
+* Add specific support for Hesai sensor (!165)
+
 ## *v1.4 (2021/04/01)*
 
 This release brings important changes in code architecture (change SLAM point definition, add namespaces, reorganize ROS wrapping),
 and adds new LiDAR sensors support (Velodyne and Ouster on PV, Velodyne and RoboSense on ROS).
 It also focuses on improved performance and eases user experience.
 
-Major changes are sumarized below.
+Major changes are summarized below.
 
 ### Core lib
 
@@ -133,7 +216,7 @@ ROS and ParaView wrappings have been adapted to support these previously mention
 
 Add several functionalities to **v1.0**, such as compressed pointclouds logging, latency compensation, multi-threading or ParaView/LidarView plugin.
 
-This release includes lots of bug fixes, code cleaning/refactoring or small and various improvements, but only major changes are reported below. 
+This release includes lots of bug fixes, code cleaning/refactoring or small and various improvements, but only major changes are reported below.
 
 ### Core lib
 
