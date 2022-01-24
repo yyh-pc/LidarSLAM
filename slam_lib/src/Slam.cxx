@@ -392,6 +392,131 @@ void Slam::ComputeSensorConstraints()
 }
 
 //-----------------------------------------------------------------------------
+void Slam::OptimizeGraph()
+{
+  #ifdef USE_G2O
+  // Allow the rotation of the covariances when interpolating the measurements
+  this->SetLandmarkCovarianceRotation(true);
+  PoseGraphOptimizer graphManager;
+  // Clear the graph
+  graphManager.ResetGraph();
+  // Init pose graph optimizer
+  // The relative transform parameters must be supplied as expressed in the tracking frame.
+  // So the calibration is identity here.
+  graphManager.AddExternalSensor(Eigen::Isometry3d::Identity(), 0);
+  graphManager.SetNbIteration(500);
+  graphManager.SetVerbose(this->Verbosity >= 2);
+  graphManager.SetSaveG2OFile(!this->G2oFileName.empty());
+  graphManager.SetG2OFileName(this->G2oFileName);
+  // Add new SLAM states to graph
+  graphManager.AddLidarStates(this->LogStates);
+
+  IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : optimization"));
+
+  // Check if enough landmark measurements are available
+  bool canBeOptimized = false;
+  for (auto idLm : this->LandmarksManagers)
+  {
+    // Check number of measures
+    if (idLm.second.CanBeUsed())
+    {
+      canBeOptimized = true;
+      break;
+    }
+  }
+
+  if (!canBeOptimized)
+  {
+    PRINT_WARNING("Not enough tag info received, graph not optimized");
+    return;
+  }
+
+  // Boolean to store the info "there is at least one external constraint in the graph"
+  bool externalConstraint = false;
+  for (auto& idLm : this->LandmarksManagers)
+  {
+    // Shortcut to current manager
+    auto& lm = idLm.second;
+
+    // Add landmark to the graph
+    Eigen::Vector6d lmPose = lm.GetAbsolutePose();
+    Eigen::Isometry3d lmTransfo = Utils::XYZRPYtoIsometry(lmPose.data());
+    graphManager.AddLandmark(lmTransfo, idLm.first, lm.GetPositionOnly());
+
+    // Add landmarks constraint to the graph
+    for (auto& s : this->LogStates)
+    {
+      if (!s.IsKeyFrame)
+        continue;
+
+      ExternalSensors::LandmarkMeasurement lmSynchMeasure;
+      if (!lm.ComputeSynchronizedMeasure(s.Time, lmSynchMeasure))
+        continue;
+
+      // Add synchronized landmark observations to the graph
+      graphManager.AddLandmarkConstraint(s.Index, idLm.first, lmSynchMeasure, lm.GetPositionOnly());
+      externalConstraint = true;
+    }
+  }
+
+  if (!externalConstraint)
+  {
+    PRINT_ERROR("No external constraints exist. Pose graph can not be optimized");
+    return;
+  }
+
+  // Run pose graph optimization
+  if (!graphManager.Process(this->LogStates))
+  {
+    PRINT_ERROR("Pose graph optimization failed.");
+    return;
+  }
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
+
+  // Update the maps
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : maps update"));
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
+  {
+    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
+    if (!this->UseKeypoints[k])
+      continue;
+    this->LocalMaps[k]->Clear();
+    PointCloud::Ptr keypoints(new PointCloud);
+    for (auto& state : this->LogStates)
+    {
+      if (!state.IsKeyFrame)
+        continue;
+      keypoints.reset(new PointCloud);
+      pcl::transformPointCloud(*state.Keypoints[k]->GetCloud(), *keypoints, state.Isometry.matrix().cast<float>());
+      this->LocalMaps[k]->Add(keypoints, false);
+    }
+    // Roll to center onto last pose
+    Eigen::Vector4f minPoint, maxPoint;
+    pcl::getMinMax3D(*keypoints, minPoint, maxPoint);
+    this->LocalMaps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
+  }
+
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : maps update"));
+
+  // The last pose has to be updated with new optimized pose
+  this->SetWorldTransformFromGuess(this->LogStates.back().Isometry);
+
+  // Processing duration
+  IF_VERBOSE(1, Utils::Timer::StopAndDisplay("Pose graph optimization"));
+  // Reset the rotate covariance member to not rotate Covariances
+  // In future local constraints building
+  this->SetLandmarkCovarianceRotation(false);
+  #else
+  PRINT_ERROR("SLAM graph optimization requires G2O, but it was not found.");
+  #endif  // USE_G2O
+}
+
+//-----------------------------------------------------------------------------
 void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
                                     const std::vector<std::array<double, 9>>& gpsCovariances,
                                     Eigen::Isometry3d& gpsToSensorOffset,

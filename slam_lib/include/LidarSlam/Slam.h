@@ -90,6 +90,10 @@
 
 #include <list>
 
+#ifdef USE_G2O
+#include "LidarSlam/PoseGraphOptimizer.h"
+#endif  // USE_G2O
+
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
@@ -176,6 +180,10 @@ public:
                                 Eigen::Isometry3d& gpsToSensorOffset,
                                 const std::string& g2oFileName = "");
 
+  // Optimize graph containing lidar states with
+  // landmarks' constraints as a postprocess
+  void OptimizeGraph();
+
   // Set world transform with an initial guess (usually from GPS after calibration).
   void SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess);
 
@@ -213,6 +221,13 @@ public:
   LidarState& GetLastState();
 
   GetMacro(Latency, double);
+
+  // ---------------------------------------------------------------------------
+  //   Graph parameters
+  // ---------------------------------------------------------------------------
+
+  GetMacro(G2oFileName, std::string)
+  SetMacro(G2oFileName, std::string)
 
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
@@ -518,6 +533,9 @@ private:
   //     -The undistorted keypoints (expressed in BASE)
   // The oldest states are forgotten (cf. LoggingTimeout parameter)
   std::list<LidarState> LogStates;
+
+  // Log info from g2o, if empty, log is not stored
+  std::string G2oFileName;
 
   // ---------------------------------------------------------------------------
   //   Keypoints extraction
