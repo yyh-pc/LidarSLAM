@@ -214,6 +214,15 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->CurrentFrames = frames;
   this->CurrentTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
 
+  // Set init pose (can have been modified by global optimization / reset)
+  // 1) To ensure a smooth local SLAM, the global optimization must refine
+  // poses relatively to last pose, i.e, last pose must be fixed.
+  // 2) To ensure a fix reference point, the global optimization must refine
+  // poses relatively to starting point, i.e, last pose can have changed.
+  // If LogStates empty, do not modify Tworld (must be identity after Reset)
+  if (!this->LogStates.empty())
+    this->Tworld = this->LogStates.back().Isometry;
+
   PRINT_VERBOSE(2, "\n#########################################################");
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed << std::fixed << std::setprecision(9) <<
                    " (at time " << this->CurrentTime << ")" << std::scientific);
@@ -266,20 +275,44 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Confidence estimators computation"));
   }
 
-  // Update keypoints maps if required: add current keypoints to map using Tworld
-  // If mapping mode is ADD_KPTS_TO_FIXED_MAP the initial map points will remain untouched
-  // If mapping mode is UPDATE, the initial map points can disappear.
-  if (this->MapUpdate == MappingMode::ADD_KPTS_TO_FIXED_MAP || this->MapUpdate == MappingMode::UPDATE)
+  // Check if the frame is a keyframe
+  this->IsKeyFrame = this->CheckKeyFrame();
+  if (this->IsKeyFrame)
   {
-    IF_VERBOSE(3, Utils::Timer::Init("Maps update"));
-    this->UpdateMapsUsingTworld();
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Maps update"));
+    // Notify current frame to be a new keyframe
+    this->KfCounter++;
+    this->KfLastPose = this->Tworld;
   }
 
-  // Log current frame processing results : pose, covariance and keypoints.
-  IF_VERBOSE(3, Utils::Timer::Init("Logging"));
-  this->LogCurrentFrameState(this->CurrentTime);
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
+  if (this->Valid || this->IsKeyFrame)
+  {
+    // Update the tags if requested
+    if (this->LandmarkConstraintLocal)
+    {
+      for (auto& idLm : this->LandmarksManagers)
+      {
+        if (idLm.second.UpdateAbsolutePose(this->Tworld, this->CurrentTime))
+          PRINT_VERBOSE(3, "Updating reference pose of tag #" << idLm.first << " to "<<idLm.second.GetAbsolutePose().transpose());
+      }
+    }
+
+    // Update keypoints maps if required: add current keypoints to map using Tworld
+    // If mapping mode is ADD_KPTS_TO_FIXED_MAP the initial map points will remain untouched
+    // If mapping mode is UPDATE, the initial map points can disappear.
+    if ((this->MapUpdate == MappingMode::ADD_KPTS_TO_FIXED_MAP
+        || this->MapUpdate == MappingMode::UPDATE)
+        && this->IsKeyFrame)
+    {
+      IF_VERBOSE(3, Utils::Timer::Init("Maps update"));
+      this->UpdateMapsUsingTworld();
+      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Maps update"));
+    }
+
+    // Log current frame processing results : pose, covariance and keypoints.
+    IF_VERBOSE(3, Utils::Timer::Init("Logging"));
+    this->LogCurrentFrameState(this->CurrentTime);
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
+  }
 
   // Motion and localization parameters estimation information display
   if (this->Verbosity >= 2)
@@ -959,6 +992,7 @@ void Slam::ComputeEgoMotion()
 //-----------------------------------------------------------------------------
 void Slam::Localization()
 {
+  this->Valid = true;
   PRINT_VERBOSE(2, "========== Localization ==========");
 
   // Integrate the relative motion to the world transformation
@@ -1088,6 +1122,7 @@ void Slam::Localization()
       if (this->Undistortion)
         this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
       PRINT_ERROR("Not enough keypoints matched, Localization skipped for this frame.");
+      this->Valid = false;
       break;
     }
 
@@ -1169,24 +1204,15 @@ void Slam::Localization()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::UpdateMapsUsingTworld()
+bool Slam::CheckKeyFrame()
 {
   // Compute motion since last keyframe
   Eigen::Isometry3d motionSinceLastKf = this->KfLastPose.inverse() * this->Tworld;
   double transSinceLastKf = motionSinceLastKf.translation().norm();
   double rotSinceLastKf = Eigen::AngleAxisd(motionSinceLastKf.linear()).angle();
-  PRINT_VERBOSE(3, "Motion since last keyframe " << this->KfCounter << ": "
-                                                 << transSinceLastKf << " m, "
-                                                 << Utils::Rad2Deg(rotSinceLastKf) << " °");
-  // Update the tags if requested
-  if (this->LandmarkConstraintLocal)
-  {
-    for (auto& idLm : this->LandmarksManagers)
-    {
-      PRINT_VERBOSE(3, "Check if reference pose of tag #" << idLm.first << " must be updated");
-      idLm.second.UpdateAbsolutePose(this->Tworld);
-    }
-  }
+  PRINT_VERBOSE(3, "Motion since last keyframe #" << this->KfCounter << ": "
+                                                  << transSinceLastKf << " m, "
+                                                  << Utils::Rad2Deg(rotSinceLastKf) << " °");
   // Check if current frame is a new keyframe
   // If we don't have enough keyframes yet, the threshold is linearly lowered
   constexpr double MIN_KF_NB = 10.;
@@ -1194,16 +1220,30 @@ void Slam::UpdateMapsUsingTworld()
   unsigned int nbMapKpts = 0;
   for (const auto& mapKptsCloud : this->LocalMaps)
     nbMapKpts += mapKptsCloud.second->Size();
-  bool isNewKeyFrame = nbMapKpts < this->MinNbMatchedKeypoints * 10 ||
-                       transSinceLastKf >= thresholdCoef * this->KfDistanceThreshold ||
-                       rotSinceLastKf >= Utils::Deg2Rad(thresholdCoef * this->KfAngleThreshold);
-  if (!isNewKeyFrame)
-    return;
 
-  // Notify current frame to be a new keyframe
-  this->KfCounter++;
-  this->KfLastPose = this->Tworld;
-  PRINT_VERBOSE(3, "Adding new keyframe " << this->KfCounter);
+  // Mark as keyframe if a new tag was seen after some time
+  // This allows to force some keyframes and therefore a constraint in the pose graph optimization
+  // if the tag detections are quite sparse
+  bool tagRequirement = false;
+  for (auto& idLm : this->LandmarksManagers)
+  {
+    if (idLm.second.NeedsReferencePoseRefresh(this->CurrentTime))
+    {
+      tagRequirement = true;
+      break;
+    }
+  }
+
+  return nbMapKpts < this->MinNbMatchedKeypoints * 10 ||
+         transSinceLastKf >= thresholdCoef * this->KfDistanceThreshold ||
+         rotSinceLastKf >= Utils::Deg2Rad(thresholdCoef * this->KfAngleThreshold) ||
+         tagRequirement;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::UpdateMapsUsingTworld()
+{
+  PRINT_VERBOSE(3, "Adding new keyframe #" << this->KfCounter);
 
   // Transform keypoints to WORLD coordinates
   for (auto k : KeypointTypes)
@@ -1391,8 +1431,7 @@ void Slam::CheckMotionLimits()
     return;
 
   // Extract number of poses to comply with the required window time, and relative time duration.
-  double currentTimeStamp = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  double deltaTime = currentTimeStamp - this->LogStates.back().Time;
+  double deltaTime = this->CurrentTime - this->LogStates.back().Time;
   double nextDeltaTime = FLT_MAX;
   // Index of the last pose that defines the window starting bound
   // The window ends on current pose
@@ -1407,7 +1446,7 @@ void Slam::CheckMotionLimits()
     while (startIt != beforeBegin)
     {
       deltaTime = nextDeltaTime;
-      nextDeltaTime = currentTimeStamp - startIt->Time;
+      nextDeltaTime = this->CurrentTime - startIt->Time;
       if (nextDeltaTime >= this->TimeWindowDuration)
         break;
       --startIt;
@@ -1426,7 +1465,7 @@ void Slam::CheckMotionLimits()
       ++startIt;
 
     // Actualize deltaTime with the best startIndex
-    deltaTime = currentTimeStamp - startIt->Time;
+    deltaTime = this->CurrentTime - startIt->Time;
   }
   // If the time between current pose and the last pose is g.t. TimeWindowDuration, take the last pose as window's starting bound
   else

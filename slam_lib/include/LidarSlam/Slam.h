@@ -488,6 +488,11 @@ private:
   Eigen::Isometry3d Tworld;
   Eigen::Isometry3d PreviousTworld;
 
+  // Reflect the success of one SLAM iteration computation (used to log or not the state).
+  bool Valid = true;
+  // Store the keyframe information
+  bool IsKeyFrame = true;
+
   // [s] SLAM computation duration of last processed frame (~Tworld delay)
   // used to compute latency compensated pose
   double Latency;
@@ -782,6 +787,9 @@ private:
   // Transform current keypoints to WORLD coordinates,
   // and add points to the maps if we are dealing with a new keyframe.
   void UpdateMapsUsingTworld();
+
+  // Check if the current frame is a keyframe or not
+  bool CheckKeyFrame();
 
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState(double time);

@@ -212,18 +212,31 @@ void LandmarkManager::SetAbsolutePose(const Eigen::Vector6d& pose, const Eigen::
 }
 
 // ---------------------------------------------------------------------------
-void LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform)
+bool LandmarkManager::HasBeenUsed(double lidarTime)
 {
+  // Absolute is used to discard the initial case LastUpdateTimes.second = infinity
+  return std::abs(lidarTime - this->LastUpdateTimes.second) < 1e-6;
+}
+
+// ---------------------------------------------------------------------------
+bool LandmarkManager::NeedsReferencePoseRefresh(double lidarTime)
+{
+  return this->HasBeenUsed(lidarTime) &&
+         (!this->HasAbsolutePose || this->LastUpdateTimes.second - this->LastUpdateTimes.first > this->TimeThreshold);
+}
+
+// ---------------------------------------------------------------------------
+bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform, double lidarTime)
+{
+  if (!this->HasBeenUsed(lidarTime))
+    return false;
+
   std::lock_guard<std::mutex> lock(this->Mtx);
-  if (!this->RelativeTransformUpdated)
-    return;
   // If it is the first time the tag is detected
   // or if the last time the tag has been seen was long ago
   // (re)set the absolute pose using the current base transform and
   // the relative transform measured
-  auto itEnd = this->Measures.end();
-  --itEnd;
-  if (!this->HasAbsolutePose || itEnd->Time - (--itEnd)->Time > this->TimeThreshold)
+  if (NeedsReferencePoseRefresh(lidarTime))
   {
     this->AbsolutePose = Utils::IsometryToXYZRPY(baseTransform * this->RelativeTransform);
     this->HasAbsolutePose = true;
@@ -236,7 +249,7 @@ void LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform)
     this->AbsolutePose = ( (this->AbsolutePose * this->Count) + newAbsolutePose ) / (this->Count + 1);
     ++this->Count;
   }
-  this->RelativeTransformUpdated = false;
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -280,9 +293,11 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
 
   this->RelativeTransform = synchMeas.TransfoRelative;
 
-  // Notify the relative transform is updated to update the absolute reference tag pose
-  // when the sensor absolute pose will be estimated (if required).
-  this->RelativeTransformUpdated = true;
+  // Last times the tag was used
+  // this is used to update the absolute reference tag pose when the
+  // sensor absolute pose will be estimated (if required).
+  this->LastUpdateTimes.first = this->LastUpdateTimes.second;
+  this->LastUpdateTimes.second = lidarTime;
 
   // Check if the absolute pose has been computed
   // If not, the next tag detection is waited

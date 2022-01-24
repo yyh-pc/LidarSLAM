@@ -318,7 +318,11 @@ public:
 
   // Update the absolute pose in case the tags are used as relative constraints
   // (i.e, no absolute poses of the tags are supplied)
-  void UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform);
+  bool UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform, double lidarTime);
+  bool NeedsReferencePoseRefresh(double lidarTime);
+
+private:
+  bool HasBeenUsed(double lidarTime);
 
 private:
   // Absolute pose of the landmark in the global frame
@@ -328,7 +332,7 @@ private:
   // Boolean to check the absolute pose has been loaded
   // or if the tag has already been seen
   bool HasAbsolutePose = false;
-  bool RelativeTransformUpdated = false;
+  std::pair<double, double> LastUpdateTimes = {FLT_MAX, FLT_MAX};
   // Counter to check how many frames the tag was seen on
   // This is used to average the pose in case the absolute poses
   // were not supplied initially and are updated (cf. UpdateAbsolutePose)
