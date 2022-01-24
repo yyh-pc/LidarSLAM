@@ -24,17 +24,12 @@
 
 namespace LidarSlam
 {
-
-// Structure containing one state acquired by a sensor
-// Various states can be mixed in back end process to optimize pose graph
-struct SensorState
+// Structure containing one state
+// with all local information
+struct LidarState
 {
-  SensorState() = default;
-  SensorState(const Eigen::UnalignedIsometry3d& isometry, const Eigen::Matrix6d& covariance = {}, double time = 0.)
-            : Isometry(isometry),
-              Covariance(covariance),
-              Time(time)
-  {}
+  using Point = LidarPoint;
+  using PCStoragePtr = std::shared_ptr<PointCloudStorage<Point>>;
 
   // Transform to go from Sensor frame to tracking frame
   Eigen::UnalignedIsometry3d BaseToSensor = Eigen::UnalignedIsometry3d::Identity();
@@ -46,19 +41,12 @@ struct SensorState
   double Time = 0.;
   // Index to link the pose graph (G2O)
   unsigned int Index = 0;
-};
-
-// Structure containing one state
-// States are stored in a list for further global optimization processing
-// They will be kept as long as they fit the buffer size
-struct LidarState : public SensorState
-{
-  using Point = LidarPoint;
-  using PCStoragePtr = std::shared_ptr<PointCloudStorage<Point>>;
 
   LidarState() = default;
   LidarState(const Eigen::UnalignedIsometry3d& isometry, const Eigen::Matrix6d& covariance = {}, double time = 0.)
-    : SensorState(isometry, covariance, time) {};
+    : Isometry(isometry),
+      Covariance(covariance),
+      Time(time) {};
   // Keypoints extracted at current pose, undistorted and expressed in BASE coordinates
   std::map<Keypoint, PCStoragePtr> Keypoints;
   bool IsKeyFrame = true;

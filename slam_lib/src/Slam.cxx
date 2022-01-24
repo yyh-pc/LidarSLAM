@@ -105,13 +105,6 @@ namespace Utils
 {
 namespace
 {
-//-----------------------------------------------------------------------------
-std::array<double, 36> Matrix6dToStdArray36(const Eigen::Matrix6d& covar)
-{
-  std::array<double, 36> cov;
-  std::copy_n(covar.data(), 36, cov.begin());
-  return cov;
-}
 
 //-----------------------------------------------------------------------------
 //! Approximate pointcloud memory size
@@ -120,18 +113,6 @@ inline size_t PointCloudMemorySize(const Slam::PointCloud& cloud)
   return (sizeof(cloud) + (sizeof(Slam::PointCloud::PointType) * cloud.size()));
 }
 
-//-----------------------------------------------------------------------------
-//! Approximate logged keypoints size
-void LoggedKeypointsSize(const std::deque<PointCloudStorage<Slam::Point>>& log, size_t& totalMemory, size_t& totalPoints)
-{
-  totalMemory = 0;
-  totalPoints = 0;
-  for (auto const& storage: log)
-  {
-    totalPoints += storage.PointsSize();
-    totalMemory += storage.MemorySize();
-  }
-}
 } // end of anonymous namespace
 } // end of Utils namespace
 
@@ -205,8 +186,7 @@ void Slam::Reset(bool resetLog)
   {
     // Reset logged keypoints
     this->NbrFrameProcessed = 0;
-    this->LogTrajectory.clear();
-    this->LogKeypoints.clear();
+    this->LogStates.clear();
 
     // Reset processing duration timers
     Utils::Timer::Reset();
@@ -298,7 +278,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 
   // Log current frame processing results : pose, covariance and keypoints.
   IF_VERBOSE(3, Utils::Timer::Init("Logging"));
-  this->LogCurrentFrameState(this->CurrentTime, this->WorldFrameId);
+  this->LogCurrentFrameState(this->CurrentTime);
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
 
   // Motion and localization parameters estimation information display
@@ -326,20 +306,32 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   {
     SET_COUT_FIXED_PRECISION(3);
     std::cout << "========== Memory usage ==========\n";
+    std::map<Keypoint, unsigned int> points;
+    std::map<Keypoint, unsigned int> memory;
+    // Initialize number of points and memory per keypoint type
     for (auto k : KeypointTypes)
     {
-      PointCloud::Ptr map = this->GetMap(k);
-      std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k))) << " map: "
-                << map->size() << " points, " << Utils::PointCloudMemorySize(*map) * 1e-6 << " MB\n";
+      points[k] = 0;
+      memory[k] = 0;
+    }
+    // Sum points and memory allocated of each keypoints cloud
+    for (auto const& st: this->LogStates)
+    {
+      for (auto k : KeypointTypes)
+      {
+        points[k] += st.Keypoints.at(k)->PointsSize();
+        memory[k] += st.Keypoints.at(k)->MemorySize();
+      }
     }
 
-    // Logged keypoints
-    size_t memory, points;
+    // Print keypoints memory usage
     for (auto k : KeypointTypes)
     {
-      Utils::LoggedKeypointsSize(this->LogKeypoints[k], memory, points);
-      std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k))) << " log  : "
-                << this->LogKeypoints[k].size() << " frames, " << points << " points, " << memory * 1e-6 << " MB\n";
+      std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k)))<< " log  : "
+                << LogStates.size() << " frames, "
+                << points[k] * 1e-6 << " points, "
+                << memory[k] << " MB\n";
+
     }
     RESET_COUT_FIXED_PRECISION;
   }
@@ -505,10 +497,10 @@ void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SetWorldTransformFromGuess(const Transform& poseGuess)
+void Slam::SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess)
 {
   // Set current pose
-  this->Tworld = poseGuess.GetIsometry();
+  this->Tworld = poseGuess;
 
   // Ego-Motion estimation is not valid anymore since we imposed a discontinuity.
   // We reset previous pose so that previous ego-motion extrapolation results in Identity matrix.
@@ -565,64 +557,38 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-Transform Slam::GetWorldTransform() const
-{
-  return this->LogTrajectory.empty() ? Transform::Identity() : this->LogTrajectory.back();
-}
-
-//-----------------------------------------------------------------------------
-Transform Slam::GetLatencyCompensatedWorldTransform() const
+Eigen::Isometry3d Slam::GetLatencyCompensatedWorldTransform() const
 {
   // Get 2 last transforms
-  unsigned int trajectorySize = this->LogTrajectory.size();
+  unsigned int trajectorySize = this->LogStates.size();
   if (trajectorySize == 0)
-    return Transform::Identity();
+    return Eigen::Isometry3d::Identity();
   else if (trajectorySize == 1)
-    return this->LogTrajectory.back();
-  const Transform& previous = this->LogTrajectory[trajectorySize - 2];
-  const Transform& current = this->LogTrajectory[trajectorySize - 1];
-  const Eigen::Isometry3d& H0 = previous.GetIsometry();
-  const Eigen::Isometry3d& H1 = current.GetIsometry();
+    return this->LogStates.back().Isometry;
+  auto itSt = this->LogStates.end();
+  const LidarState& previous = *(--itSt);
+  const LidarState& current  = *(--itSt);
+  const Eigen::Isometry3d& H0 = previous.Isometry;
+  const Eigen::Isometry3d& H1 = current.Isometry;
 
   // Linearly compute normalized timestamp of Hpred.
   // We expect H0 and H1 to match with time 0 and 1.
   // If timestamps are not defined or too close, extrapolation is impossible.
-  if (std::abs(current.time - previous.time) < 1e-6)
+  if (std::abs(current.Time - previous.Time) < 1e-6)
   {
     PRINT_WARNING("Unable to compute latency-compensated transform : timestamps undefined or too close.");
-    return current;
+    return current.Isometry;
   }
   // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
-  if (std::abs(this->Latency / (current.time - previous.time)) > this->MaxExtrapolationRatio)
+  if (std::abs(this->Latency / (current.Time - previous.Time)) > this->MaxExtrapolationRatio)
   {
     PRINT_WARNING("Unable to compute latency-compensated transform : extrapolation time is too far.");
-    return current;
+    return current.Isometry;
   }
 
   // Extrapolate H0 and H1 to get expected Hpred at current time
-  Eigen::Isometry3d Hpred = LinearInterpolation(H0, H1, current.time + this->Latency, previous.time, current.time);
-
-  return Transform(Hpred, current.time, current.frameid);
-}
-
-//-----------------------------------------------------------------------------
-std::array<double, 36> Slam::GetTransformCovariance() const
-{
-  return Utils::Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance);
-}
-
-//-----------------------------------------------------------------------------
-std::vector<Transform> Slam::GetTrajectory() const
-{
-  std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
-  return slamPoses;
-}
-
-//-----------------------------------------------------------------------------
-std::vector<std::array<double, 36>> Slam::GetCovariances() const
-{
-  std::vector<std::array<double, 36>> slamCovariances(this->LogCovariances.begin(), this->LogCovariances.end());
-  return slamCovariances;
+  Eigen::Isometry3d Hpred = LinearInterpolation(H0, H1, current.Time + this->Latency, previous.Time, current.Time);
+  return Hpred;
 }
 
 //-----------------------------------------------------------------------------
@@ -836,14 +802,15 @@ void Slam::ComputeEgoMotion()
   this->Trelative = Eigen::Isometry3d::Identity();
 
   // Linearly extrapolate previous motion to estimate new pose
-  if (this->LogTrajectory.size() >= 2 &&
+  if (this->LogStates.size() >= 2 &&
       (this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION ||
        this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION))
   {
     // Estimate new Tworld with a constant velocity model
     const double t = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-    const double t1 = this->LogTrajectory[this->LogTrajectory.size() - 1].time;
-    const double t0 = this->LogTrajectory[this->LogTrajectory.size() - 2].time;
+    auto itSt = this->LogStates.end();
+    const double t1 = (--itSt)->Time;
+    const double t0 = (--itSt)->Time;
     if (std::abs((t - t1) / (t1 - t0)) > this->MaxExtrapolationRatio)
       PRINT_WARNING("Unable to extrapolate scan pose from previous motion : extrapolation time is too far.")
     else
@@ -1257,45 +1224,39 @@ void Slam::UpdateMapsUsingTworld()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::LogCurrentFrameState(double time, const std::string& frameId)
+void Slam::LogCurrentFrameState(double time)
 {
-  // If logging is enabled
-  if (this->LoggingTimeout)
+  // Save current state to log buffer.
+  // This buffer will be processed in the pose graph optimization
+  // and is used locally to compute prior ego-motion estimation
+  // and to undistort the input points
+  LidarState state;
+  state.Isometry = this->Tworld;
+  state.Covariance = this->LocalizationUncertainty.Covariance;
+  if (this->TwoDMode)
   {
-    // Save current frame data to buffer
-    this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
-    this->LogCovariances.emplace_back(Utils::Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance));
-    for (auto k : KeypointTypes)
-    {
-      if (this->UseKeypoints[k])
-        this->LogKeypoints[k].emplace_back(this->CurrentRawKeypoints[k], this->LoggingStorage);
-    }
-
-    // If a timeout is defined, forget too old data
-    if (this->LoggingTimeout > 0)
-    {
-      // Forget all previous data older than LoggingTimeout, but keep at least 2 last transforms
-      while (time - this->LogTrajectory.front().time > this->LoggingTimeout
-             && this->LogTrajectory.size() > 2)
-      {
-        this->LogTrajectory.pop_front();
-        this->LogCovariances.pop_front();
-        for (auto k : KeypointTypes)
-        {
-          if (this->UseKeypoints[k])
-            this->LogKeypoints[k].pop_front();
-        }
-      }
-    }
+    state.Covariance(2, 2) = std::pow(0.01, 2);
+    state.Covariance(3, 3) = std::pow(Utils::Deg2Rad(2.), 2);
+    state.Covariance(4, 4) = std::pow(Utils::Deg2Rad(2.), 2);
   }
-
-  // If logging is disabled, only keep last 2 transforms for latency compensation
-  else
+  state.Time = time;
+  state.Index = this->NbrFrameProcessed;
+  for (auto k : KeypointTypes)
+    state.Keypoints[k] = std::make_shared<PCStorage>(this->CurrentUndistortedKeypoints[k], this->LoggingStorage);
+  this->LogStates.emplace_back(state);
+  // Remove the oldest logged states
+  auto itSt = this->LogStates.begin();
+  while (time - itSt->Time > this->LoggingTimeout && this->LogStates.size() > 2)
   {
-    this->LogTrajectory.emplace_back(this->Tworld, time, frameId);
-    while (this->LogTrajectory.size() > 2)
-      this->LogTrajectory.pop_front();
+    ++itSt;
+    this->LogStates.pop_front();
   }
+}
+
+//-----------------------------------------------------------------------------
+LidarState& Slam::GetLastState()
+{
+  return this->LogStates.back();
 }
 
 //==============================================================================
@@ -1305,10 +1266,10 @@ void Slam::LogCurrentFrameState(double time, const std::string& frameId)
 //-----------------------------------------------------------------------------
 Eigen::Isometry3d Slam::InterpolateScanPose(double time)
 {
-  if (this->LogTrajectory.empty())
+  if (this->LogStates.empty())
     return this->Tworld;
 
-  const double prevPoseTime = this->LogTrajectory.back().time;
+  const double prevPoseTime = this->LogStates.back().Time;
   const double currPoseTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
   if (std::abs(time / (currPoseTime - prevPoseTime)) > this->MaxExtrapolationRatio)
   {
@@ -1316,7 +1277,7 @@ Eigen::Isometry3d Slam::InterpolateScanPose(double time)
     return this->Tworld;
   }
 
-  return LinearInterpolation(this->PreviousTworld, this->Tworld, currPoseTime + time, prevPoseTime, currPoseTime);
+  return LinearInterpolation(this->LogStates.back().Isometry, this->Tworld, currPoseTime + time, prevPoseTime, currPoseTime);
 }
 
 //-----------------------------------------------------------------------------
@@ -1425,44 +1386,47 @@ void Slam::EstimateOverlap()
 //-----------------------------------------------------------------------------
 void Slam::CheckMotionLimits()
 {
-  int nPoses = this->LogTrajectory.size();
+  int nPoses = this->LogStates.size();
   if (nPoses == 0)
     return;
 
   // Extract number of poses to comply with the required window time, and relative time duration.
   double currentTimeStamp = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  double deltaTime = currentTimeStamp - this->LogTrajectory.back().time;
+  double deltaTime = currentTimeStamp - this->LogStates.back().Time;
   double nextDeltaTime = FLT_MAX;
   // Index of the last pose that defines the window starting bound
   // The window ends on current pose
-  int startIndex = nPoses - 1;
+  auto startIt = this->LogStates.end();
+  auto beforeBegin = this->LogStates.begin();
+  --beforeBegin;
+  --startIt;
   // If the time between current pose and the last pose is l.t. TimeWindowDuration, look for the window's starting bound pose
   if (deltaTime < this->TimeWindowDuration)
   {
     // Search an interval containing TimeWindowDuration : [deltaTime, nextDeltaTime]
-    while (startIndex >= 0)
+    while (startIt != beforeBegin)
     {
       deltaTime = nextDeltaTime;
-      nextDeltaTime = currentTimeStamp - this->LogTrajectory[startIndex].time;
+      nextDeltaTime = currentTimeStamp - startIt->Time;
       if (nextDeltaTime >= this->TimeWindowDuration)
         break;
-      --startIndex;
+      --startIt;
     }
 
-    // If startIndex is negative, no interval containing TimeWindowDuration was found, the oldest logged pose is taken
-    if (startIndex < 0)
+    // If startIt lays before first element, no interval containing TimeWindowDuration was found, the oldest logged pose is taken
+    if (startIt == beforeBegin)
     {
       PRINT_WARNING("Not enough logged trajectory poses to get the required time window to estimate velocity, using a smaller time window of "
                     << nextDeltaTime << "s")
-      startIndex = 0;
+      startIt = this->LogStates.begin();
     }
 
     // Choose which bound of the interval is the best window's starting bound
     else if (std::abs(deltaTime - this->TimeWindowDuration) < std::abs(nextDeltaTime - this->TimeWindowDuration))
-      ++startIndex;
+      ++startIt;
 
     // Actualize deltaTime with the best startIndex
-    deltaTime = currentTimeStamp - this->LogTrajectory[startIndex].time;
+    deltaTime = currentTimeStamp - startIt->Time;
   }
   // If the time between current pose and the last pose is g.t. TimeWindowDuration, take the last pose as window's starting bound
   else
@@ -1471,7 +1435,7 @@ void Slam::CheckMotionLimits()
   this->ComplyMotionLimits = true;
 
   // Compute transform between the two pose bounds of the window
-  Eigen::Isometry3d TWindow = this->LogTrajectory[startIndex].GetIsometry().inverse() * this->Tworld;
+  Eigen::Isometry3d TWindow = startIt->Isometry.inverse() * this->Tworld;
 
   // Compute angular part
   // NOTE : It is not possible to detect an angle greater than PI,
@@ -1822,6 +1786,23 @@ void Slam::SetVoxelGridMinFramesPerVoxel(unsigned int minFrames)
 {
   for (auto k : KeypointTypes)
     this->LocalMaps[k]->SetMinFramesPerVoxel(minFrames);
+}
+
+//==============================================================================
+//   Memory parameters setting
+//==============================================================================
+
+//-----------------------------------------------------------------------------
+void Slam::SetLoggingTimeout(double lMax)
+{
+  this->LoggingTimeout = lMax;
+  double currentTime = this->LogStates.back().Time;
+  auto itSt = this->LogStates.begin();
+  while (currentTime - itSt->Time > lMax && this->LogStates.size() > 2)
+  {
+    ++itSt;
+    this->LogStates.pop_front();
+  }
 }
 
 } // end of LidarSlam namespace

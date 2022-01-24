@@ -84,10 +84,11 @@
 #include "LidarSlam/RollingGrid.h"
 #include "LidarSlam/PointCloudStorage.h"
 #include "LidarSlam/ExternalSensorManagers.h"
+#include "LidarSlam/State.h"
 
 #include <Eigen/Geometry>
 
-#include <deque>
+#include <list>
 
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
@@ -106,6 +107,7 @@ public:
   using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
   using KeypointExtractorPtr = std::shared_ptr<SpinningSensorKeypointExtractor>;
+  using PCStorage = PointCloudStorage<LidarPoint>;
 
   // Initialization
   Slam();
@@ -137,19 +139,8 @@ public:
   // current pose time, its frame id will be used if no other is specified, ...
   void AddFrames(const std::vector<PointCloud::Ptr>& frames);
 
-  // Get the computed world transform so far (current BASE pose in WORLD coordinates)
-  Transform GetWorldTransform() const;
   // Get the computed world transform so far, but compensating SLAM computation duration latency.
-  Transform GetLatencyCompensatedWorldTransform() const;
-  // Get the covariance of the last localization step (registering the current frame to the last map)
-  // DoF order : X, Y, Z, rX, rY, rZ
-  std::array<double, 36> GetTransformCovariance() const;
-
-  // Get the whole trajectory and covariances of each step (aggregated WorldTransforms and TransformCovariances).
-  // (buffer of temporal length LoggingTimeout)
-  std::vector<Transform> GetTrajectory() const;
-  std::vector<std::array<double, 36>> GetCovariances() const;
-
+  Eigen::Isometry3d GetLatencyCompensatedWorldTransform() const;
   // Get keypoints maps
   // If clean is true, the moving objects are removed from map
   PointCloud::Ptr GetMap(Keypoint k, bool clean = false) const;
@@ -186,7 +177,7 @@ public:
                                 const std::string& g2oFileName = "");
 
   // Set world transform with an initial guess (usually from GPS after calibration).
-  void SetWorldTransformFromGuess(const Transform& poseGuess);
+  void SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess);
 
   // Save keypoints maps to disk for later use
   void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::BINARY_COMPRESSED, bool submap = true) const;
@@ -213,13 +204,15 @@ public:
   SetMacro(Undistortion, UndistortionMode)
   GetMacro(Undistortion, UndistortionMode)
 
-  SetMacro(LoggingTimeout, double)
+  void SetLoggingTimeout(double lMax);
   GetMacro(LoggingTimeout, double)
 
   SetMacro(LoggingStorage, PointCloudStorageType)
   GetMacro(LoggingStorage, PointCloudStorageType)
 
-  GetMacro(Latency, double)
+  LidarState& GetLastState();
+
+  GetMacro(Latency, double);
 
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
@@ -459,17 +452,11 @@ private:
   // 5: 4 + logging/maps memory usage
   int Verbosity = 0;
 
-  // Optional log of computed pose, localization covariance and keypoints of each
-  // processed frame.
-  // - A value of 0. will disable logging.
-  // - A negative value will log all incoming data, without any timeout.
-  // - A positive value will keep only the most recent data, forgetting all
-  //   previous data older than LoggingTimeout seconds.
-  // WARNING : A big value of LoggingTimeout may lead to an important memory
-  //           consumption if SLAM is run for a long time.
-  // WARNING : the value must be greater than the duration of the time window
-  // in order to comply with this required value.
-  double LoggingTimeout = 0.;
+  // Maximum duration on which to keep states in memory.
+  // This duration must be increased if a pose graph optimization is planned
+  // The minimum number of logged states is 2, to be able to handle ego-motion and undistortion,
+  // independently of this timeout value
+  double LoggingTimeout = 0;
 
   // Wether to use octree compression during keypoints logging.
   // This reduces about 5 times the memory consumption, but slows down logging (and PGO).
@@ -517,11 +504,15 @@ private:
 
   // **** LOGGING ****
 
-  // Computed trajectory of the sensor (the list of past computed poses,
-  // covariances and keypoints of each frame).
-  std::deque<Transform> LogTrajectory;
-  std::deque<std::array<double, 36>> LogCovariances;
-  std::map<Keypoint, std::deque<PointCloudStorage<Point>>> LogKeypoints;
+  // Log info on each pose
+  // It contains :
+  //     -The estimated Lidar isometry and its covariance
+  //     -The time associated with the pose
+  //     -The relative index in the pose graph
+  //     -A boolean to store the keyframe info
+  //     -The undistorted keypoints (expressed in BASE)
+  // The oldest states are forgotten (cf. LoggingTimeout parameter)
+  std::list<LidarState> LogStates;
 
   // ---------------------------------------------------------------------------
   //   Keypoints extraction
@@ -793,7 +784,7 @@ private:
   void UpdateMapsUsingTworld();
 
   // Log current frame processing results : pose, covariance and keypoints.
-  void LogCurrentFrameState(double time, const std::string& frameId);
+  void LogCurrentFrameState(double time);
 
   // ---------------------------------------------------------------------------
   //   Undistortion helpers

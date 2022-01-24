@@ -192,9 +192,17 @@ Eigen::Vector3d RotationMatrixToRPY(const Eigen::Matrix3d& rot);
  * @param roll Rotation on X axis
  * @param pitch Rotation on Y axis
  * @param yaw Rotation on Z axis
- * @return The rigid transform (rotaion + translation)
+ * @return The rigid transform (rotation + translation)
  */
 Eigen::Isometry3d XYZRPYtoIsometry(double x, double y, double z, double roll, double pitch, double yaw);
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Convert pose as XYZRPY to full rigid transform
+ * @param pose
+ * @return The rigid transform (rotation + translation)
+ */
+Eigen::Isometry3d PoseToIsometry(const Eigen::Vector6d& pose);
 
 //------------------------------------------------------------------------------
 /*!
