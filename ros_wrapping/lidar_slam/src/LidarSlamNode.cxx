@@ -93,9 +93,9 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   std::vector<double> initialPose;
   if (priv_nh.getParam("maps/initial_pose", initialPose) && initialPose.size() == 6)
   {
-    LidarSlam::Transform pose(Eigen::Map<const Eigen::Vector6d>(initialPose.data()));
-    this->LidarSlam.SetWorldTransformFromGuess(pose);
-    ROS_INFO_STREAM("Setting initial SLAM pose to:\n" << pose.GetMatrix());
+    Eigen::Isometry3d poseTransform = LidarSlam::Utils::XYZRPYtoIsometry(initialPose.data());
+    this->LidarSlam.SetWorldTransformFromGuess(poseTransform);
+    ROS_INFO_STREAM("Setting initial SLAM pose to:\n" << poseTransform.matrix());
   }
 
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
@@ -238,32 +238,32 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
 void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
 {
   // If GPS/SLAM calibration is needed, save GPS pose for later use
-  if (this->UseGps)
+  if (!this->UseGps)
+    return;
+
+  // Add new pose and its covariance to buffer
+  const auto& c = msg.pose.covariance;
+  std::array<double, 9> gpsCovar = {c[ 0], c[ 1], c[ 2],
+                                    c[ 6], c[ 7], c[ 8],
+                                    c[12], c[13], c[14]};
+  this->GpsPoses.emplace_back(Utils::PoseMsgToTransform(msg.pose.pose, msg.header.stamp.toSec(), msg.header.frame_id));
+  this->GpsCovars.emplace_back(gpsCovar);
+
+  double loggingTimeout = this->LidarSlam.GetLoggingTimeout();
+  // If a timeout is defined, forget too old data
+  if (loggingTimeout > 0)
   {
-    // Add new pose and its covariance to buffer
-    const auto& c = msg.pose.covariance;
-    std::array<double, 9> gpsCovar = {c[ 0], c[ 1], c[ 2],
-                                      c[ 6], c[ 7], c[ 8],
-                                      c[12], c[13], c[14]};
-    this->GpsPoses.emplace_back(Utils::PoseMsgToTransform(msg.pose.pose, msg.header.stamp.toSec(), msg.header.frame_id));
-    this->GpsCovars.emplace_back(gpsCovar);
-
-    double loggingTimeout = this->LidarSlam.GetLoggingTimeout();
-    // If a timeout is defined, forget too old data
-    if (loggingTimeout > 0)
+    // Forget all previous poses older than loggingTimeout
+    while (this->GpsPoses.back().time - this->GpsPoses.front().time > loggingTimeout)
     {
-      // Forget all previous poses older than loggingTimeout
-      while (this->GpsPoses.back().time - this->GpsPoses.front().time > loggingTimeout)
-      {
-        this->GpsPoses.pop_front();
-        this->GpsCovars.pop_front();
-      }
+      this->GpsPoses.pop_front();
+      this->GpsCovars.pop_front();
     }
-
-    // Update BASE to GPS offset
-    // Get the latest transform (we expect a static transform, so timestamp does not matter)
-    Utils::Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
   }
+
+  // Update BASE to GPS offset
+  // Get the latest transform (we expect a static transform, so timestamp does not matter)
+  Utils::Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
 }
 
 //------------------------------------------------------------------------------
@@ -290,25 +290,34 @@ void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tags
     return;
   for (auto& tagInfo : tagsInfo.detections)
   {
-    Eigen::Isometry3d lmDetectorToBase;
-    if (Utils::Tf2LookupTransform(lmDetectorToBase, this->TfBuffer, this->TrackingFrameId, tagInfo.pose.header.frame_id, tagInfo.pose.header.stamp))
+    // Transform to apply to points represented in detector frame to express them in base frame
+    Eigen::Isometry3d baseToLmDetector;
+    if (Utils::Tf2LookupTransform(baseToLmDetector, this->TfBuffer, this->TrackingFrameId, tagInfo.pose.header.frame_id, tagInfo.pose.header.stamp))
     {
       // Get tag pose in the landmark detector frame
       Eigen::Isometry3d tagToLmDetector = Utils::PoseMsgToTransform(tagInfo.pose.pose.pose).GetIsometry();
       LidarSlam::ExternalSensors::LandmarkMeasurement lm;
-      lm.TransfoRelative = lmDetectorToBase * tagToLmDetector;
+      lm.TransfoRelative = baseToLmDetector * tagToLmDetector;
       lm.Time = tagInfo.pose.header.stamp.sec + tagInfo.pose.header.stamp.nsec * 1e-9;
+      bool ValidCovariance = false;
       // Fill covariance
       for (int i = 0; i < 6; ++i)
       {
         for (int j = 0; j < 6; ++j)
+        {
           lm.Covariance(i, j) = tagInfo.pose.pose.covariance[i * 6 + j];
+          if (abs(lm.Covariance(i, j)) > 1e-10)
+            ValidCovariance = true;
+        }
       }
+      if (!ValidCovariance)
+        lm.Covariance = Eigen::Matrix6d::Identity() * 1e-4;
       // Rotate covariance with the landmark detector to base transform
       Eigen::Vector6d poseRelative = LidarSlam::Utils::IsometryToXYZRPY(tagToLmDetector);
-      lm.Covariance = LidarSlam::CeresTools::RotateCovariance(poseRelative, lm.Covariance, lmDetectorToBase.linear());
+      lm.Covariance = LidarSlam::CeresTools::RotateCovariance(poseRelative, lm.Covariance, baseToLmDetector.linear());
       int id = this->BuildId(tagInfo.id);
       this->LidarSlam.AddLandmarkMeasurement(id, lm);
+      ROS_INFO_STREAM("Adding tag info");
 
       if (this->PublishTags)
       {
@@ -460,7 +469,7 @@ void LidarSlamNode::SetPoseCallback(const geometry_msgs::PoseWithCovarianceStamp
   {
     // Compute pose in odometry frame and set SLAM pose
     Eigen::Isometry3d odomToBase = msgFrameToOdom.inverse() * Utils::PoseMsgToTransform(msg.pose.pose).GetIsometry();
-    this->LidarSlam.SetWorldTransformFromGuess(LidarSlam::Transform(odomToBase));
+    this->LidarSlam.SetWorldTransformFromGuess(odomToBase);
     ROS_WARN_STREAM("SLAM pose set to :\n" << odomToBase.matrix());
     // TODO: properly deal with covariance: rotate it, pass it to SLAM, notify trajectory jump?
   }
@@ -502,7 +511,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       Eigen::Isometry3d mapToOdom;
       Utils::Tf2LookupTransform(mapToOdom, this->TfBuffer, mapToGps.frameid, this->OdometryFrameId, ros::Time(mapToGps.time));
       Eigen::Isometry3d odomToBase = mapToOdom.inverse() * mapToGps.GetIsometry() * this->BaseToGpsOffset.inverse();
-      this->LidarSlam.SetWorldTransformFromGuess(LidarSlam::Transform(odomToBase, mapToGps.time, mapToGps.frameid));
+      this->LidarSlam.SetWorldTransformFromGuess(odomToBase);
       ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << odomToBase.matrix());
       break;
     }
@@ -567,7 +576,28 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       this->LidarSlam.LoadMapsFromPCD(msg.string_arg);
       break;
 
-    // Unkown command
+    case lidar_slam::SlamCommand::OPTIMIZE_GRAPH:
+      if (!this->UseTags || this->LidarSlam.GetSensorMaxMeasures() < 2 || this->LidarSlam.GetLoggingTimeout() < 0.2)
+      {
+        ROS_ERROR_STREAM("Cannot optimize pose graph as sensor info logging has not been enabled. "
+                         "Please make sure that 'external_sensors/landmark_detector/use_tags' private parameter is set to 'true', "
+                         "and that 'external_sensors/landmark_detector/weight' and 'slam/logging_timeout' private parameters are set to convenient values.");
+        break;
+      }
+
+      if (!msg.string_arg.empty())
+      {
+        ROS_INFO_STREAM("Loading the absolute landmark poses");
+        this->LoadLandmarks(msg.string_arg);
+      }
+      else if (this->LidarSlam.GetLandmarkConstraintLocal())
+        ROS_WARN_STREAM("No absolute landmark poses are supplied : the last estimated poses will be used");
+
+      ROS_INFO_STREAM("Optimizing the pose graph");
+      this->LidarSlam.OptimizeGraph();
+      break;
+
+    // Unknown command
     default:
       ROS_ERROR_STREAM("Unknown SLAM command : " << (unsigned int) msg.command);
       break;
@@ -751,22 +781,24 @@ bool LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uin
 //------------------------------------------------------------------------------
 void LidarSlamNode::PublishOutput()
 {
+  LidarSlam::LidarState& currentState = this->LidarSlam.GetLastState();
+  double currentTime = currentState.Time;
   // Publish SLAM pose
   if (this->Publish[POSE_ODOM] || this->Publish[POSE_TF])
   {
-    // Get SLAM pose
-    LidarSlam::Transform odomToBase = this->LidarSlam.GetWorldTransform();
-
     // Publish as odometry msg
     if (this->Publish[POSE_ODOM])
     {
       nav_msgs::Odometry odomMsg;
-      odomMsg.header.stamp = ros::Time(odomToBase.time);
+      odomMsg.header.stamp = ros::Time(currentTime);
       odomMsg.header.frame_id = this->OdometryFrameId;
       odomMsg.child_frame_id = this->TrackingFrameId;
-      odomMsg.pose.pose = Utils::TransformToPoseMsg(odomToBase);
-      auto covar = this->LidarSlam.GetTransformCovariance();
-      std::copy(covar.begin(), covar.end(), odomMsg.pose.covariance.begin());
+      odomMsg.pose.pose = Utils::IsometryToPoseMsg(currentState.Isometry);
+      // Note : in eigen 3.4 iterators are available on matrices directly
+      //        >> std::copy(currentState.Covariance.begin(), currentState.Covariance.end(), confidenceMsg.covariance.begin());
+      // For now the only way is to copy or iterate on indices :
+      for (unsigned int i = 0; i < currentState.Covariance.size(); ++i)
+        odomMsg.pose.covariance[i] = currentState.Covariance(i);
       this->Publishers[POSE_ODOM].publish(odomMsg);
     }
 
@@ -774,10 +806,10 @@ void LidarSlamNode::PublishOutput()
     if (this->Publish[POSE_TF])
     {
       geometry_msgs::TransformStamped tfMsg;
-      tfMsg.header.stamp = ros::Time(odomToBase.time);
+      tfMsg.header.stamp = ros::Time(currentTime);
       tfMsg.header.frame_id = this->OdometryFrameId;
       tfMsg.child_frame_id = this->TrackingFrameId;
-      tfMsg.transform = Utils::TransformToTfMsg(odomToBase);
+      tfMsg.transform = Utils::IsometryToTfMsg(currentState.Isometry);
       this->TfBroadcaster.sendTransform(tfMsg);
     }
   }
@@ -785,19 +817,21 @@ void LidarSlamNode::PublishOutput()
   // Publish latency compensated SLAM pose
   if (this->Publish[POSE_PREDICTION_ODOM] || this->Publish[POSE_PREDICTION_TF])
   {
-    // Get latency corrected SLAM pose
-    LidarSlam::Transform odomToBasePred = this->LidarSlam.GetLatencyCompensatedWorldTransform();
-
+    double predTime = currentState.Time + this->LidarSlam.GetLatency();
+    Eigen::Isometry3d predTransfo = this->LidarSlam.GetLatencyCompensatedWorldTransform();
     // Publish as odometry msg
     if (this->Publish[POSE_PREDICTION_ODOM])
     {
       nav_msgs::Odometry odomMsg;
-      odomMsg.header.stamp = ros::Time(odomToBasePred.time);
+      odomMsg.header.stamp = ros::Time(predTime);
       odomMsg.header.frame_id = this->OdometryFrameId;
       odomMsg.child_frame_id = this->TrackingFrameId + "_prediction";
-      odomMsg.pose.pose = Utils::TransformToPoseMsg(odomToBasePred);
-      auto covar = this->LidarSlam.GetTransformCovariance();
-      std::copy(covar.begin(), covar.end(), odomMsg.pose.covariance.begin());
+      odomMsg.pose.pose = Utils::IsometryToPoseMsg(predTransfo);
+      // Note : in eigen 3.4 iterators are available on matrices directly
+      //        >> std::copy(currentState.Covariance.begin(), currentState.Covariance.end(), confidenceMsg.covariance.begin());
+      // for now the only way is to copy or iterate on indices :
+      for (unsigned int i = 0; i < currentState.Covariance.size(); ++i)
+        odomMsg.pose.covariance[i] = currentState.Covariance(i);
       this->Publishers[POSE_PREDICTION_ODOM].publish(odomMsg);
     }
 
@@ -805,10 +839,10 @@ void LidarSlamNode::PublishOutput()
     if (this->Publish[POSE_PREDICTION_TF])
     {
       geometry_msgs::TransformStamped tfMsg;
-      tfMsg.header.stamp = ros::Time(odomToBasePred.time);
+      tfMsg.header.stamp = ros::Time(predTime);
       tfMsg.header.frame_id = this->OdometryFrameId;
       tfMsg.child_frame_id = this->TrackingFrameId + "_prediction";
-      tfMsg.transform = Utils::TransformToTfMsg(odomToBasePred);
+      tfMsg.transform = Utils::TransformToTfMsg(predTransfo);
       this->TfBroadcaster.sendTransform(tfMsg);
     }
   }
@@ -840,14 +874,15 @@ void LidarSlamNode::PublishOutput()
   if (this->Publish[CONFIDENCE])
   {
     // Get SLAM pose
-    LidarSlam::Transform odomToBase = this->LidarSlam.GetWorldTransform();
     lidar_slam::Confidence confidenceMsg;
-    confidenceMsg.header.stamp = ros::Time(odomToBase.time);
+    confidenceMsg.header.stamp = ros::Time(currentTime);
     confidenceMsg.header.frame_id = this->OdometryFrameId;
     confidenceMsg.overlap = this->LidarSlam.GetOverlapEstimation();
     confidenceMsg.computation_time = this->LidarSlam.GetLatency();
-    auto covar = this->LidarSlam.GetTransformCovariance();
-    std::copy(covar.begin(), covar.end(), confidenceMsg.covariance.begin());
+    // Note : in eigen 3.4, iterators are available on matrices directly
+    //        >> std::copy(currentState.Covariance.begin(), currentState.Covariance.end(), confidenceMsg.covariance.begin());
+    for (unsigned int i = 0; i < currentState.Covariance.size(); ++i)
+      confidenceMsg.covariance[i] = currentState.Covariance(i);
     confidenceMsg.nb_matches = this->LidarSlam.GetTotalMatchedKeypoints();
     confidenceMsg.comply_motion_limits = this->LidarSlam.GetComplyMotionLimits();
     this->Publishers[CONFIDENCE].publish(confidenceMsg);
@@ -948,6 +983,9 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(float,  "external_sensors/landmark_detector/saturation_distance", LandmarkSaturationDistance)
   SetSlamParam(bool,   "external_sensors/landmark_detector/position_only", LandmarkPositionOnly)
   this->PrivNh.getParam("external_sensors/landmark_detector/publish_tags", this->PublishTags);
+
+  // Graph parameters
+  SetSlamParam(std::string, "graph/g2o_file_name", G2oFileName)
 
   // Confidence estimators
   // Overlap

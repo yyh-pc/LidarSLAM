@@ -46,6 +46,22 @@ geometry_msgs::Transform TransformToTfMsg(const LidarSlam::Transform& transform)
 }
 
 //------------------------------------------------------------------------------
+//! Fill a TF msg with an isometry object.
+geometry_msgs::Transform IsometryToTfMsg(const Eigen::Isometry3d& transform)
+{
+  geometry_msgs::Transform tfMsg;
+  tfMsg.translation.x = transform.translation().x();
+  tfMsg.translation.y = transform.translation().y();
+  tfMsg.translation.z = transform.translation().z();
+  Eigen::Quaterniond q = Eigen::Quaterniond(transform.linear());
+  tfMsg.rotation.x = q.x();
+  tfMsg.rotation.y = q.y();
+  tfMsg.rotation.z = q.z();
+  tfMsg.rotation.w = q.w();
+  return tfMsg;
+}
+
+//------------------------------------------------------------------------------
 //! Fill a Pose msg with a Transform object.
 geometry_msgs::Pose TransformToPoseMsg(const LidarSlam::Transform& transform)
 {
@@ -54,6 +70,22 @@ geometry_msgs::Pose TransformToPoseMsg(const LidarSlam::Transform& transform)
   PoseMsg.position.y = transform.y();
   PoseMsg.position.z = transform.z();
   Eigen::Quaterniond q = transform.GetRotation();
+  PoseMsg.orientation.x = q.x();
+  PoseMsg.orientation.y = q.y();
+  PoseMsg.orientation.z = q.z();
+  PoseMsg.orientation.w = q.w();
+  return PoseMsg;
+}
+
+//------------------------------------------------------------------------------
+//! Fill a Pose msg with an isometry object.
+geometry_msgs::Pose IsometryToPoseMsg(const Eigen::Isometry3d& transform)
+{
+  geometry_msgs::Pose PoseMsg;
+  PoseMsg.position.x = transform.translation().x();
+  PoseMsg.position.y = transform.translation().y();
+  PoseMsg.position.z = transform.translation().z();
+  Eigen::Quaterniond q = Eigen::Quaterniond(transform.linear());
   PoseMsg.orientation.x = q.x();
   PoseMsg.orientation.y = q.y();
   PoseMsg.orientation.z = q.z();
