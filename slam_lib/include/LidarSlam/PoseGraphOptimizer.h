@@ -67,6 +67,13 @@ public:
 
   GetMacro(Verbose, bool)
   SetMacro(Verbose, bool)
+
+  GetMacro(FixFirst, bool)
+  SetMacro(FixFirst, bool)
+
+  GetMacro(FixLast, bool)
+  SetMacro(FixLast, bool)
+
 private:
 
   g2o::SparseOptimizer Optimizer;
@@ -75,6 +82,10 @@ private:
   int NbIteration = 200;
   bool Verbose = false;
   int LandmarkIdx = INT_MAX;
+  // Boolean to decide whether to fix the first pose or not
+  bool FixFirst = false;
+  // Boolean to decide whether to fix the last pose or not
+  bool FixLast = false;
 
   // Linking between external sensor supplied indices and graph indices
   std::unordered_map<int, int> LMIndicesLinking;

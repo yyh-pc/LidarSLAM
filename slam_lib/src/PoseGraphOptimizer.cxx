@@ -121,6 +121,10 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
     auto* newVertex = new g2o::VertexSE3;
     newVertex->setId(state.Index);
     newVertex->setEstimate(state.Isometry);
+    bool fixedVertex = (this->FixFirst && state.Index == states.front().Index) ||
+                       (this->FixLast  && state.Index == lastIndex);
+
+    newVertex->setFixed(fixedVertex);
     this->Optimizer.addVertex(newVertex);
     ++nStates;
 

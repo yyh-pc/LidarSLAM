@@ -398,6 +398,8 @@ void Slam::OptimizeGraph()
   // Allow the rotation of the covariances when interpolating the measurements
   this->SetLandmarkCovarianceRotation(true);
   PoseGraphOptimizer graphManager;
+  graphManager.SetFixFirst(this->FixFirstVertex);
+  graphManager.SetFixLast(this->FixLastVertex);
   // Clear the graph
   graphManager.ResetGraph();
   // Init pose graph optimizer

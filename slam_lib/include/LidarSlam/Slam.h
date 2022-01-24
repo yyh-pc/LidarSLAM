@@ -229,6 +229,12 @@ public:
   GetMacro(G2oFileName, std::string)
   SetMacro(G2oFileName, std::string)
 
+  GetMacro(FixFirstVertex, bool)
+  SetMacro(FixFirstVertex, bool)
+
+  GetMacro(FixLastVertex, bool)
+  SetMacro(FixLastVertex, bool)
+
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
   // ---------------------------------------------------------------------------
@@ -534,9 +540,6 @@ private:
   // The oldest states are forgotten (cf. LoggingTimeout parameter)
   std::list<LidarState> LogStates;
 
-  // Log info from g2o, if empty, log is not stored
-  std::string G2oFileName;
-
   // ---------------------------------------------------------------------------
   //   Keypoints extraction
   // ---------------------------------------------------------------------------
@@ -726,6 +729,16 @@ private:
   double EgoMotionFinalSaturationDistance = 1. ;
   double LocalizationInitSaturationDistance = 2.;
   double LocalizationFinalSaturationDistance = 0.5;
+
+  // ---------------------------------------------------------------------------
+  //   Graph parameters
+  // ---------------------------------------------------------------------------
+  // Log info from g2o, if empty, log is not stored
+  std::string G2oFileName;
+
+  // Boolean to decide if we want to some vertices of the graph
+  bool FixFirstVertex = false;
+  bool FixLastVertex = false;
 
   // ---------------------------------------------------------------------------
   //   Confidence estimation
