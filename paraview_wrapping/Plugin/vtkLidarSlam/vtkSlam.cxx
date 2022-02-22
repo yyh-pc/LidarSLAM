@@ -435,7 +435,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     auto arrayOdom = csvTable->GetRowData()->GetArray("odom");
     for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
     {
-      LidarSlam::SensorConstraints::WheelOdomMeasurement odomMeasurement;
+      LidarSlam::ExternalSensors::WheelOdomMeasurement odomMeasurement;
       odomMeasurement.Time = arrayTime->GetTuple1(i);
       odomMeasurement.Distance = arrayOdom->GetTuple1(i);
       this->SlamAlgo->AddWheelOdomMeasurement(odomMeasurement);
@@ -451,7 +451,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     auto arrayAccZ = csvTable->GetRowData()->GetArray("acc_z");
     for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
     {
-      LidarSlam::SensorConstraints::GravityMeasurement gravityMeasurement;
+      LidarSlam::ExternalSensors::GravityMeasurement gravityMeasurement;
       gravityMeasurement.Time = arrayTime->GetTuple1(i);
       gravityMeasurement.Acceleration.x() = arrayAccX->GetTuple1(i);
       gravityMeasurement.Acceleration.y() = arrayAccY->GetTuple1(i);

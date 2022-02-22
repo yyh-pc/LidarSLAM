@@ -16,11 +16,11 @@
 // limitations under the License.
 //==============================================================================
 
-#include "LidarSlam/SensorConstraints.h"
+#include "LidarSlam/ExternalSensorManagers.h"
 
 namespace LidarSlam
 {
-namespace SensorConstraints
+namespace ExternalSensors
 {
 // ---------------------------------------------------------------------------
 bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
@@ -272,5 +272,5 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
   return true;
 }
 
-} // end of SensorConstraints namespace
+} // end of ExternalSensors namespace
 } // end of LidarSlam namespace

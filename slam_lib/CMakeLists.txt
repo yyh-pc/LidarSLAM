@@ -15,7 +15,7 @@ add_library(LidarSlam
   src/LocalOptimizer.cxx
   src/MotionModel.cxx
   src/RollingGrid.cxx
-  src/SensorConstraints.cxx
+  src/ExternalSensorManagers.cxx
   src/Slam.cxx
   src/SpinningSensorKeypointExtractor.cxx
   src/Transform.cxx

@@ -1615,27 +1615,27 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
 
 // Sensor data
 //-----------------------------------------------------------------------------
-void Slam::AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm)
+void Slam::AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm)
 {
   this->ImuManager.AddMeasurement(gm);
 }
 
 //-----------------------------------------------------------------------------
-void Slam::AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om)
+void Slam::AddWheelOdomMeasurement(const ExternalSensors::WheelOdomMeasurement& om)
 {
   this->WheelOdomManager.AddMeasurement(om);
 }
 
 //-----------------------------------------------------------------------------
-void Slam::AddLandmarkMeasurement(int id, const SensorConstraints::LandmarkMeasurement& lm)
+void Slam::AddLandmarkMeasurement(int id, const ExternalSensors::LandmarkMeasurement& lm)
 {
   if (!this->LandmarksManagers.count(id))
-    this->LandmarksManagers[id] = SensorConstraints::LandmarkManager(this->LandmarkWeight,
-                                                                     this->SensorTimeOffset,
-                                                                     this->SensorTimeThreshold,
-                                                                     this->SensorMaxMeasures,
-                                                                     this->LandmarkSaturationDistance,
-                                                                     this->LandmarkPositionOnly);
+    this->LandmarksManagers[id] = ExternalSensors::LandmarkManager(this->LandmarkWeight,
+                                                                   this->SensorTimeOffset,
+                                                                   this->SensorTimeThreshold,
+                                                                   this->SensorMaxMeasures,
+                                                                   this->LandmarkSaturationDistance,
+                                                                   this->LandmarkPositionOnly);
   this->LandmarksManagers[id].AddMeasurement(lm);
 }
 
@@ -1652,12 +1652,12 @@ void Slam::ClearSensorMeasurements()
 void Slam::AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const Eigen::Matrix6d& absolutePoseCovariance)
 {
   if (!this->LandmarksManagers.count(id))
-    this->LandmarksManagers[id] = SensorConstraints::LandmarkManager(this->LandmarkWeight,
-                                                                     this->SensorTimeOffset,
-                                                                     this->SensorTimeThreshold,
-                                                                     this->SensorMaxMeasures,
-                                                                     this->LandmarkSaturationDistance,
-                                                                     this->LandmarkPositionOnly);
+    this->LandmarksManagers[id] = ExternalSensors::LandmarkManager(this->LandmarkWeight,
+                                                                   this->SensorTimeOffset,
+                                                                   this->SensorTimeThreshold,
+                                                                   this->SensorMaxMeasures,
+                                                                   this->LandmarkSaturationDistance,
+                                                                   this->LandmarkPositionOnly);
   this->LandmarksManagers[id].SetAbsolutePose(absolutePose, absolutePoseCovariance);
 }
 

@@ -295,7 +295,7 @@ void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tags
     {
       // Get tag pose in the landmark detector frame
       Eigen::Isometry3d tagToLmDetector = Utils::PoseMsgToTransform(tagInfo.pose.pose.pose).GetIsometry();
-      LidarSlam::SensorConstraints::LandmarkMeasurement lm;
+      LidarSlam::ExternalSensors::LandmarkMeasurement lm;
       lm.TransfoRelative = lmDetectorToBase * tagToLmDetector;
       lm.Time = tagInfo.pose.header.stamp.sec + tagInfo.pose.header.stamp.nsec * 1e-9;
       // Fill covariance

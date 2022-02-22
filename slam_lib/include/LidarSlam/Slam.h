@@ -83,7 +83,7 @@
 #include "LidarSlam/MotionModel.h"
 #include "LidarSlam/RollingGrid.h"
 #include "LidarSlam/PointCloudStorage.h"
-#include "LidarSlam/SensorConstraints.h"
+#include "LidarSlam/ExternalSensorManagers.h"
 
 #include <Eigen/Geometry>
 
@@ -348,13 +348,13 @@ public:
   bool GetWheelOdomRelative() const {return this->WheelOdomManager.GetRelative();}
   void SetWheelOdomRelative(bool relative) {this->WheelOdomManager.SetRelative(relative);}
 
-  void AddWheelOdomMeasurement(const SensorConstraints::WheelOdomMeasurement& om);
+  void AddWheelOdomMeasurement(const ExternalSensors::WheelOdomMeasurement& om);
 
   // IMU
   double GetGravityWeight() const {return this->ImuManager.GetWeight();}
   void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);}
 
-  void AddGravityMeasurement(const SensorConstraints::GravityMeasurement& gm);
+  void AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm);
 
   // Landmark detector
   GetMacro(LandmarkWeight, double)
@@ -371,7 +371,7 @@ public:
 
   void AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const Eigen::Matrix6d& absolutePoseCovariance);
 
-  void AddLandmarkMeasurement(int id, const SensorConstraints::LandmarkMeasurement& lm);
+  void AddLandmarkMeasurement(int id, const ExternalSensors::LandmarkMeasurement& lm);
 
   // ---------------------------------------------------------------------------
   //   Key frames and Maps parameters
@@ -600,13 +600,13 @@ private:
   // It computes the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
   // The odometry measurements must be filled and cleared from outside this lib
-  SensorConstraints::WheelOdometryManager WheelOdomManager;
+  ExternalSensors::WheelOdometryManager WheelOdomManager;
 
   // IMU manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
   // The IMU measurements must be filled and cleared from outside this lib
-  SensorConstraints::ImuManager ImuManager;
+  ExternalSensors::ImuManager ImuManager;
 
   // Landmarks manager
   // Each landmark has its own manager and is identified by its ID.
@@ -615,7 +615,7 @@ private:
   // The managers compute the residuals with a weight, measurements lists and
   // taking account of the acquisition time correspondance
   // The tag measurements must be filled and cleared from outside this lib
-  std::unordered_map<int, SensorConstraints::LandmarkManager> LandmarksManagers;
+  std::unordered_map<int, ExternalSensors::LandmarkManager> LandmarksManagers;
   // Variable to store the landmark weight to init correctly the landmark managers
   float LandmarkWeight = 0.f;
   // Boolean to choose whether to compute the reference pose of

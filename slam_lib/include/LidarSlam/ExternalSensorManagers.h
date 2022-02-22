@@ -30,7 +30,7 @@ namespace LidarSlam
 #define SetSensorMacro(name,type) void Set##name (type _arg) { this->name = _arg; }
 #define GetSensorMacro(name,type) type Get##name () const { return this->name; }
 
-namespace SensorConstraints
+namespace ExternalSensors
 {
 
 // ---------------------------------------------------------------------------
@@ -329,5 +329,5 @@ private:
   bool PositionOnly = true;
 };
 
-} // end of SensorConstraints namespace
+} // end of ExternalSensors namespace
 } // end of LidarSlam namespace
