@@ -196,6 +196,28 @@ All these parameters are described in the supplied config files.
 
 ***WARNING***: Please make sure no error occured in the file loading step in the terminal output before supplying data.
 
+### Pose graph optimization
+
+If the tags were activated, one can run a post optimization, using the tags to close loops and to create a consistent map. The previous recommandations for landmarks integration in local optimizations hold. Moreover, the LiDAR states logging must be enabled : `slam/logging_timeout > t`, t being the duration on which LiDAR measurements can be stored. The oldest measurements are forgotten. Only the remaining poses are used to build and optimize the graph and to rebuild the map.
+
+If you want to run SLAM and then to optimize the graph using landmarks, one pipeline can be :
+```bash
+roslaunch lidar_slam slam.launch tags_topic:="your_tag_topic" # Start SLAM (tags use must be enabled).
+...  # Run 1st real test or bag file
+...  # Stop the acquisition or pause the system
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 20, string_arg: path/to/landmarksAbsolutePoses.csv}"    # Trigger PGO : optimize SLAM map and update last pose (if fix_last is set to false)
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 16, string_arg: /path/to/maps/prefix}" # Save keypoint maps for further use
+...  # Run 2nd real test or bag file
+```
+
+**NOTE** : After one pose graph optimization one should be able to proceed with the acquisition/replay.
+
+**NOTE** : If the SLAM was running with initially loaded tag poses (`landmarks_file_path` is not empty), and one wants to run the pose graph optimization, the file parameter is not compulsory, one can just launch :
+```bash
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 20"
+```
+Again, running the SLAM in mapping mode with initially loaded tag poses can be dangerous though. If you don't have any absolute tag poses to supply, the last estimated tag poses will be used. It means the map will be updated so it fits the last frames.
+
 ## About the published TF tree
 
 Here is an example of the complete TF tree that can be maintained by different nodes as well as descriptions of each frame (default frame names) :

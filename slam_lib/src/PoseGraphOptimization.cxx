@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //==============================================================================
-
+#if 0
 #include "LidarSlam/Utilities.h"
 #include "LidarSlam/PoseGraphOptimization.h"
 #include "LidarSlam/GlobalTrajectoriesRegistration.h"
@@ -65,7 +65,7 @@ namespace
           bestId = j;
         // CHECK As vector is sorted, if time difference is increasing, we already passed through best point.
         // else
-        //   return bestId;        
+        //   return bestId;
       }
 
       prevTimeDiff = timeDiff;
@@ -254,7 +254,7 @@ void PoseGraphOptimization::BuildPoseGraph(const std::vector<Transform>& slamPos
     int foundId = Utils::FindClosestSlamPose(gpsPoses[i], slamPoses);
 
     // Check matching validity, and ensure that the found slam pose is different
-    // from the previous one (to prevent matching a single SLAM point to 2 
+    // from the previous one (to prevent matching a single SLAM point to 2
     // different GPS points).
     // CHECK if SLAM points are sparser than GPS, the first GPS/SLAM match may not be the best one.
     if ((foundId != -1) && (foundId != prevFoundId))
@@ -285,3 +285,4 @@ void PoseGraphOptimization::BuildPoseGraph(const std::vector<Transform>& slamPos
 }
 
 } // end of LidarSlam namespace
+#endif

@@ -59,6 +59,8 @@ Dependencies are listed in the table below along with the version used during de
 - If G2O is not available (or disabled), *LidarSlam* lib will still be compiled, but without pose graph optimization features.
 - If OpenMP is available, it is possible to use multi-threading to run some SLAM steps in parallel and achieve higher processing speed.
 
+**/!\ Warning** Make sure to compile/install G2O with the same Ceres version as the one used in the SLAM compilation. To do so, disable the feature [G2O_USE_VENDORED_CERES](https://github.com/RainerKuemmerle/g2o/blob/master/CMakeLists.txt) during G2O compilation and link against the right version of Ceres.
+
 ### Installation
 
 To build only *LidarSlam* lib, just `cd` to this repo root dir and run :
@@ -72,6 +74,9 @@ make install
 ```
 
 The *LidarSlam* lib has been tested on Linux, Windows and OS X.
+
+**NOTE:** You can link the local libraries you are using adding cmake flags. Notably with G2O:
+  cmake -DCeres_DIR=/usr/local/lib/cmake/Ceres -Dg2o_DIR=/usr/local/lib/cmake/g2o path/to/slam_sources
 
 ## ROS wrapping
 

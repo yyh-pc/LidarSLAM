@@ -23,10 +23,8 @@ namespace LidarSlam
 namespace ExternalSensors
 {
 // ---------------------------------------------------------------------------
-bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
+ bool WheelOdometryManager::ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose)
 {
-  this->ResetResidual();
-
   if (!this->CanBeUsed())
     return false;
 
@@ -38,8 +36,21 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
   if (bounds.first == bounds.second)
     return false;
   // Interpolate odometry measurement at LiDAR timestamp
+  synchMeas.Time = lidarTime;
   double rt = (lidarTime - bounds.first->Time) / (bounds.second->Time - bounds.first->Time);
-  double currDistance = (1 - rt) * bounds.first->Distance + rt * bounds.second->Distance;
+  synchMeas.Distance = (1 - rt) * bounds.first->Distance + rt * bounds.second->Distance;
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
+{
+  this->ResetResidual();
+
+  WheelOdomMeasurement synchMeas;
+  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+    return false;
 
   // Build odometry residual
   // If there is no memory of previous poses
@@ -49,12 +60,12 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
     if (verbose)
       PRINT_INFO("No previous wheel odometry measure : no constraint added to optimization")
     // Update reference distance for next frames
-    this->RefDistance = currDistance;
+    this->RefDistance = synchMeas.Distance;
     return false;
   }
 
   // If there is memory of a previous pose
-  double distDiff = std::abs(currDistance - this->RefDistance);
+  double distDiff = std::abs(synchMeas.Distance - this->RefDistance);
   this->Residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(this->PreviousPose.translation(), distDiff);
   this->Residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
   if(verbose && !this->Relative)
@@ -64,7 +75,32 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
 
   // Update reference distance if relative mode enabled
   if (this->Relative)
-    this->RefDistance = currDistance;
+    this->RefDistance = synchMeas.Distance;
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+ bool ImuManager::ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose)
+{
+  if (!this->CanBeUsed())
+    return false;
+
+  std::lock_guard<std::mutex> lock(this->Mtx);
+  // Compute the two closest measures to current Lidar frame
+  lidarTime -= this->TimeOffset;
+  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  if (bounds.first == bounds.second)
+    return false;
+  // Interpolate gravity measurement at LiDAR timestamp
+  synchMeas.Time = lidarTime;
+  double rt = (lidarTime - bounds.first->Time) / (bounds.second->Time - bounds.first->Time);
+  synchMeas.Acceleration = (1 - rt) * bounds.first->Acceleration.normalized() + rt * bounds.second->Acceleration.normalized();
+  // Normalize interpolated gravity vector
+  if (synchMeas.Acceleration.norm() > 1e-6) // Check to ensure consistent IMU measure
+    synchMeas.Acceleration.normalize();
+  else
+    return false;
 
   return true;
 }
@@ -74,30 +110,16 @@ bool ImuManager::ComputeConstraint(double lidarTime, bool verbose)
 {
   this->ResetResidual();
 
-  if (!this->CanBeUsed())
-    return false;
-
   // Compute reference gravity vector
   if (this->GravityRef.norm() < 1e-6)
     this->ComputeGravityRef(Utils::Deg2Rad(5.f));
 
-  std::lock_guard<std::mutex> lock(this->Mtx);
-  // Compute the two closest measures to current Lidar frame
-  lidarTime -= this->TimeOffset;
-  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
-  if (bounds.first == bounds.second)
-    return false;
-  // Interpolate gravity measurement at LiDAR timestamp
-  double rt = (lidarTime - bounds.first->Time) / (bounds.second->Time - bounds.first->Time);
-  Eigen::Vector3d gravityDirection = (1 - rt) * bounds.first->Acceleration.normalized() + rt * bounds.second->Acceleration.normalized();
-  // Normalize interpolated gravity vector
-  if (gravityDirection.norm() > 1e-6) // Check to ensure consistent IMU measure
-    gravityDirection.normalize();
-  else
+  GravityMeasurement synchMeas;
+  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
     return false;
 
   // Build gravity constraint
-  this->Residual.Cost = CeresCostFunctions::ImuGravityAlignmentResidual::Create(this->GravityRef, gravityDirection);
+  this->Residual.Cost = CeresCostFunctions::ImuGravityAlignmentResidual::Create(this->GravityRef, synchMeas.Acceleration);
   this->Residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
   PRINT_INFO("\t Adding gravity residual with gravity reference : " << this->GravityRef.transpose())
   return true;
@@ -147,7 +169,8 @@ LandmarkManager::LandmarkManager(double w, double timeOffset, double timeThresh,
                                  double sat, bool positionOnly, const std::string& name)
                 : SensorManager(w, timeOffset, timeThresh, maxMeas, name),
                   SaturationDistance(sat),
-                  PositionOnly(positionOnly)
+                  PositionOnly(positionOnly),
+                  CovarianceRotation(false)
 {}
 
 // ---------------------------------------------------------------------------
@@ -160,6 +183,7 @@ LandmarkManager::LandmarkManager(const LandmarkManager& lmManager)
                                   lmManager.GetPositionOnly(),
                                   lmManager.GetSensorName())
 {
+  this->CovarianceRotation = lmManager.GetCovarianceRotation();
   this->Measures = lmManager.GetMeasures();
   this->PreviousIt = this->Measures.begin();
 }
@@ -174,6 +198,7 @@ void LandmarkManager::operator=(const LandmarkManager& lmManager)
   this->MaxMeasures = lmManager.GetMaxMeasures();
   this->SaturationDistance = lmManager.GetSaturationDistance();
   this->PositionOnly = lmManager.GetPositionOnly();
+  this->CovarianceRotation = lmManager.GetCovarianceRotation();
   this->Measures = lmManager.GetMeasures();
   this->PreviousIt = this->Measures.begin();
 }
@@ -187,18 +212,31 @@ void LandmarkManager::SetAbsolutePose(const Eigen::Vector6d& pose, const Eigen::
 }
 
 // ---------------------------------------------------------------------------
-void LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform)
+bool LandmarkManager::HasBeenUsed(double lidarTime)
 {
+  // Absolute is used to discard the initial case LastUpdateTimes.second = infinity
+  return std::abs(lidarTime - this->LastUpdateTimes.second) < 1e-6;
+}
+
+// ---------------------------------------------------------------------------
+bool LandmarkManager::NeedsReferencePoseRefresh(double lidarTime)
+{
+  return this->HasBeenUsed(lidarTime) &&
+         (!this->HasAbsolutePose || this->LastUpdateTimes.second - this->LastUpdateTimes.first > this->TimeThreshold);
+}
+
+// ---------------------------------------------------------------------------
+bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform, double lidarTime)
+{
+  if (!this->HasBeenUsed(lidarTime))
+    return false;
+
   std::lock_guard<std::mutex> lock(this->Mtx);
-  if (!this->RelativeTransformUpdated)
-    return;
   // If it is the first time the tag is detected
   // or if the last time the tag has been seen was long ago
   // (re)set the absolute pose using the current base transform and
   // the relative transform measured
-  auto itEnd = this->Measures.end();
-  --itEnd;
-  if (!this->HasAbsolutePose || itEnd->Time - (--itEnd)->Time > this->TimeThreshold)
+  if (NeedsReferencePoseRefresh(lidarTime))
   {
     this->AbsolutePose = Utils::IsometryToXYZRPY(baseTransform * this->RelativeTransform);
     this->HasAbsolutePose = true;
@@ -211,14 +249,12 @@ void LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform)
     this->AbsolutePose = ( (this->AbsolutePose * this->Count) + newAbsolutePose ) / (this->Count + 1);
     ++this->Count;
   }
-  this->RelativeTransformUpdated = false;
+  return true;
 }
 
 // ---------------------------------------------------------------------------
-bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
+ bool LandmarkManager::ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool verbose)
 {
-  this->ResetResidual();
-
   if (!this->CanBeUsed())
     return false;
 
@@ -230,10 +266,38 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
     return false;
   // Interpolate landmark relative pose at LiDAR timestamp
   this->RelativeTransform = LinearInterpolation(bounds.first->TransfoRelative, bounds.second->TransfoRelative, lidarTime, bounds.first->Time, bounds.second->Time);
+  synchMeas.Time = lidarTime;
+  synchMeas.TransfoRelative = this->RelativeTransform;
+  // Rotate covariance if required
+  if (this->CovarianceRotation)
+  {
+    Eigen::Isometry3d update = this->RelativeTransform * bounds.first->TransfoRelative.inverse();
+    Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(bounds.first->TransfoRelative);
+    synchMeas.Covariance = CeresTools::RotateCovariance(xyzrpy, bounds.first->Covariance, update.linear());
+  }
 
-  // Notify the relative transform is updated to update the absolute reference tag pose
-  // when the sensor absolute pose will be estimated (if required).
-  this->RelativeTransformUpdated = true;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
+{
+  this->ResetResidual();
+
+  if (!this->CanBeUsed())
+    return false;
+
+  LandmarkMeasurement synchMeas;
+  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+    return false;
+
+  this->RelativeTransform = synchMeas.TransfoRelative;
+
+  // Last times the tag was used
+  // this is used to update the absolute reference tag pose when the
+  // sensor absolute pose will be estimated (if required).
+  this->LastUpdateTimes.first = this->LastUpdateTimes.second;
+  this->LastUpdateTimes.second = lidarTime;
 
   // Check if the absolute pose has been computed
   // If not, the next tag detection is waited

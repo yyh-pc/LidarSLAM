@@ -43,3 +43,6 @@ uint8 ENABLE_SLAM_MAP_UPDATE = 10
 uint8 SAVE_KEYPOINTS_MAPS = 16
 uint8 SAVE_FILTERED_KEYPOINTS_MAPS = 17
 uint8 LOAD_KEYPOINTS_MAPS = 18
+
+# Stop the slam and optimize pose graph
+uint8 OPTIMIZE_GRAPH = 20

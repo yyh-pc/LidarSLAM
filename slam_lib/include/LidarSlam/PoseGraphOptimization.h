@@ -18,6 +18,8 @@
 
 #pragma once
 
+#if 0
+
 #include "LidarSlam/Transform.h"
 #include <g2o/core/sparse_optimizer.h>
 
@@ -77,3 +79,5 @@ private:
 };
 
 } // end of LidarSlam namespace
+
+#endif

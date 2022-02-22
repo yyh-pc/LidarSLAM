@@ -106,7 +106,7 @@ void vtkSlam::Reset()
   // Init the SLAM state (map + pose)
   if (!this->InitMapPrefix.empty())
     this->SlamAlgo->LoadMapsFromPCD(this->InitMapPrefix);
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Transform(this->InitPose));
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::PoseToIsometry(this->InitPose));
 
   // Init the output SLAM trajectory
   this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
@@ -155,7 +155,7 @@ void vtkSlam::SetInitialPoseTranslation(double x, double y, double z)
   this->InitPose.x() = x;
   this->InitPose.y() = y;
   this->InitPose.z() = z;
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Transform(this->InitPose));
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::PoseToIsometry(this->InitPose));
   this->ParametersModificationTime.Modified();
 }
 
@@ -165,7 +165,7 @@ void vtkSlam::SetInitialPoseRotation(double roll, double pitch, double yaw)
   this->InitPose(3) = roll;
   this->InitPose(4) = pitch;
   this->InitPose(5) = yaw;
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Transform(this->InitPose));
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::PoseToIsometry(this->InitPose));
   this->ParametersModificationTime.Modified();
 }
 
@@ -636,27 +636,26 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
 void vtkSlam::AddCurrentPoseToTrajectory()
 {
   // Get current SLAM pose in WORLD coordinates
-  LidarSlam::Transform Tworld = this->SlamAlgo->GetWorldTransform();
-  Eigen::Isometry3d pose = Tworld.GetIsometry();
+  LidarSlam::LidarState& currentState = this->SlamAlgo->GetLastState();
 
   // Add position
-  Eigen::Vector3d translation = pose.translation();
+  Eigen::Vector3d translation = currentState.Isometry.translation();
   this->Trajectory->GetPoints()->InsertNextPoint(translation.x(), translation.y(), translation.z());
 
   // Add orientation as quaternion
-  Eigen::Quaterniond quaternion(pose.linear());
+  Eigen::Quaterniond quaternion(currentState.Isometry.linear());
   double wxyz[] = {quaternion.w(), quaternion.x(), quaternion.y(), quaternion.z()};
   this->Trajectory->GetPointData()->GetArray("Orientation(Quaternion)")->InsertNextTuple(wxyz);
 
   // Add orientation as axis angle
-  Eigen::AngleAxisd angleAxis(pose.linear());
+  Eigen::AngleAxisd angleAxis(currentState.Isometry.linear());
   Eigen::Vector3d axis = angleAxis.axis();
   double xyza[] = {axis.x(), axis.y(), axis.z(), angleAxis.angle()};
   this->Trajectory->GetPointData()->GetArray("Orientation(AxisAngle)")->InsertNextTuple(xyza);
 
   // Add pose time and covariance
-  this->Trajectory->GetPointData()->GetArray("Time")->InsertNextTuple(&Tworld.time);
-  this->Trajectory->GetPointData()->GetArray("Covariance")->InsertNextTuple(this->SlamAlgo->GetTransformCovariance().data());
+  this->Trajectory->GetPointData()->GetArray("Time")->InsertNextTuple(&currentState.Time);
+  this->Trajectory->GetPointData()->GetArray("Covariance")->InsertNextTuple(currentState.Covariance.data());
 
   // Add line linking 2 successive points
   vtkIdType nPoints = this->Trajectory->GetNumberOfPoints();

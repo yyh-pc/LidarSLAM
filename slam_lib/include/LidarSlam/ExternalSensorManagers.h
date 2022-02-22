@@ -144,7 +144,10 @@ public:
     return this->Weight > 1e-6 && this->Measures.size() > 1;
   }
 
-  virtual bool ComputeConstraint(double lidarTime, bool verbose = false){return false;};
+  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
+  virtual bool ComputeSynchronizedMeasure(double lidarTime, T& synchMeas, bool verbose = false){return true;}
+  // Compute the constraint associated to the measurement
+  virtual bool ComputeConstraint(double lidarTime, bool verbose = false){return false;}
 
 protected:
   // ------------------
@@ -242,6 +245,8 @@ public:
   GetSensorMacro(RefDistance, double)
   SetSensorMacro(RefDistance, double)
 
+  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
+  bool ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose = false);
   // Wheel odometry constraint (unoriented)
   // Can be relative since last frame or absolute since first pose
   bool ComputeConstraint(double lidarTime, bool verbose = false) override;
@@ -263,6 +268,9 @@ public:
   //Setters/Getters
   GetSensorMacro(GravityRef, Eigen::Vector3d)
   SetSensorMacro(GravityRef, const Eigen::Vector3d&)
+
+  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
+  bool ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose = false);
 
   // IMU constraint (gravity)
   bool ComputeConstraint(double lidarTime, bool verbose = false) override;
@@ -296,16 +304,25 @@ public:
   GetSensorMacro(PositionOnly, bool)
   SetSensorMacro(PositionOnly, bool)
 
+  GetSensorMacro(CovarianceRotation, bool)
+  SetSensorMacro(CovarianceRotation, bool)
   // Set the initial absolute pose
   // NOTE : the absolute pose can be updated if UpdateAbsolutePose is called
   void SetAbsolutePose(const Eigen::Vector6d& pose, const Eigen::Matrix6d& cov);
+
+  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
+  bool ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool verbose = false);
 
   // Landmark constraint
   bool ComputeConstraint(double lidarTime, bool verbose = false) override;
 
   // Update the absolute pose in case the tags are used as relative constraints
   // (i.e, no absolute poses of the tags are supplied)
-  void UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform);
+  bool UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform, double lidarTime);
+  bool NeedsReferencePoseRefresh(double lidarTime);
+
+private:
+  bool HasBeenUsed(double lidarTime);
 
 private:
   // Absolute pose of the landmark in the global frame
@@ -315,7 +332,7 @@ private:
   // Boolean to check the absolute pose has been loaded
   // or if the tag has already been seen
   bool HasAbsolutePose = false;
-  bool RelativeTransformUpdated = false;
+  std::pair<double, double> LastUpdateTimes = {FLT_MAX, FLT_MAX};
   // Counter to check how many frames the tag was seen on
   // This is used to average the pose in case the absolute poses
   // were not supplied initially and are updated (cf. UpdateAbsolutePose)
@@ -327,6 +344,9 @@ private:
   // The constraint created can use the whole position (orientation + position) -> false
   // or only the position -> true (if the orientation is not reliable enough)
   bool PositionOnly = true;
+  // Allow to rotate the covariance
+  // Can be disabled if the covariance is fixed
+  bool CovarianceRotation = false;
 };
 
 } // end of ExternalSensors namespace
