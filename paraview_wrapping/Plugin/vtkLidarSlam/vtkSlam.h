@@ -222,8 +222,20 @@ public:
   vtkCustomGetMacro(WheelOdomWeight, double)
   vtkCustomSetMacro(WheelOdomWeight, double)
 
+  vtkCustomGetMacro(WheelOdomRelative, bool)
+  vtkCustomSetMacro(WheelOdomRelative, bool)
+
   vtkCustomGetMacro(GravityWeight, double)
   vtkCustomSetMacro(GravityWeight, double)
+
+  vtkCustomGetMacro(SensorTimeOffset, double)
+  vtkCustomSetMacro(SensorTimeOffset, double)
+
+  vtkCustomGetMacro(SensorTimeThreshold, double)
+  vtkCustomSetMacro(SensorTimeThreshold, double)
+
+  vtkCustomGetMacro(SensorMaxMeasures, unsigned int)
+  vtkCustomSetMacro(SensorMaxMeasures, unsigned int)
 
   // ---------------------------------------------------------------------------
   //   Keypoints extractor, Key frames and Maps parameters

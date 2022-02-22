@@ -29,7 +29,7 @@
 //------------------------------------------------------------------------------
 /**
  * \brief Factory to ease the construction of the auto-diff residual objects
- * 
+ *
  * Type: the residual functor type
  * ResidualSize: int, the size of the output residual block
  * ...: int(s), the size(s) of the input parameter block(s)
@@ -59,7 +59,7 @@ namespace
 {
 //------------------------------------------------------------------------------
 /**
- * \brief Build rotation matrix from euler angles.
+ * \brief Build rotation matrix from Euler angles.
  *
  * It estimates R using the Euler-Angle mapping between R^3 and SO(3) :
  *   R(rx, ry, rz) = Rz(rz) * Ry(ry) * Rx(rx)
@@ -77,6 +77,37 @@ Eigen::Matrix<T, 3, 3> RotationMatrixFromRPY(const T& rx, const T& ry, const T& 
          -sy,           sx*cy,           cx*cy;
   return R;
 }
+
+//------------------------------------------------------------------------------
+template <typename T>
+Eigen::Transform<T, 3, Eigen::Isometry> XYZRPYtoIsometry(const T& x, const T& y, const T& z, const T& rx, const T& ry, const T& rz)
+{
+  const T cx = ceres::cos(rx);  const T sx = ceres::sin(rx);
+  const T cy = ceres::cos(ry);  const T sy = ceres::sin(ry);
+  const T cz = ceres::cos(rz);  const T sz = ceres::sin(rz);
+
+  Eigen::Transform<T, 3, Eigen::Isometry> transform;
+  transform.matrix() << cy*cz,  sx*sy*cz-cx*sz,  cx*sy*cz+sx*sz,      x,
+                        cy*sz,  sx*sy*sz+cx*cz,  cx*sy*sz-sx*cz,      y,
+                          -sy,           sx*cy,           cx*cy,      z,
+                        T(0.),           T(0.),           T(0.),  T(1.);
+  return transform;
+}
+
+//------------------------------------------------------------------------------
+template <typename T>
+Eigen::Matrix<T, 6, 1> IsometryToXYZRPY(const Eigen::Transform<T, 3, Eigen::Isometry>& transform)
+{
+  Eigen::Matrix<T, 3, 3> rot = transform.linear();
+  Eigen::Matrix<T, 3, 1> rpy;
+  rpy.x() = ceres::atan2(rot(2, 1), rot(2, 2));
+  rpy.y() = -ceres::asin(rot(2, 0));
+  rpy.z() = ceres::atan2(rot(1, 0), rot(0, 0));
+  Eigen::Matrix<T, 6, 1> xyzrpy;
+  xyzrpy << transform.translation(), rpy;
+  return xyzrpy;
+}
+
 } // end of anonymous namespace
 } // end of Utils namespace
 
@@ -228,10 +259,10 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     // The applied isometry will be the linear interpolation between them :
     // (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
     const Isometry3T H = transformInterpolator(Time);
-    
+
     // Transform point with rotation and translation
     const Vector3T Y = H.linear() * X + H.translation();
-    
+
     // Compute residual
     Eigen::Map<Vector3T> residualVec(residual);
     residualVec = A * (Y - P);
@@ -255,13 +286,13 @@ private:
 /**
  * \class OdometerDistanceResidual
  * \brief Cost function to optimize the translation of the affine isometry
- *        transformation (rotation and translation) so that the distance 
+ *        transformation (rotation and translation) so that the distance
  *        from a previous known pose corresponds to an external sensor odometry measure.
  *
  * This function takes one 6D parameters block :
  *   - 3 first parameters to encode translation : X, Y, Z
  *   - [unused] 3 last parameters to encode rotation with euler angles : rX, rY, rZ
- * 
+ *
  * It outputs a 1D residual block.
  */
 struct OdometerDistanceResidual
@@ -305,7 +336,7 @@ private:
  * This function takes one 6D parameters block :
  *   - [unused] 3 first parameters to encode translation : X, Y, Z
  *   - 3 last parameters to encode rotation with euler angles : rX, rY, rZ
- * 
+ *
  * It outputs a 3D residual block.
  */
 struct ImuGravityAlignmentResidual
@@ -322,7 +353,7 @@ struct ImuGravityAlignmentResidual
     using Matrix3T = Eigen::Matrix<T, 3, 3>;
     using Vector3T = Eigen::Matrix<T, 3, 1>;
 
-    // Get rotation part 
+    // Get rotation part
     Matrix3T rot = Utils::RotationMatrixFromRPY(w[3], w[4], w[5]);
 
     // Compute residual
@@ -340,5 +371,199 @@ private:
   const Eigen::Vector3d CurrentGravityDirection;
 };
 
+//------------------------------------------------------------------------------
+/**
+ * \class LandmarkPositionResidual
+ * \brief Cost function to optimize the affine isometry transformation
+ *        (rotation and translation) so that it is consistent
+ *        with a landmark detection (knowing its absolute position)
+ *
+ * This function takes one 6D parameters block :
+ *   - 3 parameters to encode translation : X, Y, Z
+ *   - 3 last parameters to encode rotation with Euler angles : rX, rY, rZ
+ *
+ * It outputs a 3D residual block.
+ */
+struct LandmarkPositionResidual
+{
+  using Vector6d = Eigen::Matrix<double, 6, 1>;
+  using Matrix6d = Eigen::Matrix<double, 6, 6>;
+
+  LandmarkPositionResidual(const Eigen::Isometry3d& relativeTransform,
+                           const Vector6d& absolutePose)
+    : RelativeTransform(relativeTransform)
+    , AbsolutePoseRef(absolutePose)
+  {}
+
+  template <typename T>
+  bool operator()(const T* const w, T* residual) const
+  {
+    using Vector3T = Eigen::Matrix<T, 3, 1>;
+    using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
+
+    // Get transformation, in a static way.
+    // The idea is that all landmark residual functions will need to evaluate those
+    // sin/cos so we only compute them once each time the parameters change.
+    static Isometry3T currentPoseTransfo = Isometry3T::Identity();
+    static T lastT[6] = {T(-1.)};
+    if (!std::equal(w, w + 6, lastT))
+    {
+      currentPoseTransfo = Utils::XYZRPYtoIsometry(w[0], w[1], w[2], w[3], w[4], w[5]);
+      std::copy(w, w + 6, lastT);
+    }
+
+    // Compute absolute pose
+    Isometry3T tagTransform = currentPoseTransfo * this->RelativeTransform.cast<T>();
+
+    // Compute residual
+    Eigen::Map<Vector3T> residualVec(residual);
+    residualVec = tagTransform.translation() - this->AbsolutePoseRef.head(3);
+
+    return true;
+  }
+
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(LandmarkPositionResidual, 3, 6)
+
+private:
+  const Eigen::Isometry3d RelativeTransform;
+  const Vector6d AbsolutePoseRef;
+};
+
+//------------------------------------------------------------------------------
+/**
+ * \class LandmarkResidual
+ * \brief Cost function to optimize the affine isometry transformation
+ *        (rotation and translation) so that the absolute pose is consistent
+ *        with a landmark detection (knowing its absolute pose)
+ *
+ * This function takes one 6D parameters block :
+ *   - 3 first parameters to encode translation : X, Y, Z
+ *   - 3 last parameters to encode rotation with Euler angles : rX, rY, rZ
+ *
+ * It outputs a 6D residual block.
+ */
+struct LandmarkResidual
+{
+  using Vector6d = Eigen::Matrix<double, 6, 1>;
+  using Matrix6d = Eigen::Matrix<double, 6, 6>;
+
+  LandmarkResidual(const Eigen::Isometry3d& relativeTransform,
+                   const Vector6d& absolutePose)
+    : RelativeTransform(relativeTransform)
+    , AbsolutePoseRef(absolutePose)
+  {}
+
+  template <typename T>
+  bool operator()(const T* const w, T* residual) const
+  {
+    using Vector6T = Eigen::Matrix<T, 6, 1>;
+    using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
+
+    // Get transformation, in a static way.
+    // The idea is that all landmark residual functions will need to evaluate those
+    // sin/cos so we only compute them once each time the parameters change.
+    static Isometry3T currentPoseTransfo = Isometry3T::Identity();
+    static T lastT[6] = {T(-1.)};
+    if (!std::equal(w, w + 6, lastT))
+    {
+      currentPoseTransfo = Utils::XYZRPYtoIsometry(w[0], w[1], w[2], w[3], w[4], w[5]);
+      std::copy(w, w + 6, lastT);
+    }
+
+    // Compute absolute pose
+    Isometry3T tagTransform = currentPoseTransfo * this->RelativeTransform.cast<T>();
+    Vector6T tagPose = Utils::IsometryToXYZRPY(tagTransform);
+
+    // Compute residual
+    Eigen::Map<Vector6T> residualVec(residual);
+    residualVec = (tagPose - this->AbsolutePoseRef);
+
+    return true;
+  }
+
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(LandmarkResidual, 6, 6)
+
+private:
+  const Eigen::Isometry3d RelativeTransform;
+  const Vector6d AbsolutePoseRef;
+};
+
+//------------------------------------------------------------------------------
+struct Rotate {
+  Rotate(const Eigen::Matrix3d& rotation): Rotation(rotation) {}
+
+  template <typename T>
+  bool operator()(const T* const poseEuler, T* residual) const
+  {
+    using Matrix3T = Eigen::Matrix<T, 3, 3>;
+    using Vector3T = Eigen::Matrix<T, 3, 1>;
+
+    Matrix3T rot = this->Rotation.cast<T>();
+    // Get translation part of the pose
+    Eigen::Map<const Vector3T> xyz(&poseEuler[0]);
+    // Rotate XYZ coordinates
+    // The translation is not needed as it won't impact the Jacobian
+    residual[0] = rot.row(0) * xyz;
+    residual[1] = rot.row(1) * xyz;
+    residual[2] = rot.row(2) * xyz;
+
+    // Compute rotation matrix of current pose from Euler angles (RPY convention)
+    Matrix3T R = Utils::RotationMatrixFromRPY(poseEuler[3], poseEuler[4], poseEuler[5]);
+    // Compute new rotation matrix relative to rotated pose
+    Matrix3T Rtot = rot * R;
+    // Extract Euler angles of new rotated pose
+    residual[3] = ceres::atan2(Rtot(2, 1), Rtot(2, 2));
+    residual[4] = -ceres::asin(Rtot(2, 0));
+    residual[5] = ceres::atan2(Rtot(1, 0), Rtot(0, 0));
+    return true;
+  }
+
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(Rotate, 6, 6)
+
+private:
+  // Rotation to transform covariance
+  const Eigen::Matrix3d Rotation;
+};
+
 } // end of namespace CeresCostFunctions
+
+namespace CeresTools
+{
+//------------------------------------------------------------------------------
+/*!
+ * @brief Rotate a covariance to change the reference frame
+ *        Theory : the variables of the pose X represented in frame F1 are associated with a covariance C
+ *                 If we want to express the pose X in a new reference frame F2, we apply the function f to X
+ *                 The covariance associated to f(X) (pose expressed in frame F2) is JCJ^T (J being the Jacobian of the f function)
+ * @param[in] pose : pose associated to the covariance
+ * @param[in] covariance : covariance matrix to rotate
+ * @param[in] rotation : 3x3 rotation matrix to apply
+ */
+inline Eigen::Matrix<double, 6, 6> RotateCovariance(Eigen::Matrix<double, 6, 1>& pose, const Eigen::Matrix<double, 6, 6>& covariance, const Eigen::Matrix3d& rotation)
+{
+  ceres::CostFunction* F = new ceres::AutoDiffCostFunction<CeresCostFunctions::Rotate, 6, 6>(new CeresCostFunctions::Rotate(rotation));
+  ceres::Problem problem;
+  problem.AddResidualBlock(F, nullptr, pose.data());
+
+  double cost = 0.0;
+  ceres::CRSMatrix jacobian;
+  problem.Evaluate(ceres::Problem::EvaluateOptions(), &cost, nullptr, nullptr, &jacobian);
+  Eigen::Matrix<double, 6, 6> J;
+  // convert CRSMatrix to Eigen matrix
+  std::vector<double> values = jacobian.values;
+  std::vector<int> rows = jacobian.rows;
+  std::vector<int> cols = jacobian.cols;
+  int nRows = jacobian.num_rows;
+  for (int i = 0; i < nRows; ++i)
+  {
+    for (int j = rows[i]; j < rows[i+1]; ++j)
+      J(i, cols[j]) = values[j];
+  }
+  return J * covariance * J.inverse();
+}
+} // end of namespace CeresTools
+
 } // end of LidarSlam namespace

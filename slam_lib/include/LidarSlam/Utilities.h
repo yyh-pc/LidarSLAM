@@ -59,6 +59,7 @@
 #define CYAN    "\033[36m"
 #define GRAY    "\033[37m"
 #define PRINT_COLOR(color, s) std::cout << color << s << DEFAULT << std::endl;
+#define PRINT_INFO(s) std::cout << GRAY << s << DEFAULT << std::endl;
 #define PRINT_WARNING(s) std::cerr << YELLOW << "[WARNING] " << s << DEFAULT << std::endl;
 #define PRINT_ERROR(s)   std::cerr << RED    << "[ERROR] "   << s << DEFAULT << std::endl;
 

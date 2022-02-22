@@ -710,32 +710,6 @@
 
       <!-- ==================== Localization Parameters ==================== -->
 
-      <DoubleVectorProperty name="Wheel odometry weight"
-                            command="SetWheelOdomWeight"
-                            number_of_elements="1"
-                            default_values="0."
-                            panel_visibility="advanced">
-        <Documentation>
-          Wheel odometry weight.
-        </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="SensorDataFile" value="" />
-        </Hints>
-      </DoubleVectorProperty>
-
-      <DoubleVectorProperty name="IMU gravity weight"
-                            command="SetGravityWeight"
-                            number_of_elements="1"
-                            default_values="0."
-                            panel_visibility="advanced">
-        <Documentation>
-          IMU gravity alignment weight.
-        </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="SensorDataFile" value="" />
-        </Hints>
-      </DoubleVectorProperty>
-
       <IntVectorProperty name="ICP-Optimization iterations"
                          command="SetLocalizationICPMaxIter"
                          number_of_elements="1"
@@ -902,8 +876,6 @@
       </DoubleVectorProperty>
 
       <PropertyGroup label="Localization ICP matching and optimization parameters">
-        <Property name="Wheel odometry weight" />
-        <Property name="IMU gravity weight" />
         <Property name="ICP-Optimization iterations" />
         <Property name="LM optimization iterations" />
         <Property name="Max neighbors distance" />
@@ -1163,6 +1135,60 @@
         <Property name="Rolling grid dimension" />
         <Property name="Rolling grid resolution" />
         <Property name="Min number of frames per voxel" />
+      </PropertyGroup>
+
+      <!-- ==================== External sensors' parameters ==================== -->
+
+      <DoubleVectorProperty name="Wheel odom weight"
+                            command="SetWheelOdomWeight"
+                            number_of_elements="1"
+                            default_values="0."
+                            panel_visibility="advanced">
+        <Documentation>
+          Weight to apply on the wheel odometer constraint.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty name="Wheel odometry relative mode"
+                         command="SetWheelOdomRelative"
+                         number_of_elements="1"
+                         default_values="0">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, the wheel odometry information is integrated as a relative constraint since last frame
+          If disabled, the wheel odometry information is integrated as an absolute constraint since first frame
+        </Documentation>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="IMU gravity weight"
+                            command="SetGravityWeight"
+                            number_of_elements="1"
+                            default_values="0."
+                            panel_visibility="advanced">
+        <Documentation>
+          Weight to apply on the IMU constraint.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Time threshold"
+                            command="SetSensorTimeThreshold"
+                            number_of_elements="1"
+                            default_values="0.5"
+                            panel_visibility="advanced">
+        <Documentation>
+          Maximum time between 2 successive external sensor measurements to interpolate them
+          and integrate them in the optimization.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <PropertyGroup label="External sensors">
+        <Property name="Wheel odom weight" />
+        <Property name="Wheel odometry relative mode" />
+        <Property name="IMU gravity weight" />
+        <Property name="Time threshold" />
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="SensorDataFile" value="" />
+        </Hints>
       </PropertyGroup>
 
       <!-- ================ Confidence estimator parameters ================ -->

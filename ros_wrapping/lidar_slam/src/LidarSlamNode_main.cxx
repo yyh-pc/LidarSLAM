@@ -11,9 +11,10 @@ int main(int argc, char **argv)
   ros::NodeHandle priv_nh("~");
 
   // Create lidar slam node, which subscribes to pointclouds coming from conversion node
+  // and to external sensor messages in parallel.
   LidarSlamNode slam(nh, priv_nh);
 
-  // handle callbacks until shut down
+  // Handle callbacks until shut down
   ros::spin();
 
   return 0;

@@ -78,6 +78,17 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     this->LidarSlam.LoadMapsFromPCD(mapsPathPrefix);
   }
 
+  // Load initial Landmarks poses if requested
+  std::string lmpath = priv_nh.param<std::string>("external_sensors/landmark_detector/landmarks_file_path", "");
+  if (!lmpath.empty())
+  {
+    ROS_INFO_STREAM("Loading initial landmarks info from CSV.");
+    this->LoadLandmarks(lmpath);
+    this->LidarSlam.SetLandmarkConstraintLocal(false);
+  }
+  else
+    this->LidarSlam.SetLandmarkConstraintLocal(true);
+
   // Set initial SLAM pose if requested
   std::vector<double> initialPose;
   if (priv_nh.getParam("maps/initial_pose", initialPose) && initialPose.size() == 6)
@@ -88,7 +99,9 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   }
 
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
-  priv_nh.getParam("gps/use_gps", this->UseGps);
+  priv_nh.getParam("external_sensors/gps/use_gps", this->UseGps);
+  // Use tags data for local optimization.
+  this->UseTags = priv_nh.param("external_sensors/landmark_detector/use_tags", false);
 
   // ***************************************************************************
   // Init ROS publishers
@@ -121,9 +134,9 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   if (this->UseGps)
   {
-    initPublisher(PGO_PATH,            "pgo_slam_path", nav_msgs::Path, "gps/pgo/publish_path",              false, 1, true);
-    initPublisher(ICP_CALIB_SLAM_PATH, "icp_slam_path", nav_msgs::Path, "gps/calibration/publish_icp_paths", false, 1, true);
-    initPublisher(ICP_CALIB_GPS_PATH,  "icp_gps_path",  nav_msgs::Path, "gps/calibration/publish_icp_paths", false, 1, true);
+    initPublisher(PGO_PATH,            "pgo_slam_path", nav_msgs::Path, "external_sensors/gps/pgo/publish_path",              false, 1, true);
+    initPublisher(ICP_CALIB_SLAM_PATH, "icp_slam_path", nav_msgs::Path, "external_sensors/gps/calibration/publish_icp_paths", false, 1, true);
+    initPublisher(ICP_CALIB_GPS_PATH,  "icp_gps_path",  nav_msgs::Path, "external_sensors/gps/calibration/publish_icp_paths", false, 1, true);
   }
 
   // ***************************************************************************
@@ -151,6 +164,19 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   if (this->UseGps)
     this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
 
+  // Init logging of landmark data
+  if (this->UseTags)
+  {
+    // Create an external independent spinner to get the landmarks' info in a parallel way
+    ros::SubscribeOptions ops;
+    ops.initByFullCallbackType<apriltag_ros::AprilTagDetectionArray>("tag_detections", 200,
+                                                                      boost::bind(&LidarSlamNode::TagCallback, this, boost::placeholders::_1));
+    ops.callback_queue = &this->ExternalQueue;
+    this->LandmarksSub = nh.subscribe(ops);
+    this->ExternalSpinnerPtr = std::make_shared<ros::AsyncSpinner>(ros::AsyncSpinner(this->LidarSlam.GetNbThreads(), &this->ExternalQueue));
+    this->ExternalSpinnerPtr->start();
+  }
+
   ROS_INFO_STREAM(BOLD_GREEN("LiDAR SLAM is ready !"));
 }
 
@@ -163,8 +189,22 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
     return;
   }
 
+  // Compute time offset
+  // Get ROS frame reception time
+  double TimeFrameReceptionPOSIX = ros::Time::now().toSec();
+  // Get last acquired point timestamp
+  double TimeLastPoint = LidarSlam::Utils::PclStampToSec(cloudS_ptr->header.stamp) + cloudS_ptr->back().time;
+  // Compute offset
+  double potentialOffset = TimeLastPoint - TimeFrameReceptionPOSIX;
+  // Get current offset
+  double absCurrentOffset = std::abs(this->LidarSlam.GetSensorTimeOffset());
+  // If the current computed offset is more accurate, replace it
+  if (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset)
+    this->LidarSlam.SetSensorTimeOffset(potentialOffset);
+
   // Update TF from BASE to LiDAR
-  this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id);
+  if (!this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id))
+    return;
 
   // Set the SLAM main input frame at first position
   this->Frames.insert(this->Frames.begin(), cloudS_ptr);
@@ -187,7 +227,8 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
   }
 
   // Update TF from BASE to LiDAR for this device
-  this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id);
+  if (!this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id))
+    return;
 
   // Add new frame to SLAM input frames
   this->Frames.push_back(cloudS_ptr);
@@ -223,6 +264,191 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
     // Get the latest transform (we expect a static transform, so timestamp does not matter)
     Utils::Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
   }
+}
+
+//------------------------------------------------------------------------------
+int LidarSlamNode::BuildId(const std::vector<int>& ids)
+{
+  int id = ids[0];
+  if (ids.size() > 1)
+  {
+    id = 0;
+    int power = 0;
+    for (unsigned int i = 0; i < ids.size(); ++i)
+    {
+      power += int(std::log10(ids[i]));
+      id += std::pow(10, power) * ids[i];
+    }
+  }
+  return id;
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tagsInfo)
+{
+  if (!this->UseTags)
+    return;
+  for (auto& tagInfo : tagsInfo.detections)
+  {
+    Eigen::Isometry3d lmDetectorToBase;
+    if (Utils::Tf2LookupTransform(lmDetectorToBase, this->TfBuffer, this->TrackingFrameId, tagInfo.pose.header.frame_id, tagInfo.pose.header.stamp))
+    {
+      // Get tag pose in the landmark detector frame
+      Eigen::Isometry3d tagToLmDetector = Utils::PoseMsgToTransform(tagInfo.pose.pose.pose).GetIsometry();
+      LidarSlam::ExternalSensors::LandmarkMeasurement lm;
+      lm.TransfoRelative = lmDetectorToBase * tagToLmDetector;
+      lm.Time = tagInfo.pose.header.stamp.sec + tagInfo.pose.header.stamp.nsec * 1e-9;
+      // Fill covariance
+      for (int i = 0; i < 6; ++i)
+      {
+        for (int j = 0; j < 6; ++j)
+          lm.Covariance(i, j) = tagInfo.pose.pose.covariance[i * 6 + j];
+      }
+      // Rotate covariance with the landmark detector to base transform
+      Eigen::Vector6d poseRelative = LidarSlam::Utils::IsometryToXYZRPY(tagToLmDetector);
+      lm.Covariance = LidarSlam::CeresTools::RotateCovariance(poseRelative, lm.Covariance, lmDetectorToBase.linear());
+      int id = this->BuildId(tagInfo.id);
+      this->LidarSlam.AddLandmarkMeasurement(id, lm);
+
+      if (this->PublishTags)
+      {
+        // Publish tf
+        geometry_msgs::TransformStamped tfStamped;
+        tfStamped.header.stamp = tagInfo.pose.header.stamp;
+        tfStamped.header.frame_id = this->TrackingFrameId;
+        tfStamped.child_frame_id = "tag_" + std::to_string(id);
+        tfStamped.transform = Utils::TransformToTfMsg(LidarSlam::Transform(lm.TransfoRelative));
+        this->TfBroadcaster.sendTransform(tfStamped);
+      }
+    }
+    else
+      ROS_WARN_STREAM("The transform between the landmark detector and the tracking frame was not found -> landmarks info ignored");
+  }
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::LoadLandmarks(const std::string& path)
+{
+  // Check the file
+  if (path.substr(path.find_last_of(".") + 1) != "csv")
+  {
+    ROS_ERROR_STREAM("The landmarks file is not csv : landmarks absolute constraint can not be used");
+    return;
+  }
+
+  std::ifstream lmFile(path);
+  if (lmFile.fail())
+  {
+    ROS_ERROR_STREAM("The landmarks csv file " << path << " was not found : landmarks absolute constraint can not be used");
+    return;
+  }
+
+  const unsigned int fieldsNumber = 43;
+  // Check which delimiter is used
+  std::string lmStr;
+  std::vector<std::string> delimiters = {";", ",", " ", "\t"};
+  std::string delimiter;
+  getline (lmFile, lmStr);
+  std::vector<std::string> fields;
+
+  for (const auto& del : delimiters)
+  {
+    fields.clear();
+    size_t pos = 0;
+    std::string headerLine = lmStr;
+    pos = headerLine.find(del);
+    while (pos != std::string::npos)
+    {
+      fields.push_back(headerLine.substr(0, pos));
+      headerLine.erase(0, pos + del.length());
+      pos = headerLine.find(del);
+    }
+    // If there is some element after the last delimiter, add it
+    if (!headerLine.substr(0, pos).empty())
+      fields.push_back(headerLine.substr(0, pos));
+    // Check that the number of fields is correct
+    if (fields.size() == fieldsNumber)
+    {
+      delimiter = del;
+      break;
+    }
+  }
+  if (fields.size() != fieldsNumber)
+  {
+    ROS_WARN_STREAM("The landmarks csv file is ill formed : " << fields.size() << " fields were found (" << fieldsNumber
+                    << " expected), landmarks absolute poses will not be used");
+    return;
+  }
+
+  int lineIdx = 1;
+  int ntags = 0;
+  do
+  {
+    size_t pos = 0;
+    std::vector<std::string> lm;
+    while ((pos = lmStr.find(delimiter)) != std::string::npos)
+    {
+      // Remove potential extra spaces after the delimiter
+      unsigned int charIdx = 0;
+      while (charIdx < lmStr.size() && lmStr[charIdx] == ' ')
+        ++charIdx;
+      lm.push_back(lmStr.substr(charIdx, pos));
+      lmStr.erase(0, pos + delimiter.length());
+    }
+    lm.push_back(lmStr.substr(0, pos));
+    if (lm.size() != fieldsNumber)
+    {
+      ROS_WARN_STREAM("landmark on line " + std::to_string(lineIdx) + " is not correct -> Skip");
+      ++lineIdx;
+      continue;
+    }
+
+    // Check numerical values in the studied line
+    bool numericalIssue = false;
+    for (std::string field : lm)
+    {
+      try
+      {
+        std::stof(field);
+      }
+      catch(std::invalid_argument& e)
+      {
+        numericalIssue = true;
+        break;
+      }
+    }
+    if (numericalIssue)
+    {
+      // if this is the first line, it might be a header line,
+      // else, print a warning
+      if (lineIdx > 1)
+        ROS_WARN_STREAM("landmark on line " + std::to_string(lineIdx) + " contains a not numerical value -> Skip");
+      ++lineIdx;
+      continue;
+    }
+
+    // Build measurement
+    // Set landmark id
+    int id = std::stoi(lm[0]);
+    // Fill pose
+    Eigen::Vector6d absolutePose;
+    absolutePose << std::stof(lm[1]), std::stof(lm[2]), std::stof(lm[3]), std::stof(lm[4]), std::stof(lm[5]), std::stof(lm[6]);
+    // Fill covariance
+    Eigen::Matrix6d absolutePoseCovariance;
+    for (int i = 0; i < 6; ++i)
+    {
+      for (int j = 0; j < 6; ++j)
+        absolutePoseCovariance(i, j) = std::stof(lm[7 + 6 * i + j]);
+    }
+    // Add a new landmark manager for absolute constraint computing
+    this->LidarSlam.AddLandmarkManager(id, absolutePose, absolutePoseCovariance);
+    ROS_INFO_STREAM("Tag #" << id << " initialized to \n" << absolutePose.transpose());
+    ++ntags;
+    ++lineIdx;
+  }
+  while (getline (lmFile, lmStr));
+
+  lmFile.close();
 }
 
 //------------------------------------------------------------------------------
@@ -264,7 +490,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       if (!this->UseGps)
       {
         ROS_ERROR_STREAM("Cannot set SLAM pose from GPS as GPS logging has not been enabled. "
-                         "Please set 'gps/use_gps' private parameter to 'true'.");
+                         "Please set 'external_sensors/gps/use_gps' private parameter to 'true'.");
         return;
       }
       if (this->GpsPoses.empty())
@@ -358,7 +584,7 @@ void LidarSlamNode::GpsSlamCalibration()
   if (!this->UseGps)
   {
     ROS_ERROR_STREAM("Cannot run GPS/SLAM calibration as GPS logging has not been enabled. "
-                     "Please set 'gps/use_gps' private parameter to 'true'.");
+                     "Please set 'external_sensors/gps/use_gps' private parameter to 'true'.");
     return;
   }
 
@@ -396,7 +622,7 @@ void LidarSlamNode::GpsSlamCalibration()
 
   // Run calibration : compute transform from SLAM to WORLD
   LidarSlam::GlobalTrajectoriesRegistration registration;
-  registration.SetNoRoll(this->PrivNh.param("gps/calibration/no_roll", false));  // DEBUG
+  registration.SetNoRoll(this->PrivNh.param("external_sensors/gps/calibration/no_roll", false));  // DEBUG
   registration.SetVerbose(this->LidarSlam.GetVerbosity() >= 2);
   Eigen::Isometry3d worldToOdom;
   if (!registration.ComputeTransformOffset(odomToGpsPoses, worldToGpsPoses, worldToOdom))
@@ -455,7 +681,7 @@ void LidarSlamNode::PoseGraphOptimization()
   if (!this->UseGps)
   {
     ROS_ERROR_STREAM("Cannot run pose graph optimization as GPS logging has not been enabled. "
-                     "Please set 'gps/use_gps' private parameter to 'true'.");
+                     "Please set 'external_sensors/gps/use_gps' private parameter to 'true'.");
     return;
   }
 
@@ -465,7 +691,7 @@ void LidarSlamNode::PoseGraphOptimization()
 
   // Run pose graph optimization
   Eigen::Isometry3d gpsToBaseOffset = this->BaseToGpsOffset.inverse();
-  std::string pgoG2oFile = this->PrivNh.param("gps/pgo/g2o_file", std::string(""));
+  std::string pgoG2oFile = this->PrivNh.param("external_sensors/gps/pgo/g2o_file", std::string(""));
   this->LidarSlam.RunPoseGraphOptimization(worldToGpsPositions, worldToGpsCovars,
                                            gpsToBaseOffset, pgoG2oFile);
 
@@ -502,7 +728,7 @@ void LidarSlamNode::PoseGraphOptimization()
 //==============================================================================
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint8_t lidarDeviceId)
+bool LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uint8_t lidarDeviceId)
 {
   // If tracking frame is different from input frame, get TF from LiDAR to BASE
   if (lidarFrameId != this->TrackingFrameId)
@@ -512,7 +738,10 @@ void LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uin
     Eigen::Isometry3d baseToLidar;
     if (Utils::Tf2LookupTransform(baseToLidar, this->TfBuffer, this->TrackingFrameId, lidarFrameId))
       this->LidarSlam.SetBaseToLidarOffset(baseToLidar, lidarDeviceId);
+    else
+      return false;
   }
+  return true;
 }
 
 //------------------------------------------------------------------------------
@@ -707,6 +936,14 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(int,    "slam/localization/blob_nb_neighbors", LocalizationBlobNbNeighbors)
   SetSlamParam(double, "slam/localization/init_saturation_distance", LocalizationInitSaturationDistance)
   SetSlamParam(double, "slam/localization/final_saturation_distance", LocalizationFinalSaturationDistance)
+
+  // External sensors
+  SetSlamParam(float,  "external_sensors/max_measures", SensorMaxMeasures)
+  SetSlamParam(float,  "external_sensors/time_threshold", SensorTimeThreshold)
+  SetSlamParam(float,  "external_sensors/landmark_detector/weight", LandmarkWeight)
+  SetSlamParam(float,  "external_sensors/landmark_detector/saturation_distance", LandmarkSaturationDistance)
+  SetSlamParam(bool,   "external_sensors/landmark_detector/position_only", LandmarkPositionOnly)
+  this->PrivNh.getParam("external_sensors/landmark_detector/publish_tags", this->PublishTags);
 
   // Confidence estimators
   // Overlap
