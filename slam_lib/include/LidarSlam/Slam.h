@@ -356,19 +356,23 @@ public:
   void ClearSensorMeasurements();
 
   // Odometer
-  double GetWheelOdomWeight() const {return this->WheelOdomManager.GetWeight();}
-  void SetWheelOdomWeight(double weight) {this->WheelOdomManager.SetWeight(weight);}
+  double GetWheelOdomWeight() const;
+  void SetWheelOdomWeight(double weight);
 
-  bool GetWheelOdomRelative() const {return this->WheelOdomManager.GetRelative();}
-  void SetWheelOdomRelative(bool relative) {this->WheelOdomManager.SetRelative(relative);}
+  bool GetWheelOdomRelative() const;
+  void SetWheelOdomRelative(bool relative);
 
   void AddWheelOdomMeasurement(const ExternalSensors::WheelOdomMeasurement& om);
 
+  bool WheelOdomHasData() {return this->WheelOdomManager && this->WheelOdomManager->HasData();}
+
   // IMU
-  double GetGravityWeight() const {return this->ImuManager.GetWeight();}
-  void SetGravityWeight(double weight) {this->ImuManager.SetWeight(weight);}
+  double GetGravityWeight() const;
+  void SetGravityWeight(double weight);
 
   void AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm);
+
+  bool ImuHasData() {return this->ImuManager && this->ImuManager->HasData();}
 
   // Landmark detector
   GetMacro(LandmarkWeight, double)
@@ -388,7 +392,13 @@ public:
 
   void AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const Eigen::Matrix6d& absolutePoseCovariance);
 
+  // Add new detection measurement
+  // WARNING : the calibration must have been set
+  // before receiving a new landmark detection
   void AddLandmarkMeasurement(int id, const ExternalSensors::LandmarkMeasurement& lm);
+
+  bool LmCanBeUsedLocally();
+  bool LmHasData();
 
   // ---------------------------------------------------------------------------
   //   Key frames and Maps parameters
@@ -620,13 +630,21 @@ private:
   // It computes the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
   // The odometry measurements must be filled and cleared from outside this lib
-  ExternalSensors::WheelOdometryManager WheelOdomManager;
+  // using External Sensors interface
+  std::shared_ptr<ExternalSensors::WheelOdometryManager> WheelOdomManager;
+  // Weight
+  double WheelOdomWeight = 0.;
+  // relative mode for wheel odometer
+  bool WheelOdomRelative = false;
 
   // IMU manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
   // The IMU measurements must be filled and cleared from outside this lib
-  ExternalSensors::ImuManager ImuManager;
+  // using External Sensors interface
+  std::shared_ptr<ExternalSensors::ImuManager> ImuManager;
+  // Weight
+  double ImuWeight = 0.;
 
   // Landmarks manager
   // Each landmark has its own manager and is identified by its ID.
@@ -635,6 +653,7 @@ private:
   // The managers compute the residuals with a weight, measurements lists and
   // taking account of the acquisition time correspondance
   // The tag measurements must be filled and cleared from outside this lib
+  // using External Sensors interface
   std::unordered_map<int, ExternalSensors::LandmarkManager> LandmarksManagers;
   // Variable to store the landmark weight to init correctly the landmark managers
   float LandmarkWeight = 0.f;
@@ -872,6 +891,15 @@ private:
   // NOTE: If transforming to WORLD coordinates, be sure that Tworld/WithinFrameMotion have been updated
   //       (updated during the Localization step).
   PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates) const;
+
+  // ---------------------------------------------------------------------------
+  //   External sensor helpers
+  // ---------------------------------------------------------------------------
+
+  void InitWheelOdom();
+  void InitImu();
+  void InitLandmarkManager(int id);
+
 };
 
 } // end of LidarSlam namespace

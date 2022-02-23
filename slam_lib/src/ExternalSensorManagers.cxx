@@ -25,7 +25,7 @@ namespace ExternalSensors
 // ---------------------------------------------------------------------------
  bool WheelOdometryManager::ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose)
 {
-  if (!this->CanBeUsed())
+  if (!this->CanBeUsedLocally())
     return false;
 
   std::lock_guard<std::mutex> lock(this->Mtx);
@@ -83,7 +83,7 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
 // ---------------------------------------------------------------------------
  bool ImuManager::ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose)
 {
-  if (!this->CanBeUsed())
+  if (!this->CanBeUsedLocally())
     return false;
 
   std::lock_guard<std::mutex> lock(this->Mtx);
@@ -165,42 +165,47 @@ void ImuManager::ComputeGravityRef(double deltaAngle)
 }
 
 // ---------------------------------------------------------------------------
-LandmarkManager::LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
-                                 double sat, bool positionOnly, const std::string& name)
-                : SensorManager(w, timeOffset, timeThresh, maxMeas, name),
-                  SaturationDistance(sat),
+// Landmark manager
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+LandmarkManager::LandmarkManager(double timeOffset, double timeThresh, unsigned int maxMeas,
+                                 bool positionOnly, const std::string& name)
+                : SensorManager(timeOffset, timeThresh, maxMeas, name),
                   PositionOnly(positionOnly),
                   CovarianceRotation(false)
 {}
 
 // ---------------------------------------------------------------------------
 LandmarkManager::LandmarkManager(const LandmarkManager& lmManager)
-                : LandmarkManager(lmManager.GetWeight(),
-                                  lmManager.GetTimeOffset(),
+                : LandmarkManager(lmManager.GetTimeOffset(),
                                   lmManager.GetTimeThreshold(),
                                   lmManager.GetMaxMeasures(),
-                                  lmManager.GetSaturationDistance(),
                                   lmManager.GetPositionOnly(),
                                   lmManager.GetSensorName())
 {
   this->CovarianceRotation = lmManager.GetCovarianceRotation();
   this->Measures = lmManager.GetMeasures();
   this->PreviousIt = this->Measures.begin();
+  // Parameters only useful in local optimization
+  this->Weight = lmManager.GetWeight();
+  this->SaturationDistance = lmManager.GetSaturationDistance();
 }
 
 // ---------------------------------------------------------------------------
 void LandmarkManager::operator=(const LandmarkManager& lmManager)
 {
   this->SensorName = lmManager.GetSensorName();
-  this->Weight = lmManager.GetWeight();
   this->TimeOffset = lmManager.GetTimeOffset();
   this->TimeThreshold = lmManager.GetTimeThreshold();
   this->MaxMeasures = lmManager.GetMaxMeasures();
-  this->SaturationDistance = lmManager.GetSaturationDistance();
   this->PositionOnly = lmManager.GetPositionOnly();
   this->CovarianceRotation = lmManager.GetCovarianceRotation();
   this->Measures = lmManager.GetMeasures();
   this->PreviousIt = this->Measures.begin();
+  // Parameters only useful in local optimization
+  this->Weight = lmManager.GetWeight();
+  this->SaturationDistance = lmManager.GetSaturationDistance();
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +260,7 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
 // ---------------------------------------------------------------------------
  bool LandmarkManager::ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool verbose)
 {
-  if (!this->CanBeUsed())
+  if (!this->HasData())
     return false;
 
   std::lock_guard<std::mutex> lock(this->Mtx);
@@ -284,7 +289,7 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
 {
   this->ResetResidual();
 
-  if (!this->CanBeUsed())
+  if (!this->CanBeUsedLocally())
     return false;
 
   LandmarkMeasurement synchMeas;

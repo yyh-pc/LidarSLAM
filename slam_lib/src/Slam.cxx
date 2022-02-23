@@ -178,8 +178,10 @@ void Slam::Reset(bool resetLog)
     this->LocalizationMatchingResults[k] = KeypointsMatcher::MatchingResults();
 
   // Reset external sensor managers
-  this->WheelOdomManager.SetRefDistance(FLT_MAX);
-  this->ImuManager.SetGravityRef(Eigen::Vector3d::Zero());
+  if (this->WheelOdomManager)
+    this->WheelOdomManager->SetRefDistance(FLT_MAX);
+  if (this->ImuManager)
+    this->ImuManager->SetGravityRef(Eigen::Vector3d::Zero());
 
   // Reset log history
   if (resetLog)
@@ -239,17 +241,9 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->ComputeEgoMotion();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
 
-  bool lmCanBeUsed = false;
-  for (auto& idLm : this->LandmarksManagers)
-  {
-    if (idLm.second.CanBeUsed())
-    {
-      lmCanBeUsed = true;
-      break;
-    }
-  }
-
-  if (this->WheelOdomManager.CanBeUsed() || this->ImuManager.CanBeUsed() || lmCanBeUsed)
+  if ((this->WheelOdomManager && this->WheelOdomManager->CanBeUsedLocally()) ||
+      (this->ImuManager && this->ImuManager->CanBeUsedLocally()) ||
+      this->LmCanBeUsedLocally())
   {
     IF_VERBOSE(3, Utils::Timer::Init("External sensor constraints computation"));
     this->ComputeSensorConstraints();
@@ -379,9 +373,9 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 void Slam::ComputeSensorConstraints()
 {
   double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  if (this->WheelOdomManager.ComputeConstraint(currLidarTime, this->Verbosity >= 3))
+  if (this->WheelOdomManager && this->WheelOdomManager->ComputeConstraint(currLidarTime, this->Verbosity >= 3))
     PRINT_VERBOSE(3, "Adding wheel odometry constraint")
-  if (this->ImuManager.ComputeConstraint(currLidarTime, this->Verbosity >= 3))
+  if (this->ImuManager && this->ImuManager->ComputeConstraint(currLidarTime, this->Verbosity >= 3))
     PRINT_VERBOSE(3, "Adding IMU constraint")
   for (auto& idLm : this->LandmarksManagers)
   {
@@ -392,11 +386,18 @@ void Slam::ComputeSensorConstraints()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::OptimizeGraph()
+bool Slam::OptimizeGraph()
 {
   #ifdef USE_G2O
   // Allow the rotation of the covariances when interpolating the measurements
   this->SetLandmarkCovarianceRotation(true);
+  // Check if graph can be optimized
+  if (!this->LmHasData())
+  {
+    PRINT_WARNING("No external constraint found, graph cannot be optimized");
+    return false;
+  }
+
   PoseGraphOptimizer graphManager;
   graphManager.SetFixFirst(this->FixFirstVertex);
   graphManager.SetFixLast(this->FixLastVertex);
@@ -416,23 +417,6 @@ void Slam::OptimizeGraph()
   IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
   IF_VERBOSE(3, Utils::Timer::Init("PGO : optimization"));
 
-  // Check if enough landmark measurements are available
-  bool canBeOptimized = false;
-  for (auto idLm : this->LandmarksManagers)
-  {
-    // Check number of measures
-    if (idLm.second.CanBeUsed())
-    {
-      canBeOptimized = true;
-      break;
-    }
-  }
-
-  if (!canBeOptimized)
-  {
-    PRINT_WARNING("Not enough tag info received, graph not optimized");
-    return;
-  }
 
   // Boolean to store the info "there is at least one external constraint in the graph"
   bool externalConstraint = false;
@@ -1296,13 +1280,13 @@ void Slam::Localization()
 
     // Add odometry constraint
     // if constraint has been successfully created
-    if (this->WheelOdomManager.GetResidual().Cost)
-      optimizer.AddResidual(this->WheelOdomManager.GetResidual());
+    if (this->WheelOdomManager && this->WheelOdomManager->GetResidual().Cost)
+      optimizer.AddResidual(this->WheelOdomManager->GetResidual());
 
     // Add gravity alignment constraint
     // if constraint has been successfully created
-    if (this->ImuManager.GetResidual().Cost)
-      optimizer.AddResidual(this->ImuManager.GetResidual());
+    if (this->ImuManager && this->ImuManager->GetResidual().Cost)
+      optimizer.AddResidual(this->ImuManager->GetResidual());
 
     // Add available landmark constraints
     for (auto& idLm : this->LandmarksManagers)
@@ -1773,60 +1757,122 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
 //   External sensors
 //==============================================================================
 
-// Sensor data
 //-----------------------------------------------------------------------------
-void Slam::AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm)
+void Slam::InitWheelOdom()
 {
-  this->ImuManager.AddMeasurement(gm);
+  this->WheelOdomManager = std::make_shared<ExternalSensors::WheelOdometryManager>(this->WheelOdomWeight,
+                                                                                   this->SensorTimeOffset,
+                                                                                   this->SensorTimeThreshold,
+                                                                                   this->SensorMaxMeasures);
 }
 
+//-----------------------------------------------------------------------------
+void Slam::InitImu()
+{
+  this->ImuManager = std::make_shared<ExternalSensors::ImuManager>(this->ImuWeight,
+                                                                   this->SensorTimeOffset,
+                                                                   this->SensorTimeThreshold,
+                                                                   this->SensorMaxMeasures);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::InitLandmarkManager(int id)
+{
+  this->LandmarksManagers[id] = ExternalSensors::LandmarkManager(this->SensorTimeOffset,
+                                                                 this->SensorTimeThreshold,
+                                                                 this->SensorMaxMeasures,
+                                                                 this->LandmarkPositionOnly);
+  this->LandmarksManagers[id].SetWeight(this->LandmarkWeight);
+  this->LandmarksManagers[id].SetSaturationDistance(this->LandmarkSaturationDistance);
+}
+
+// Sensor data
+//-----------------------------------------------------------------------------
+
+// Wheel odometer
 //-----------------------------------------------------------------------------
 void Slam::AddWheelOdomMeasurement(const ExternalSensors::WheelOdomMeasurement& om)
 {
-  this->WheelOdomManager.AddMeasurement(om);
+  if (!this->WheelOdomManager)
+    this->InitWheelOdom();
+  this->WheelOdomManager->AddMeasurement(om);
 }
 
+// IMU
 //-----------------------------------------------------------------------------
-void Slam::AddLandmarkMeasurement(int id, const ExternalSensors::LandmarkMeasurement& lm)
+void Slam::AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm)
+{
+  if (!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->AddMeasurement(gm);
+}
+
+// Landmark detector
+//-----------------------------------------------------------------------------
+void Slam::AddLandmarkMeasurement(const ExternalSensors::LandmarkMeasurement& lm, int id)
 {
   if (!this->LandmarksManagers.count(id))
-    this->LandmarksManagers[id] = ExternalSensors::LandmarkManager(this->LandmarkWeight,
-                                                                   this->SensorTimeOffset,
-                                                                   this->SensorTimeThreshold,
-                                                                   this->SensorMaxMeasures,
-                                                                   this->LandmarkSaturationDistance,
-                                                                   this->LandmarkPositionOnly);
+    this->InitLandmarkManager(id);
   this->LandmarksManagers[id].AddMeasurement(lm);
-}
-
-//-----------------------------------------------------------------------------
-void Slam::ClearSensorMeasurements()
-{
-  this->WheelOdomManager.Reset();
-  this->ImuManager.Reset();
-  for (auto& idLm : this->LandmarksManagers)
-    idLm.second.Reset();
 }
 
 //-----------------------------------------------------------------------------
 void Slam::AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const Eigen::Matrix6d& absolutePoseCovariance)
 {
   if (!this->LandmarksManagers.count(id))
-    this->LandmarksManagers[id] = ExternalSensors::LandmarkManager(this->LandmarkWeight,
-                                                                   this->SensorTimeOffset,
-                                                                   this->SensorTimeThreshold,
-                                                                   this->SensorMaxMeasures,
-                                                                   this->LandmarkSaturationDistance,
-                                                                   this->LandmarkPositionOnly);
+    this->InitLandmarkManager(id);
   this->LandmarksManagers[id].SetAbsolutePose(absolutePose, absolutePoseCovariance);
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::LmCanBeUsedLocally()
+{
+  bool lmCanBeUsed = false;
+  for (auto& idLm : this->LandmarksManagers)
+  {
+    if (idLm.second.CanBeUsedLocally())
+    {
+      lmCanBeUsed = true;
+      break;
+    }
+  }
+  return lmCanBeUsed;
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::LmHasData()
+{
+  bool lmHasData = false;
+  for (auto& idLm : this->LandmarksManagers)
+  {
+    if (idLm.second.HasData())
+    {
+      lmHasData = true;
+      break;
+    }
+  }
+  return lmHasData;
 }
 
 // Sensors' parameters
 //-----------------------------------------------------------------------------
+void Slam::ClearSensorMeasurements()
+{
+  if (this->WheelOdomManager)
+    this->WheelOdomManager->Reset();
+  if (this->ImuManager)
+    this->ImuManager->Reset();
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.Reset();
+}
+
+//-----------------------------------------------------------------------------
 void Slam::SetSensorTimeOffset(double timeOffset)
 {
-  this->WheelOdomManager.SetTimeOffset(timeOffset);
-  this->ImuManager.SetTimeOffset(timeOffset);
+  if (this->WheelOdomManager)
+    this->WheelOdomManager->SetTimeOffset(timeOffset);
+  if (this->ImuManager)
+    this->ImuManager->SetTimeOffset(timeOffset);
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetTimeOffset(timeOffset);
   this->SensorTimeOffset = timeOffset;
@@ -1835,8 +1881,10 @@ void Slam::SetSensorTimeOffset(double timeOffset)
 //-----------------------------------------------------------------------------
 void Slam::SetSensorTimeThreshold(double thresh)
 {
-  this->WheelOdomManager.SetTimeThreshold(thresh);
-  this->ImuManager.SetTimeThreshold(thresh);
+  if (this->WheelOdomManager)
+    this->WheelOdomManager->SetTimeThreshold(thresh);
+  if (this->ImuManager)
+    this->ImuManager->SetTimeThreshold(thresh);
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetTimeThreshold(thresh);
   this->SensorTimeThreshold = thresh;
@@ -1845,13 +1893,72 @@ void Slam::SetSensorTimeThreshold(double thresh)
 //-----------------------------------------------------------------------------
 void Slam::SetSensorMaxMeasures(unsigned int max)
 {
-  this->WheelOdomManager.SetMaxMeasures(max);
-  this->ImuManager.SetMaxMeasures(max);
+  if (this->WheelOdomManager)
+    this->WheelOdomManager->SetMaxMeasures(max);
+  if (this->ImuManager)
+    this->ImuManager->SetMaxMeasures(max);
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetMaxMeasures(max);
   this->SensorMaxMeasures = max;
 }
 
+// Wheel odometer
+//-----------------------------------------------------------------------------
+double Slam::GetWheelOdomWeight() const
+{
+  if(this->WheelOdomManager)
+    return this->WheelOdomManager->GetWeight();
+  PRINT_ERROR("Wheel odometer has not been set : can't get wheel odom weight")
+  return 0.;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetWheelOdomWeight(double weight)
+{
+  if(!this->WheelOdomManager)
+    this->InitWheelOdom();
+  this->WheelOdomWeight = weight;
+  this->WheelOdomManager->SetWeight(weight);
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::GetWheelOdomRelative() const
+{
+  if(this->WheelOdomManager)
+    return this->WheelOdomManager->GetRelative();
+  PRINT_ERROR("Wheel odometer has not been set : can't get wheel odom relative boolean")
+  return false;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetWheelOdomRelative(bool isRelative)
+{
+  if(!this->WheelOdomManager)
+    this->InitWheelOdom();
+  this->WheelOdomRelative = isRelative;
+  this->WheelOdomManager->SetRelative(isRelative);
+}
+
+// IMU
+//-----------------------------------------------------------------------------
+double Slam::GetGravityWeight() const
+{
+  if(this->ImuManager)
+    return this->ImuManager->GetWeight();
+  PRINT_ERROR("IMU has not been set : can't get IMU weight")
+  return 0.;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetGravityWeight(double weight)
+{
+  if(!this->ImuManager)
+    this->InitImu();
+  this->ImuWeight = weight;
+  this->ImuManager->SetWeight(weight);
+}
+
+// Landmark detector
 //-----------------------------------------------------------------------------
 void Slam::SetLandmarkWeight(double weight)
 {
