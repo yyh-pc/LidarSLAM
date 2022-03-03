@@ -101,7 +101,7 @@ external_sensors:
                              # It is to be compared to each geometric constraint defined by a keypoint match
     position_only: true      # [bool] To decide whether to use the whole tag pose (orientation + position)
                              # in the optimization or only the position
-    saturation_distance: 5.  # [m] Saturation distance beyond which the landmark constraint
+    saturation_distance: 0.5  # [m] Saturation distance beyond which the landmark constraint
                              # is not taken into account in the local optimization
     # Two constraints are usable: the relative constraint and the absolute constraint
     # The absolute constraint requires loading the landmarks absolute pose in the global frame initially
@@ -115,6 +115,13 @@ external_sensors:
                              # id,x,y,z,roll,pitch,yaw,cov0,[...],cov35
                              # /!\ The order of the elements matters.
     publish_tags: false      # [bool] To publish the tags as tf
+
+graph:
+  g2o_file_name: ""   # File where to store the g2o log info (viewable with g2o_viewer tool)
+  fix_first: false    # Fix the first pose of the graph. Can be done if one is sure
+                      # about the first pose or want a map at the first pose origin
+  fix_last: false     # Fix the last pose of the graph. Can be done if one wants to ensure
+                      # the continuity of the motion
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
