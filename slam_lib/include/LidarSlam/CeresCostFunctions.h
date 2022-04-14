@@ -505,9 +505,10 @@ struct Rotate {
     Eigen::Map<const Vector3T> xyz(&poseEuler[0]);
     // Rotate XYZ coordinates
     // The translation is not needed as it won't impact the Jacobian
-    residual[0] = rot.row(0) * xyz;
-    residual[1] = rot.row(1) * xyz;
-    residual[2] = rot.row(2) * xyz;
+    // Fix Template issue by force evaluating
+    residual[0] = static_cast<T>(rot.row(0) * xyz);
+    residual[1] = static_cast<T>(rot.row(1) * xyz);
+    residual[2] = static_cast<T>(rot.row(2) * xyz);
 
     // Compute rotation matrix of current pose from Euler angles (RPY convention)
     Matrix3T R = Utils::RotationMatrixFromRPY(poseEuler[3], poseEuler[4], poseEuler[5]);
