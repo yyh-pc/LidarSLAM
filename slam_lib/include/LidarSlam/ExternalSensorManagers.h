@@ -323,6 +323,9 @@ public:
   GetSensorMacro(AbsolutePose, Eigen::Vector6d)
   GetSensorMacro(AbsolutePoseCovariance, Eigen::Matrix6d)
 
+  GetSensorMacro(Calibration, Eigen::Isometry3d)
+  SetSensorMacro(Calibration, const Eigen::Isometry3d&)
+
   GetSensorMacro(SaturationDistance, float)
   SetSensorMacro(SaturationDistance, float)
 
@@ -354,6 +357,7 @@ private:
   Eigen::Vector6d AbsolutePose = Eigen::Vector6d::Zero();
   Eigen::Matrix6d AbsolutePoseCovariance = Eigen::Matrix6d::Zero();
   Eigen::Isometry3d RelativeTransform = Eigen::Isometry3d::Identity();
+  Eigen::Isometry3d Calibration = Eigen::Isometry3d::Identity();
   // Boolean to check the absolute pose has been loaded
   // or if the tag has already been seen
   bool HasAbsolutePose = false;

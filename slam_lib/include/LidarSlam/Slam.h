@@ -390,6 +390,8 @@ public:
   GetMacro(LandmarkConstraintLocal, bool)
   SetMacro(LandmarkConstraintLocal, bool)
 
+  void SetLmDetectorCalibration(const Eigen::Isometry3d& calib);
+
   void AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const Eigen::Matrix6d& absolutePoseCovariance);
 
   void AddLandmarkMeasurement(const ExternalSensors::LandmarkMeasurement& lm, int id);
@@ -652,6 +654,8 @@ private:
   // The tag measurements must be filled and cleared from outside this lib
   // using External Sensors interface
   std::unordered_map<int, ExternalSensors::LandmarkManager> LandmarksManagers;
+  // Calibration
+  Eigen::Isometry3d LmDetectorCalibration = Eigen::Isometry3d::Identity();
   // Variable to store the landmark weight to init correctly the landmark managers
   float LandmarkWeight = 0.f;
   // Boolean to choose whether to compute the reference pose of
@@ -895,6 +899,9 @@ private:
 
   void InitWheelOdom();
   void InitImu();
+  // Apply general landmarks parameters to a new landmark
+  // WARNING : If the calibration has not been set (cf SetLmDetectorCalibration),
+  // default identity calibration is set.
   void InitLandmarkManager(int id);
 
 };

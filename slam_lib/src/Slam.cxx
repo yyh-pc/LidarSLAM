@@ -389,8 +389,6 @@ void Slam::ComputeSensorConstraints()
 bool Slam::OptimizeGraph()
 {
   #ifdef USE_G2O
-  // Allow the rotation of the covariances when interpolating the measurements
-  this->SetLandmarkCovarianceRotation(true);
   // Check if graph can be optimized
   if (!this->LmHasData())
   {
@@ -404,9 +402,6 @@ bool Slam::OptimizeGraph()
   // Clear the graph
   graphManager.ResetGraph();
   // Init pose graph optimizer
-  // The relative transform parameters must be supplied as expressed in the tracking frame.
-  // So the calibration is identity here.
-  graphManager.AddExternalSensor(Eigen::Isometry3d::Identity(), 0);
   graphManager.SetNbIteration(500);
   graphManager.SetVerbose(this->Verbosity >= 2);
   graphManager.SetSaveG2OFile(!this->G2oFileName.empty());
@@ -417,6 +412,10 @@ bool Slam::OptimizeGraph()
   IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
   IF_VERBOSE(3, Utils::Timer::Init("PGO : optimization"));
 
+  // Allow the rotation of the covariances when interpolating the measurements
+  this->SetLandmarkCovarianceRotation(true);
+  // Set the landmark detector calibration
+  graphManager.AddExternalSensor(this->LmDetectorCalibration, int(ExternalSensor::LANDMARK_DETECTOR));
 
   // Boolean to store the info "there is at least one external constraint in the graph"
   bool externalConstraint = false;
@@ -1784,6 +1783,8 @@ void Slam::InitLandmarkManager(int id)
                                                                  this->LandmarkPositionOnly);
   this->LandmarksManagers[id].SetWeight(this->LandmarkWeight);
   this->LandmarksManagers[id].SetSaturationDistance(this->LandmarkSaturationDistance);
+  // The calibration can be modified afterwards
+  this->LandmarksManagers[id].SetCalibration(this->LmDetectorCalibration);
 }
 
 // Sensor data
@@ -1822,6 +1823,14 @@ void Slam::AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const
   if (!this->LandmarksManagers.count(id))
     this->InitLandmarkManager(id);
   this->LandmarksManagers[id].SetAbsolutePose(absolutePose, absolutePoseCovariance);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetLmDetectorCalibration(const Eigen::Isometry3d& calib)
+{
+  this->LmDetectorCalibration = calib;
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.SetCalibration(calib);
 }
 
 //-----------------------------------------------------------------------------

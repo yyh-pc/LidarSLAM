@@ -296,7 +296,7 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
   if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
     return false;
 
-  this->RelativeTransform = synchMeas.TransfoRelative;
+  this->RelativeTransform = this->Calibration.inverse() * synchMeas.TransfoRelative;
 
   // Last times the tag was used
   // this is used to update the absolute reference tag pose when the

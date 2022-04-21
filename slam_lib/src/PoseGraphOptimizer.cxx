@@ -58,8 +58,9 @@ void PoseGraphOptimizer::AddExternalSensor(const Eigen::Isometry3d& BaseToSensor
   // Add base/sensor offset parameter
   auto* BaseToSensorSE3Offset = new g2o::ParameterSE3Offset;
   BaseToSensorSE3Offset->setId(index);
+  BaseToSensorSE3Offset->setOffset(BaseToSensorOffset);
+  PRINT_INFO("Calib set for index " << index << " :\n" << BaseToSensorOffset.matrix())
   this->Optimizer.addParameter(BaseToSensorSE3Offset);
-  BaseToSensorSE3Offset->setOffset(BaseToSensorOffset.inverse());
 }
 
 //------------------------------------------------------------------------------
@@ -191,8 +192,8 @@ void PoseGraphOptimizer::AddLandmarkConstraint(int lidarIdx, int lmIdx, const Ex
     externalEdge->setMeasurement(lm.TransfoRelative.translation());
     externalEdge->setInformation(lm.Covariance.block(0, 0, 3, 3).inverse());
     // Add offset transformation reference Id
-    // Useless here but compulsory in G2o
-    externalEdge->setParameterId(0, 0);
+    if (!externalEdge->setParameterId(0, int(ExternalSensor::LANDMARK_DETECTOR)))
+      PRINT_ERROR("No calibration found for " << ExternalSensorNames.at(ExternalSensor::LANDMARK_DETECTOR))
     // Add edge
     if (!this->Optimizer.addEdge(externalEdge))
       PRINT_ERROR("Tag constraint could not be added to the graph")
@@ -219,7 +220,8 @@ void PoseGraphOptimizer::AddLandmarkConstraint(int lidarIdx, int lmIdx, const Ex
     }
     externalEdge->read(measureInfo);
     // Add offset transformation reference Id
-    externalEdge->setParameterId(0, 0);
+    if (!externalEdge->setParameterId(0, int(ExternalSensor::LANDMARK_DETECTOR)))
+      PRINT_ERROR("No calibration found for " << ExternalSensorNames.at(ExternalSensor::LANDMARK_DETECTOR))
     // Add edge
     if (!this->Optimizer.addEdge(externalEdge))
       PRINT_ERROR("Tag constraint could not be added to the graph")

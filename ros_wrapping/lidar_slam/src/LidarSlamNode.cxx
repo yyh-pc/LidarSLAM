@@ -294,13 +294,15 @@ void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tags
     Eigen::Isometry3d baseToLmDetector;
     if (Utils::Tf2LookupTransform(baseToLmDetector, this->TfBuffer, this->TrackingFrameId, tagInfo.pose.header.frame_id, tagInfo.pose.header.stamp))
     {
-      // Get tag pose in the landmark detector frame
-      Eigen::Isometry3d tagToLmDetector = Utils::PoseMsgToTransform(tagInfo.pose.pose.pose).GetIsometry();
+      ROS_INFO_STREAM("Adding tag info");
       LidarSlam::ExternalSensors::LandmarkMeasurement lm;
-      lm.TransfoRelative = baseToLmDetector * tagToLmDetector;
+      // Get tag pose
+      lm.TransfoRelative = Utils::PoseMsgToTransform(tagInfo.pose.pose.pose).GetIsometry();
+      // Get tag timestamp
       lm.Time = tagInfo.pose.header.stamp.sec + tagInfo.pose.header.stamp.nsec * 1e-9;
+
+      // Get tag covariance
       bool ValidCovariance = false;
-      // Fill covariance
       for (int i = 0; i < 6; ++i)
       {
         for (int j = 0; j < 6; ++j)
@@ -312,12 +314,16 @@ void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tags
       }
       if (!ValidCovariance)
         lm.Covariance = Eigen::Matrix6d::Identity() * 1e-4;
-      // Rotate covariance with the landmark detector to base transform
-      Eigen::Vector6d poseRelative = LidarSlam::Utils::IsometryToXYZRPY(tagToLmDetector);
-      lm.Covariance = LidarSlam::CeresTools::RotateCovariance(poseRelative, lm.Covariance, baseToLmDetector.linear());
+
+      // Compute tag ID
       int id = this->BuildId(tagInfo.id);
-      this->LidarSlam.AddLandmarkMeasurement(id, lm);
-      ROS_INFO_STREAM("Adding tag info");
+
+      // Add calibration if needed
+      if (!this->LidarSlam.LmCanBeUsed())
+        this->LidarSlam.SetLmDetectorCalibration(baseToLmDetector);
+
+      // Add tag detection to measurements
+      this->LidarSlam.AddLandmarkMeasurement(lm, id);
 
       if (this->PublishTags)
       {
