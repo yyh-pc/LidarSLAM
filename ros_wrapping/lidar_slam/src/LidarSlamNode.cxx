@@ -50,8 +50,6 @@ enum Output
   CONFIDENCE,            // Publish confidence estimators on output pose to topic 'slam_confidence'.
 
   PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'pgo_slam_path' latched topic.
-  ICP_CALIB_SLAM_PATH,   // Publish ICP-aligned SLAM trajectory as Path msg to 'icp_slam_path' latched topic.
-  ICP_CALIB_GPS_PATH     // Publish ICP-aligned GPS trajectory as Path msg to 'icp_gps_path' latched topic.
 };
 
 //==============================================================================
@@ -132,11 +130,9 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   initPublisher(CONFIDENCE, "slam_confidence", lidar_slam::Confidence, "output/confidence", true, 1, false);
 
-  if (this->UseGps)
+  if (this->UseGps || this->UseTags)
   {
-    initPublisher(PGO_PATH,            "pgo_slam_path", nav_msgs::Path, "external_sensors/gps/pgo/publish_path",              false, 1, true);
-    initPublisher(ICP_CALIB_SLAM_PATH, "icp_slam_path", nav_msgs::Path, "external_sensors/gps/calibration/publish_icp_paths", false, 1, true);
-    initPublisher(ICP_CALIB_GPS_PATH,  "icp_gps_path",  nav_msgs::Path, "external_sensors/gps/calibration/publish_icp_paths", false, 1, true);
+    initPublisher(PGO_PATH, "pgo_slam_path", nav_msgs::Path, "graph/publish_path", false, 1, true);
   }
 
   // ***************************************************************************
@@ -235,35 +231,45 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& msg)
+void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& gpsMsg)
 {
-  // If GPS/SLAM calibration is needed, save GPS pose for later use
-  if (!this->UseGps)
-    return;
+    if (!this->UseGps)
+      return;
 
-  // Add new pose and its covariance to buffer
-  const auto& c = msg.pose.covariance;
-  std::array<double, 9> gpsCovar = {c[ 0], c[ 1], c[ 2],
-                                    c[ 6], c[ 7], c[ 8],
-                                    c[12], c[13], c[14]};
-  this->GpsPoses.emplace_back(Utils::PoseMsgToTransform(msg.pose.pose, msg.header.stamp.toSec(), msg.header.frame_id));
-  this->GpsCovars.emplace_back(gpsCovar);
-
-  double loggingTimeout = this->LidarSlam.GetLoggingTimeout();
-  // If a timeout is defined, forget too old data
-  if (loggingTimeout > 0)
-  {
-    // Forget all previous poses older than loggingTimeout
-    while (this->GpsPoses.back().time - this->GpsPoses.front().time > loggingTimeout)
+    // Transform to apply to points represented in GPS frame to express them in base frame
+    Eigen::Isometry3d baseToGps;
+    if (Utils::Tf2LookupTransform(baseToGps, this->TfBuffer, this->TrackingFrameId, gpsMsg.header.frame_id, gpsMsg.header.stamp))
     {
-      this->GpsPoses.pop_front();
-      this->GpsCovars.pop_front();
-    }
-  }
+      ROS_INFO_STREAM("Adding GPS info");
+      // Get gps pose
+      this->LastGpsMeas.Position = Utils::PoseMsgToIsometry(gpsMsg.pose.pose).translation();
+      // Get gps timestamp
+      this->LastGpsMeas.Time = gpsMsg.header.stamp.sec + gpsMsg.header.stamp.nsec * 1e-9;
 
-  // Update BASE to GPS offset
-  // Get the latest transform (we expect a static transform, so timestamp does not matter)
-  Utils::Tf2LookupTransform(this->BaseToGpsOffset, this->TfBuffer, this->TrackingFrameId, msg.child_frame_id);
+      // Get tag covariance
+      bool ValidCovariance = false;
+      for (int i = 0; i < 6; ++i)
+      {
+        for (int j = 0; j < 6; ++j)
+        {
+          this->LastGpsMeas.Covariance(i, j) = gpsMsg.pose.covariance[i * 6 + j];
+          if (abs(this->LastGpsMeas.Covariance(i, j)) > 1e-10)
+            ValidCovariance = true;
+        }
+      }
+      if (!ValidCovariance)
+        this->LastGpsMeas.Covariance = Eigen::Matrix3d::Identity() * 1e-4;
+
+      if (!this->LidarSlam.GpsHasData())
+        this->LidarSlam.SetGpsCalibration(baseToGps);
+
+      // Add gps measurement to measurements list
+      this->LidarSlam.AddGpsMeasurement(this->LastGpsMeas);
+      this->GpsLastTime = ros::Time(this->LastGpsMeas.Time);
+      this->GpsFrameId = gpsMsg.header.frame_id;
+    }
+    else
+      ROS_WARN_STREAM("The transform between the GPS and the tracking frame was not found -> GPS info ignored");
 }
 
 //------------------------------------------------------------------------------
@@ -318,8 +324,8 @@ void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tags
       // Compute tag ID
       int id = this->BuildId(tagInfo.id);
 
-      // Add calibration if needed
-      if (!this->LidarSlam.LmCanBeUsed())
+      // Add detector calibration for the first tag detection
+      if (!this->LidarSlam.LmHasData())
         this->LidarSlam.SetLmDetectorCalibration(baseToLmDetector);
 
       // Add tag detection to measurements
@@ -487,38 +493,21 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
   // Parse command
   switch(msg.command)
   {
-    // Run GPS/SLAM calibration
-    case lidar_slam::SlamCommand::GPS_SLAM_CALIBRATION:
-      this->GpsSlamCalibration();
-      break;
-
-    // Run SLAM pose graph optimization with GPS positions prior
-    case lidar_slam::SlamCommand::GPS_SLAM_POSE_GRAPH_OPTIMIZATION:
-      // TODO : run PGO in separated thread
-      this->PoseGraphOptimization();
-      break;
-
     // Set SLAM pose from last received GPS pose
     // NOTE : This function should only be called after PGO or SLAM/GPS calib have been triggered.
-    case lidar_slam::SlamCommand::SET_SLAM_POSE_FROM_GPS:
+    case lidar_slam::SlamCommand::GPS_SLAM_CALIBRATION:
     {
-      if (!this->UseGps)
+      if (!this->UseGps || !this->LidarSlam.GpsHasData())
       {
-        ROS_ERROR_STREAM("Cannot set SLAM pose from GPS as GPS logging has not been enabled. "
-                         "Please set 'external_sensors/gps/use_gps' private parameter to 'true'.");
+        ROS_ERROR_STREAM("Cannot set SLAM pose from GPS"
+                         "Please check that 'external_sensors/gps/use_gps' private parameter is set to 'true'."
+                         "and that GPS data have been received.");
         return;
       }
-      if (this->GpsPoses.empty())
-      {
-        ROS_ERROR_STREAM("Cannot set SLAM pose from GPS as no GPS pose has been received yet.");
-        return;
-      }
-      LidarSlam::Transform& mapToGps = this->GpsPoses.back();
-      Eigen::Isometry3d mapToOdom;
-      Utils::Tf2LookupTransform(mapToOdom, this->TfBuffer, mapToGps.frameid, this->OdometryFrameId, ros::Time(mapToGps.time));
-      Eigen::Isometry3d odomToBase = mapToOdom.inverse() * mapToGps.GetIsometry() * this->BaseToGpsOffset.inverse();
-      this->LidarSlam.SetWorldTransformFromGuess(odomToBase);
-      ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << odomToBase.matrix());
+      this->LidarSlam.CalibrateWithGps();
+      ROS_WARN_STREAM("SLAM pose set using GPS pose to :\n" << this->LidarSlam.GetLastState().Isometry.matrix());
+      // Broadcast new calibration offset (GPS reference frame (i.e. generally UTM) to odom)
+      this->BroadcastGpsOffset();
       break;
     }
 
@@ -583,24 +572,43 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       break;
 
     case lidar_slam::SlamCommand::OPTIMIZE_GRAPH:
-      if (!this->UseTags || this->LidarSlam.GetSensorMaxMeasures() < 2 || this->LidarSlam.GetLoggingTimeout() < 0.2)
+      if ((!this->UseGps && !this->UseTags) || this->LidarSlam.GetSensorMaxMeasures() < 2 || this->LidarSlam.GetLoggingTimeout() < 0.2)
       {
         ROS_ERROR_STREAM("Cannot optimize pose graph as sensor info logging has not been enabled. "
-                         "Please make sure that 'external_sensors/landmark_detector/use_tags' private parameter is set to 'true', "
+                         "Please make sure that 'external_sensors/landmark_detector/use_tags' OR 'external_sensors/gps/use_gps' private parameter is set to 'true', "
                          "and that 'external_sensors/landmark_detector/weight' and 'slam/logging_timeout' private parameters are set to convenient values.");
         break;
       }
 
-      if (!msg.string_arg.empty())
+      if (this->LidarSlam.LmHasData())
       {
-        ROS_INFO_STREAM("Loading the absolute landmark poses");
-        this->LoadLandmarks(msg.string_arg);
+        if (!msg.string_arg.empty())
+        {
+          ROS_INFO_STREAM("Loading the absolute landmark poses");
+          this->LoadLandmarks(msg.string_arg);
+        }
+        else if (this->LidarSlam.GetLandmarkConstraintLocal())
+          ROS_WARN_STREAM("No absolute landmark poses are supplied : the last estimated poses will be used");
       }
-      else if (this->LidarSlam.GetLandmarkConstraintLocal())
-        ROS_WARN_STREAM("No absolute landmark poses are supplied : the last estimated poses will be used");
 
       ROS_INFO_STREAM("Optimizing the pose graph");
       this->LidarSlam.OptimizeGraph();
+      // Broadcast new calibration offset (GPS to base)
+      // if GPS used
+      if (this->LidarSlam.GpsHasData())
+        this->BroadcastGpsOffset();
+      // Publish new trajectory
+      if (this->Publish[PGO_PATH])
+      {
+        nav_msgs::Path optimSlamTraj;
+        optimSlamTraj.header.frame_id = this->OdometryFrameId;
+        std::list<LidarSlam::LidarState> optimizedSlamStates = this->LidarSlam.GetLogStates();
+        optimSlamTraj.header.stamp = ros::Time(optimizedSlamStates.back().Time);
+        for (const LidarSlam::LidarState& s: optimizedSlamStates)
+          optimSlamTraj.poses.emplace_back(Utils::IsometryToPoseStampedMsg(s.Isometry, s.Time, this->OdometryFrameId));
+        this->Publishers[PGO_PATH].publish(optimSlamTraj);
+      }
+
       break;
 
     // Unknown command
@@ -1102,4 +1110,16 @@ void LidarSlamNode::SetSlamParameters()
     InitKeypointsExtractor(ke, "slam/ke/");
     this->LidarSlam.SetKeyPointsExtractor(ke);
   }
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::BroadcastGpsOffset()
+{
+  Eigen::Isometry3d offset = this->LidarSlam.GetGpsOffset().inverse();
+  geometry_msgs::TransformStamped tfStamped;
+  tfStamped.header.stamp = this->GpsLastTime;
+  tfStamped.header.frame_id = this->GpsFrameId;
+  tfStamped.child_frame_id = this->OdometryFrameId;
+  tfStamped.transform = Utils::IsometryToTfMsg(offset);
+  this->StaticTfBroadcaster.sendTransform(tfStamped);
 }

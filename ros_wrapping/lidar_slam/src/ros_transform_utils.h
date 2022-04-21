@@ -111,6 +111,25 @@ geometry_msgs::PoseStamped TransformToPoseStampedMsg(const LidarSlam::Transform&
   return PoseStampedMsg;
 }
 
+//------------------------------------------------------------------------------
+//! Fill a PoseStamped msg with a Transform object.
+geometry_msgs::PoseStamped IsometryToPoseStampedMsg(const Eigen::Isometry3d& transform, double t, std::string frameId)
+{
+  geometry_msgs::PoseStamped PoseStampedMsg;
+  PoseStampedMsg.header.frame_id = frameId;
+  PoseStampedMsg.header.stamp = ros::Time(t);
+  PoseStampedMsg.pose.position.x = transform.translation().x();
+  PoseStampedMsg.pose.position.y = transform.translation().y();
+  PoseStampedMsg.pose.position.z = transform.translation().z();
+  Eigen::Quaterniond q = Eigen::Quaterniond(transform.linear());
+  PoseStampedMsg.pose.orientation.x = q.x();
+  PoseStampedMsg.pose.orientation.y = q.y();
+  PoseStampedMsg.pose.orientation.z = q.z();
+  PoseStampedMsg.pose.orientation.w = q.w();
+  return PoseStampedMsg;
+}
+
+
 //========================== ROS msg -> Transform ==============================
 
 //------------------------------------------------------------------------------
@@ -125,6 +144,20 @@ LidarSlam::Transform PoseMsgToTransform(const geometry_msgs::Pose& poseMsg, doub
                          poseMsg.orientation.y,
                          poseMsg.orientation.z);
   return LidarSlam::Transform(trans, rot, time, frameid);
+}
+
+//------------------------------------------------------------------------------
+//! Build a Transform object from a Pose msg.
+Eigen::Isometry3d PoseMsgToIsometry(const geometry_msgs::Pose& poseMsg)
+{
+  Eigen::Translation3d trans(poseMsg.position.x,
+                             poseMsg.position.y,
+                             poseMsg.position.z);
+  Eigen::Quaterniond rot(poseMsg.orientation.w,
+                         poseMsg.orientation.x,
+                         poseMsg.orientation.y,
+                         poseMsg.orientation.z);
+  return trans * rot.normalized();
 }
 
 //------------------------------------------------------------------------------
