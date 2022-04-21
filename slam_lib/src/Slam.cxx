@@ -1787,6 +1787,14 @@ void Slam::InitLandmarkManager(int id)
   this->LandmarksManagers[id].SetCalibration(this->LmDetectorCalibration);
 }
 
+//-----------------------------------------------------------------------------
+void Slam::InitGps()
+{
+  this->GpsManager = std::make_shared<ExternalSensors::GpsManager>(this->SensorTimeOffset,
+                                                                   this->SensorTimeThreshold,
+                                                                   this->SensorMaxMeasures);
+}
+
 // Sensor data
 //-----------------------------------------------------------------------------
 
@@ -1863,6 +1871,45 @@ bool Slam::LmHasData()
   return lmHasData;
 }
 
+// GPS
+//-----------------------------------------------------------------------------
+void Slam::AddGpsMeasurement(const ExternalSensors::GpsMeasurement& gpsMeas)
+{
+  if (!this->GpsManager)
+    this->InitGps();
+  this->GpsManager->AddMeasurement(gpsMeas);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetGpsCalibration(const Eigen::Isometry3d& calib)
+{
+  if (!this->GpsManager)
+    this->InitGps();
+  this->GpsManager->SetCalibration(calib);
+}
+
+//-----------------------------------------------------------------------------
+Eigen::Isometry3d Slam::GetGpsCalibration()
+{
+  if (!this->GpsManager)
+  {
+    PRINT_ERROR("Cannot get GPS calibration : GPS not enabled")
+    return Eigen::Isometry3d::Identity();
+  }
+  return this->GpsManager->GetCalibration();
+}
+
+//-----------------------------------------------------------------------------
+Eigen::Isometry3d Slam::GetGpsOffset()
+{
+  if (!this->GpsManager)
+  {
+    PRINT_ERROR("Cannot get GPS offset : GPS not enabled")
+    return Eigen::Isometry3d::Identity();
+  }
+  return this->GpsManager->GetOffset();
+}
+
 // Sensors' parameters
 //-----------------------------------------------------------------------------
 void Slam::ClearSensorMeasurements()
@@ -1873,6 +1920,8 @@ void Slam::ClearSensorMeasurements()
     this->ImuManager->Reset();
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.Reset();
+  if (this->GpsManager)
+    this->GpsManager->Reset();
 }
 
 //-----------------------------------------------------------------------------
@@ -1884,6 +1933,8 @@ void Slam::SetSensorTimeOffset(double timeOffset)
     this->ImuManager->SetTimeOffset(timeOffset);
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetTimeOffset(timeOffset);
+  if (this->GpsManager)
+    this->GpsManager->SetTimeOffset(timeOffset);
   this->SensorTimeOffset = timeOffset;
 }
 
@@ -1896,6 +1947,8 @@ void Slam::SetSensorTimeThreshold(double thresh)
     this->ImuManager->SetTimeThreshold(thresh);
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetTimeThreshold(thresh);
+  if (this->GpsManager)
+    this->GpsManager->SetTimeThreshold(thresh);
   this->SensorTimeThreshold = thresh;
 }
 
@@ -1908,6 +1961,8 @@ void Slam::SetSensorMaxMeasures(unsigned int max)
     this->ImuManager->SetMaxMeasures(max);
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetMaxMeasures(max);
+  if (this->GpsManager)
+    this->GpsManager->SetMaxMeasures(max);
   this->SensorMaxMeasures = max;
 }
 

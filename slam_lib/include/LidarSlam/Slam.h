@@ -399,6 +399,16 @@ public:
   bool LmCanBeUsedLocally();
   bool LmHasData();
 
+  // GPS
+  void AddGpsMeasurement(const ExternalSensors::GpsMeasurement& gpsMeas);
+
+  void SetGpsCalibration(const Eigen::Isometry3d& calib);
+
+  bool GpsHasData() {return this->GpsManager && this->GpsManager->HasData();}
+
+  Eigen::Isometry3d GetGpsOffset();
+  Eigen::Isometry3d GetGpsCalibration();
+
   // ---------------------------------------------------------------------------
   //   Key frames and Maps parameters
   // ---------------------------------------------------------------------------
@@ -654,6 +664,7 @@ private:
   // The tag measurements must be filled and cleared from outside this lib
   // using External Sensors interface
   std::unordered_map<int, ExternalSensors::LandmarkManager> LandmarksManagers;
+
   // Calibration
   Eigen::Isometry3d LmDetectorCalibration = Eigen::Isometry3d::Identity();
   // Variable to store the landmark weight to init correctly the landmark managers
@@ -671,6 +682,13 @@ private:
   // during measures interpolation or not. Covariances are only used
   // in pose graph optimization, not in local optimization
   bool LandmarkCovarianceRotation = true;
+
+  // GPS manager
+  // The GPS measurements must be filled and cleared from outside this lib
+  // using External Sensors interface
+  std::shared_ptr<ExternalSensors::GpsManager> GpsManager;
+  // Calibration
+  Eigen::Isometry3d GpsCalibration = Eigen::Isometry3d::Identity();
 
   // Time difference between Lidar's measurements and external sensors'
   // not null if they are not expressed relatively to the same time reference
@@ -903,6 +921,7 @@ private:
   // WARNING : If the calibration has not been set (cf SetLmDetectorCalibration),
   // default identity calibration is set.
   void InitLandmarkManager(int id);
+  void InitGps();
 
 };
 
