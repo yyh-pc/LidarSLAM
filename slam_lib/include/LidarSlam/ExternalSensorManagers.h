@@ -57,6 +57,14 @@ struct GravityMeasurement
 };
 
 // ---------------------------------------------------------------------------
+struct GpsMeasurement
+{
+  double Time = 0.;
+  Eigen::Vector3d Position = Eigen::Vector3d::Zero();
+  Eigen::Matrix3d Covariance = Eigen::Matrix3d::Identity();
+};
+
+// ---------------------------------------------------------------------------
 template <typename T>
 class SensorManager
 {
@@ -376,6 +384,29 @@ private:
   // Allow to rotate the covariance
   // Can be disabled if the covariance is fixed or not used (e.g. for local constraint)
   bool CovarianceRotation = false;
+};
+
+// ---------------------------------------------------------------------------
+class GpsManager: public SensorManager<GpsMeasurement>
+{
+public:
+  GpsManager(const std::string& name = "GPS") : SensorManager(name){}
+  GpsManager(const GpsManager& gpsManager);
+  GpsManager(double timeOffset, double timeThresh,
+             unsigned int maxMeas, const std::string& name = "GPS");
+
+  void operator=(const GpsManager& gpsManager);
+
+  // Setters/Getters
+  GetSensorMacro(Offset, Eigen::Isometry3d)
+  SetSensorMacro(Offset, const Eigen::Isometry3d&)
+
+  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
+  bool ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas, bool verbose = false);
+
+private:
+  // Offset transform to link GPS global frame and Lidar SLAM global frame
+  Eigen::Isometry3d Offset = Eigen::Isometry3d::Identity();
 };
 
 } // end of ExternalSensors namespace

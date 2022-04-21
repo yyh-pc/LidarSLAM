@@ -22,6 +22,11 @@ namespace LidarSlam
 {
 namespace ExternalSensors
 {
+
+// ---------------------------------------------------------------------------
+// Wheel odometer
+// ---------------------------------------------------------------------------
+
 // ---------------------------------------------------------------------------
  bool WheelOdometryManager::ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose)
 {
@@ -79,6 +84,10 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
 
   return true;
 }
+
+// ---------------------------------------------------------------------------
+// IMU
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
  bool ImuManager::ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose)
@@ -337,6 +346,57 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
   #else
     this->Residual.Robustifier.reset(new ceres::ScaledLoss(robustifier, this->Weight, ceres::TAKE_OWNERSHIP));
   #endif
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// GPS
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+GpsManager::GpsManager(double timeOffset, double timeThresh,
+                       unsigned int maxMeas, const std::string& name)
+           : SensorManager(timeOffset, timeThresh, maxMeas, name)
+{}
+
+// ---------------------------------------------------------------------------
+GpsManager::GpsManager(const GpsManager& gpsManager)
+           : GpsManager(gpsManager.GetTimeOffset(),
+                        gpsManager.GetTimeThreshold(),
+                        gpsManager.GetMaxMeasures(),
+                        gpsManager.GetSensorName())
+{
+  this->Measures = gpsManager.GetMeasures();
+  this->PreviousIt = this->Measures.begin();
+}
+
+// ---------------------------------------------------------------------------
+void GpsManager::operator=(const GpsManager& gpsManager)
+{
+  this->SensorName = gpsManager.GetSensorName();
+  this->TimeOffset = gpsManager.GetTimeOffset();
+  this->TimeThreshold = gpsManager.GetTimeThreshold();
+  this->MaxMeasures = gpsManager.GetMaxMeasures();
+  this->Measures = gpsManager.GetMeasures();
+  this->PreviousIt = this->Measures.begin();
+}
+
+// ---------------------------------------------------------------------------
+ bool GpsManager::ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas, bool verbose)
+{
+  if (!this->HasData())
+    return false;
+
+  std::lock_guard<std::mutex> lock(this->Mtx);
+  // Compute the two closest measures to current Lidar frame
+  lidarTime -= this->TimeOffset;
+  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  if (bounds.first == bounds.second)
+    return false;
+  // Interpolate landmark relative pose at LiDAR timestamp
+  synchMeas.Time = lidarTime;
+  synchMeas.Position = bounds.first->Position + lidarTime * (bounds.second->Position - bounds.first->Position) / (bounds.second->Time - bounds.first->Time);
 
   return true;
 }
