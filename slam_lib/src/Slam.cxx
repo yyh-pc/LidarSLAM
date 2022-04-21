@@ -1952,6 +1952,55 @@ Eigen::Isometry3d Slam::GetGpsOffset()
   return this->GpsManager->GetOffset();
 }
 
+//-----------------------------------------------------------------------------
+bool Slam::CalibrateWithGps()
+{
+  if (!this->GpsHasData())
+  {
+    PRINT_ERROR("Cannot get GPS offset : GPS not enabled or GPS data not available")
+    return false;
+  }
+
+  // Initialize GPS offset with first synchronized measurements
+  // The first graph optimizations will mainly correct the orientations
+  Eigen::Isometry3d offset = Eigen::Isometry3d::Identity();
+  for (auto& s : this->LogStates)
+  {
+    ExternalSensors::GpsMeasurement gpsSynchMeasure;
+    if (this->GpsManager->ComputeSynchronizedMeasure(s.Time, gpsSynchMeasure))
+    {
+      offset.translation() = s.Isometry.translation() - this->GpsManager->GetCalibration().inverse() * gpsSynchMeasure.Position;
+      break;
+    }
+  }
+  this->GpsManager->SetOffset(offset);
+
+  // Optimize the graph : add lidar states and link with fixed gps states
+  if (!this->OptimizeGraph())
+    return false;
+
+  // Reset poses in odom frame (first Lidar pose)
+  Eigen::Isometry3d odomInverse = this->LogStates.front().Isometry.inverse();
+  for (auto& s : this->LogStates)
+  {
+    // Rotate covariance
+    Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(s.Isometry);
+    CeresTools::RotateCovariance(initPose, s.Covariance, odomInverse.linear());
+    // Transform pose
+    s.Isometry = odomInverse * s.Isometry;
+  }
+
+  // Update the maps and the pose with new trajectory
+  this->UpdateMaps();
+  this->SetWorldTransformFromGuess(this->LogStates.back().Isometry);
+
+  // Set refined offset : first Lidar pose + initial offset
+  odomInverse.translation() += offset.translation();
+  this->GpsManager->SetOffset(odomInverse);
+
+  return true;
+}
+
 // Sensors' parameters
 //-----------------------------------------------------------------------------
 void Slam::ClearSensorMeasurements()
