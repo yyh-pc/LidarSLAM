@@ -180,9 +180,12 @@ public:
                                 Eigen::Isometry3d& gpsToSensorOffset,
                                 const std::string& g2oFileName = "");
 
+  // Update maps from beginning using new trajectory (after PGO)
+  void UpdateMaps();
+
   // Optimize graph containing lidar states with
   // landmarks' constraints as a postprocess
-  void OptimizeGraph();
+  bool OptimizeGraph();
 
   // Set world transform with an initial guess (usually from GPS after calibration).
   void SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess);

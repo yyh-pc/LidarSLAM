@@ -113,6 +113,23 @@ inline size_t PointCloudMemorySize(const Slam::PointCloud& cloud)
   return (sizeof(cloud) + (sizeof(Slam::PointCloud::PointType) * cloud.size()));
 }
 
+//-----------------------------------------------------------------------------
+//! Rotate all covariances after poses optimization
+void RotateCovariances(const std::list<LidarState>& init, std::list<LidarState>& states)
+{
+  auto itStates = states.begin();
+  auto itInit = init.begin();
+  while (itInit != init.end())
+  {
+    // Compute relative transform
+    Eigen::Isometry3d Trel = itInit->Isometry.inverse() * itStates->Isometry;
+    Eigen::Vector6d pose = Utils::IsometryToXYZRPY(itInit->Isometry);
+    CeresTools::RotateCovariance(pose, itStates->Covariance, Trel.linear());
+    ++itStates;
+    ++itInit;
+  }
+}
+
 } // end of anonymous namespace
 } // end of Utils namespace
 
@@ -386,11 +403,46 @@ void Slam::ComputeSensorConstraints()
 }
 
 //-----------------------------------------------------------------------------
+void Slam::UpdateMaps()
+{
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
+  {
+    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
+    if (!this->UseKeypoints[k])
+      continue;
+    this->LocalMaps[k]->Clear();
+    PointCloud::Ptr keypoints(new PointCloud);
+    for (auto& state : this->LogStates)
+    {
+      if (!state.IsKeyFrame)
+        continue;
+
+      // Keypoints are stored undistorted : because of the keyframes mechanism,
+      // undistortion cannot be refined during pose graph
+      // We rely on a good first estimation of the in-frame motion
+      keypoints.reset(new PointCloud);
+      PointCloud::Ptr undistortedKeypoints = state.Keypoints[k]->GetCloud();
+      pcl::transformPointCloud(*undistortedKeypoints, *keypoints, state.Isometry.matrix().cast<float>());
+
+      this->LocalMaps[k]->Add(keypoints, false);
+    }
+    // Roll to center onto last pose
+    Eigen::Vector4f minPoint, maxPoint;
+    pcl::getMinMax3D(*keypoints, minPoint, maxPoint);
+    this->LocalMaps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
+  }
+}
+
+//-----------------------------------------------------------------------------
 bool Slam::OptimizeGraph()
 {
   #ifdef USE_G2O
   // Check if graph can be optimized
-  if (!this->LmHasData())
+  if (!this->LmHasData() && !this->GpsHasData())
   {
     PRINT_WARNING("No external constraint found, graph cannot be optimized");
     return false;
@@ -412,35 +464,67 @@ bool Slam::OptimizeGraph()
   IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
   IF_VERBOSE(3, Utils::Timer::Init("PGO : optimization"));
 
-  // Allow the rotation of the covariances when interpolating the measurements
-  this->SetLandmarkCovarianceRotation(true);
-  // Set the landmark detector calibration
-  graphManager.AddExternalSensor(this->LmDetectorCalibration, int(ExternalSensor::LANDMARK_DETECTOR));
-
   // Boolean to store the info "there is at least one external constraint in the graph"
   bool externalConstraint = false;
-  for (auto& idLm : this->LandmarksManagers)
+
+  // Look for landmark constraints
+  if (this->LmHasData())
   {
-    // Shortcut to current manager
-    auto& lm = idLm.second;
+    // Allow the rotation of the covariances when interpolating the measurements
+    this->SetLandmarkCovarianceRotation(true);
+    // Set the landmark detector calibration
+    graphManager.AddExternalSensor(this->LmDetectorCalibration, int(ExternalSensor::LANDMARK_DETECTOR));
 
-    // Add landmark to the graph
-    Eigen::Vector6d lmPose = lm.GetAbsolutePose();
-    Eigen::Isometry3d lmTransfo = Utils::XYZRPYtoIsometry(lmPose.data());
-    graphManager.AddLandmark(lmTransfo, idLm.first, lm.GetPositionOnly());
+    for (auto& idLm : this->LandmarksManagers)
+    {
+      // Shortcut to current manager
+      auto& lm = idLm.second;
 
-    // Add landmarks constraint to the graph
+      // Add landmark to the graph
+      Eigen::Vector6d lmPose = lm.GetAbsolutePose();
+      Eigen::Isometry3d lmTransfo = Utils::XYZRPYtoIsometry(lmPose.data());
+      graphManager.AddLandmark(lmTransfo, idLm.first, lm.GetPositionOnly());
+
+      // Add landmarks constraint to the graph
+      for (auto& s : this->LogStates)
+      {
+        if (!s.IsKeyFrame)
+          continue;
+
+        ExternalSensors::LandmarkMeasurement lmSynchMeasure;
+        if (!lm.ComputeSynchronizedMeasure(s.Time, lmSynchMeasure))
+          continue;
+        // Add synchronized landmark observations to the graph
+        graphManager.AddLandmarkConstraint(s.Index, idLm.first, lmSynchMeasure, lm.GetPositionOnly());
+        externalConstraint = true;
+      }
+    }
+    // Reset the rotate covariance member to not rotate covariances
+    // in future local constraints building
+    this->SetLandmarkCovarianceRotation(false);
+  }
+
+  // Look for GPS constraints
+  if (this->GpsHasData())
+  {
+    graphManager.AddExternalSensor(this->GpsManager->GetCalibration(), int(ExternalSensor::GPS));
     for (auto& s : this->LogStates)
     {
       if (!s.IsKeyFrame)
         continue;
 
-      ExternalSensors::LandmarkMeasurement lmSynchMeasure;
-      if (!lm.ComputeSynchronizedMeasure(s.Time, lmSynchMeasure))
+      ExternalSensors::GpsMeasurement gpsSynchMeasure;
+      if (!this->GpsManager->ComputeSynchronizedMeasure(s.Time, gpsSynchMeasure))
         continue;
 
-      // Add synchronized landmark observations to the graph
-      graphManager.AddLandmarkConstraint(s.Index, idLm.first, lmSynchMeasure, lm.GetPositionOnly());
+      // Express synchronized measure in Lidar odom frame
+      // Offset must have been calibrated using CalibrateWithGps
+      gpsSynchMeasure.Position = this->GpsManager->GetOffset() * gpsSynchMeasure.Position;
+      // If the sensor covariance is used, it must be rotated to reflect the frame offset
+      gpsSynchMeasure.Covariance = this->GpsManager->GetOffset().linear() * gpsSynchMeasure.Covariance;
+
+      // Add synchronized gps measurement to the graph
+      graphManager.AddGpsConstraint(s.Index, gpsSynchMeasure);
       externalConstraint = true;
     }
   }
@@ -448,77 +532,35 @@ bool Slam::OptimizeGraph()
   if (!externalConstraint)
   {
     PRINT_ERROR("No external constraints exist. Pose graph can not be optimized");
-    return;
+    return false;
   }
+
+  auto statesInit = this->LogStates;
 
   // Run pose graph optimization
   if (!graphManager.Process(this->LogStates))
   {
     PRINT_ERROR("Pose graph optimization failed.");
-    return;
+    return false;
   }
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
+  // WARNING : covariances are not updated at each graph optimization
+  // because g2o does not allow to reach them.
+  // Covariances rotation is mandatory if covariances are to be used again afterwards
+  Utils::RotateCovariances(statesInit, this->LogStates);
+
   // Update the maps
   IF_VERBOSE(3, Utils::Timer::Init("PGO : maps update"));
-  // The iteration is not directly on Keypoint types
-  // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
-  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
-  for (int i = 0; i < nbKeypointTypes; ++i)
-  {
-    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
-    if (!this->UseKeypoints[k])
-      continue;
-    this->LocalMaps[k]->Clear();
-    PointCloud::Ptr keypoints(new PointCloud);
-    LidarState prev = this->LogStates.back();
-    for (auto& state : this->LogStates)
-    {
-      if (!state.IsKeyFrame)
-        continue;
-      keypoints.reset(new PointCloud);
-      PointCloud::Ptr rawKeypoints = state.Keypoints[k]->GetCloud();
-
-      // Undistort keypoints
-      if (this->Undistortion && prev.Time < state.Time)
-      {
-        // Init the undistortion interpolator
-        keypoints->resize(rawKeypoints->size());
-        LinearTransformInterpolator<double> interpolator;
-        interpolator.SetTransforms(prev.Isometry, state.Isometry);
-        interpolator.SetTimes(prev.Time - state.Time, 0.);
-        // Apply undistortion
-        int ptIdx = 0;
-        for (const Point& p : *rawKeypoints)
-        {
-          keypoints->at(ptIdx) = Utils::TransformPoint(p, interpolator(p.time));
-          ++ptIdx;
-        }
-      }
-      else
-        // Transform keypoints
-        pcl::transformPointCloud(*rawKeypoints, *keypoints, state.Isometry.matrix().cast<float>());
-
-      this->LocalMaps[k]->Add(keypoints, false);
-      prev = state;
-    }
-    // Roll to center onto last pose
-    Eigen::Vector4f minPoint, maxPoint;
-    pcl::getMinMax3D(*keypoints, minPoint, maxPoint);
-    this->LocalMaps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
-  }
-
+  this->UpdateMaps();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : maps update"));
 
   // The last pose has to be updated with new optimized pose
   this->SetWorldTransformFromGuess(this->LogStates.back().Isometry);
 
-  // Processing duration
   IF_VERBOSE(1, Utils::Timer::StopAndDisplay("Pose graph optimization"));
-  // Reset the rotate covariance member to not rotate Covariances
-  // In future local constraints building
-  this->SetLandmarkCovarianceRotation(false);
+
+  return true;
   #else
   PRINT_ERROR("SLAM graph optimization requires G2O, but it was not found.");
   #endif  // USE_G2O
