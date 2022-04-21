@@ -489,13 +489,36 @@ void Slam::OptimizeGraph()
       continue;
     this->LocalMaps[k]->Clear();
     PointCloud::Ptr keypoints(new PointCloud);
+    LidarState prev = this->LogStates.back();
     for (auto& state : this->LogStates)
     {
       if (!state.IsKeyFrame)
         continue;
       keypoints.reset(new PointCloud);
-      pcl::transformPointCloud(*state.Keypoints[k]->GetCloud(), *keypoints, state.Isometry.matrix().cast<float>());
+      PointCloud::Ptr rawKeypoints = state.Keypoints[k]->GetCloud();
+
+      // Undistort keypoints
+      if (this->Undistortion && prev.Time < state.Time)
+      {
+        // Init the undistortion interpolator
+        keypoints->resize(rawKeypoints->size());
+        LinearTransformInterpolator<double> interpolator;
+        interpolator.SetTransforms(prev.Isometry, state.Isometry);
+        interpolator.SetTimes(prev.Time - state.Time, 0.);
+        // Apply undistortion
+        int ptIdx = 0;
+        for (const Point& p : *rawKeypoints)
+        {
+          keypoints->at(ptIdx) = Utils::TransformPoint(p, interpolator(p.time));
+          ++ptIdx;
+        }
+      }
+      else
+        // Transform keypoints
+        pcl::transformPointCloud(*rawKeypoints, *keypoints, state.Isometry.matrix().cast<float>());
+
       this->LocalMaps[k]->Add(keypoints, false);
+      prev = state;
     }
     // Roll to center onto last pose
     Eigen::Vector4f minPoint, maxPoint;
@@ -1127,7 +1150,11 @@ void Slam::Localization()
   this->Tworld = this->PreviousTworld * this->Trelative;
 
   // Init undistorted keypoints clouds from raw points
-  this->CurrentUndistortedKeypoints = this->CurrentRawKeypoints;
+  for (auto k : KeypointTypes)
+  {
+    if (this->UseKeypoints.at(k))
+      *this->CurrentUndistortedKeypoints[k] = *this->CurrentRawKeypoints[k];
+  }
 
   // Init and run undistortion if required
   if (this->Undistortion)
@@ -1409,7 +1436,7 @@ void Slam::LogCurrentFrameState(double time)
   state.Time = time;
   state.Index = this->NbrFrameProcessed;
   for (auto k : KeypointTypes)
-    state.Keypoints[k] = std::make_shared<PCStorage>(this->CurrentUndistortedKeypoints[k], this->LoggingStorage);
+    state.Keypoints[k] = std::make_shared<PCStorage>(this->CurrentRawKeypoints[k], this->LoggingStorage);
   this->LogStates.emplace_back(state);
   // Remove the oldest logged states
   auto itSt = this->LogStates.begin();
