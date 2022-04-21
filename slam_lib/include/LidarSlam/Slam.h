@@ -392,10 +392,7 @@ public:
 
   void AddLandmarkManager(int id, const Eigen::Vector6d& absolutePose, const Eigen::Matrix6d& absolutePoseCovariance);
 
-  // Add new detection measurement
-  // WARNING : the calibration must have been set
-  // before receiving a new landmark detection
-  void AddLandmarkMeasurement(int id, const ExternalSensors::LandmarkMeasurement& lm);
+  void AddLandmarkMeasurement(const ExternalSensors::LandmarkMeasurement& lm, int id);
 
   bool LmCanBeUsedLocally();
   bool LmHasData();
