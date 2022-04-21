@@ -222,8 +222,9 @@ public:
   GetMacro(LoggingStorage, PointCloudStorageType)
 
   LidarState& GetLastState();
+  GetMacro(LogStates, std::list<LidarState>)
 
-  GetMacro(Latency, double);
+  GetMacro(Latency, double)
 
   // ---------------------------------------------------------------------------
   //   Graph parameters
@@ -869,7 +870,7 @@ private:
   bool CheckKeyFrame();
 
   // Log current frame processing results : pose, covariance and keypoints.
-  void LogCurrentFrameState(double time);
+  void LogCurrentFrameState();
 
   // ---------------------------------------------------------------------------
   //   Undistortion helpers

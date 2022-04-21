@@ -321,7 +321,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 
     // Log current frame processing results : pose, covariance and keypoints.
     IF_VERBOSE(3, Utils::Timer::Init("Logging"));
-    this->LogCurrentFrameState(this->CurrentTime);
+    this->LogCurrentFrameState();
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
   }
 
@@ -1443,7 +1443,7 @@ void Slam::UpdateMapsUsingTworld()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::LogCurrentFrameState(double time)
+void Slam::LogCurrentFrameState()
 {
   // Save current state to log buffer.
   // This buffer will be processed in the pose graph optimization
@@ -1458,14 +1458,15 @@ void Slam::LogCurrentFrameState(double time)
     state.Covariance(3, 3) = std::pow(Utils::Deg2Rad(2.), 2);
     state.Covariance(4, 4) = std::pow(Utils::Deg2Rad(2.), 2);
   }
-  state.Time = time;
+  state.Time = this->CurrentTime;
   state.Index = this->NbrFrameProcessed;
   for (auto k : KeypointTypes)
     state.Keypoints[k] = std::make_shared<PCStorage>(this->CurrentRawKeypoints[k], this->LoggingStorage);
+
   this->LogStates.emplace_back(state);
   // Remove the oldest logged states
   auto itSt = this->LogStates.begin();
-  while (time - itSt->Time > this->LoggingTimeout && this->LogStates.size() > 2)
+  while (this->CurrentTime - itSt->Time > this->LoggingTimeout && this->LogStates.size() > 2)
   {
     ++itSt;
     this->LogStates.pop_front();
