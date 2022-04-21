@@ -80,16 +80,13 @@
 #include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/ConfidenceEstimators.h"
 
-#ifdef USE_G2O
-#include "LidarSlam/PoseGraphOptimization.h"
-#endif  // USE_G2O
 // CERES
 #include <ceres/solver.h>
 // PCL
 #include <pcl/common/common.h>
 #include <pcl/common/transforms.h>
 #include <pcl/io/pcd_io.h>
-#include <pcl/filters/voxel_grid.h>
+
 // EIGEN
 #include <Eigen/Dense>
 
@@ -560,144 +557,6 @@ bool Slam::OptimizeGraph()
   PRINT_ERROR("SLAM graph optimization requires G2O, but it was not found.");
   return false;
   #endif  // USE_G2O
-}
-
-//-----------------------------------------------------------------------------
-void Slam::RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
-                                    const std::vector<std::array<double, 9>>& gpsCovariances,
-                                    Eigen::Isometry3d& gpsToSensorOffset,
-                                    const std::string& g2oFileName)
-{
-  PRINT_ERROR("Pose graph optimization with GPS data has been disabled");
-  #if 0
-  #ifdef USE_G2O
-  IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
-  IF_VERBOSE(3, Utils::Timer::Init("PGO : optimization"));
-
-  // Transform to modifiable vectors
-  std::vector<Transform> slamPoses(this->LogTrajectory.begin(), this->LogTrajectory.end());
-  std::vector<std::array<double, 36>> slamCovariances(this->LogCovariances.begin(), this->LogCovariances.end());
-
-  const unsigned int nbSlamPoses = slamPoses.size();
-
-  if (this->LoggingTimeout == 0.)
-  {
-    PRINT_WARNING("SLAM logging is not enabled : covariances will be "
-                  "arbitrarly set and maps will not be optimized during pose "
-                  "graph optimization.");
-
-    // Set all poses covariances equal to twice the last one if we did not log it
-    std::array<double, 36> fakeSlamCovariance = Utils::Matrix6dToStdArray36(this->LocalizationUncertainty.Covariance * 2);
-    for (unsigned int i = 0; i < nbSlamPoses; i++)
-      slamCovariances.emplace_back(fakeSlamCovariance);
-  }
-
-  // Init pose graph optimizer
-  PoseGraphOptimization poseGraphOptimization;
-  poseGraphOptimization.SetNbIteration(500);
-  poseGraphOptimization.SetVerbose(this->Verbosity >= 2);
-  poseGraphOptimization.SetSaveG2OFile(!g2oFileName.empty());
-  poseGraphOptimization.SetG2OFileName(g2oFileName);
-  poseGraphOptimization.SetGpsToSensorCalibration(gpsToSensorOffset);
-
-  // Run pose graph optimization
-  // TODO : templatize poseGraphOptimization to accept any STL container and avoid deque <-> vector copies
-  std::vector<Transform> optimizedSlamPoses;
-  if (!poseGraphOptimization.Process(slamPoses, gpsPositions,
-                                     slamCovariances, gpsCovariances,
-                                     optimizedSlamPoses))
-  {
-    PRINT_ERROR("Pose graph optimization failed.");
-    return;
-  }
-
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
-
-  // Update GPS/LiDAR calibration
-  gpsToSensorOffset = optimizedSlamPoses.front().GetIsometry();
-
-  // Update SLAM trajectory and maps
-  IF_VERBOSE(3, Utils::Timer::Init("PGO : SLAM reset"));
-  this->Reset(false);
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : SLAM reset"));
-  IF_VERBOSE(3, Utils::Timer::Init("PGO : frames keypoints aggregation"));
-  std::map<Keypoint, PointCloud> keypoints;
-  std::map<Keypoint, PointCloud::Ptr> aggregatedKeypointsMap;
-  for (auto k : KeypointTypes)
-    aggregatedKeypointsMap[k].reset(new PointCloud);
-
-  for (unsigned int i = 0; i < nbSlamPoses; i++)
-  {
-    // Update SLAM pose
-    this->LogTrajectory[i].SetIsometry(gpsToSensorOffset.inverse() * optimizedSlamPoses[i].GetIsometry());
-
-    // Transform frame keypoints to world coordinates
-    std::map<Keypoint, PointCloud::Ptr> logKeypoints;
-    for (auto k : KeypointTypes)
-        logKeypoints[k] = this->UseKeypoints[k] ? this->LogKeypoints[k][i].GetCloud() : PointCloud::Ptr(new PointCloud);
-
-    if (this->Undistortion && i >= 1)
-    {
-      // Init the undistortion interpolator
-      LinearTransformInterpolator<double> interpolator;
-      interpolator.SetTransforms(this->LogTrajectory[i - 1].GetIsometry(), this->LogTrajectory[i].GetIsometry());
-      interpolator.SetTimes(this->LogTrajectory[i].time - this->LogTrajectory[i - 1].time, 0.);
-
-      // Perform undistortion of keypoint clouds
-      for (auto k : KeypointTypes)
-      {
-        keypoints[k].clear();
-        keypoints[k].reserve(logKeypoints[k]->size());
-        for (const Point& p : *logKeypoints[k])
-          keypoints[k].push_back(Utils::TransformPoint(p, interpolator(p.time)));
-      }
-    }
-    else
-    {
-      Eigen::Matrix4d currentTransform = this->LogTrajectory[i].GetMatrix();
-      for (auto k : KeypointTypes)
-        pcl::transformPointCloud(*logKeypoints[k],  keypoints[k],  currentTransform);
-    }
-
-    // Aggregate new keypoints to maps
-    for (auto k : KeypointTypes)
-      *aggregatedKeypointsMap[k] += keypoints[k];
-  }
-
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : frames keypoints aggregation"));
-  IF_VERBOSE(3, Utils::Timer::Init("PGO : final SLAM map update"));
-
-  // Set final pose
-  this->Tworld         = this->LogTrajectory[nbSlamPoses - 1].GetIsometry();
-  this->PreviousTworld = this->LogTrajectory[nbSlamPoses - 2].GetIsometry();
-
-  // Update SLAM maps
-  for (auto k : KeypointTypes)
-  {
-    // We do not do map.Add(aggregatedPoints) as this would try to roll the map
-    // so that the entire aggregatedPoints can best fit into map. But if this
-    // entire point cloud does not fit into map, the rolling grid will be
-    // centered on the aggregatedPoints bounding box center.
-    // Instead, we prefer to roll so that the last frame keypoints can fit,
-    // ensuring that next frame will be matched efficiently to rolled map.
-    if (this->UseKeypoints[k])
-    {
-      Eigen::Vector4f minPoint, maxPoint;
-      pcl::getMinMax3D(keypoints[k], minPoint, maxPoint);
-      this->LocalMaps[k]->Add(aggregatedKeypointsMap[k], false, -1., false);
-      this->LocalMaps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
-    }
-  }
-
-  // Processing duration
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : final SLAM map update"));
-  IF_VERBOSE(1, Utils::Timer::StopAndDisplay("Pose graph optimization"));
-  #else
-  #define UNUSED(var) (void)(var)
-  UNUSED(gpsPositions); UNUSED(gpsCovariances); UNUSED(gpsToSensorOffset); UNUSED(g2oFileName);
-  PRINT_ERROR("SLAM PoseGraphOptimization requires G2O, but it was not found.");
-  #endif  // USE_G2O
-  #endif
 }
 
 //-----------------------------------------------------------------------------

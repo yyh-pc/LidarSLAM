@@ -1,6 +1,6 @@
 # If G2O is available, compile pose graph optimization stuff
 if (g2o_FOUND)
-  set(SLAM_g2o_sources src/PoseGraphOptimization.cxx src/PoseGraphOptimizer.cxx)
+  set(SLAM_g2o_sources src/PoseGraphOptimizer.cxx)
   set(g2o_targets g2o::core g2o::types_slam3d g2o::types_slam3d_addons)
   add_definitions(-DUSE_G2O=1)
 endif()
@@ -10,7 +10,6 @@ set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 add_library(LidarSlam
   src/ConfidenceEstimators.cxx
-  src/GlobalTrajectoriesRegistration.cxx
   src/KeypointsMatcher.cxx
   src/LocalOptimizer.cxx
   src/MotionModel.cxx
@@ -18,7 +17,6 @@ add_library(LidarSlam
   src/ExternalSensorManagers.cxx
   src/Slam.cxx
   src/SpinningSensorKeypointExtractor.cxx
-  src/Transform.cxx
   src/Utilities.cxx
   ${SLAM_g2o_sources}
 )

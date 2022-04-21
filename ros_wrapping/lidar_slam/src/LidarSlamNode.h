@@ -159,26 +159,12 @@ protected:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief Run GPS/SLAM calibration from recorded GPS and SLAM poses, and
-   *        publish static TF to link OdometryFrameId to GPS frame.
-   */
-  void GpsSlamCalibration();
-
-  //----------------------------------------------------------------------------
-  /*!
    * @brief Build an id for the april tag output message
    *        if it gives the info of one landmark, the id is the one of this landMark
    *        if it gives the info of a tag bundle, the id is built as [idN [...] id1 id0]
    */
   int BuildId(const std::vector<int>& ids);
 
-  //----------------------------------------------------------------------------
-  /*!
-   * @brief Run pose graph optimization from GPS and SLAM poses, correcting SLAM
-   *        trajectory and maps, and publish optimized LiDAR trajectory and
-   *        static TF to link OdometryFrameId to GPS frame.
-   */
-  void PoseGraphOptimization();
   // Publish static tf to link world (UTM) frame to SLAM origin
   // PGO must have been run, so we can average
   // the correspondant poses (GPS/LidarSLAM) distances to get the offset

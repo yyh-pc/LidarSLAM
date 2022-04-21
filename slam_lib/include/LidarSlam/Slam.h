@@ -74,7 +74,6 @@
 #pragma once
 
 #include "LidarSlam/Utilities.h"
-#include "LidarSlam/Transform.h"
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/Enums.h"
 #include "LidarSlam/SpinningSensorKeypointExtractor.h"
@@ -171,14 +170,6 @@ public:
   std::unordered_map<std::string, double> GetDebugInformation() const;
   // Get information for each keypoint of the current frame (used/rejected keypoints, ...)
   std::unordered_map<std::string, std::vector<double>> GetDebugArray() const;
-
-  // Run pose graph optimization using GPS trajectory to improve SLAM maps and trajectory.
-  // Each GPS position must have an associated precision covariance.
-  // TODO : run that in a separated thread.
-  void RunPoseGraphOptimization(const std::vector<Transform>& gpsPositions,
-                                const std::vector<std::array<double, 9>>& gpsCovariances,
-                                Eigen::Isometry3d& gpsToSensorOffset,
-                                const std::string& g2oFileName = "");
 
   // Update maps from beginning using new trajectory (after PGO)
   void UpdateMaps();
