@@ -42,7 +42,7 @@ void PoseGraphOptimizer::ResetGraph()
 {
   this->Optimizer.clear();
   this->LMIndicesLinking.clear();
-  this->LandmarkIdx = INT_MAX;
+  this->ExtIdx = INT_MAX;
 }
 
 //------------------------------------------------------------------------------
@@ -73,7 +73,7 @@ void PoseGraphOptimizer::AddLandmark(const Eigen::Isometry3d& lm, unsigned int i
   // Choose index of the new landmark -> output index in decreasing order since INT_MAX
   // so the input index does not overwrite a pose vertex index
   // and pose vertices are in correct order
-  int idx = --this->LandmarkIdx;
+  int idx = --this->ExtIdx;
   this->LMIndicesLinking[index] = idx;
   if (onlyPosition)
   {
@@ -228,6 +228,33 @@ void PoseGraphOptimizer::AddLandmarkConstraint(int lidarIdx, int lmIdx, const Ex
   }
   if (this->Verbose)
     PRINT_INFO("Add landmark constraint between state #" << lidarIdx <<" and tag #"<< lmIdx << " (i.e. vertex #" << this->LMIndicesLinking[lmIdx] << ")");
+}
+
+//------------------------------------------------------------------------------
+void PoseGraphOptimizer::AddGpsConstraint(int lidarIdx, const ExternalSensors::GpsMeasurement& gpsMeas)
+{
+  // Add a vertex with a GPS position
+  auto* newVertex = new g2o::VertexPointXYZ;
+  newVertex->setId(this->ExtIdx);
+  newVertex->setEstimate(gpsMeas.Position);
+  newVertex->setFixed(true);
+  this->Optimizer.addVertex(newVertex);
+  // Add an edge between a SLAM pose vertex and the GPS vertex
+  auto* externalEdge = new g2o::EdgeSE3PointXYZ;
+  externalEdge->setVertex(0, this->Optimizer.vertex(lidarIdx));
+  externalEdge->setVertex(1, newVertex);
+  externalEdge->setMeasurement(Eigen::Vector3d::Zero()); // We want to merge this SLAM point to this GPS point.
+  externalEdge->setInformation(gpsMeas.Covariance.inverse());
+  // Add reference Id of calibration transform
+  if (!externalEdge->setParameterId(0, int(ExternalSensor::GPS)))
+    PRINT_ERROR("No calibration found for " << ExternalSensorNames.at(ExternalSensor::GPS))
+
+  // Add edge
+  if (!this->Optimizer.addEdge(externalEdge))
+    PRINT_ERROR("GPS constraint could not be added to the graph")
+
+  if (this->Verbose)
+    PRINT_INFO("Add GPS constraint for state #" << lidarIdx);
 }
 
 //------------------------------------------------------------------------------

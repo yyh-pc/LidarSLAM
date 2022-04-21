@@ -158,6 +158,6 @@ enum ExternalSensor
   GPS = 3
 };
 
-static const std::map<ExternalSensor, std::string> ExternalSensorNames = { {WHEEL_ODOM, "Wheel odometer"}, {IMU, "IMU"}, {LANDMARK_DETECTOR, "Landmark detector"} };
+static const std::map<ExternalSensor, std::string> ExternalSensorNames = { {WHEEL_ODOM, "Wheel odometer"}, {IMU, "IMU"}, {LANDMARK_DETECTOR, "Landmark detector"}, {GPS, "GPS"} };
 
 } // end of LidarSlam namespace
