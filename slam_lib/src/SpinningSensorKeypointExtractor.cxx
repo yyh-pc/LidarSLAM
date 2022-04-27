@@ -115,6 +115,27 @@ inline float LineFitting::SquaredDistanceToPoint(Eigen::Vector3f const& point) c
 } // end of anonymous namespace
 
 //-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::Enable(const std::vector<Keypoint>& kptTypes)
+{
+  for (auto& en : this->Enabled)
+    en.second = false;
+  for (auto& k : kptTypes)
+    this->Enabled[k] = true;
+}
+
+//-----------------------------------------------------------------------------
+SpinningSensorKeypointExtractor::PointCloud::Ptr SpinningSensorKeypointExtractor::GetKeypoints(Keypoint k)
+{
+  if (!this->Enabled.count(k) || !this->Enabled[k])
+  {
+    PRINT_ERROR("Unable to get keypoints of type " << KeypointTypeNames.at(k));
+    return PointCloud::Ptr();
+  }
+  return this->Keypoints.at(k);
+}
+
+
+//-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc)
 {
   this->Scan = pc;
@@ -131,8 +152,13 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
   // Compute keypoints scores
   this->ComputeCurvature();
 
-  // Labelize keypoints
-  this->SetKeyPointsLabels();
+  // Labelize and extract keypoints
+  if (this->Enabled[Keypoint::PLANE])
+    this->ComputePlanes();
+  if (this->Enabled[Keypoint::EDGE])
+    this->ComputeEdges();
+  if (this->Enabled[Keypoint::BLOB])
+    this->ComputeBlobs();
 }
 
 //-----------------------------------------------------------------------------
@@ -254,6 +280,7 @@ void SpinningSensorKeypointExtractor::InvalidateNotUsablePoints()
       if (L < this->MinDistanceToSensor)
       {
         this->IsPointValid[scanLine][index].reset();
+        continue;
       }
 
       // Compute maximal acceptable distance of two consecutive neighbors
@@ -278,7 +305,7 @@ void SpinningSensorKeypointExtractor::InvalidateNotUsablePoints()
           {
             const auto& Y  = scanLineCloud[i].getVector3fMap();
             const auto& Yn = scanLineCloud[i + 1].getVector3fMap();
-            // If there is a new gap in the neighborhood, 
+            // If there is a new gap in the neighborhood,
             // the remaining points of the neighborhood are kept.
             if ((Yn - Y).squaredNorm() > sqMaxPosDiff)
               break;
@@ -294,7 +321,7 @@ void SpinningSensorKeypointExtractor::InvalidateNotUsablePoints()
           {
             const auto& Yp = scanLineCloud[i].getVector3fMap();
             const auto&  Y = scanLineCloud[i + 1].getVector3fMap();
-            // If there is a new gap in the neighborhood, 
+            // If there is a new gap in the neighborhood,
             // the remaining points of the neighborhood are kept.
             if ((Y - Yp).squaredNorm() > sqMaxPosDiff)
               break;
@@ -325,9 +352,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
 
     // if the line is almost empty, skip it
     if (this->IsScanLineAlmostEmpty(Npts))
-    {
       continue;
-    }
 
     // loop over points in the current scan line
     // TODO : deal with spherical case : index=0 is neighbor of index=Npts-1
@@ -335,9 +360,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
     {
       // Skip curvature computation for invalid points
       if (this->IsPointValid[scanLine][index].none())
-      {
         continue;
-      }
 
       // central point
       const Point& currentPoint = scanLineCloud[index];
@@ -471,67 +494,19 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
 }
 
 //-----------------------------------------------------------------------------
-void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
+void SpinningSensorKeypointExtractor::ComputePlanes()
 {
-  const float sqEdgeSaliencythreshold = this->EdgeSaliencyThreshold * this->EdgeSaliencyThreshold;
-  const float sqEdgeDepthGapThreshold = this->EdgeDepthGapThreshold * this->EdgeDepthGapThreshold;
-
   // loop over the scan lines
-  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) \
-          firstprivate(sqEdgeSaliencythreshold, sqEdgeDepthGapThreshold)
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (int scanLine = 0; scanLine < static_cast<int>(this->NbLaserRings); ++scanLine)
   {
     const int Npts = this->ScanLines[scanLine]->size();
 
     // if the line is almost empty, skip it
     if (this->IsScanLineAlmostEmpty(Npts))
-    {
       continue;
-    }
 
-    // Sort the curvature score in a decreasing order
-    std::vector<size_t> sortedDepthGapIdx  = Utils::SortIdx(this->DepthGap    [scanLine], false);
-    std::vector<size_t> sortedAnglesIdx    = Utils::SortIdx(this->Angles      [scanLine], false);
-    std::vector<size_t> sortedSaliencyIdx  = Utils::SortIdx(this->Saliency    [scanLine], false);
-    std::vector<size_t> sortedIntensityGap = Utils::SortIdx(this->IntensityGap[scanLine], false);
-
-    // Add edge according to criterion
-    auto addEdgesUsingCriterion = [this, scanLine, Npts](const std::vector<size_t>& sortedValuesIdx,
-                                                         const std::vector<std::vector<float>>& values,
-                                                         float threshold,
-                                                         int invalidNeighborhoodSize)
-    {
-      for (const auto& index: sortedValuesIdx)
-      {
-        // Check criterion threshold
-        // If criterion is not respected, break loop as indices are sorted in decreasing order.
-        if (values[scanLine][index] < threshold)
-          break;
-
-        // If the point is invalid as edge, continue
-        if (!this->IsPointValid[scanLine][index][Keypoint::EDGE])
-          continue;
-
-        // Else indicate that the point is an edge
-        this->Label[scanLine][index].set(Keypoint::EDGE);
-
-        // Invalid its neighbors
-        const int indexBegin = std::max(0,        static_cast<int>(index - invalidNeighborhoodSize));
-        const int indexEnd   = std::min(Npts - 1, static_cast<int>(index + invalidNeighborhoodSize));
-        for (int j = indexBegin; j <= indexEnd; ++j)
-          this->IsPointValid[scanLine][j].reset(Keypoint::EDGE);
-      }
-    };
-
-    // Edges using depth gap
-    addEdgesUsingCriterion(sortedDepthGapIdx, this->DepthGap, sqEdgeDepthGapThreshold, this->NeighborWidth - 1);
-    // Edges using angles
-    addEdgesUsingCriterion(sortedAnglesIdx, this->Angles, this->EdgeSinAngleThreshold, this->NeighborWidth);
-    // Edges using saliency
-    addEdgesUsingCriterion(sortedSaliencyIdx, this->Saliency, sqEdgeSaliencythreshold, this->NeighborWidth - 1);
-    // Edges using intensity
-    addEdgesUsingCriterion(sortedIntensityGap, this->IntensityGap, this->EdgeIntensityGapThreshold, 1);
-
+    std::vector<size_t> sortedAnglesIdx = Utils::SortIdx(this->Angles[scanLine], false);
     // Planes (using angles)
     for (int k = Npts - 1; k >= 0; --k)
     {
@@ -561,15 +536,6 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
       for (int j = indexBegin; j <= indexEnd; ++j)
         this->IsPointValid[scanLine][j].reset(Keypoint::PLANE);
     }
-
-    // Blobs Points
-    // CHECK : why using only 1 point over 3?
-    // TODO : disable blobs if not required
-    for (int index = 0; index < Npts; index += 3)
-    {
-      if (this->IsPointValid[scanLine][index][Keypoint::BLOB])
-        this->Label[scanLine][index].set(Keypoint::BLOB);
-    }
   }
 
   for (unsigned int scanLine = 0; scanLine < this->NbLaserRings; ++scanLine)
@@ -577,13 +543,102 @@ void SpinningSensorKeypointExtractor::SetKeyPointsLabels()
     const PointCloud& scanLineCloud = *(this->ScanLines[scanLine]);
     for (unsigned int index = 0; index < scanLineCloud.size(); ++index)
     {
-      for (const auto& k : KeypointTypes)
+      if (this->Label[scanLine][index][Keypoint::PLANE])
       {
-        if (this->Label[scanLine][index][k])
-        {
-          this->IsPointValid[scanLine][index].set(k);
-          this->Keypoints[k]->push_back(scanLineCloud[index]);
-        }
+        this->IsPointValid[scanLine][index].set(Keypoint::PLANE);
+        this->Keypoints[Keypoint::PLANE]->push_back(scanLineCloud[index]);
+      }
+    }
+  }
+}
+
+//-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::ComputeEdges()
+{
+  const float sqEdgeSaliencythreshold = this->EdgeSaliencyThreshold * this->EdgeSaliencyThreshold;
+  const float sqEdgeDepthGapThreshold = this->EdgeDepthGapThreshold * this->EdgeDepthGapThreshold;
+
+  // Loop over the scan lines
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) \
+          firstprivate(sqEdgeSaliencythreshold, sqEdgeDepthGapThreshold)
+  for (int scanLine = 0; scanLine < static_cast<int>(this->NbLaserRings); ++scanLine)
+  {
+    const int Npts = this->ScanLines[scanLine]->size();
+
+    // if the line is almost empty, skip it
+    if (this->IsScanLineAlmostEmpty(Npts))
+      continue;
+
+    std::vector<size_t> sortedAnglesIdx    = Utils::SortIdx(this->Angles      [scanLine], false);
+    std::vector<size_t> sortedDepthGapIdx  = Utils::SortIdx(this->DepthGap    [scanLine], false);
+    std::vector<size_t> sortedSaliencyIdx  = Utils::SortIdx(this->Saliency    [scanLine], false);
+    std::vector<size_t> sortedIntensityGap = Utils::SortIdx(this->IntensityGap[scanLine], false);
+
+    // Add edge according to criterion
+    auto addEdgesUsingCriterion = [this, scanLine, Npts](const std::vector<size_t>& sortedValuesIdx,
+                                                         const std::vector<std::vector<float>>& values,
+                                                         float threshold,
+                                                         int invalidNeighborhoodSize)
+    {
+      for (const auto& index: sortedValuesIdx)
+      {
+        // Check criterion threshold
+        // If criterion is not respected, break loop as indices are sorted in decreasing order.
+        if (values[scanLine][index] < threshold)
+          break;
+
+        // If the point is invalid as edge, continue
+        if (!this->IsPointValid[scanLine][index][Keypoint::EDGE])
+          continue;
+
+        // Else indicate that the point is an edge
+        this->Label[scanLine][index].set(Keypoint::EDGE);
+
+
+        // Invalid its neighbors
+        const int indexBegin = std::max(0,        static_cast<int>(index - invalidNeighborhoodSize));
+        const int indexEnd   = std::min(Npts - 1, static_cast<int>(index + invalidNeighborhoodSize));
+        for (int j = indexBegin; j <= indexEnd; ++j)
+          this->IsPointValid[scanLine][j].reset(Keypoint::EDGE);
+      }
+    };
+
+    // Edges using depth gap
+    addEdgesUsingCriterion(sortedDepthGapIdx, this->DepthGap, sqEdgeDepthGapThreshold, this->NeighborWidth - 1);
+    // Edges using angles
+    addEdgesUsingCriterion(sortedAnglesIdx, this->Angles, this->EdgeSinAngleThreshold, this->NeighborWidth);
+    // Edges using saliency
+    addEdgesUsingCriterion(sortedSaliencyIdx, this->Saliency, sqEdgeSaliencythreshold, this->NeighborWidth - 1);
+    // Edges using intensity
+    addEdgesUsingCriterion(sortedIntensityGap, this->IntensityGap, this->EdgeIntensityGapThreshold, 1);
+  }
+
+  for (unsigned int scanLine = 0; scanLine < this->NbLaserRings; ++scanLine)
+  {
+    const PointCloud& scanLineCloud = *(this->ScanLines[scanLine]);
+    for (unsigned int index = 0; index < scanLineCloud.size(); ++index)
+    {
+      if (this->Label[scanLine][index][Keypoint::EDGE])
+      {
+        this->IsPointValid[scanLine][index].set(Keypoint::EDGE);
+        this->Keypoints[Keypoint::EDGE]->push_back(scanLineCloud[index]);
+      }
+    }
+  }
+}
+
+//-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::ComputeBlobs()
+{
+  for (unsigned int scanLine = 0; scanLine < this->NbLaserRings; ++scanLine)
+  {
+    const PointCloud& scanLineCloud = *(this->ScanLines[scanLine]);
+    for (unsigned int index = 0; index < scanLineCloud.size(); index+=3)
+    {
+      if (this->IsPointValid[scanLine][index][Keypoint::BLOB])
+      {
+        this->IsPointValid[scanLine][index].set(Keypoint::BLOB);
+        this->Keypoints[Keypoint::BLOB]->push_back(scanLineCloud[index]);
       }
     }
   }

@@ -73,9 +73,11 @@ public:
 
   GetMacro(NbLaserRings, int)
 
-  std::map<Keypoint, PointCloud::Ptr> GetKeypoints() const {return this->Keypoints;}
+  // Select the keypoint types to extract
+  // This function resets the member map "Enabled"
+  void Enable(const std::vector<Keypoint>& kptTypes);
 
-  PointCloud::Ptr GetKeypoints(Keypoint k) const { return this->Keypoints.at(k); }
+  PointCloud::Ptr GetKeypoints(Keypoint k);
 
   // Extract keypoints from the pointcloud. The key points
   // will be separated in two classes : Edges keypoints which
@@ -107,8 +109,11 @@ private:
   // the 1D curvature within each isolated scan line.
   void ComputeCurvature();
 
-  // Labelize point to be a keypoints or not
-  void SetKeyPointsLabels();
+  // Labelize points (unvalid, edge, plane, blob)
+  // and extract them in correspondant pointcloud
+  void ComputePlanes();
+  void ComputeEdges();
+  void ComputeBlobs();
 
   // Auto estimate azimuth angle resolution based on current ScanLines
   // WARNING: to be correct, the points need to be in the LIDAR sensor
@@ -121,6 +126,9 @@ private:
   // ---------------------------------------------------------------------------
   //   Parameters
   // ---------------------------------------------------------------------------
+
+  // Keypoints activated
+  std::unordered_map<Keypoint, bool> Enabled = {{EDGE, true}, {PLANE, true}, {BLOB, false}};
 
   // Max number of threads to use to process points in parallel
   int NbThreads = 1;
@@ -142,7 +150,7 @@ private:
   float DistToLineThreshold = 0.20;  // [m]
 
   // Threshold upon depth gap in neighborhood to select an edge keypoint
-  float EdgeDepthGapThreshold = 0.15;  // [m]
+  float EdgeDepthGapThreshold = 0.5;  // [m]
 
   // Threshold upon saliency of a neighborhood to select an edge keypoint
   float EdgeSaliencyThreshold = 1.5;  // [m]

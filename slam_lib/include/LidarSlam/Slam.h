@@ -119,6 +119,11 @@ public:
   // This keeps parameters and sensor data unchanged.
   void Reset(bool resetLog = true);
 
+  // Init map with default values
+  // This function is useful to keep a set of initial map parameters which are not SLAM members
+  // Maps can only be removed when reset is called but they don't depend on UseKeypoint
+  void InitMap(Keypoint k);
+
   // ---------------------------------------------------------------------------
   //   Main SLAM use
   // ---------------------------------------------------------------------------
@@ -197,9 +202,6 @@ public:
   SetMacro(Verbosity, int)
   GetMacro(Verbosity, int)
 
-  void SetUseBlobs(bool ub) { this->UseKeypoints[BLOB] = ub; }
-  bool GetUseBlobs() const { return this->UseKeypoints.at(BLOB); }
-
   SetMacro(EgoMotion, EgoMotionMode)
   GetMacro(EgoMotion, EgoMotionMode)
 
@@ -260,6 +262,11 @@ public:
   // NOTE: If no base to lidar offset exists for the requested deviceId, the returned transform is identity.
   Eigen::Isometry3d GetBaseToLidarOffset(uint8_t deviceId = 0) const;
   void SetBaseToLidarOffset(const Eigen::Isometry3d& transform, uint8_t deviceId = 0);
+
+  // Set the keypoint types to use
+  void EnableKeypointType(Keypoint k, bool enabled = true);
+  // Get the keypoint types used
+  bool KeypointTypeEnabled(Keypoint k) const;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -425,14 +432,15 @@ public:
   GetMacro(MapUpdate, MappingMode)
   SetMacro(MapUpdate, MappingMode)
 
-  double GetVoxelGridDecayingThreshold();
+  double GetVoxelGridDecayingThreshold() const;
   void SetVoxelGridDecayingThreshold(double decay);
 
-  SamplingMode GetVoxelGridSamplingMode(Keypoint k);
+  SamplingMode GetVoxelGridSamplingMode(Keypoint k) const;
   void SetVoxelGridSamplingMode(Keypoint k, SamplingMode sm);
 
   // Set RollingGrid Parameters
   void ClearMaps();
+  double GetVoxelGridLeafSize(Keypoint k) const;
   void SetVoxelGridLeafSize(Keypoint k, double size);
   void SetVoxelGridSize(int size);
   void SetVoxelGridResolution(double resolution);
@@ -473,7 +481,8 @@ private:
   int NbThreads = 1;
 
   // Booleans to decide whether to extract the keypoints of the relative type or not
-  std::map<Keypoint, bool> UseKeypoints= {{EDGE, true}, {PLANE, true}, {BLOB, false}};
+  std::unordered_map<Keypoint, bool> UseKeypoints = {{EDGE, true}, {PLANE, true}, {BLOB, false}};
+  std::vector<Keypoint> UsableKeypoints = {EDGE, PLANE};
 
   // How to estimate Ego-Motion (approximate relative motion since last frame).
   // The ego-motion step aims to give a fast and approximate initialization of

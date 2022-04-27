@@ -124,18 +124,46 @@ Slam::Slam()
   this->KeyPointsExtractors[0] = std::make_shared<SpinningSensorKeypointExtractor>();
 
   // Allocate maps
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
     this->LocalMaps[k] = std::make_shared<RollingGrid>();
 
   // Set default maps parameters
-  this->SetVoxelGridResolution(10.);
-  this->SetVoxelGridSize(50);
-  this->SetVoxelGridLeafSize(EDGE, 0.30);
-  this->SetVoxelGridLeafSize(PLANE, 0.60);
-  this->SetVoxelGridLeafSize(BLOB, 0.30);
+  if (this->UseKeypoints[EDGE])
+    this->InitMap(EDGE);
+  if (this->UseKeypoints[PLANE])
+    this->InitMap(PLANE);
+  if (this->UseKeypoints[BLOB])
+    this->InitMap(BLOB);
 
   // Reset SLAM internal state
   this->Reset();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::InitMap(Keypoint k)
+{
+  // Allocate map
+  this->LocalMaps[k] = std::make_shared<RollingGrid>();
+
+  // Set default maps parameters
+  this->LocalMaps[k]->SetVoxelResolution(10.);
+  this->LocalMaps[k]->SetGridSize(50);
+
+  switch(k)
+  {
+    case EDGE:
+      this->LocalMaps[k]->SetLeafSize(0.3);
+      break;
+    case PLANE:
+      this->LocalMaps[k]->SetLeafSize(0.6);
+      break;
+    case BLOB:
+      this->LocalMaps[k]->SetLeafSize(0.3);
+      break;
+    default:
+      PRINT_ERROR("Unknown keypoint type");
+      break;
+  }
 }
 
 //-----------------------------------------------------------------------------
@@ -161,7 +189,7 @@ void Slam::Reset(bool resetLog)
   this->CurrentFrames.clear();
   this->RegisteredFrame.reset(new PointCloud);
   this->CurrentFrames.emplace_back(new PointCloud);
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
   {
     this->CurrentRawKeypoints[k].reset(new PointCloud);
     this->CurrentUndistortedKeypoints[k].reset(new PointCloud);
@@ -169,10 +197,11 @@ void Slam::Reset(bool resetLog)
   }
 
   // Reset keypoints matching results
-  for (auto k : {EDGE, PLANE})
+  for (auto k : this->UsableKeypoints)
+  {
     this->EgoMotionMatchingResults[k] = KeypointsMatcher::MatchingResults();
-  for (auto k : KeypointTypes)
     this->LocalizationMatchingResults[k] = KeypointsMatcher::MatchingResults();
+  }
 
   // Reset external sensor managers
   if (this->WheelOdomManager)
@@ -203,6 +232,33 @@ void Slam::SetNbThreads(int n)
 }
 
 //-----------------------------------------------------------------------------
+void Slam::EnableKeypointType(Keypoint k, bool enabled)
+{
+  this->UseKeypoints[k] = enabled;
+  if (enabled)
+  {
+    if (!this->LocalMaps.count(k))
+      this->InitMap(k);
+    if (!this->CurrentRawKeypoints.count(k))
+      this->CurrentRawKeypoints[k].reset(new PointCloud);
+    if (!this->CurrentUndistortedKeypoints.count(k))
+      this->CurrentUndistortedKeypoints[k].reset(new PointCloud);
+    if (!this->CurrentWorldKeypoints.count(k))
+      this->CurrentWorldKeypoints[k].reset(new PointCloud);
+    this->EgoMotionMatchingResults[k] = KeypointsMatcher::MatchingResults();
+    this->LocalizationMatchingResults[k] = KeypointsMatcher::MatchingResults();
+  }
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::KeypointTypeEnabled(Keypoint k) const
+{
+  if (!this->UseKeypoints.count(k))
+    return false;
+  return this->UseKeypoints.at(k);
+}
+
+//-----------------------------------------------------------------------------
 void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 {
   Utils::Timer::Init("SLAM frame processing");
@@ -223,6 +279,16 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     this->Tworld = this->LogStates.back().Isometry;
   else
     this->Tworld = this->TworldInit;
+
+  // Create UsableKeypointTypes for new frame
+  // The keypoints cannot be chosen while processing a frame
+  // because it impacts all the maps structure along the process
+  this->UsableKeypoints.clear();
+  for (auto k : KeypointTypes)
+  {
+    if (this->UseKeypoints[k])
+      this->UsableKeypoints.push_back(k);
+  }
 
   PRINT_VERBOSE(2, "\n#########################################################");
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed << std::fixed << std::setprecision(9) <<
@@ -335,7 +401,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     std::map<Keypoint, unsigned int> points;
     std::map<Keypoint, unsigned int> memory;
     // Initialize number of points and memory per keypoint type
-    for (auto k : KeypointTypes)
+    for (auto k : UsableKeypoints)
     {
       points[k] = 0;
       memory[k] = 0;
@@ -343,7 +409,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     // Sum points and memory allocated of each keypoints cloud
     for (auto const& st: this->LogStates)
     {
-      for (auto k : KeypointTypes)
+      for (auto k : UsableKeypoints)
       {
         points[k] += st.Keypoints.at(k)->PointsSize();
         memory[k] += st.Keypoints.at(k)->MemorySize();
@@ -351,7 +417,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     }
 
     // Print keypoints memory usage
-    for (auto k : KeypointTypes)
+    for (auto k : UsableKeypoints)
     {
       std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k)))<< " log  : "
                 << LogStates.size() << " frames, "
@@ -389,13 +455,11 @@ void Slam::UpdateMaps()
 {
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
+  int nbKeypointTypes = static_cast<int>(UsableKeypoints.size());
   #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
-    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
-    if (!this->UseKeypoints[k])
-      continue;
+    Keypoint k = static_cast<Keypoint>(UsableKeypoints[i]);
     this->LocalMaps[k]->Clear();
     PointCloud::Ptr keypoints(new PointCloud);
     for (auto& state : this->LogStates)
@@ -567,7 +631,7 @@ void Slam::SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess)
   // We reset current frame keypoints so that ego-motion registration will be skipped for next frame.
   if (!this->LogStates.empty())
     this->LogStates.back().Isometry = this->Tworld;
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
     this->CurrentRawKeypoints[k].reset(new PointCloud);
 }
 
@@ -577,11 +641,8 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat, boo
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
 
   // Save keypoint maps
-  for (auto k : KeypointTypes)
-  {
-    if (this->UseKeypoints.at(k))
-      savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k, filtered),  pcdFormat, true);
-  }
+  for (auto k : this->UsableKeypoints)
+    savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k, filtered),  pcdFormat, true);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints maps saving to PCD"));
 }
@@ -596,7 +657,7 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
   if (resetMaps)
     this->ClearMaps();
 
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
   {
     std::string path = filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd";
     PointCloud::Ptr keypoints(new PointCloud);
@@ -660,7 +721,7 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation() const
     map[name] = this->EgoMotionMatchingResults.at(k).NbMatches();
   }
 
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
   {
     std::string name = "Localization: " + Utils::Plural(KeypointTypeNames.at(k)) + " used";
     map[name] = this->LocalizationMatchingResults.at(k).NbMatches();
@@ -680,7 +741,7 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
   auto toDoubleVector = [](auto const& scalars) { return std::vector<double>(scalars.begin(), scalars.end()); };
 
   std::unordered_map<std::string, std::vector<double>> map;
-  for (auto k : {EDGE, PLANE})
+  for (auto k : this->UsableKeypoints)
   {
     std::string name = "EgoMotion: " + KeypointTypeNames.at(k) + " matches";
     map[name]  = toDoubleVector(this->EgoMotionMatchingResults.at(k).Rejections);
@@ -688,7 +749,7 @@ std::unordered_map<std::string, std::vector<double>> Slam::GetDebugArray() const
     map[name]  = this->EgoMotionMatchingResults.at(k).Weights;
   }
 
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
   {
     std::string name = "Localization: " + KeypointTypeNames.at(k) + " matches";
     map[name]  = toDoubleVector(this->LocalizationMatchingResults.at(k).Rejections);
@@ -822,31 +883,21 @@ void Slam::ExtractKeypoints()
       }
     }
     KeypointExtractorPtr& ke = this->KeyPointsExtractors[lidarDevice];
-
+    ke->Enable(this->UsableKeypoints);
     // Extract keypoints from this frame
     ke->ComputeKeyPoints(frame);
-    for (auto k : KeypointTypes)
+    for (auto k : this->UsableKeypoints)
       keypoints[k].push_back(ke->GetKeypoints(k));
   }
 
   // Merge all keypoints extracted from different frames together
-  for (auto k : KeypointTypes)
-  {
-    if (this->UseKeypoints[k])
-      this->CurrentRawKeypoints[k] = this->AggregateFrames(keypoints[k], false);
-    else
-    {
-      this->CurrentRawKeypoints[k].reset(new PointCloud);
-      this->CurrentRawKeypoints[k]->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
-                                                                   this->BaseFrameId,
-                                                                   this->NbrFrameProcessed);
-    }
-  }
+  for (auto k : this->UsableKeypoints)
+    this->CurrentRawKeypoints[k] = this->AggregateFrames(keypoints[k], false);
 
   if (this->Verbosity >= 2)
   {
     std::cout << "Extracted features : ";
-    for (auto k : KeypointTypes)
+    for (auto k : this->UsableKeypoints)
       std::cout << this->CurrentRawKeypoints[k]->size() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
     std::cout << std::endl;
   }
@@ -897,11 +948,11 @@ void Slam::ComputeEgoMotion()
 
     // The iteration is not directly on Keypoint types
     // because of openMP behaviour which needs int iteration on MSVC
-    int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
+    int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
     #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
     for (int i = 0; i < nbKeypointTypes; ++i)
     {
-      Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
+      Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
       if (kdtreePrevious.count(k))
         kdtreePrevious[k].Reset(this->PreviousRawKeypoints[k]);
     }
@@ -1048,13 +1099,13 @@ void Slam::Localization()
 
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
+  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
   #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
     // If the map has been updated, the KD-tree needs to be updated
-    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
-    if (this->UseKeypoints[k] && !this->LocalMaps[k]->IsSubMapKdTreeValid())
+    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
+    if (!this->LocalMaps[k]->IsSubMapKdTreeValid())
     {
       // If maps are fixed, we can build a single KD-tree
       // of the entire map to avoid rebuilding it again
@@ -1088,9 +1139,11 @@ void Slam::Localization()
   if (this->Verbosity >= 2)
   {
     std::cout << "Keypoints extracted from map : ";
-    for (auto k : KeypointTypes)
+    for (auto k : this->UsableKeypoints)
+    {
       std::cout << this->LocalMaps[k]->GetSubMapKdTree().GetInputCloud()->size()
                 << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+    }
     std::cout << std::endl;
   }
 
@@ -1135,15 +1188,14 @@ void Slam::Localization()
     KeypointsMatcher matcher(matchingParams, this->Tworld);
 
     // Loop over keypoints to build the point to line residuals
-    for (auto k : KeypointTypes)
-      this->LocalizationMatchingResults[k] = matcher.BuildMatchResiduals(this->CurrentUndistortedKeypoints[k], this->LocalMaps[k]->GetSubMapKdTree(), k);
-
-    // Count matches and skip this frame
-    // if there is too few geometric keypoints matched
     this->TotalMatchedKeypoints = 0;
-    for (auto k : KeypointTypes)
+    for (auto k : this->UsableKeypoints)
+    {
+      this->LocalizationMatchingResults[k] = matcher.BuildMatchResiduals(this->CurrentUndistortedKeypoints[k], this->LocalMaps[k]->GetSubMapKdTree(), k);
       this->TotalMatchedKeypoints += this->LocalizationMatchingResults[k].NbMatches();
+    }
 
+    // Skip frame if not enough keypoints are extracted
     if (this->TotalMatchedKeypoints < this->MinNbMatchedKeypoints)
     {
       // Reset state to previous one to avoid instability
@@ -1169,7 +1221,7 @@ void Slam::Localization()
     optimizer.SetNbThreads(this->NbThreads);
 
     // Add LiDAR ICP matches
-    for (auto k : KeypointTypes)
+    for (auto k : this->UsableKeypoints)
       optimizer.AddResiduals(this->LocalizationMatchingResults[k].Residuals);
 
     // Add odometry constraint
@@ -1222,7 +1274,7 @@ void Slam::Localization()
   {
     SET_COUT_FIXED_PRECISION(3);
     std::cout << "Matched keypoints: " << this->TotalMatchedKeypoints << " (";
-    for (auto k : KeypointTypes)
+    for (auto k : this->UsableKeypoints)
       std::cout << this->LocalizationMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
 
     std::cout << ")"
@@ -1278,20 +1330,19 @@ void Slam::UpdateMapsUsingTworld()
   PRINT_VERBOSE(3, "Adding new keyframe #" << this->KfCounter);
 
   // Transform keypoints to WORLD coordinates
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
     this->CurrentWorldKeypoints[k] = this->GetKeypoints(k, true);
 
   // Add registered points to map
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(KeypointTypes.size());
+  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
   #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
-    Keypoint k = static_cast<Keypoint>(KeypointTypes[i]);
+    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
     // Add not fixed points
-    if (this->UseKeypoints[k])
-      this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k], false, this->CurrentTime);
+    this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k], false, this->CurrentTime);
   }
 }
 
@@ -1323,7 +1374,7 @@ void Slam::LogCurrentFrameState()
   state.Time = this->CurrentTime;
   state.Index = this->NbrFrameProcessed;
   state.IsKeyFrame = this->IsKeyFrame;
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
     state.Keypoints[k] = std::make_shared<PCStorage>(this->CurrentUndistortedKeypoints[k], this->LoggingStorage);
 
   this->LogStates.emplace_back(state);
@@ -1369,7 +1420,7 @@ void Slam::InitUndistortion()
   // Get 'time' field range
   double frameFirstTime = std::numeric_limits<double>::max();
   double frameLastTime  = std::numeric_limits<double>::lowest();
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
   {
     for (const auto& point : *this->CurrentUndistortedKeypoints[k])
     {
@@ -1418,7 +1469,7 @@ void Slam::RefineUndistortion()
                                       newBaseEnd   * previousBaseEnd.inverse());
 
   // Refine undistortion of keypoints clouds
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
   {
     int nbPoints = this->CurrentUndistortedKeypoints[k]->size();
     #pragma omp parallel for num_threads(this->NbThreads)
@@ -1453,9 +1504,9 @@ void Slam::EstimateOverlap()
 
   // Keep only the maps to use
   std::map<Keypoint, std::shared_ptr<RollingGrid>> mapsToUse;
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
   {
-    if (this->UseKeypoints[k] && this->LocalMaps[k]->IsSubMapKdTreeValid())
+    if (this->LocalMaps[k]->IsSubMapKdTreeValid())
       mapsToUse[k] = this->LocalMaps[k];
   }
 
@@ -2051,27 +2102,27 @@ void Slam::SetBaseToLidarOffset(const Eigen::Isometry3d& transform, uint8_t devi
 //-----------------------------------------------------------------------------
 void Slam::ClearMaps()
 {
-  for (auto k : KeypointTypes)
-    this->LocalMaps[k]->Reset();
+  for (auto kmap: this->LocalMaps)
+    kmap.second->Reset();
 }
 
 //-----------------------------------------------------------------------------
-double Slam::GetVoxelGridDecayingThreshold()
+double Slam::GetVoxelGridDecayingThreshold() const
 {
-    return this->LocalMaps.begin()->second->GetDecayingThreshold();
+  return this->LocalMaps.begin()->second->GetDecayingThreshold();
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetVoxelGridDecayingThreshold(double decay)
 {
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
     this->LocalMaps[k]->SetDecayingThreshold(decay);
 }
 
 //-----------------------------------------------------------------------------
-SamplingMode Slam::GetVoxelGridSamplingMode(Keypoint k)
+SamplingMode Slam::GetVoxelGridSamplingMode(Keypoint k) const
 {
-  return this->LocalMaps[k]->GetSampling();
+  return this->LocalMaps.at(k)->GetSampling();
 }
 
 //-----------------------------------------------------------------------------
@@ -2087,23 +2138,29 @@ void Slam::SetVoxelGridLeafSize(Keypoint k, double size)
 }
 
 //-----------------------------------------------------------------------------
+double Slam::GetVoxelGridLeafSize(Keypoint k) const
+{
+  return this->LocalMaps.at(k)->GetLeafSize();
+}
+
+//-----------------------------------------------------------------------------
 void Slam::SetVoxelGridSize(int size)
 {
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
     this->LocalMaps[k]->SetGridSize(size);
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetVoxelGridResolution(double resolution)
 {
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
     this->LocalMaps[k]->SetVoxelResolution(resolution);
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetVoxelGridMinFramesPerVoxel(unsigned int minFrames)
 {
-  for (auto k : KeypointTypes)
+  for (auto k : this->UsableKeypoints)
     this->LocalMaps[k]->SetMinFramesPerVoxel(minFrames);
 }
 
