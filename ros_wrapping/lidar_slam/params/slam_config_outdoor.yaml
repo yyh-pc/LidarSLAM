@@ -113,7 +113,6 @@ slam:
   # General parameters
   n_threads: 4      # Max number of threads to use for parallel processing (default: 1)
   2d_mode: false    # Optimize only 2D pose (X, Y, rZ) of tracking_frame relatively to odometry_frame.
-  use_blobs: false  # Use only edge and planar keypoints (do not use blob keypoints)
 
   # How to estimate Ego-Motion (approximate relative motion since last frame).
   # The ego-motion step aims to give a fast and approximate initialization of new
@@ -267,9 +266,10 @@ slam:
     # 2) Select the point with max intensity,
     # 3) Select the closest point to the voxel center,
     # 4) Compute the centroid of all points laying in the voxel.
-    sampling_mode_edges: 2
-    sampling_mode_planes: 2
-    sampling_mode_blobs: 2
+    sampling_mode:
+      edge: 2
+      plane: 2
+      blob: 2
     decaying_threshold: -1  # [s] Time duration after which to eliminate a not fixed keypoint from the map.
     min_frames_per_voxel: 0 # Minimum number of frames that must have reached a map voxel
                             # to consider the voxel contains a target keypoint.
@@ -280,6 +280,10 @@ slam:
   # Keypoint extractor for each LiDAR sensor
   ke:
     # Single LiDAR input
+    enable:
+      edge: true
+      plane: true
+      blob: false
     min_distance_to_sensor: 1.5        # [m] Minimal point to sensor distance to consider a point as valid.
     min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
@@ -295,6 +299,10 @@ slam:
     # device_ids: [0, 10]
     # # Keypoint extractors parameters for each LiDAR sensor "device_<device_id>"
     # device_0:
+    #   enable:
+    #     edge: true
+    #     plane: true
+    #     blob: false
     #   min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
@@ -304,6 +312,10 @@ slam:
     #   edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
     #   edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
     # device_10:
+    #   enable:
+    #     edge: true
+    #     plane: true
+    #     blob: false
     #   min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
