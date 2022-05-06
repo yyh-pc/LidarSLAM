@@ -285,6 +285,8 @@ slam:
       edge: true
       plane: true
       blob: false
+    max_points: 2000                   # Maximum number of keypoints of each type to extract
+    voxel_grid_resolution: 0.3         # [m/voxel] Size of a voxel to downsample the extracted keypoints
     min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
     min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
@@ -304,6 +306,8 @@ slam:
     #     edge: true
     #     plane: true
     #     blob: false
+    #   max_points: 2000                   # Maximum number of keypoints of each type to extract
+    #   voxel_grid_resolution: 0.3         # [m/voxel] Size of a voxel to downsample the extracted keypoints
     #   min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
@@ -317,6 +321,8 @@ slam:
     #     edge: true
     #     plane: true
     #     blob: false
+    #   max_points: 2000                   # Maximum number of keypoints of each type to extract
+    #   voxel_grid_resolution: 0.3         # [m/voxel] Size of a voxel to downsample the extracted keypoints
     #   min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
