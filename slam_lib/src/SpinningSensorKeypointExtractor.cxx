@@ -24,6 +24,8 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
+#include <pcl/common/common.h>
+
 namespace LidarSlam
 {
 
@@ -115,6 +117,21 @@ inline float LineFitting::SquaredDistanceToPoint(Eigen::Vector3f const& point) c
 } // end of anonymous namespace
 
 //-----------------------------------------------------------------------------
+float SpinningSensorKeypointExtractor::GetVoxelResolution() const
+{
+  if (this->Keypoints.empty())
+    return -1.;
+  return this->Keypoints.begin()->second.GetVoxelResolution();
+}
+
+//-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::SetVoxelResolution(float res)
+{
+  for (auto& kptsVG : this->Keypoints)
+    kptsVG.second.SetVoxelResolution(res);
+}
+
+//-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::Enable(const std::vector<Keypoint>& kptTypes)
 {
   for (auto& en : this->Enabled)
@@ -131,7 +148,10 @@ SpinningSensorKeypointExtractor::PointCloud::Ptr SpinningSensorKeypointExtractor
     PRINT_ERROR("Unable to get keypoints of type " << KeypointTypeNames.at(k));
     return PointCloud::Ptr();
   }
-  return this->Keypoints.at(k);
+
+  PointCloud::Ptr keypoints = this->Keypoints.at(k).GetCloud(this->MaxPoints);
+  Utils::CopyPointCloudMetadata(*this->Scan, *keypoints);
+  return keypoints;
 }
 
 
@@ -199,14 +219,6 @@ void SpinningSensorKeypointExtractor::ConvertAndSortScanLines()
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 {
-  // Do not use clear(), otherwise weird things could happen
-  // if outer program uses these pointers
-  for (auto k : KeypointTypes)
-  {
-    this->Keypoints[k].reset(new PointCloud);
-    Utils::CopyPointCloudMetadata(*this->Scan, *this->Keypoints[k]);
-  }
-
   // Initialize the features vectors with the correct length
   this->Angles.resize(this->NbLaserRings);
   this->Saliency.resize(this->NbLaserRings);
@@ -226,6 +238,17 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
     this->Saliency[scanLine].assign(nbPoint, 0.);
     this->DepthGap[scanLine].assign(nbPoint, 0.);
     this->IntensityGap[scanLine].assign(nbPoint, 0.);
+  }
+
+  // Reset voxel grids
+  LidarPoint minPt, maxPt;
+  pcl::getMinMax3D(*this->Scan, minPt, maxPt);
+  for (auto k : KeypointTypes)
+  {
+    if (this->Keypoints.count(k))
+      this->Keypoints[k].Clear();
+    if (this->Enabled[k])
+      this->Keypoints[k].Init(minPt.getVector3fMap(), maxPt.getVector3fMap());
   }
 }
 
@@ -506,11 +529,11 @@ void SpinningSensorKeypointExtractor::ComputePlanes()
     if (this->IsScanLineAlmostEmpty(Npts))
       continue;
 
-    std::vector<size_t> sortedAnglesIdx = Utils::SortIdx(this->Angles[scanLine], false);
+    // Indices in angles ascending order (lowest first)
+    std::vector<size_t> sortedAnglesIdx = Utils::SortIdx(this->Angles[scanLine]);
     // Planes (using angles)
-    for (int k = Npts - 1; k >= 0; --k)
+    for (size_t index : sortedAnglesIdx)
     {
-      size_t index = sortedAnglesIdx[k];
       const float sinAngle = this->Angles[scanLine][index];
 
       // thresh
@@ -523,8 +546,10 @@ void SpinningSensorKeypointExtractor::ComputePlanes()
 
       // else indicate that the point is a planar one
       this->Label[scanLine][index].set(Keypoint::PLANE);
+
+      #pragma omp critical
       // Extract plane keypoint
-      this->Keypoints[Keypoint::PLANE]->push_back(this->ScanLines[scanLine]->at(index));
+      this->Keypoints[Keypoint::PLANE].AddPoint(this->ScanLines[scanLine]->at(index), sinAngle / this->PlaneSinAngleThreshold);
     }
   }
 }
@@ -546,6 +571,7 @@ void SpinningSensorKeypointExtractor::ComputeEdges()
     if (this->IsScanLineAlmostEmpty(Npts))
       continue;
 
+    // Indices sorted in value descending order (greater first)
     std::vector<size_t> sortedAnglesIdx    = Utils::SortIdx(this->Angles      [scanLine], false);
     std::vector<size_t> sortedDepthGapIdx  = Utils::SortIdx(this->DepthGap    [scanLine], false);
     std::vector<size_t> sortedSaliencyIdx  = Utils::SortIdx(this->Saliency    [scanLine], false);
@@ -555,7 +581,7 @@ void SpinningSensorKeypointExtractor::ComputeEdges()
     auto addEdgesUsingCriterion = [this, scanLine, Npts](const std::vector<size_t>& sortedValuesIdx,
                                                          const std::vector<std::vector<float>>& values,
                                                          float threshold,
-                                                         int invalidNeighborhoodSize)
+                                                         double weightBasis)
     {
       for (const auto& index: sortedValuesIdx)
       {
@@ -570,16 +596,17 @@ void SpinningSensorKeypointExtractor::ComputeEdges()
 
         // Else indicate that the point is an edge
         this->Label[scanLine][index].set(Keypoint::EDGE);
-        this->Keypoints[Keypoint::EDGE]->push_back(this->ScanLines[scanLine]->at(index));
+        #pragma omp critical
+        this->Keypoints[Keypoint::EDGE].AddPoint(this->ScanLines[scanLine]->at(index), weightBasis + values[scanLine][index] / threshold);
       }
     };
 
     // Edges using depth gap
-    addEdgesUsingCriterion(sortedDepthGapIdx, this->DepthGap, sqEdgeDepthGapThreshold, this->NeighborWidth - 1);
+    addEdgesUsingCriterion(sortedDepthGapIdx, this->DepthGap, sqEdgeDepthGapThreshold, 4);
     // Edges using angles
-    addEdgesUsingCriterion(sortedAnglesIdx, this->Angles, this->EdgeSinAngleThreshold, this->NeighborWidth);
+    addEdgesUsingCriterion(sortedAnglesIdx, this->Angles, this->EdgeSinAngleThreshold, 3);
     // Edges using saliency
-    addEdgesUsingCriterion(sortedSaliencyIdx, this->Saliency, sqEdgeSaliencythreshold, this->NeighborWidth - 1);
+    addEdgesUsingCriterion(sortedSaliencyIdx, this->Saliency, sqEdgeSaliencythreshold, 2);
     // Edges using intensity
     addEdgesUsingCriterion(sortedIntensityGap, this->IntensityGap, this->EdgeIntensityGapThreshold, 1);
   }
@@ -593,7 +620,7 @@ void SpinningSensorKeypointExtractor::ComputeBlobs()
     for (unsigned int index = 0; index < this->ScanLines[scanLine]->size(); ++index)
     {
       if (this->IsPointValid[scanLine][index])
-        this->Keypoints[Keypoint::BLOB]->push_back(this->ScanLines[scanLine]->at(index));
+        this->Keypoints[Keypoint::BLOB].AddPoint(this->ScanLines[scanLine]->at(index));
     }
   }
 }

@@ -22,6 +22,7 @@
 
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/Enums.h"
+#include "LidarSlam/VoxelGrid.h"
 
 #include <pcl/point_cloud.h>
 
@@ -43,6 +44,9 @@ public:
 
   GetMacro(NbThreads, int)
   SetMacro(NbThreads, int)
+
+  GetMacro(MaxPoints, int)
+  SetMacro(MaxPoints, int)
 
   GetMacro(NeighborWidth, int)
   SetMacro(NeighborWidth, int)
@@ -70,6 +74,9 @@ public:
 
   GetMacro(AzimuthalResolution, float)
   SetMacro(AzimuthalResolution, float)
+
+  float GetVoxelResolution() const;
+  void SetVoxelResolution(float res);
 
   GetMacro(NbLaserRings, int)
 
@@ -133,6 +140,9 @@ private:
   // Max number of threads to use to process points in parallel
   int NbThreads = 1;
 
+  // Maximum number of keypoints to extract
+  int MaxPoints = INT_MAX;
+
   // Width of the neighborhood used to compute discrete differential operators
   int NeighborWidth = 4;
 
@@ -190,7 +200,7 @@ private:
   std::vector<std::vector<KeypointFlags>> Label;
 
   // Extracted keypoints of current frame
-  std::map<Keypoint, PointCloud::Ptr> Keypoints;
+  std::map<Keypoint, VoxelGrid> Keypoints;
 
   // Current point cloud stored in two differents formats
   PointCloud::Ptr Scan;
