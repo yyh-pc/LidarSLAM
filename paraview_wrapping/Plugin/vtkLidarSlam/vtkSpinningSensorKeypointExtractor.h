@@ -50,6 +50,10 @@ public:
   vtkTypeMacro(vtkSpinningSensorKeypointExtractor, vtkObject)
   void PrintSelf(ostream& os, vtkIndent indent) override;
 
+  vtkCustomSetMacro(MaxPoints, int)
+
+  vtkCustomSetMacro(VoxelResolution, float)
+
   vtkCustomSetMacro(NeighborWidth, int)
 
   vtkCustomSetMacro(MinDistanceToSensor, float)

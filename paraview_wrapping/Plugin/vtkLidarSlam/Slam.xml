@@ -323,13 +323,33 @@
         </Documentation>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Use edges"
+                         command="EnableEdges"
+                         number_of_elements="1"
+                         default_values="1" >
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, edge keypoints are used in optimization.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Use planes"
+                         command="EnablePlanes"
+                         number_of_elements="1"
+                         default_values="1" >
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, plane keypoints are used in optimization.
+        </Documentation>
+      </IntVectorProperty>
+
       <IntVectorProperty name="Use blobs"
-                         command="SetUseBlobs"
+                         command="EnableBlobs"
                          number_of_elements="1"
                          default_values="0" >
         <BooleanDomain name="bool" />
         <Documentation>
-          If enabled, blob keypoints are used in localization step.
+          If enabled, blob keypoints are used in optimization.
         </Documentation>
       </IntVectorProperty>
 
@@ -429,6 +449,8 @@
 
       <PropertyGroup label="General Parameters">
         <Property name="2d mode" />
+        <Property name="Use edges" />
+        <Property name="Use planes" />
         <Property name="Use blobs" />
         <Property name="Verbosity level" />
         <Property name="Ego-Motion mode" />
@@ -624,6 +646,9 @@
           At least 3 points are needed to build a valid plane model.
           If below, plane models won't be usable and will be ignored.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Planarity threshold EM"
@@ -640,6 +665,9 @@
 
           The thickness of the plane can be checked with the max model error.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Plane max model error EM"
@@ -651,6 +679,9 @@
           Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
           keep only accurate models
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Init saturation distance EM"
@@ -758,6 +789,9 @@
           At least 2 points are needed to build a valid line model.
           If below, line models won't be usable and will be ignored.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <IntVectorProperty name="Edge nb min filtered neighbors"
@@ -772,6 +806,9 @@
           At least 2 points are needed to build a valid line model.
           If below, line models won't be usable and will be ignored.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Edge max model error"
@@ -783,6 +820,9 @@
           Max RMSE (in meters) allowed between neighborhood and its fitted line model to
           keep only accurate models
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Plane nb of neighbors"
@@ -797,6 +837,9 @@
           At least 3 points are needed to build a valid plane model.
           If below, plane models won't be usable and will be ignored.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Planarity threshold"
@@ -813,6 +856,9 @@
 
           The thickness of the plane can be checked with the max model error.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Plane max model error"
@@ -824,6 +870,9 @@
           Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
           keep only accurate models
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Blob nb of neighbors"
@@ -973,6 +1022,9 @@
 
           If CENTROID, the centroid of all points having landed to the voxel is computed.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <IntVectorProperty name="Planes map sampling mode"
@@ -999,6 +1051,9 @@
 
           If CENTROID, the centroid of all points having landed to the voxel is computed.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <IntVectorProperty name="Blobs map sampling mode"
@@ -1042,6 +1097,9 @@
           be too low or the geometric information will be too local and
           computation time may increase.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Planes map resolution"
@@ -1056,6 +1114,9 @@
           be too low or the geometric information will be too local and
           computation time may increase.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Blobs map resolution"
@@ -1419,6 +1480,9 @@
           If the angle is close enough to 0° or 180° (sin(Angle) low enough), we consider
           the point as a planar keypoint.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Edge min sinus angle"
@@ -1432,6 +1496,9 @@
           If the angle is close enough to 90° (sin(Angle) high enough), we consider
           the point as an edge keypoint.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Edge min saliency distance"
@@ -1444,6 +1511,9 @@
           the depth gap between the point and its far background neighborhood.
           If the gap is big enough, we consider the point as an edge keypoint.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Edge min intensity gap"
@@ -1456,6 +1526,9 @@
           the intensity gap between the point and its left and right neighbors.
           If the gap is big enough, we consider the point as an edge keypoint.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Edge min depth gap"
@@ -1470,6 +1543,33 @@
           gap is big enough on at least one side, we consider the point as an
           edge keypoint.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty name="Maximum keypoints number"
+                         command="SetMaxPoints"
+                         number_of_elements="1"
+                         default_values="1000"
+                         panel_visibility="advanced">
+        <Documentation>
+          Maximum number of keypoints of each type to extract. A voxel grid is used to downsample the keypoints cloud.
+          Points in voxels are sorted following their certainty value. The most certain points are extracted in each voxel
+          until reaching this threshold number.
+        </Documentation>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Voxel grid resolution"
+                            command="SetVoxelResolution"
+                            number_of_elements="1"
+                            default_values="0.5"
+                            panel_visibility="advanced">
+        <Documentation>
+          Resolution of the voxel grid used to downsample the keypoints cloud.
+          Points in voxels are sorted following their certainty value.
+          The most certain points are extracted in each voxel until reaching the "maximum keypoints" number threshold.
+        </Documentation>
       </DoubleVectorProperty>
 
       <PropertyGroup label="Spinning Sensor Keypoints Extractor parameters">
@@ -1481,6 +1581,8 @@
         <Property name="Edge min saliency distance" />
         <Property name="Edge min intensity gap" />
         <Property name="Edge min depth gap" />
+        <Property name="Maximum keypoints number" />
+        <Property name="Voxel grid resolution" />
       </PropertyGroup>
 
     </Proxy>

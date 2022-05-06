@@ -268,9 +268,10 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
 
   // Cache maps to update them only every MapsUpdateStep frames
-  static vtkPolyData* cacheEdgeMap = vtkPolyData::New();
-  static vtkPolyData* cachePlanarMap = vtkPolyData::New();
-  static vtkPolyData* cacheBlobMap = vtkPolyData::New();
+  std::map<LidarSlam::Keypoint, vtkSmartPointer<vtkPolyData>> cacheMaps;
+  for (auto k : LidarSlam::KeypointTypes)
+    cacheMaps[k] = vtkSmartPointer<vtkPolyData>::New();
+
   // Update the output maps if required or if the mode was changed
   bool updateMaps = this->OutputKeypointsMaps != this->PreviousMapOutputMode ||
                     (this->SlamAlgo->GetNbrFrameProcessed() - 1) % this->MapsUpdateStep == 0;
@@ -279,31 +280,39 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // If the maps is fixed by the user, the whole map and the submap are equal but the submap is outputed (faster)
   if (updateMaps && (this->OutputKeypointsMaps == OutputKeypointsMapsMode::FULL_MAPS && this->SlamAlgo->GetMapUpdate() != LidarSlam::MappingMode::NONE))
   {
-    this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::EDGE), cacheEdgeMap);
-    this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::PLANE), cachePlanarMap);
-    this->PointCloudToPolyData(this->SlamAlgo->GetMap(LidarSlam::BLOB), cacheBlobMap);
+    for (auto k : LidarSlam::KeypointTypes)
+    {
+      if (this->SlamAlgo->KeypointTypeEnabled(k))
+        this->PointCloudToPolyData(this->SlamAlgo->GetMap(k), cacheMaps[k]);
+      else
+        this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[k]);
+    }
     this->PreviousMapOutputMode = this->OutputKeypointsMaps;
   }
   else if (updateMaps && (this->OutputKeypointsMaps == OutputKeypointsMapsMode::SUB_MAPS || this->SlamAlgo->GetMapUpdate() == LidarSlam::MappingMode::NONE))
   {
-    this->PointCloudToPolyData(this->SlamAlgo->GetTargetSubMap(LidarSlam::EDGE), cacheEdgeMap);
-    this->PointCloudToPolyData(this->SlamAlgo->GetTargetSubMap(LidarSlam::PLANE), cachePlanarMap);
-    this->PointCloudToPolyData(this->SlamAlgo->GetTargetSubMap(LidarSlam::BLOB), cacheBlobMap);
+    for (auto k : LidarSlam::KeypointTypes)
+    {
+      if (this->SlamAlgo->KeypointTypeEnabled(k))
+        this->PointCloudToPolyData(this->SlamAlgo->GetTargetSubMap(k), cacheMaps[k]);
+      else
+        this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[k]);
+    }
     this->PreviousMapOutputMode = this->OutputKeypointsMaps;
   }
   // If the output is disabled, reset it.
   else if (this->OutputKeypointsMaps != this->PreviousMapOutputMode && this->OutputKeypointsMaps == OutputKeypointsMapsMode::NONE)
   {
-    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheEdgeMap);
-    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cachePlanarMap);
-    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheBlobMap);
+    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[LidarSlam::EDGE]);
+    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[LidarSlam::PLANE]);
+    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[LidarSlam::BLOB]);
     this->PreviousMapOutputMode = this->OutputKeypointsMaps;
   }
 
   // Fill outputs from cache
-  edgeMap->ShallowCopy(cacheEdgeMap);
-  planarMap->ShallowCopy(cachePlanarMap);
-  blobMap->ShallowCopy(cacheBlobMap);
+  edgeMap->ShallowCopy(cacheMaps[LidarSlam::EDGE]);
+  planarMap->ShallowCopy(cacheMaps[LidarSlam::PLANE]);
+  blobMap->ShallowCopy(cacheMaps[LidarSlam::BLOB]);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : output keypoints maps"));
 
@@ -311,15 +320,14 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   if (this->OutputCurrentKeypoints)
   {
     IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : output current keypoints"));
-    // Output : Current edge keypoints
-    auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
-    this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(LidarSlam::EDGE, this->OutputKeypointsInWorldCoordinates), edgePoints);
-    // Output : Current planar keypoints
-    auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
-    this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(LidarSlam::PLANE, this->OutputKeypointsInWorldCoordinates), planarPoints);
-    // Output : Current blob keypoints
-    auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
-    this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(LidarSlam::BLOB, this->OutputKeypointsInWorldCoordinates), blobPoints);
+    for (auto k : LidarSlam::KeypointTypes)
+    {
+      auto* keyoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT + static_cast<int>(k));
+      if (this->SlamAlgo->KeypointTypeEnabled(k))
+        this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(k, this->OutputKeypointsInWorldCoordinates), keyoints);
+      else
+        this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), keyoints);
+    }
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : output current keypoints"));
   }
 
@@ -370,20 +378,31 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     // Arrays added to keypoints extracted from current frame outputs
     if (this->OutputCurrentKeypoints)
     {
-      auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
-      auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
-      auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
       std::unordered_map<std::string, vtkPolyData*> outputMap;
-      outputMap["EgoMotion: edge matches"]     = edgePoints;
-      outputMap["EgoMotion: edge weights"]     = edgePoints;
-      outputMap["EgoMotion: plane matches"]    = planarPoints;
-      outputMap["EgoMotion: plane weights"]    = planarPoints;
-      outputMap["Localization: edge matches"]  = edgePoints;
-      outputMap["Localization: edge weights"]  = edgePoints;
-      outputMap["Localization: plane matches"] = planarPoints;
-      outputMap["Localization: plane weights"] = planarPoints;
-      outputMap["Localization: blob matches"]  = blobPoints;
-      outputMap["Localization: blob weights"]  = blobPoints;
+      if (this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::EDGE))
+      {
+        auto* edgePoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT);
+        outputMap["EgoMotion: edge matches"]     = edgePoints;
+        outputMap["EgoMotion: edge weights"]     = edgePoints;
+        outputMap["Localization: edge matches"]  = edgePoints;
+        outputMap["Localization: edge weights"]  = edgePoints;
+      }
+      if (this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::PLANE))
+      {
+        auto* planarPoints = vtkPolyData::GetData(outputVector, PLANE_KEYPOINTS_OUTPUT_PORT);
+        outputMap["EgoMotion: plane matches"]    = planarPoints;
+        outputMap["EgoMotion: plane weights"]    = planarPoints;
+        outputMap["Localization: plane matches"] = planarPoints;
+        outputMap["Localization: plane weights"] = planarPoints;
+
+      }
+      if (this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::BLOB))
+      {
+        auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
+        outputMap["Localization: blob matches"]  = blobPoints;
+        outputMap["Localization: blob weights"]  = blobPoints;
+      }
+
       auto debugArray = this->SlamAlgo->GetDebugArray();
       for (const auto& it : outputMap)
       {
@@ -470,10 +489,15 @@ void vtkSlam::PrintSelf(ostream& os, vtkIndent indent)
   vtkIndent paramIndent = indent.GetNextIndent();
   #define PrintParameter(param) os << paramIndent << #param << "\t" << this->SlamAlgo->Get##param() << std::endl;
 
-  PrintParameter(UseBlobs)
   PrintParameter(Undistortion)
   PrintParameter(NbThreads)
   PrintParameter(Verbosity)
+
+  for (auto& k : LidarSlam::KeypointTypes)
+  {
+    if (this->SlamAlgo->KeypointTypeEnabled(k))
+      os << LidarSlam::KeypointTypeNames.at(k) << " enabled" << std::endl;
+  }
 
   PrintParameter(EgoMotionICPMaxIter)
   PrintParameter(EgoMotionLMMaxIter)
@@ -746,6 +770,79 @@ void vtkSlam::PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr pc, vtkPolyD
 //   Getters / setters
 // =============================================================================
 
+bool vtkSlam::areEdgesEnabled()
+{
+  bool enabled = this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::EDGE);
+  if (enabled)
+    vtkDebugMacro("Edges are enabled");
+  else
+    vtkDebugMacro("Edges are disabled");
+  return enabled;
+}
+
+bool vtkSlam::arePlanesEnabled()
+{
+  bool enabled = this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::PLANE);
+  if (enabled)
+    vtkDebugMacro("Planes are enabled");
+  else
+    vtkDebugMacro("Planes are disabled");
+  return enabled;
+}
+
+bool vtkSlam::areBlobsEnabled()
+{
+  bool enabled = this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::BLOB);
+  if (enabled)
+    vtkDebugMacro("Blobs are enabled");
+  else
+    vtkDebugMacro("Blobs are disabled");
+  return enabled;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::EnableEdges(bool enabled)
+{
+  if (enabled)
+    vtkDebugMacro("Enabling edges");
+  else
+  {
+    vtkDebugMacro("Disabling edges");
+    if (!this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::PLANE) &&
+        !this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::BLOB))
+      vtkWarningMacro("No keypoint selected !");
+  }
+  this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::EDGE, enabled);
+}
+
+void vtkSlam::EnablePlanes(bool enabled)
+{
+  if (enabled)
+    vtkDebugMacro("Enabling planes");
+  else
+  {
+    vtkDebugMacro("Disabling planes");
+    if (!this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::EDGE) &&
+        !this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::BLOB))
+      vtkWarningMacro("No keypoint selected !");
+  }
+  this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::PLANE, enabled);
+}
+
+void vtkSlam::EnableBlobs(bool enabled)
+{
+  if (enabled)
+    vtkDebugMacro("Enabling blobs");
+  else
+  {
+    vtkDebugMacro("Disabling blobs");
+    if (!this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::EDGE) &&
+        !this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::PLANE))
+      vtkWarningMacro("No keypoint selected !");
+  }
+  this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::BLOB, enabled);
+}
+
 //-----------------------------------------------------------------------------
 void vtkSlam::SetAdvancedReturnMode(bool _arg)
 {
@@ -926,14 +1023,41 @@ void vtkSlam::SetMapUpdate(unsigned int mode)
 //-----------------------------------------------------------------------------
 void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
 {
+  // The setting of this parameter is only possible if the relative map exists
+  // the enabling step will create the map on which the sampling mode parameter can be set
+  // The user can call this setter function only if the keypoint type has been enabled (see xml)
+  // So, this function must not be called before clicking on enabled
+  // However, clicking on Apply call all the setters with default values.
+  // Therefore, the on/off state is checked but no warning can be raised
+  if (!this->SlamAlgo->KeypointTypeEnabled(k))
+    return;
+
   vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting VoxelGridLeafSize to " << s);
   this->SlamAlgo->SetVoxelGridLeafSize(k, s);
   this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
-int vtkSlam::GetVoxelGridSamplingMode(LidarSlam::Keypoint k)
+double vtkSlam::GetVoxelGridLeafSize(LidarSlam::Keypoint k) const
 {
+  if (!this->SlamAlgo->KeypointTypeEnabled(k))
+  {
+    vtkErrorMacro("Cannot get leaf size, " << LidarSlam::KeypointTypeNames.at(k) << " keypoints are not enabled.");
+    return -1.;
+  }
+  double leafSize = this->SlamAlgo->GetVoxelGridLeafSize(k);
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning sampling mode : " << leafSize);
+  return leafSize;
+}
+
+//-----------------------------------------------------------------------------
+int vtkSlam::GetVoxelGridSamplingMode(LidarSlam::Keypoint k) const
+{
+  if (!this->SlamAlgo->KeypointTypeEnabled(k))
+  {
+    vtkErrorMacro("Cannot get sampling mode, " << LidarSlam::KeypointTypeNames.at(k) << " keypoints are not enabled.");
+    return -1;
+  }
   LidarSlam::SamplingMode sampling = this->SlamAlgo->GetVoxelGridSamplingMode(k);
   int sm = static_cast<int>(sampling);
   vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning sampling mode : " << sm);
@@ -943,6 +1067,15 @@ int vtkSlam::GetVoxelGridSamplingMode(LidarSlam::Keypoint k)
 //-----------------------------------------------------------------------------
 void vtkSlam::SetVoxelGridSamplingMode(LidarSlam::Keypoint k, int mode)
 {
+  // The setting of this parameter is only possible if the relative map exists
+  // the enabling step will create the map on which the sampling mode parameter can be set
+  // The user can call this setter function only if the keypoint type has been enabled (see xml)
+  // So, this function must not be called before clicking on enabled
+  // However, clicking on Apply call all the setters with default values.
+  // Therefore, the on/off state is checked but no warning can be raised
+  if (!this->SlamAlgo->KeypointTypeEnabled(k))
+    return;
+
   LidarSlam::SamplingMode sampling = static_cast<LidarSlam::SamplingMode>(mode);
   if (sampling != LidarSlam::SamplingMode::FIRST         &&
       sampling != LidarSlam::SamplingMode::LAST          &&
