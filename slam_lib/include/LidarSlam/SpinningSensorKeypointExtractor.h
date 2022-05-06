@@ -186,7 +186,7 @@ private:
   std::vector<std::vector<float>> DepthGap;
   std::vector<std::vector<float>> Saliency;
   std::vector<std::vector<float>> IntensityGap;
-  std::vector<std::vector<KeypointFlags>> IsPointValid;
+  std::vector<std::vector<bool>> IsPointValid;
   std::vector<std::vector<KeypointFlags>> Label;
 
   // Extracted keypoints of current frame
