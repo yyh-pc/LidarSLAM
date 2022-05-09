@@ -179,11 +179,23 @@ linux_ros_wrapping_build:
       2>&1
       | grep "comparison ignored"
 
+# HACK
+hack:
+  stage: ros_wrapping_build
+  needs: []
+  tags: [brave]
+  variables:
+    GIT_STRATEGY: none
+  except:
+    - master
+  script:
+    - sudo cp /var/lib/docker/volumes/runner-rtopvnvw-project-4640-concurrent-0-cache-3c3f060a0374fc8bc39395164f415a70/_data/keu-computervision/slam/log-protected/cache.zip /var/lib/docker/volumes/runner-rtopvnvw-project-4640-concurrent-0-cache-3c3f060a0374fc8bc39395164f415a70/_data/keu-computervision/slam/log-non_protected/cache.zip
+
 # Perform test
 .ros_test:
   stage: ros_test
   tags: [linux, ros]
-  needs: [linux_ros_wrapping_build]
+  needs: [linux_ros_wrapping_build, hack]
   variables:
     GIT_STRATEGY: none
   cache:
