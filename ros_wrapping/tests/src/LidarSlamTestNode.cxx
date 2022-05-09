@@ -295,7 +295,15 @@ void LidarSlamTestNode::PoseCallback(const nav_msgs::Odometry& poseMsg)
 
   // Compare the pose with reference trajectory
   Eigen::Isometry3d refTransform = Utils::XYZRPYtoIsometry(this->RefPoses[this->PoseCounter].data);
-  Eigen::Isometry3d diffTransform = refTransform.inverse() * transform;
+  Eigen::Isometry3d refPrevTransform;
+  if (this->PoseCounter >= 1)
+     refPrevTransform = Utils::XYZRPYtoIsometry(this->RefPoses[this->PoseCounter - 1].data);
+  else
+  {
+    this->PrevTransform = transform;
+    refPrevTransform = refTransform;
+  }
+  Eigen::Isometry3d diffTransform = (refPrevTransform.inverse() * refTransform).inverse() * (this->PrevTransform.inverse() * transform);
   Eigen::Vector6d diffPose = Utils::IsometryToXYZRPY(diffTransform);
   // Compute angle difference
   float currentDiffAngle = diffPose.tail(3).norm();
@@ -316,7 +324,13 @@ void LidarSlamTestNode::PoseCallback(const nav_msgs::Odometry& poseMsg)
                     << "\t" << this->DiffAngle << " degrees\n"
                     << "\t" << this->DiffPosition << " m");
 
+  diffTransform = refTransform.inverse() * transform;
+  diffPose = Utils::IsometryToXYZRPY(diffTransform);
+  this->LastPositionDiff = diffPose.head(3).norm();
+  this->LastAngleDiff = diffPose.tail(3).norm();
+
   ++this->PoseCounter;
+  this->PrevTransform = transform;
 
   // At the end of the test data, notify the user about the success or the failure of the test
   // The last frame cannot be dropped so the node should be ended in any case.
@@ -422,6 +436,7 @@ void LidarSlamTestNode::OutputTestResult()
   ROS_INFO_STREAM("Number of matches difference : " << this->DiffNbMatches     << " matches");
   ROS_INFO_STREAM("Computation time difference : "  << this->DiffTime          << " s");
   ROS_INFO_STREAM("Trajectory difference : "        << this->DiffAngle         << " degrees and " << this->DiffPosition << " m");
+  ROS_INFO_STREAM ("Final drift from reference : "  << this->LastAngleDiff     << " degrees and " << this->LastPositionDiff << " m");
 
   // Comparison has stopped : Shut the node down
   ros::shutdown();
