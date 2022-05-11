@@ -187,7 +187,7 @@ if (WITH_CERES)
             DEPENDS Eigen3_ext glog_ext
 
             GIT_REPOSITORY https://github.com/ceres-solver/ceres-solver
-            GIT_TAG 2.1.0
+            GIT_TAG 2.0.0
             GIT_SHALLOW 1
 
             CMAKE_ARGS
