@@ -1,0 +1,44 @@
+set(SUPERBUILD_INSTALL_DIR @CMAKE_INSTALL_PREFIX@)
+get_filename_component(SUPERBUILD_INSTALL_DIR ${SUPERBUILD_INSTALL_DIR} ABSOLUTE)
+
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG True)
+
+option(WITH_EIGEN "Whether to install Eigen3" @WITH_EIGEN@)
+option(WITH_PCL "Whether to install PCL" @WITH_PCL@)
+option(WITH_CERES "Whether to install Ceres" @WITH_CERES@)
+option(WITH_NANOFLANN "Whether to install nanoflann" @WITH_NANOFLANN@)
+option(WITH_G2O "Whether to install g2o" @WITH_G2O@)
+
+set(LOG_PREFIX " [Superbuild] -- ")
+
+# EIGEN
+if (WITH_EIGEN AND NOT Eigen3_DIR)
+   set(Eigen3_DIR ${SUPERBUILD_INSTALL_DIR}/share/eigen3/cmake CACHE STRING "Description")
+   message(INFO "${LOG_PREFIX} Force Eigen3_DIR to: ${Eigen3_DIR}")
+endif()
+
+# PCL
+if (WITH_PCL AND NOT PCL_DIR)
+   set(PCL_DIR ${SUPERBUILD_INSTALL_DIR}/share/pcl-1.10/)
+   message(INFO "${LOG_PREFIX} Force PCL_DIR to: ${PCL_DIR}")
+endif()
+
+# CERES
+if (WITH_CERES AND NOT Ceres_DIR)
+   set(glog_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/glog)
+   message(INFO "${LOG_PREFIX} Force glog_DIR to: ${glog_DIR}")
+   set(Ceres_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/Ceres)
+   message(INFO "${LOG_PREFIX} Force Ceres_DIR to: ${Ceres_DIR}")
+endif()
+
+# NANOFLANN
+if (WITH_NANOFLANN AND NOT nanoflann_DIR)
+   set(nanoflann_DIR ${SUPERBUILD_INSTALL_DIR}/share/nanoflann/cmake)
+   message(INFO "${LOG_PREFIX} Force nanoflann_DIR to: ${nanoflann_DIR}")
+endif()
+
+# G2O
+if (WITH_G2O AND NOT G2O_DIR)
+   set(G2O_DIR ${SUPERBUILD_INSTALL_DIR}/share/g2o/cmake)
+   message(INFO "${LOG_PREFIX} Force G2O_DIR to: ${G2O_DIR}")
+endif()
