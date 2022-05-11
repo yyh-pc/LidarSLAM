@@ -2,6 +2,7 @@ variables:
   data_folder: /usr/src/app/data
 
 stages:
+  - superbuild
   - slam_lib
   - ros_wrapping_build
   - ros_test
@@ -66,6 +67,46 @@ default:
     cmake_option_GENERATOR: -GNinja
 
 # ------------------------------------------------------------------------------
+#   Build superbuild
+# ------------------------------------------------------------------------------
+
+# Clean superbuild
+clean_superbuild:
+  tags: [linux, nodocker]
+  stage: superbuild
+  needs: []
+  variables:
+    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_SB
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: manual
+  script:
+    - cmake -E remove_directory $build_dir
+    - cmake -E make_directory $build_dir
+
+# Build superbuild
+build_superbuild:
+  tags: [linux, nodocker]
+  stage: superbuild
+  needs: []
+  variables:
+    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_SB
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: manual
+  script:
+    - cd $build_dir
+    - cmake
+      -DCMAKE_BUILD_TYPE=Release
+      -DWITH_G2O=ON
+      $CI_PROJECT_DIR/Superbuild
+    - cmake --build $build_dir -j 4
+
+# ------------------------------------------------------------------------------
 #   Build core LidarSlam lib
 # ------------------------------------------------------------------------------
 
@@ -74,6 +115,11 @@ default:
   needs: []
   variables:
     build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_slam_lib
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: always
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: always
   script:
     - cmake -E remove_directory $build_dir
     - cmake -E make_directory $build_dir
@@ -91,17 +137,36 @@ default:
       $CI_PROJECT_DIR
     - cmake --build $build_dir -j 4
 
-# Build core LidarSlam lib on Linux
-linux_slam_lib:
-  tags: [linux]
-  extends: .slam_lib
-
 # Build core LidarSlam lib on Windows
 windows_slam_lib:
   tags: [windows]
   extends:
   - .windows_runner_config
   - .slam_lib
+
+# Build core LidarSlam lib on Linux
+linux_slam_lib:
+  tags: [linux, nodocker]
+  stage: slam_lib
+  needs: []
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: always
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: always
+  variables:
+    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_slam_lib
+  script:
+    - cmake -E remove_directory $build_dir
+    - cmake -E make_directory $build_dir
+    - cd $build_dir
+    - cmake
+      $cmake_option_GENERATOR
+      -DCMAKE_BUILD_TYPE=Release
+      -DBUILD_SHARED_LIBS=OFF
+      -DSUPERBUILD_INSTALL_DIR=$CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_SB/install
+      $CI_PROJECT_DIR
+    - cmake --build $build_dir -j 4
 
 # ------------------------------------------------------------------------------
 #   Build ROS wrapping
@@ -115,6 +180,11 @@ windows_slam_lib:
       paths:
         - catkin_ws/
       policy: push
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: always
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: always
   script:
     # Create a hidden catkin workspace folder beside sources
     # This is used to move all files from the current directory
@@ -186,8 +256,9 @@ hack:
   tags: [brave]
   variables:
     GIT_STRATEGY: none
-  except:
-    - master
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: always
   script:
     - sudo cp /var/lib/docker/volumes/runner-rtopvnvw-project-4640-concurrent-0-cache-3c3f060a0374fc8bc39395164f415a70/_data/keu-computervision/slam/log-protected/cache.zip /var/lib/docker/volumes/runner-rtopvnvw-project-4640-concurrent-0-cache-3c3f060a0374fc8bc39395164f415a70/_data/keu-computervision/slam/log-non_protected/cache.zip
 
@@ -207,8 +278,9 @@ hack:
       paths:
         - log/
       policy: pull
-  except:
-    - master
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: always
   script:
     - echo $test_name
     - cmake -E remove_directory log/$test_name/result
@@ -271,6 +343,11 @@ ros_test2:
   needs: []
   variables:
     build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_paraview_wrapping
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: always
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: always
   script:
     - cmake -E remove_directory $build_dir
     - cmake -E make_directory $build_dir
