@@ -8,6 +8,11 @@ project(LidarSlam
 #  CMake parameters
 #-------------------------
 
+# Use a superbuild if specified
+if(SUPERBUILD_INSTALL_DIR)
+  include(${SUPERBUILD_INSTALL_DIR}/superbuild_import.cmake)
+endif()
+
 set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard")
 message(STATUS "Building LidarSlam with C++${CMAKE_CXX_STANDARD} standard")
 
@@ -67,7 +72,7 @@ endif()
 
 find_package(Ceres REQUIRED)
 
-find_package(PCL REQUIRED COMPONENTS common kdtree registration io)
+find_package(PCL REQUIRED COMPONENTS common registration io)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 #We do not want VTK for now, FIX WIN32 command too long issue

@@ -97,6 +97,10 @@ private:
   // Main boolean to define the success or the failure of the test
   bool Failure = false;
 
+  Eigen::Isometry3d PrevTransform = Eigen::Isometry3d::Identity();
+  float LastAngleDiff = 0.f;
+  float LastPositionDiff = 0.f;
+
   // Path to the folder where to store the results (folder must exist)
   std::string ResPath;
 
