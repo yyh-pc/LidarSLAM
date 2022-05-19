@@ -221,6 +221,9 @@ public:
   SetMacro(LoggingStorage, PointCloudStorageType)
   GetMacro(LoggingStorage, PointCloudStorageType)
 
+  SetMacro(LogOnlyKeyframes, bool)
+  GetMacro(LogOnlyKeyframes, bool)
+
   LidarState& GetLastState();
   GetMacro(LogStates, std::list<LidarState>)
 
@@ -511,6 +514,8 @@ private:
   // This reduces about 5 times the memory consumption, but slows down logging (and PGO).
   PointCloudStorageType LoggingStorage = PointCloudStorageType::PCL_CLOUD;
 
+  bool LogOnlyKeyframes = true;
+
   // Number of frames that have been processed by SLAM (number of poses in trajectory)
   unsigned int NbrFrameProcessed = 0;
 
@@ -594,6 +599,9 @@ private:
   PointCloud::Ptr RegisteredFrame;
 
   // Raw extracted keypoints, in BASE coordinates (no undistortion)
+  // /!\ Warning these pointclouds may be modified by CurrentUndistortedKeypoints
+  // As we do not perform a deep copy to save time
+  // When one will want to use these points, a deep copy will be needed
   std::map<Keypoint, PointCloud::Ptr> CurrentRawKeypoints;
   std::map<Keypoint, PointCloud::Ptr> PreviousRawKeypoints;
 

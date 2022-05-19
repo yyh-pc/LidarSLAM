@@ -101,29 +101,19 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
   if (states.empty())
     return;
 
-  // Extract last keystate
-  unsigned int lastIndex = states.back().Index;
-  auto it = states.end();
-  --it;
-  while (it != states.begin() && !it->IsKeyFrame)
-    --it;
-  lastIndex = it->Index;
-
   // Initialize local values
   int prevIdx = 0;
   Eigen::Isometry3d prevState;
   int nStates = 0;
+  // Loop over all states
   for (const auto& state : states)
   {
-    if (!state.IsKeyFrame)
-      continue;
-
     // Add new state as a new vertex
     auto* newVertex = new g2o::VertexSE3;
     newVertex->setId(state.Index);
     newVertex->setEstimate(state.Isometry);
     bool fixedVertex = (this->FixFirst && state.Index == states.front().Index) ||
-                       (this->FixLast  && state.Index == lastIndex);
+                       (this->FixLast  && state.Index == states.back().Index);
 
     newVertex->setFixed(fixedVertex);
     this->Optimizer.addVertex(newVertex);
@@ -293,8 +283,6 @@ bool PoseGraphOptimizer::Process(std::list<LidarState>& statesToOptimize)
   // Set the output optimized data
   for (auto& state : statesToOptimize)
   {
-    if (!state.IsKeyFrame)
-      continue;
     // Get optimized SLAM vertex pose
     auto* v = this->Optimizer.vertex(state.Index);
     g2o::VertexSE3* vSE3 = dynamic_cast<g2o::VertexSE3*>(v);

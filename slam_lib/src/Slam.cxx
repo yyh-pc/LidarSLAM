@@ -488,9 +488,6 @@ bool Slam::OptimizeGraph()
       // Add landmarks constraint to the graph
       for (auto& s : this->LogStates)
       {
-        if (!s.IsKeyFrame)
-          continue;
-
         ExternalSensors::LandmarkMeasurement lmSynchMeasure;
         if (!lm.ComputeSynchronizedMeasure(s.Time, lmSynchMeasure))
           continue;
@@ -510,9 +507,6 @@ bool Slam::OptimizeGraph()
     graphManager.AddExternalSensor(this->GpsManager->GetCalibration(), int(ExternalSensor::GPS));
     for (auto& s : this->LogStates)
     {
-      if (!s.IsKeyFrame)
-        continue;
-
       ExternalSensors::GpsMeasurement gpsSynchMeasure;
       if (!this->GpsManager->ComputeSynchronizedMeasure(s.Time, gpsSynchMeasure))
         continue;
@@ -1175,12 +1169,9 @@ void Slam::Localization()
   this->Tworld = this->PreviousTworld * this->Trelative;
 
   // Init undistorted keypoints clouds from raw points
-  for (auto k : KeypointTypes)
-  {
-    if (this->UseKeypoints.at(k))
-      *this->CurrentUndistortedKeypoints[k] = *this->CurrentRawKeypoints[k];
-  }
-
+  // Warning : pointer copy = points modification :
+  // do not use CurrentRawKeypoints after this step
+  this->CurrentUndistortedKeypoints = this->CurrentRawKeypoints;
   // Init and run undistortion if required
   if (this->Undistortion)
   {
@@ -1445,6 +1436,8 @@ void Slam::UpdateMapsUsingTworld()
 //-----------------------------------------------------------------------------
 void Slam::LogCurrentFrameState()
 {
+  if (this->LogOnlyKeyframes && !this->IsKeyFrame)
+    return;
   // Save current state to log buffer.
   // This buffer will be processed in the pose graph optimization
   // and is used locally to compute prior ego-motion estimation
@@ -1460,8 +1453,9 @@ void Slam::LogCurrentFrameState()
   }
   state.Time = this->CurrentTime;
   state.Index = this->NbrFrameProcessed;
+  state.IsKeyFrame = this->IsKeyFrame;
   for (auto k : KeypointTypes)
-    state.Keypoints[k] = std::make_shared<PCStorage>(this->CurrentRawKeypoints[k], this->LoggingStorage);
+    state.Keypoints[k] = std::make_shared<PCStorage>(this->CurrentUndistortedKeypoints[k], this->LoggingStorage);
 
   this->LogStates.emplace_back(state);
   // Remove the oldest logged states
