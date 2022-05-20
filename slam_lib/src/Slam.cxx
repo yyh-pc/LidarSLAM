@@ -555,8 +555,10 @@ bool Slam::OptimizeGraph()
   IF_VERBOSE(1, Utils::Timer::StopAndDisplay("Pose graph optimization"));
 
   return true;
+
   #else
   PRINT_ERROR("SLAM graph optimization requires G2O, but it was not found.");
+  return false;
   #endif  // USE_G2O
 }
 

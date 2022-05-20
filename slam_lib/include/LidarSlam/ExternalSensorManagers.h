@@ -164,9 +164,9 @@ public:
   }
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  virtual bool ComputeSynchronizedMeasure(double lidarTime, T& synchMeas, bool verbose = false){return true;}
+  virtual bool ComputeSynchronizedMeasure(double lidarTime, T& synchMeas, bool verbose = false) = 0;
   // Compute the constraint associated to the measurement
-  virtual bool ComputeConstraint(double lidarTime, bool verbose = false){return false;}
+  virtual bool ComputeConstraint(double lidarTime, bool verbose = false) = 0;
 
 protected:
   // ------------------
@@ -227,16 +227,8 @@ protected:
   }
 
 protected:
-  // Sensor name for output
-  std::string SensorName;
   // Measures stored
   std::list<T> Measures;
-  // Iterator pointing to the last measure used
-  // This allows to keep a time track
-  typename std::list<T>::iterator PreviousIt;
-  // Measures length limit
-  // The oldest measures are forgotten
-  unsigned int MaxMeasures = 1e6;
   // Weight to apply to sensor info when used in local optimization
   double Weight = 0.;
   // Calibration transform with base_link and the sensor
@@ -245,6 +237,14 @@ protected:
   double TimeOffset = 0.;
   // Time threshold between 2 measures to consider they can be interpolated
   double TimeThreshold = 0.5;
+  // Measures length limit
+  // The oldest measures are forgotten
+  unsigned int MaxMeasures = 1e6;
+  // Sensor name for output
+  std::string SensorName;
+  // Iterator pointing to the last measure used
+  // This allows to keep a time track
+  typename std::list<T>::iterator PreviousIt;
   // Resulting residual
   CeresTools::Residual Residual;
   // Mutex to handle the data from outside the library
@@ -271,7 +271,7 @@ public:
   SetSensorMacro(RefDistance, double)
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose = false);
+  bool ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose = false) override;
   // Wheel odometry constraint (unoriented)
   // Can be relative since last frame or absolute since first pose
   bool ComputeConstraint(double lidarTime, bool verbose = false) override;
@@ -301,7 +301,7 @@ public:
   SetSensorMacro(GravityRef, const Eigen::Vector3d&)
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose = false);
+  bool ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose = false) override;
 
   // IMU constraint (gravity)
   bool ComputeConstraint(double lidarTime, bool verbose = false) override;
@@ -347,7 +347,7 @@ public:
   void SetAbsolutePose(const Eigen::Vector6d& pose, const Eigen::Matrix6d& cov);
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool verbose = false);
+  bool ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool verbose = false) override;
 
   // Landmark constraint
   bool ComputeConstraint(double lidarTime, bool verbose = false) override;
@@ -402,7 +402,9 @@ public:
   SetSensorMacro(Offset, const Eigen::Isometry3d&)
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas, bool verbose = false);
+  bool ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas, bool verbose = false) override;
+
+  bool ComputeConstraint(double lidarTime, bool verbose) override;
 
 private:
   // Offset transform to link GPS global frame and Lidar SLAM global frame

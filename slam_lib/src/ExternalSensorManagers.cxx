@@ -43,7 +43,7 @@ namespace ExternalSensors
   // Interpolate odometry measurement at LiDAR timestamp
   synchMeas.Time = lidarTime;
   double rt = (lidarTime - bounds.first->Time) / (bounds.second->Time - bounds.first->Time);
-  synchMeas.Distance = (1 - rt) * bounds.first->Distance + rt * bounds.second->Distance;
+  synchMeas.Distance = (1.0 - rt) * bounds.first->Distance + rt * bounds.second->Distance;
 
   return true;
 }
@@ -104,7 +104,7 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
   // Interpolate gravity measurement at LiDAR timestamp
   synchMeas.Time = lidarTime;
   double rt = (lidarTime - bounds.first->Time) / (bounds.second->Time - bounds.first->Time);
-  synchMeas.Acceleration = (1 - rt) * bounds.first->Acceleration.normalized() + rt * bounds.second->Acceleration.normalized();
+  synchMeas.Acceleration = (1.0 - rt) * bounds.first->Acceleration.normalized() + rt * bounds.second->Acceleration.normalized();
   // Normalize interpolated gravity vector
   if (synchMeas.Acceleration.norm() > 1e-6) // Check to ensure consistent IMU measure
     synchMeas.Acceleration.normalize();
@@ -399,6 +399,15 @@ void GpsManager::operator=(const GpsManager& gpsManager)
   synchMeas.Position = bounds.first->Position + lidarTime * (bounds.second->Position - bounds.first->Position) / (bounds.second->Time - bounds.first->Time);
 
   return true;
+}
+
+// ---------------------------------------------------------------------------
+bool GpsManager::ComputeConstraint(double lidarTime, bool verbose)
+{
+  static_cast<void>(lidarTime);
+  static_cast<void>(verbose);
+  PRINT_WARNING("No local constraint can/should be added from GPS as they are absolute measurements");
+  return false;
 }
 
 } // end of ExternalSensors namespace
