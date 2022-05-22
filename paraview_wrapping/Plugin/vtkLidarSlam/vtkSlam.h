@@ -70,6 +70,35 @@ virtual type Get##name()                                                        
   return this->SlamAlgo->Get##name();                                                            \
 }
 
+
+#define vtkCustomSetMacroExternalSensor(sensorName, name, type)                                  \
+virtual void Set##name(type _arg)                                                                \
+{                                                                                                \
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting " #name " to " << _arg);  \
+  if (this->Get##name() != _arg)                                                                 \
+  {                                                                                              \
+    if (this->SlamAlgo->sensorName##HasData())                                                   \
+    {                                                                                            \
+      this->SlamAlgo->Set##name(_arg);                                                           \
+      this->ParametersModificationTime.Modified();                                               \
+    }                                                                                            \
+  }                                                                                              \
+}
+
+#define vtkCustomGetMacroExternalSensor(sensorName, name, type)                                  \
+virtual type Get##name()                                                                         \
+{                                                                                                \
+  if (this->SlamAlgo->sensorName##HasData())                                                     \
+  {                                                                                              \
+    vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning " << #name " of "     \
+                  << this->SlamAlgo->Get##name());                                               \
+    return this->SlamAlgo->Get##name();                                                          \
+  }                                                                                              \
+  type def;                                                                                      \
+  return def;                                                                                    \
+}
+
+
 class vtkSpinningSensorKeypointExtractor;
 class vtkTable;
 
@@ -219,14 +248,14 @@ public:
   vtkCustomGetMacro(LocalizationFinalSaturationDistance, double)
   vtkCustomSetMacro(LocalizationFinalSaturationDistance, double)
 
-  vtkCustomGetMacro(WheelOdomWeight, double)
-  vtkCustomSetMacro(WheelOdomWeight, double)
+  vtkCustomGetMacroExternalSensor(WheelOdom, WheelOdomWeight, double)
+  vtkCustomSetMacroExternalSensor(WheelOdom, WheelOdomWeight, double)
 
-  vtkCustomGetMacro(WheelOdomRelative, bool)
-  vtkCustomSetMacro(WheelOdomRelative, bool)
+  vtkCustomGetMacroExternalSensor(WheelOdom, WheelOdomRelative, bool)
+  vtkCustomSetMacroExternalSensor(WheelOdom, WheelOdomRelative, bool)
 
-  vtkCustomGetMacro(GravityWeight, double)
-  vtkCustomSetMacro(GravityWeight, double)
+  vtkCustomGetMacroExternalSensor(Imu, GravityWeight, double)
+  vtkCustomSetMacroExternalSensor(Imu, GravityWeight, double)
 
   vtkCustomGetMacro(SensorTimeOffset, double)
   vtkCustomSetMacro(SensorTimeOffset, double)
