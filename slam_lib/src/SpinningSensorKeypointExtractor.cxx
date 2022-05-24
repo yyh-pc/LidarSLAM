@@ -175,7 +175,6 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
 {
   // Initialize the features vectors with the correct length
   this->Angles.resize(this->NbLaserRings);
-  this->Saliency.resize(this->NbLaserRings);
   this->DepthGap.resize(this->NbLaserRings);
   this->IntensityGap.resize(this->NbLaserRings);
   this->IsPointValid.resize(this->NbLaserRings);
@@ -189,7 +188,6 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
     this->IsPointValid[scanLine].assign(nbPoint, true);  // set all points as valid
     this->Label[scanLine].assign(nbPoint, KeypointFlags().reset());  // set all flags to 0
     this->Angles[scanLine].assign(nbPoint, -1.);
-    this->Saliency[scanLine].assign(nbPoint, -1.);
     this->DepthGap[scanLine].assign(nbPoint, -1.);
     this->IntensityGap[scanLine].assign(nbPoint, -1.);
   }
@@ -336,7 +334,6 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
 
       // Fill left and right neighborhoods, from central point to sides.
       // /!\ The way the neighbors are added to the vectors matters,
-      // especially when computing the saliency
       std::vector<int> leftNeighbors(this->NeighborWidth);
       std::vector<int> rightNeighbors(this->NeighborWidth);
       for (int j = index - 1; j >= index - this->NeighborWidth; --j)
@@ -421,53 +418,22 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
       }
 
       // No neighborhood is flat.
-      // We will compute saliency of the current keypoint from its far neighbors.
       else
       {
-        // Compute salient point score
-        const float sqCurrDepth = centralPoint.squaredNorm();
-        bool hasLeftEncounteredDepthGap = false;
-        bool hasRightEncounteredDepthGap = false;
+        distRight = centralPoint.dot(rightPt - centralPoint) / centralPoint.norm();
+        // Check points are consecutive + not on a bended wall
+        // If the points lay on a bended wall, next points depth gap should be greater
+        auto& nextRightPt = scanLineCloud[index + 2].getVector3fMap();
+        float nextDistRight = rightPt.dot(nextRightPt - rightPt) / rightPt.norm();
+        if (angleRight < 2 * this->AzimuthalResolution && (distRight < nextDistRight || distRight < distLeft))
+          distRight = -1.f;
 
-        std::vector<int> farNeighbors;
-        farNeighbors.reserve(2 * this->NeighborWidth);
-
-        // The salient point score is the distance between the current point
-        // and the points that have a depth gap with the current point
-        // CHECK : consider only consecutive far neighbors, starting from the central point.
-        for (const auto& leftNeighborId: leftNeighbors)
-        {
-          // Left neighborhood depth gap computation
-          if (std::abs(scanLineCloud[leftNeighborId].getVector3fMap().squaredNorm() - sqCurrDepth) > std::pow(this->EdgeDepthGapThreshold, 2))
-          {
-            hasLeftEncounteredDepthGap = true;
-            farNeighbors.emplace_back(leftNeighborId);
-          }
-          else if (hasLeftEncounteredDepthGap)
-            break;
-        }
-        for (const auto& rightNeighborId: rightNeighbors)
-        {
-          // Right neigborhood depth gap computation
-          if (std::abs(scanLineCloud[rightNeighborId].getVector3fMap().squaredNorm() - sqCurrDepth) > std::pow(this->EdgeDepthGapThreshold, 2))
-          {
-            hasRightEncounteredDepthGap = true;
-            farNeighbors.emplace_back(rightNeighborId);
-          }
-          else if (hasRightEncounteredDepthGap)
-            break;
-        }
-
-        // If there are enough neighbors with a big depth gap,
-        // we propose to compute the saliency of the current point
-        // as the distance between the line that roughly fits the far neighbors
-        // with a depth gap and the current point
-        if (farNeighbors.size() > static_cast<unsigned int>(this->NeighborWidth))
-        {
-          LineFitting farNeighborsLine;
-          if(farNeighborsLine.FitPCAAndCheckConsistency(scanLineCloud, farNeighbors))
-            this->Saliency[scanLine][index] = farNeighborsLine.DistanceToPoint(centralPoint);
-        }
+        distLeft = leftPt.dot(centralPoint - leftPt) / leftPt.norm();
+        // Check points are consecutive + not on a bended wall
+        // If the points lay on a bended wall, next points space gap should be greater
+        float prevDistLeft = (leftPt - scanLineCloud[index - 2].getVector3fMap()).norm();
+        if (angleLeft < 2 * this->AzimuthalResolution && (distLeft < prevDistLeft || distLeft < distRight))
+          distLeft = -1.f;
       }
 
       // Store max depth gap
@@ -537,7 +503,6 @@ void SpinningSensorKeypointExtractor::ComputeEdges()
 {
   this->AddKptsUsingCriterion(Keypoint::EDGE, this->DepthGap, this->EdgeDepthGapThreshold, false, 1);
   this->AddKptsUsingCriterion(Keypoint::EDGE, this->Angles, this->EdgeSinAngleThreshold, false, 2);
-  this->AddKptsUsingCriterion(Keypoint::EDGE, this->Saliency, this->EdgeSaliencyThreshold, false, 3);
 }
 
 //-----------------------------------------------------------------------------
@@ -637,7 +602,6 @@ std::unordered_map<std::string, std::vector<float>> SpinningSensorKeypointExtrac
 
   std::unordered_map<std::string, std::vector<float>> map;
   map["sin_angle"]      = get1DVector(this->Angles);
-  map["saliency"]       = get1DVector(this->Saliency);
   map["depth_gap"]      = get1DVector(this->DepthGap);
   map["intensity_gap"]  = get1DVector(this->IntensityGap);
   map["edge_keypoint"]  = get1DVectorFromFlag(this->Label, Keypoint::EDGE);

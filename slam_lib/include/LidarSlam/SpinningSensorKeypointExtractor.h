@@ -94,9 +94,6 @@ public:
   GetMacro(EdgeDepthGapThreshold, float)
   SetMacro(EdgeDepthGapThreshold, float)
 
-  GetMacro(EdgeSaliencyThreshold, float)
-  SetMacro(EdgeSaliencyThreshold, float)
-
   GetMacro(EdgeIntensityGapThreshold, float)
   SetMacro(EdgeIntensityGapThreshold, float)
 
@@ -200,8 +197,6 @@ private:
   // Threshold upon depth gap in neighborhood to select an edge keypoint
   float EdgeDepthGapThreshold = 0.5;  // [m]
 
-  // Threshold upon saliency of a neighborhood to select an edge keypoint
-  float EdgeSaliencyThreshold = 1.5;  // [m]
 
   // Threshold upon intensity gap to select an edge keypoint
   float EdgeIntensityGapThreshold = 50.;
@@ -232,7 +227,6 @@ private:
   // Curvature and other differential operations (scan by scan, point by point)
   std::vector<std::vector<float>> Angles;
   std::vector<std::vector<float>> DepthGap;
-  std::vector<std::vector<float>> Saliency;
   std::vector<std::vector<float>> IntensityGap;
   std::vector<std::vector<bool>> IsPointValid;
   std::vector<std::vector<KeypointFlags>> Label;
