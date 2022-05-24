@@ -173,12 +173,13 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
   this->ComputeCurvature();
 
   // Labelize and extract keypoints
+  // Warning : order matters
+  if (this->Enabled[Keypoint::BLOB])
+    this->ComputeBlobs();
   if (this->Enabled[Keypoint::PLANE])
     this->ComputePlanes();
   if (this->Enabled[Keypoint::EDGE])
     this->ComputeEdges();
-  if (this->Enabled[Keypoint::BLOB])
-    this->ComputeBlobs();
 }
 
 //-----------------------------------------------------------------------------
@@ -234,10 +235,10 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
     size_t nbPoint = this->ScanLines[scanLine]->size();
     this->IsPointValid[scanLine].assign(nbPoint, true);  // set all points as valid
     this->Label[scanLine].assign(nbPoint, KeypointFlags().reset());  // set all flags to 0
-    this->Angles[scanLine].assign(nbPoint, 0.);
-    this->Saliency[scanLine].assign(nbPoint, 0.);
-    this->DepthGap[scanLine].assign(nbPoint, 0.);
-    this->IntensityGap[scanLine].assign(nbPoint, 0.);
+    this->Angles[scanLine].assign(nbPoint, -1.);
+    this->Saliency[scanLine].assign(nbPoint, -1.);
+    this->DepthGap[scanLine].assign(nbPoint, -1.);
+    this->IntensityGap[scanLine].assign(nbPoint, -1.);
   }
 
   // Reset voxel grids
@@ -517,99 +518,68 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
 }
 
 //-----------------------------------------------------------------------------
-void SpinningSensorKeypointExtractor::ComputePlanes()
+void SpinningSensorKeypointExtractor::AddKptsUsingCriterion (Keypoint k,
+                                                             const std::vector<std::vector<float>>& values,
+                                                             float threshold,
+                                                             bool threshIsMax,
+                                                             double weightBasis)
 {
-  // loop over the scan lines
+  // Loop over the scan lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
-  for (int scanLine = 0; scanLine < static_cast<int>(this->NbLaserRings); ++scanLine)
+  for (int scanlineIdx = 0; scanlineIdx < static_cast<int>(this->NbLaserRings); ++scanlineIdx)
   {
-    const int Npts = this->ScanLines[scanLine]->size();
+    const int Npts = this->ScanLines[scanlineIdx]->size();
 
-    // if the line is almost empty, skip it
+    // If the line is almost empty, skip it
     if (this->IsScanLineAlmostEmpty(Npts))
       continue;
 
-    // Indices in angles ascending order (lowest first)
-    std::vector<size_t> sortedAnglesIdx = Utils::SortIdx(this->Angles[scanLine]);
-    // Planes (using angles)
-    for (size_t index : sortedAnglesIdx)
+    // If threshIsMax : ascending order (lowest first)
+    // If threshIsMin : descending order (greatest first)
+    std::vector<size_t> sortedValuesIndices = Utils::SortIdx(values[scanlineIdx], threshIsMax);
+
+    for (const auto& index: sortedValuesIndices)
     {
-      const float sinAngle = this->Angles[scanLine][index];
-
-      // thresh
-      if (sinAngle > this->PlaneSinAngleThreshold)
-        break;
-
-      // if the point is invalid as plane or sinAngle value is unset, continue
-      if (!this->IsPointValid[scanLine][index] || sinAngle < 1e-6)
+      // If the point is invalid, continue
+      if (!this->IsPointValid[scanlineIdx][index] || values[scanlineIdx][index] < 0)
         continue;
 
-      // else indicate that the point is a planar one
-      this->Label[scanLine][index].set(Keypoint::PLANE);
+      // Check criterion threshold
+      bool valueAboveThresh = values[scanlineIdx][index] > threshold;
+      // If criterion is not respected, break loop as indices are sorted.
+      if ((threshIsMax && valueAboveThresh) ||
+          (!threshIsMax && !valueAboveThresh))
+        break;
+      if (this->Label[scanlineIdx][index][Keypoint::EDGE])
+        continue;
+
+      // The points with the lowest weight have priority for extraction
+      float weight = threshIsMax? weightBasis + values[scanlineIdx][index] / threshold : weightBasis - values[scanlineIdx][index] / values[scanlineIdx][0];
 
       #pragma omp critical
-      // Extract plane keypoint
-      this->Keypoints[Keypoint::PLANE].AddPoint(this->ScanLines[scanLine]->at(index), sinAngle / this->PlaneSinAngleThreshold);
+      {
+        // Indicate the type of the keypoint to debug and to exclude double edges
+        this->Label[scanlineIdx][index].set(k);
+        // Add keypoint
+        this->Keypoints[k].AddPoint(this->ScanLines[scanlineIdx]->at(index), weight);
+      }
     }
   }
 }
 
 //-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::ComputePlanes()
+{
+  this->AddKptsUsingCriterion(Keypoint::PLANE, this->Angles, this->PlaneSinAngleThreshold);
+}
+
+//-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::ComputeEdges()
 {
-  const float sqEdgeSaliencythreshold = this->EdgeSaliencyThreshold * this->EdgeSaliencyThreshold;
-  const float sqEdgeDepthGapThreshold = this->EdgeDepthGapThreshold * this->EdgeDepthGapThreshold;
-
-  // Loop over the scan lines
-  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) \
-          firstprivate(sqEdgeSaliencythreshold, sqEdgeDepthGapThreshold)
-  for (int scanLine = 0; scanLine < static_cast<int>(this->NbLaserRings); ++scanLine)
-  {
-    const int Npts = this->ScanLines[scanLine]->size();
-
-    // if the line is almost empty, skip it
-    if (this->IsScanLineAlmostEmpty(Npts))
-      continue;
-
-    // Indices sorted in value descending order (greater first)
-    std::vector<size_t> sortedAnglesIdx    = Utils::SortIdx(this->Angles      [scanLine], false);
-    std::vector<size_t> sortedDepthGapIdx  = Utils::SortIdx(this->DepthGap    [scanLine], false);
-    std::vector<size_t> sortedSaliencyIdx  = Utils::SortIdx(this->Saliency    [scanLine], false);
-    std::vector<size_t> sortedIntensityGap = Utils::SortIdx(this->IntensityGap[scanLine], false);
-
-    // Add edge according to criterion
-    auto addEdgesUsingCriterion = [this, scanLine, Npts](const std::vector<size_t>& sortedValuesIdx,
-                                                         const std::vector<std::vector<float>>& values,
-                                                         float threshold,
-                                                         double weightBasis)
-    {
-      for (const auto& index: sortedValuesIdx)
-      {
-        // Check criterion threshold
-        // If criterion is not respected, break loop as indices are sorted in decreasing order.
-        if (values[scanLine][index] < threshold)
-          break;
-
-        // If the point is invalid as edge, continue
-        if (!this->IsPointValid[scanLine][index])
-          continue;
-
-        // Else indicate that the point is an edge
-        this->Label[scanLine][index].set(Keypoint::EDGE);
-        #pragma omp critical
-        this->Keypoints[Keypoint::EDGE].AddPoint(this->ScanLines[scanLine]->at(index), weightBasis + values[scanLine][index] / threshold);
-      }
-    };
-
-    // Edges using depth gap
-    addEdgesUsingCriterion(sortedDepthGapIdx, this->DepthGap, sqEdgeDepthGapThreshold, 4);
-    // Edges using angles
-    addEdgesUsingCriterion(sortedAnglesIdx, this->Angles, this->EdgeSinAngleThreshold, 3);
-    // Edges using saliency
-    addEdgesUsingCriterion(sortedSaliencyIdx, this->Saliency, sqEdgeSaliencythreshold, 2);
-    // Edges using intensity
-    addEdgesUsingCriterion(sortedIntensityGap, this->IntensityGap, this->EdgeIntensityGapThreshold, 1);
-  }
+  this->AddKptsUsingCriterion(Keypoint::EDGE, this->DepthGap, std::pow(this->EdgeDepthGapThreshold, 2), false, 1);
+  this->AddKptsUsingCriterion(Keypoint::EDGE, this->Angles, this->EdgeSinAngleThreshold, false, 2);
+  this->AddKptsUsingCriterion(Keypoint::EDGE, this->Saliency, std::pow(this->EdgeSaliencyThreshold, 2), false, 3);
+  this->AddKptsUsingCriterion(Keypoint::EDGE, this->IntensityGap, this->EdgeIntensityGapThreshold, false, 4);
 }
 
 //-----------------------------------------------------------------------------

@@ -130,6 +130,15 @@ private:
   // Check if scanLine is almost empty
   inline bool IsScanLineAlmostEmpty(int nScanLinePts) const { return nScanLinePts < 2 * this->NeighborWidth + 1; }
 
+  // Add all keypoints of the type k that comply with the threshold criteria for these values
+  // The threshold can be a minimum or maximum value (threshIsMax)
+  // The weight basis allow to weight the keypoint depending on its certainty
+  void AddKptsUsingCriterion (Keypoint k,
+                              const std::vector<std::vector<float>>& values,
+                              float threshold,
+                              bool threshIsMax = true,
+                              double weightBasis = 1.);
+
   // ---------------------------------------------------------------------------
   //   Parameters
   // ---------------------------------------------------------------------------
