@@ -46,7 +46,7 @@ struct LineFitting
 
   //! Fitting using very local line and check if this local line is consistent
   //! in a more global neighborhood
-  bool FitPCAAndCheckConsistency(const PointCloud& cloud,
+  bool FitLineAndCheckConsistency(const PointCloud& cloud,
                                  const std::vector<int>& indices);
 
   //! Compute the squared distance of a point to the fitted line

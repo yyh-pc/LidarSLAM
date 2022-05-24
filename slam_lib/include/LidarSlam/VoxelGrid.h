@@ -38,7 +38,7 @@ public:
 
   //============================================================================
   //! Initialize the grid to contain pointMin and pointMax
-  void Init(const Eigen::Vector3f& ptMin, const Eigen::Vector3f& ptMax);
+  void Init(const Eigen::Vector3f& ptMin, const Eigen::Vector3f& ptMax, int maxPoints = 0);
   //! Remove all points from all voxels
   void Clear();
 
