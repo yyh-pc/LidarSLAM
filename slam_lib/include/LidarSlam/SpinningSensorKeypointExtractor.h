@@ -192,7 +192,7 @@ private:
 
   // Sharpness threshold to select an edge keypoint
   float EdgeSinAngleThreshold = 0.86;  // ~sin(60°) (selected, if sin angle is more than threshold)
-  float DistToLineThreshold = 0.20;  // [m]
+  float MaxDistance = 0.20;  // [m]
 
   // Threshold upon depth gap in neighborhood to select an edge keypoint
   float EdgeDepthGapThreshold = 0.5;  // [m]
@@ -228,7 +228,6 @@ private:
   std::vector<std::vector<float>> Angles;
   std::vector<std::vector<float>> DepthGap;
   std::vector<std::vector<float>> IntensityGap;
-  std::vector<std::vector<bool>> IsPointValid;
   std::vector<std::vector<KeypointFlags>> Label;
 
   // Extracted keypoints of current frame
