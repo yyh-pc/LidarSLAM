@@ -400,7 +400,7 @@ private:
   // If enabled, advanced return mode will add arrays to outputs showing some
   // additional results or info of the SLAM algorithm such as :
   //  - Trajectory : matching summary, localization error summary
-  //  - Output transformed frame : saliency, planarity, intensity gap, keypoint validity
+  //  - Output transformed frame : neighborhoods angle, intensity gap, depth gap, space gap
   //  - Extracted keypoints : ICP matching results
   bool AdvancedReturnMode = false;
 

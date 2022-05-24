@@ -224,7 +224,7 @@
 
            - Trajectory : matching summary, localization error summary, confidence estimators
 
-           - Output transformed frame : saliency, planarity, intensity gap, keypoint validity
+           - Output transformed frame : planarity, intensity gap, keypoint validity
 
            - Extracted keypoints : ICP matching results
 
@@ -1560,21 +1560,6 @@
         </Hints>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Edge min saliency distance"
-                            command="SetEdgeSaliencyThreshold"
-                            number_of_elements="1"
-                            default_values="1.5"
-                            panel_visibility="advanced">
-        <Documentation>
-          One strategy to consider a point as an edge keypoint is to compute
-          the depth gap between the point and its far background neighborhood.
-          If the gap is big enough, we consider the point as an edge keypoint.
-        </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
-        </Hints>
-      </DoubleVectorProperty>
-
       <DoubleVectorProperty name="Edge min depth gap"
                             command="SetEdgeDepthGapThreshold"
                             number_of_elements="1"
@@ -1591,6 +1576,20 @@
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
         </Hints>
       </DoubleVectorProperty>
+
+      <IntVectorProperty name="Edge min nb of missing points"
+                            command="SetEdgeNbGapPoints"
+                            number_of_elements="1"
+                            default_values="5"
+                            panel_visibility="advanced">
+        <Documentation>
+          One strategy to consider a point as an edge keypoint is to compute
+          the number of points that were missed because of no return (e.g. some window)
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
+      </IntVectorProperty>
 
       <DoubleVectorProperty name="Edge min intensity gap"
                             command="SetEdgeIntensityGapThreshold"
@@ -1637,8 +1636,8 @@
         <Property name="Min laser beam to surface angle" />
         <Property name="Plane max sinus angle" />
         <Property name="Edge min sinus angle" />
-        <Property name="Edge min saliency distance" />
         <Property name="Edge min depth gap" />
+        <Property name="Edge min nb of missing points" />
         <Property name="Edge min intensity gap" />
         <Property name="Maximum keypoints number" />
         <Property name="Voxel grid resolution" />
