@@ -32,34 +32,8 @@ namespace LidarSlam
 namespace
 {
 //-----------------------------------------------------------------------------
-struct LineFitting
-{
-  //! Fitting using PCA
-  bool FitPCA(const SpinningSensorKeypointExtractor::PointCloud& cloud,
-              const std::vector<int>& indices);
-
-  //! Fitting using very local line and check if this local line is consistent
-  //! in a more global neighborhood
-  bool FitPCAAndCheckConsistency(const SpinningSensorKeypointExtractor::PointCloud& cloud,
-                                 const std::vector<int>& indices);
-
-  //! Compute the squared distance of a point to the fitted line
-  inline float SquaredDistanceToPoint(Eigen::Vector3f const& point) const;
-
-  // Direction and position
-  Eigen::Vector3f Direction;
-  Eigen::Vector3f Position;
-
-  //! Max distance allowed from the farest point to estimated line to be considered as real line
-  float MaxDistance = 0.02;  // [m]
-
-  //! Max angle allowed between consecutive segments in the neighborhood to be considered as line
-  float MaxAngle = DEG2RAD(40.);  // [rad]
-};
-
-//-----------------------------------------------------------------------------
-bool LineFitting::FitPCA(const SpinningSensorKeypointExtractor::PointCloud& cloud,
-                         const std::vector<int>& indices)
+bool LineFitting::FitPCAAndCheckConsistency(const SpinningSensorKeypointExtractor::PointCloud& cloud,
+                                            const std::vector<int>& indices)
 {
   // Compute PCA to determine best line approximation of the points distribution
   // and save points centroid in Position
@@ -70,49 +44,26 @@ bool LineFitting::FitPCA(const SpinningSensorKeypointExtractor::PointCloud& clou
   // Get Direction as main eigen vector
   this->Direction = eigVecs.col(2);
 
-  // If a point of the neighborhood is too far from the fitted line,
-  // we consider the neighborhood as non flat
-  bool isLineFittingAccurate = true;
-  const float sqMaxDistance = this->MaxDistance * this->MaxDistance;
-  for (const auto& pointId: indices)
-  {
-    if (this->SquaredDistanceToPoint(cloud[pointId].getVector3fMap()) > sqMaxDistance)
-    {
-      isLineFittingAccurate = false;
-      break;
-    }
-  }
-  return isLineFittingAccurate;
+  // Compute line features
+  float LineLength = (cloud[indices[0]].getVector3fMap() - cloud[indices[indices.size() - 1]].getVector3fMap()).norm();
+  float LineWidth = 0;
+  for (int idx: indices)
+    LineWidth = std::max(LineWidth, this->DistanceToPoint(cloud[idx].getVector3fMap()));
+
+
+  // If the line is too wide (MSE too high) respectively to its length,
+  // we consider the neighborhood as not flat enough
+  // If the line is too short, it is considered not trutworthy enough
+  if (LineWidth > this->MaxLineWidth || LineLength < this->MinLineLength)
+    return false;
+
+  return true;
 }
 
 //-----------------------------------------------------------------------------
-bool LineFitting::FitPCAAndCheckConsistency(const SpinningSensorKeypointExtractor::PointCloud& cloud,
-                                            const std::vector<int>& indices)
+inline float LineFitting::DistanceToPoint(Eigen::Vector3f const& point) const
 {
-  const float maxSinAngle = std::sin(this->MaxAngle);
-  bool isLineFittingAccurate = true;
-
-  // First check if the neighborhood is approximately straight
-  const Eigen::Vector3f U = (cloud[indices.back()].getVector3fMap() - cloud[indices.front()].getVector3fMap()).normalized();
-  for (unsigned int i = 0; i < indices.size() - 1; i++)
-  {
-    const Eigen::Vector3f V = (cloud[indices[i + 1]].getVector3fMap() - cloud[indices[i]].getVector3fMap()).normalized();
-    const float sinAngle = (U.cross(V)).norm();
-    if (sinAngle > maxSinAngle)
-    {
-      isLineFittingAccurate = false;
-      break;
-    }
-  }
-
-  // Then fit with PCA (only if isLineFittingAccurate is true)
-  return isLineFittingAccurate && this->FitPCA(cloud, indices);
-}
-
-//-----------------------------------------------------------------------------
-inline float LineFitting::SquaredDistanceToPoint(Eigen::Vector3f const& point) const
-{
-  return ((point - this->Position).cross(this->Direction)).squaredNorm();
+  return ((point - this->Position).cross(this->Direction)).norm();
 }
 } // end of anonymous namespace
 
@@ -363,13 +314,8 @@ void SpinningSensorKeypointExtractor::InvalidateNotUsablePoints()
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::ComputeCurvature()
 {
-  const float sqDistToLineThreshold = this->DistToLineThreshold * this->DistToLineThreshold;  // [m²]
-  const float sqDepthDistCoeff = 0.25;
-  const float minDepthGapDist = 1.5;  // [m]
-
   // loop over scans lines
-  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided) \
-          firstprivate(sqDistToLineThreshold, sqDepthDistCoeff, minDepthGapDist)
+  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (int scanLine = 0; scanLine < static_cast<int>(this->NbLaserRings); ++scanLine)
   {
     // Useful shortcuts
@@ -441,12 +387,13 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
         // We check that the current point is not too far from its
         // neighborhood lines. This is because we don't want a point
         // to be considered as an angle point if it is due to gap
-        distLeft = leftLine.SquaredDistanceToPoint(centralPoint);
-        distRight = rightLine.SquaredDistanceToPoint(centralPoint);
+        distLeft =  leftLine.DistanceToPoint(centralPoint);
+        distRight = rightLine.DistanceToPoint(centralPoint);
 
         // If current point is not too far from estimated lines,
         // save the sin of angle between these two lines
-        if ((distLeft < sqDistToLineThreshold) && (distRight < sqDistToLineThreshold))
+        // Compute angles
+        if ((distLeft < this->DistToLineThreshold) && (distRight < this->DistToLineThreshold))
           this->Angles[scanLine][index] = (leftLine.Direction.cross(rightLine.Direction)).norm();
       }
 
@@ -460,9 +407,8 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
         for (const auto& leftNeighborId: leftNeighbors)
         {
           const auto& leftNeighbor = scanLineCloud[leftNeighborId].getVector3fMap();
-          distLeft = std::min(distLeft, rightLine.SquaredDistanceToPoint(leftNeighbor));
+          distLeft = std::min(distLeft, rightLine.DistanceToPoint(leftNeighbor));
         }
-        distLeft *= sqDepthDistCoeff;
       }
       else if (leftFlat && !rightFlat)
       {
@@ -470,9 +416,8 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
         for (const auto& rightNeighborId: rightNeighbors)
         {
           const auto& rightNeighbor = scanLineCloud[rightNeighborId].getVector3fMap();
-          distRight = std::min(distRight, leftLine.SquaredDistanceToPoint(rightNeighbor));
+          distRight = std::min(distRight, leftLine.DistanceToPoint(rightNeighbor));
         }
-        distRight *= sqDepthDistCoeff;
       }
 
       // No neighborhood is flat.
@@ -493,7 +438,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
         for (const auto& leftNeighborId: leftNeighbors)
         {
           // Left neighborhood depth gap computation
-          if (std::abs(scanLineCloud[leftNeighborId].getVector3fMap().squaredNorm() - sqCurrDepth) > minDepthGapDist)
+          if (std::abs(scanLineCloud[leftNeighborId].getVector3fMap().squaredNorm() - sqCurrDepth) > std::pow(this->EdgeDepthGapThreshold, 2))
           {
             hasLeftEncounteredDepthGap = true;
             farNeighbors.emplace_back(leftNeighborId);
@@ -504,7 +449,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
         for (const auto& rightNeighborId: rightNeighbors)
         {
           // Right neigborhood depth gap computation
-          if (std::abs(scanLineCloud[rightNeighborId].getVector3fMap().squaredNorm() - sqCurrDepth) > minDepthGapDist)
+          if (std::abs(scanLineCloud[rightNeighborId].getVector3fMap().squaredNorm() - sqCurrDepth) > std::pow(this->EdgeDepthGapThreshold, 2))
           {
             hasRightEncounteredDepthGap = true;
             farNeighbors.emplace_back(rightNeighborId);
@@ -520,8 +465,8 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
         if (farNeighbors.size() > static_cast<unsigned int>(this->NeighborWidth))
         {
           LineFitting farNeighborsLine;
-          farNeighborsLine.FitPCA(scanLineCloud, farNeighbors);
-          this->Saliency[scanLine][index] = farNeighborsLine.SquaredDistanceToPoint(centralPoint);
+          if(farNeighborsLine.FitPCAAndCheckConsistency(scanLineCloud, farNeighbors))
+            this->Saliency[scanLine][index] = farNeighborsLine.DistanceToPoint(centralPoint);
         }
       }
 
@@ -590,9 +535,9 @@ void SpinningSensorKeypointExtractor::ComputePlanes()
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::ComputeEdges()
 {
-  this->AddKptsUsingCriterion(Keypoint::EDGE, this->DepthGap, std::pow(this->EdgeDepthGapThreshold, 2), false, 1);
+  this->AddKptsUsingCriterion(Keypoint::EDGE, this->DepthGap, this->EdgeDepthGapThreshold, false, 1);
   this->AddKptsUsingCriterion(Keypoint::EDGE, this->Angles, this->EdgeSinAngleThreshold, false, 2);
-  this->AddKptsUsingCriterion(Keypoint::EDGE, this->Saliency, std::pow(this->EdgeSaliencyThreshold, 2), false, 3);
+  this->AddKptsUsingCriterion(Keypoint::EDGE, this->Saliency, this->EdgeSaliencyThreshold, false, 3);
 }
 
 //-----------------------------------------------------------------------------

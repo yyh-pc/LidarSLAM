@@ -36,6 +36,34 @@
 namespace LidarSlam
 {
 
+namespace
+{
+//-----------------------------------------------------------------------------
+struct LineFitting
+{
+  using Point = LidarPoint;
+  using PointCloud = pcl::PointCloud<Point>;
+
+  //! Fitting using very local line and check if this local line is consistent
+  //! in a more global neighborhood
+  bool FitPCAAndCheckConsistency(const PointCloud& cloud,
+                                 const std::vector<int>& indices);
+
+  //! Compute the squared distance of a point to the fitted line
+  inline float DistanceToPoint(Eigen::Vector3f const& point) const;
+
+  // Direction and position
+  Eigen::Vector3f Direction;
+  Eigen::Vector3f Position;
+
+  //! Min line length to be trustworthy
+  float MinLineLength = 0.05;  // [m]
+
+  //! Max line width to be trustworthy
+  float MaxLineWidth = 0.02;  // [m]
+};
+} // End of anonymous namespace
+
 class SpinningSensorKeypointExtractor
 {
 public:
