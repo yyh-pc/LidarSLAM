@@ -300,7 +300,7 @@ slam:
     plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
     edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
     edge_depth_gap_threshold: 0.5      # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
-    edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
+    edge_nb_gap_points: 10             # [points] Minimum number of successive missing points to consider a space gap.
     edge_intensity_gap_threshold: 20.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
 
     # # Multi LiDAR inputs
@@ -321,8 +321,8 @@ slam:
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
     #   edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
-    #   edge_depth_gap_threshold: 0.15     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
-    #   edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
+    #   edge_depth_gap_threshold: 0.5      # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
+    #   edge_nb_gap_points: 10             # [points] Minimum number of successive missing points to consider a space gap.
     #   edge_intensity_gap_threshold: 20.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
     # device_10:
     #   enable:
@@ -337,6 +337,6 @@ slam:
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
     #   edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
-    #   edge_depth_gap_threshold: 0.30     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
-    #   edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
+    #   edge_depth_gap_threshold: 0.5      # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
+    #   edge_nb_gap_points: 10             # [points] Minimum number of successive missing points to consider a space gap.
     #   edge_intensity_gap_threshold: 200. # [0-255] Threshold upon intensity gap to select an edge keypoint.
