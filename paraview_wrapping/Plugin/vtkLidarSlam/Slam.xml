@@ -65,11 +65,11 @@
       <OutputPort name="Current transformed frame" index="0" id="port0" />
       <OutputPort name="Trajectory"                index="1" id="port1" />
       <OutputPort name="Edge map"                  index="2" id="port2" />
-      <OutputPort name="Planar map"                index="3" id="port3" />
-      <OutputPort name="Blob map"                  index="4" id="port4" />
+      <OutputPort name="Intensity edge map"        index="3" id="port3" />
+      <OutputPort name="Planar map"                index="4" id="port4" />
       <OutputPort name="Current edge keypoints"    index="5" id="port5" />
-      <OutputPort name="Current planar keypoints"  index="6" id="port6" />
-      <OutputPort name="Current blob keypoints"    index="7" id="port7" />
+      <OutputPort name="Current intensity edge keypoints"  index="6" id="port6" />
+      <OutputPort name="Current planar keypoints"  index="7" id="port7" />
 
       <!-- ============= Paraview filter inputs/outputs options ============ -->
 
@@ -333,6 +333,16 @@
         </Documentation>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Use intensity edges"
+                         command="EnableIntensityEdges"
+                         number_of_elements="1"
+                         default_values="1" >
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, intensity edge keypoints are used in optimization.
+        </Documentation>
+      </IntVectorProperty>
+
       <IntVectorProperty name="Use planes"
                          command="EnablePlanes"
                          number_of_elements="1"
@@ -450,6 +460,7 @@
       <PropertyGroup label="General Parameters">
         <Property name="2d mode" />
         <Property name="Use edges" />
+        <Property name="Use intensity edges" />
         <Property name="Use planes" />
         <Property name="Use blobs" />
         <Property name="Verbosity level" />
@@ -1027,6 +1038,35 @@
         </Hints>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Intensity edges map sampling mode"
+                         command="SetVoxelGridSamplingModeIntensityEdges"
+                         number_of_elements="1"
+                         default_values="2">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="First"/>
+          <Entry value="1" text="Last"/>
+          <Entry value="2" text="Intensity"/>
+          <Entry value="3" text="Center point"/>
+          <Entry value="4" text="Centroid"/>
+        </EnumerationDomain>
+        <Documentation>
+          Which point to set in a voxel when downsampling the map using a voxel grid.
+
+          If FIRST, the first point acquired is kept,
+
+          If LAST, the last point acquired is selected,
+
+          If INTENSITY, the point with max intensity is selected,
+
+          If CENTER_POINT, the point closest to the voxel center is selected,
+
+          If CENTROID, the centroid of all points having landed to the voxel is computed.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use intensity edges" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
       <IntVectorProperty name="Planes map sampling mode"
                          command="SetVoxelGridSamplingModePlanes"
                          number_of_elements="1"
@@ -1099,6 +1139,23 @@
         </Documentation>
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Intensity edges map resolution"
+                            command="SetVoxelGridLeafSizeIntensityEdges"
+                            number_of_elements="1"
+                            default_values="0.1"
+                            panel_visibility="advanced">
+        <Documentation>
+          Minimum size of a leaf (in meters) when downsampling the intensity edges map using
+          a voxel grid filter. It should not be too big or some high
+          frequency geometric information will be lost. It should not
+          be too low or the geometric information will be too local and
+          computation time may increase.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use intensity edges" value="1" />
         </Hints>
       </DoubleVectorProperty>
 
@@ -1188,9 +1245,11 @@
         <Property name="Keyframe distance threshold" />
         <Property name="Keyframe angle threshold" />
         <Property name="Edges map sampling mode" />
+        <Property name="Intensity edges map sampling mode" />
         <Property name="Planes map sampling mode" />
         <Property name="Blobs map sampling mode" />
         <Property name="Edges map resolution" />
+        <Property name="Intensity edges map resolution" />
         <Property name="Planes map resolution" />
         <Property name="Blobs map resolution" />
         <Property name="Rolling grid dimension" />
@@ -1428,7 +1487,7 @@
 
       <Documentation
         short_help="Extract keypoints from a spinning LiDAR sensor pointcloud."
-        long_help="Extract edges, planes and blobs keypoints from a spinning LiDAR sensor pointcloud.">
+        long_help="Extract edges (geometric + intensity based), planes and blobs keypoints from a spinning LiDAR sensor pointcloud.">
         Extract edges, planes and blobs keypoints from a spinning LiDAR sensor pointcloud.
       </Documentation>
 
@@ -1516,21 +1575,6 @@
         </Hints>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Edge min intensity gap"
-                            command="SetEdgeIntensityGapThreshold"
-                            number_of_elements="1"
-                            default_values="50."
-                            panel_visibility="advanced">
-        <Documentation>
-          One strategy to consider a point as an edge keypoint is to compute
-          the intensity gap between the point and its left and right neighbors.
-          If the gap is big enough, we consider the point as an edge keypoint.
-        </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
-        </Hints>
-      </DoubleVectorProperty>
-
       <DoubleVectorProperty name="Edge min depth gap"
                             command="SetEdgeDepthGapThreshold"
                             number_of_elements="1"
@@ -1545,6 +1589,21 @@
         </Documentation>
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Edge min intensity gap"
+                            command="SetEdgeIntensityGapThreshold"
+                            number_of_elements="1"
+                            default_values="30."
+                            panel_visibility="advanced">
+        <Documentation>
+          One strategy to consider a point as an edge keypoint is to compute
+          the intensity gap between the point and its left and right neighbors.
+          If the gap is big enough, we consider the point as an intensity edge keypoint.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use intensity edges" value="1" />
         </Hints>
       </DoubleVectorProperty>
 
@@ -1579,8 +1638,8 @@
         <Property name="Plane max sinus angle" />
         <Property name="Edge min sinus angle" />
         <Property name="Edge min saliency distance" />
-        <Property name="Edge min intensity gap" />
         <Property name="Edge min depth gap" />
+        <Property name="Edge min intensity gap" />
         <Property name="Maximum keypoints number" />
         <Property name="Voxel grid resolution" />
       </PropertyGroup>

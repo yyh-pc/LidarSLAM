@@ -52,11 +52,11 @@
 #define SLAM_FRAME_OUTPUT_PORT 0       ///< Current transformed SLAM frame enriched with debug arrays
 #define SLAM_TRAJECTORY_OUTPUT_PORT 1  ///< Trajectory (with position, orientation, covariance and time)
 #define EDGE_MAP_OUTPUT_PORT 2         ///< Edge keypoints map
-#define PLANE_MAP_OUTPUT_PORT 3        ///< Plane keypoints map
-#define BLOB_MAP_OUTPUT_PORT 4         ///< Blob keypoints map
+#define INTENSITY_EDGE_MAP_OUTPUT_PORT 3         ///< intensity edge keypoints map
+#define PLANE_MAP_OUTPUT_PORT 4        ///< Plane keypoints map
 #define EDGE_KEYPOINTS_OUTPUT_PORT 5   ///< Extracted edge keypoints from current frame
-#define PLANE_KEYPOINTS_OUTPUT_PORT 6  ///< Extracted plane keypoints from current frame
-#define BLOB_KEYPOINTS_OUTPUT_PORT 7   ///< Extracted blob keypoints from current frame
+#define INTENSITY_EDGE_KEYPOINTS_OUTPUT_PORT 6         ///< intensity edge keypoints map
+#define PLANE_KEYPOINTS_OUTPUT_PORT 7  ///< Extracted plane keypoints from current frame
 #define OUTPUT_PORT_COUNT 8
 
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->SlamAlgo->GetVerbosity() >= (minVerbosityLevel)) { command; }
@@ -265,7 +265,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // Get the previous outputs
   auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
   auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
-  auto* blobMap = vtkPolyData::GetData(outputVector, BLOB_MAP_OUTPUT_PORT);
+  auto* intensityEdgeMap = vtkPolyData::GetData(outputVector, INTENSITY_EDGE_MAP_OUTPUT_PORT);
 
   // Cache maps to update them only every MapsUpdateStep frames
   std::map<LidarSlam::Keypoint, vtkSmartPointer<vtkPolyData>> cacheMaps;
@@ -303,16 +303,15 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   // If the output is disabled, reset it.
   else if (this->OutputKeypointsMaps != this->PreviousMapOutputMode && this->OutputKeypointsMaps == OutputKeypointsMapsMode::NONE)
   {
-    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[LidarSlam::EDGE]);
-    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[LidarSlam::PLANE]);
-    this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[LidarSlam::BLOB]);
+    for (auto k : LidarSlam::KeypointTypes)
+      this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[k]);
     this->PreviousMapOutputMode = this->OutputKeypointsMaps;
   }
 
   // Fill outputs from cache
   edgeMap->ShallowCopy(cacheMaps[LidarSlam::EDGE]);
   planarMap->ShallowCopy(cacheMaps[LidarSlam::PLANE]);
-  blobMap->ShallowCopy(cacheMaps[LidarSlam::BLOB]);
+  intensityEdgeMap->ShallowCopy(cacheMaps[LidarSlam::INTENSITY_EDGE]);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : output keypoints maps"));
 
@@ -322,7 +321,10 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : output current keypoints"));
     for (auto k : LidarSlam::KeypointTypes)
     {
-      auto* keyoints = vtkPolyData::GetData(outputVector, EDGE_KEYPOINTS_OUTPUT_PORT + static_cast<int>(k));
+      int port = EDGE_KEYPOINTS_OUTPUT_PORT + static_cast<int>(k);
+      if (port >= OUTPUT_PORT_COUNT)
+        continue;
+      auto* keyoints = vtkPolyData::GetData(outputVector, port);
       if (this->SlamAlgo->KeypointTypeEnabled(k))
         this->PointCloudToPolyData(this->SlamAlgo->GetKeypoints(k, this->OutputKeypointsInWorldCoordinates), keyoints);
       else
@@ -395,12 +397,6 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
         outputMap["Localization: plane matches"] = planarPoints;
         outputMap["Localization: plane weights"] = planarPoints;
 
-      }
-      if (this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::BLOB))
-      {
-        auto* blobPoints = vtkPolyData::GetData(outputVector, BLOB_KEYPOINTS_OUTPUT_PORT);
-        outputMap["Localization: blob matches"]  = blobPoints;
-        outputMap["Localization: blob weights"]  = blobPoints;
       }
 
       auto debugArray = this->SlamAlgo->GetDebugArray();
@@ -780,6 +776,16 @@ bool vtkSlam::areEdgesEnabled()
   return enabled;
 }
 
+bool vtkSlam::areIntensityEdgesEnabled()
+{
+  bool enabled = this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::INTENSITY_EDGE);
+  if (enabled)
+    vtkDebugMacro("Intensity edges are enabled");
+  else
+    vtkDebugMacro("Intensity edges are disabled");
+  return enabled;
+}
+
 bool vtkSlam::arePlanesEnabled()
 {
   bool enabled = this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::PLANE);
@@ -813,6 +819,20 @@ void vtkSlam::EnableEdges(bool enabled)
       vtkWarningMacro("No keypoint selected !");
   }
   this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::EDGE, enabled);
+}
+
+void vtkSlam::EnableIntensityEdges(bool enabled)
+{
+  if (enabled)
+    vtkDebugMacro("Enabling intensity edges");
+  else
+  {
+    vtkDebugMacro("Disabling intensity edges");
+    if (!this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::PLANE) &&
+        !this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::BLOB))
+      vtkWarningMacro("No keypoint selected !");
+  }
+  this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::INTENSITY_EDGE, enabled);
 }
 
 void vtkSlam::EnablePlanes(bool enabled)

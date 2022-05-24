@@ -145,10 +145,12 @@ public:
   vtkSetMacro(OutputKeypointsInWorldCoordinates, bool)
 
   void EnableEdges(bool enable);
+  void EnableIntensityEdges(bool enable);
   void EnablePlanes(bool enable);
   void EnableBlobs(bool enable);
 
   bool areEdgesEnabled();
+  bool areIntensityEdgesEnabled();
   bool arePlanesEnabled();
   bool areBlobsEnabled();
 
@@ -304,6 +306,12 @@ public:
   virtual void SetVoxelGridSamplingModeEdges(int sm)  {this->SetVoxelGridSamplingMode(LidarSlam::EDGE, sm);}
   virtual double GetVoxelGridLeafSizeEdges() const {return this->GetVoxelGridLeafSize(LidarSlam::EDGE);}
   virtual void SetVoxelGridLeafSizeEdges(double s) {this->SetVoxelGridLeafSize(LidarSlam::EDGE, s);}
+
+  // For intensity edges
+  virtual int GetVoxelGridSamplingModeIntensityEdges() const {return this->GetVoxelGridSamplingMode(LidarSlam::INTENSITY_EDGE);}
+  virtual void SetVoxelGridSamplingModeIntensityEdges(int sm)  {this->SetVoxelGridSamplingMode(LidarSlam::INTENSITY_EDGE, sm);}
+  virtual double GetVoxelGridLeafSizeIntensityEdges() const {return this->GetVoxelGridLeafSize(LidarSlam::INTENSITY_EDGE);}
+  virtual void SetVoxelGridLeafSizeIntensityEdges(double s) {this->SetVoxelGridLeafSize(LidarSlam::INTENSITY_EDGE, s);}
 
   // For planes
   virtual int GetVoxelGridSamplingModePlanes() const {return this->GetVoxelGridSamplingMode(LidarSlam::Keypoint::PLANE);}
