@@ -261,7 +261,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
       continue;
 
     // Loop over points in the current scan line
-    for (int index = this->NeighborWidth; (index + this->NeighborWidth) < Npts; ++index)
+    for (int index = 0; index < Npts; ++index)
     {
       // central point
       const Eigen::Vector3f& centralPoint = scanLineCloud[index].getVector3fMap();
@@ -273,11 +273,14 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
       // Fill left and right neighborhoods
       std::vector<int> leftNeighbors(this->NeighborWidth);
       std::vector<int> rightNeighbors(this->NeighborWidth);
-      std::iota(leftNeighbors.begin(), leftNeighbors.end(), index - this->NeighborWidth);
-      std::iota(rightNeighbors.begin(), rightNeighbors.end(), index + 1);
+      for (int i = 1; i <= this->NeighborWidth; ++i)
+      {
+        leftNeighbors[i - 1] = (index - i + Npts) % Npts;
+        rightNeighbors[i - 1] = (index + i) % Npts;
+      }
 
-      const auto& rightPt = scanLineCloud[index + 1].getVector3fMap();
-      const auto& leftPt = scanLineCloud[index - 1].getVector3fMap();
+      const auto& rightPt = scanLineCloud[rightNeighbors.front()].getVector3fMap();
+      const auto& leftPt = scanLineCloud[leftNeighbors.front()].getVector3fMap();
 
       const float rightDepth = rightPt.norm();
       const float leftDepth = leftPt.norm();
@@ -308,11 +311,17 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
 
         this->SpaceGap[scanLine][index] = std::max(distLeft, distRight);
 
+        // Stop search for first and last points of the line
+        // because the discontinuity may alter the other criteria detection
+        if (index < this->NeighborWidth || index >= Npts - this->NeighborWidth)
+          continue;
+
+        // Compute depth gap
+
         // Reinit variables
         distRight = -1.f;
         distLeft = -1.f;
 
-        // Compute depth gap
         if (cosAngleRight > cosMaxAzimuth)
           distRight = centralPoint.dot(diffVecRight) / centralDepth;
         if (cosAngleLeft > cosMaxAzimuth)
@@ -322,7 +331,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
         // If the points lay on a bended wall, previous and next points should be in the same direction
         if (distRight > this->EdgeDepthGapThreshold)
         {
-          auto nextdiffVecRight = (scanLineCloud[index + 2].getVector3fMap() - rightPt).normalized();
+          auto nextdiffVecRight = (scanLineCloud[rightNeighbors[1]].getVector3fMap() - rightPt).normalized();
           if ((nextdiffVecRight.dot(diffVecRight) / diffRightNorm) > cosMinBeamSurfaceAngle ||
               (-diffVecLeft.dot(diffVecRight) / (diffRightNorm * diffLeftNorm)) > cosMinBeamSurfaceAngle)
             distRight = -1.f;
@@ -332,7 +341,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
         // If the points lay on a bended wall, previous and next points should be in the same direction
         if (distLeft > this->EdgeDepthGapThreshold)
         {
-          auto prevdiffVecLeft = (scanLineCloud[index - 2].getVector3fMap() - leftPt).normalized();
+          auto prevdiffVecLeft = (scanLineCloud[leftNeighbors[1]].getVector3fMap() - leftPt).normalized();
           if ((prevdiffVecLeft.dot(diffVecLeft) / diffLeftNorm > cosMinBeamSurfaceAngle) ||
               (-diffVecRight.dot(diffVecLeft) / (diffRightNorm * diffLeftNorm)) > cosMinBeamSurfaceAngle)
             distLeft = -1.f;
