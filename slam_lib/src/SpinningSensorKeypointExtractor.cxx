@@ -40,7 +40,9 @@ bool LineFitting::FitLineAndCheckConsistency(const SpinningSensorKeypointExtract
   if (lineLength < this->MinLineLength)
     return false;
 
-  float maxDist = FLT_MAX;
+  float widthTheshold = std::max(this->MaxLineWidth, lineLength / this->LengthWidthRatio);
+
+  float maxDist = widthTheshold;
   Eigen::Vector3f bestDirection;
 
   this->Position = Eigen::Vector3f::Zero();
@@ -67,19 +69,29 @@ bool LineFitting::FitLineAndCheckConsistency(const SpinningSensorKeypointExtract
       for (int idx : indices)
       {
         currentMaxDist = std::max(currentMaxDist, this->DistanceToPoint(cloud[idx].getVector3fMap()));
-        if (currentMaxDist > this->MaxLineWidth)
+
+        // If the current point distance is too high,
+        // the current line won't be selected anyway so we
+        // can avoid computing next points' distances
+        if (currentMaxDist > widthTheshold)
           break;
       }
 
-      if (currentMaxDist < maxDist)
+      // If the current line implies high error for one neighbor
+      // the output line is considered as not trustworthy
+      if (currentMaxDist > 2.f * widthTheshold)
+        return false;
+
+      if (currentMaxDist <= maxDist)
       {
         bestDirection = this->Direction;
         maxDist = currentMaxDist;
       }
+
     }
   }
 
-  if (maxDist > this->MaxLineWidth)
+  if (maxDist >= widthTheshold - 1e-10)
     return false;
 
   this->Direction = bestDirection;

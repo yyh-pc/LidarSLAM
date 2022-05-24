@@ -59,8 +59,11 @@ struct LineFitting
   //! Min line length to be trustworthy
   float MinLineLength = 0.05;  // [m]
 
-  //! Max line width to be trustworthy
+  //! Max line width to be trustworthy for lines < 20cm
   float MaxLineWidth = 0.02;  // [m]
+
+  // Ratio between length and width to be trustworthy
+  float LengthWidthRatio = 10.; // [.]
 };
 } // End of anonymous namespace
 
