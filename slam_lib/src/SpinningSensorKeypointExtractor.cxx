@@ -173,6 +173,7 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
   // Initialize the features vectors with the correct length
   this->Angles.resize(this->NbLaserRings);
   this->DepthGap.resize(this->NbLaserRings);
+  this->SpaceGap.resize(this->NbLaserRings);
   this->IntensityGap.resize(this->NbLaserRings);
   this->Label.resize(this->NbLaserRings);
 
@@ -184,6 +185,7 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
     this->Label[scanLine].assign(nbPoint, KeypointFlags().reset());  // set all flags to 0
     this->Angles[scanLine].assign(nbPoint, -1.);
     this->DepthGap[scanLine].assign(nbPoint, -1.);
+    this->SpaceGap[scanLine].assign(nbPoint, -1.);
     this->IntensityGap[scanLine].assign(nbPoint, -1.);
   }
 
@@ -300,6 +302,19 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
 
       if (this->Enabled[EDGE])
       {
+        // Compute space gap (if some neighbors were missed)
+        if (angleRight > this->EdgeNbGapPoints * this->AzimuthalResolution)
+          distRight = diffVecRight.norm();
+
+        if (angleLeft > this->EdgeNbGapPoints * this->AzimuthalResolution)
+          distLeft = diffVecLeft.norm();
+
+        this->SpaceGap[scanLine][index] = std::max(distLeft, distRight);
+
+        // Reinit variables
+        distRight = -1.f;
+        distLeft = -1.f;
+
         // Compute depth gap
         distRight = centralPoint.dot(diffVecRight) / centralDepth;
         distLeft = leftPt.dot(diffVecLeft) / leftDepth;
@@ -413,6 +428,7 @@ void SpinningSensorKeypointExtractor::ComputeEdges()
 {
   this->AddKptsUsingCriterion(Keypoint::EDGE, this->DepthGap, this->EdgeDepthGapThreshold, false, 1);
   this->AddKptsUsingCriterion(Keypoint::EDGE, this->Angles, this->EdgeSinAngleThreshold, false, 2);
+  this->AddKptsUsingCriterion(Keypoint::EDGE, this->SpaceGap, this->EdgeDepthGapThreshold, false, 3);
 }
 
 //-----------------------------------------------------------------------------
@@ -510,6 +526,7 @@ std::unordered_map<std::string, std::vector<float>> SpinningSensorKeypointExtrac
   std::unordered_map<std::string, std::vector<float>> map;
   map["sin_angle"]      = get1DVector(this->Angles);
   map["depth_gap"]      = get1DVector(this->DepthGap);
+  map["space_gap"]      = get1DVector(this->SpaceGap);
   map["intensity_gap"]  = get1DVector(this->IntensityGap);
   map["edge_keypoint"]  = get1DVectorFromFlag(this->Label, Keypoint::EDGE);
   map["intensity_edge_keypoint"]  = get1DVectorFromFlag(this->Label, Keypoint::INTENSITY_EDGE);

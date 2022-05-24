@@ -100,6 +100,9 @@ public:
   GetMacro(AzimuthalResolution, float)
   SetMacro(AzimuthalResolution, float)
 
+  GetMacro(EdgeNbGapPoints, int)
+  SetMacro(EdgeNbGapPoints, int)
+
   float GetVoxelResolution() const;
   void SetVoxelResolution(float res);
 
@@ -201,11 +204,8 @@ private:
   // Threshold upon intensity gap to select an edge keypoint
   float EdgeIntensityGapThreshold = 50.;
 
-  // Threshold upon sphericity of a neighborhood to select a blob point
-  float SphericityThreshold = 0.35;  // CHECK : unused
-
-  // Coef to apply to the incertitude radius of the blob neighborhood
-  float IncertitudeCoef = 3.0;  // CHECK : unused
+  // Nb of points missed to define a space gap
+  int EdgeNbGapPoints = 5; // [nb]
 
   // ---------------------------------------------------------------------------
   //   Internal variables
@@ -227,6 +227,7 @@ private:
   // Curvature and other differential operations (scan by scan, point by point)
   std::vector<std::vector<float>> Angles;
   std::vector<std::vector<float>> DepthGap;
+  std::vector<std::vector<float>> SpaceGap;
   std::vector<std::vector<float>> IntensityGap;
   std::vector<std::vector<KeypointFlags>> Label;
 
