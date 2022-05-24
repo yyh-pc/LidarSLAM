@@ -29,26 +29,29 @@
 
 enum Output
 {
-  POSE_ODOM,             // Publish SLAM pose as an Odometry msg on 'slam_odom' topic (default : true).
-  POSE_TF,               // Publish SLAM pose as a TF from 'odometry_frame' to 'tracking_frame' (default : true).
-  POSE_PREDICTION_ODOM,  // Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
-  POSE_PREDICTION_TF,    // Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
+  POSE_ODOM,                 // Publish SLAM pose as an Odometry msg on 'slam_odom' topic (default : true).
+  POSE_TF,                   // Publish SLAM pose as a TF from 'odometry_frame' to 'tracking_frame' (default : true).
+  POSE_PREDICTION_ODOM,      // Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
+  POSE_PREDICTION_TF,        // Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
 
-  EDGES_MAP,             // Publish edge keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
-  PLANES_MAP,            // Publish plane keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
-  BLOBS_MAP,             // Publish blob keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
+  EDGES_MAP,                 // Publish edge keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
+  INTENSITY_EDGES_MAP,       // Publish intensity edge keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/intensity_edges'.
+  PLANES_MAP,                // Publish plane keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
+  BLOBS_MAP,                 // Publish blob keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
 
-  EDGES_SUBMAP,          // Publish edge keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/edges'.
-  PLANES_SUBMAP,         // Publish plane keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/planes'.
-  BLOBS_SUBMAP,          // Publish blob keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/blobs'.
+  EDGES_SUBMAP,              // Publish edge keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/edges'.
+  INTENSITY_EDGES_SUBMAP,    // Publish intensity edge keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/intensity_edges'.
+  PLANES_SUBMAP,             // Publish plane keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/planes'.
+  BLOBS_SUBMAP,              // Publish blob keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/blobs'.
 
-  EDGE_KEYPOINTS,        // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
-  PLANE_KEYPOINTS,       // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
-  BLOB_KEYPOINTS,        // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
+  EDGE_KEYPOINTS,            // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
+  INTENSITY_EDGE_KEYPOINTS,  // Publish extracted intensity edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/intensity_edges'.
+  PLANE_KEYPOINTS,           // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
+  BLOB_KEYPOINTS,            // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
 
-  SLAM_REGISTERED_POINTS,// Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_registered_points'.
+  SLAM_REGISTERED_POINTS,    // Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_registered_points'.
 
-  CONFIDENCE,            // Publish confidence estimators on output pose to topic 'slam_confidence'.
+  CONFIDENCE,                // Publish confidence estimators on output pose to topic 'slam_confidence'.
 
   PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'pgo_slam_path' latched topic.
 };
@@ -119,6 +122,13 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     initPublisher(EDGES_MAP,  "maps/edges",  CloudS, "output/maps/edges",  true, 1, false);
     initPublisher(EDGES_SUBMAP,  "submaps/edges",  CloudS, "output/submaps/edges",  true, 1, false);
     initPublisher(EDGE_KEYPOINTS,  "keypoints/edges",  CloudS, "output/keypoints/edges",  true, 1, false);
+  }
+
+  if(this->LidarSlam.KeypointTypeEnabled(LidarSlam::INTENSITY_EDGE))
+  {
+    initPublisher(INTENSITY_EDGES_MAP,  "maps/intensity_edges",  CloudS, "output/maps/intensity_edges",  true, 1, false);
+    initPublisher(INTENSITY_EDGES_SUBMAP,  "submaps/intensity_edges",  CloudS, "output/submaps/intensity_edges",  true, 1, false);
+    initPublisher(INTENSITY_EDGE_KEYPOINTS,  "keypoints/intensity_edges",  CloudS, "output/keypoints/intensity_edges",  true, 1, false);
   }
 
   if(this->LidarSlam.KeypointTypeEnabled(LidarSlam::PLANE))
@@ -750,16 +760,19 @@ void LidarSlamNode::PublishOutput()
 
   // Keypoints maps
   publishPointCloud(EDGES_MAP,  this->LidarSlam.GetMap(LidarSlam::EDGE));
+  publishPointCloud(INTENSITY_EDGES_MAP,  this->LidarSlam.GetMap(LidarSlam::INTENSITY_EDGE));
   publishPointCloud(PLANES_MAP, this->LidarSlam.GetMap(LidarSlam::PLANE));
   publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetMap(LidarSlam::BLOB));
 
   // Keypoints submaps
   publishPointCloud(EDGES_SUBMAP,  this->LidarSlam.GetTargetSubMap(LidarSlam::EDGE));
+  publishPointCloud(INTENSITY_EDGES_SUBMAP,  this->LidarSlam.GetTargetSubMap(LidarSlam::INTENSITY_EDGE));
   publishPointCloud(PLANES_SUBMAP, this->LidarSlam.GetTargetSubMap(LidarSlam::PLANE));
   publishPointCloud(BLOBS_SUBMAP,  this->LidarSlam.GetTargetSubMap(LidarSlam::BLOB));
 
   // Current keypoints
   publishPointCloud(EDGE_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::EDGE));
+  publishPointCloud(INTENSITY_EDGE_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::INTENSITY_EDGE));
   publishPointCloud(PLANE_KEYPOINTS, this->LidarSlam.GetKeypoints(LidarSlam::PLANE));
   publishPointCloud(BLOB_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::BLOB));
 
@@ -872,6 +885,7 @@ void LidarSlamNode::SetSlamParameters()
         ROS_INFO_STREAM("Keypoint of type " + name + " disabled"); \
     }
     EnableKeypoint(LidarSlam::Keypoint::EDGE);
+    EnableKeypoint(LidarSlam::Keypoint::INTENSITY_EDGE);
     EnableKeypoint(LidarSlam::Keypoint::PLANE);
     EnableKeypoint(LidarSlam::Keypoint::BLOB);
   };
@@ -975,11 +989,13 @@ void LidarSlamNode::SetSlamParameters()
     this->LidarSlam.SetMapUpdate(mapUpdate);
   }
   double size;
-  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_edges", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::EDGE))
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size/edges", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::EDGE))
     this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::EDGE, size);
-  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_planes", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::PLANE))
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size/intensity_edges", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::INTENSITY_EDGE))
+    this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::INTENSITY_EDGE, size);
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size/planes", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::PLANE))
     this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::PLANE, size);
-  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_blobs", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::BLOB))
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size/blobs", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::BLOB))
     this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::BLOB, size);
   SetSlamParam(double, "slam/voxel_grid/resolution", VoxelGridResolution)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)

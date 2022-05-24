@@ -30,15 +30,18 @@ output:
     predicted_tf: false    # Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction' (default: false).
   maps:
     edges: true            # Publish edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
+    intensity_edges: true  # Publish intensity edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/intensity_edges'.
     planes: true           # Publish planes keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
     blobs: true            # Publish blobs keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
   submaps:
     edges: true            # Publish edges keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/edges'.
+    intensity_edges: true  # Publish intensity edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/intensity_edges'.
     planes: true           # Publish planes keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/planes'.
     blobs: true            # Publish blobs keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/blobs'.
   # WARNING : The submaps only exist if update_maps is not 0 (the map is not fixed)
   keypoints:
     edges: true            # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
+    intensity_edges: true  # Publish extracted intensity edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/intensity_edges'.
     planes: true           # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
     blobs: true            # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
   confidence: true         # Publish confidence estimators as a confidence msg to topic 'slam_confidence'.
@@ -254,9 +257,11 @@ slam:
     #          *SlamCommand::ENABLE_SLAM_MAP_UPDATE
     # to 'slam_command' topic at startup.
     update_maps: 2
-    leaf_size_edges: 0.20   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
-    leaf_size_planes: 0.30  # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
-    leaf_size_blobs: 0.30   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
+    leaf_size:
+      edges: 0.20             # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
+      planes: 0.30            # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
+      blobs: 0.30             # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
+      intensity_edges: 0.1   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
     # WARNING: the leaf sizes are linked with the confidence threshold parameter
     # if they are reduced the confidence threshold may need to by reduced as well to extract enough target keypoints
     size: 50                # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
@@ -269,6 +274,7 @@ slam:
     # 4) Compute the centroid of all points laying in the voxel.
     sampling_mode:
       edge: 2
+      intensity_edge: 2
       plane: 2
       blob: 2
     decaying_threshold: -1  # [s] Time duration after which to eliminate a not fixed keypoint from the map.
@@ -283,6 +289,7 @@ slam:
     # Single LiDAR input
     enable:
       edge: true
+      intensity_edge: true
       plane: true
       blob: false
     max_points: 2000                   # Maximum number of keypoints of each type to extract
@@ -294,7 +301,7 @@ slam:
     edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
     edge_depth_gap_threshold: 0.5      # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
     edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
-    edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
+    edge_intensity_gap_threshold: 20.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
 
     # # Multi LiDAR inputs
     # # The multiple devices to use for SLAM.
@@ -304,6 +311,7 @@ slam:
     # device_0:
     #   enable:
     #     edge: true
+    #     intensity_edge: true
     #     plane: true
     #     blob: false
     #   max_points: 2000                   # Maximum number of keypoints of each type to extract
@@ -315,10 +323,11 @@ slam:
     #   edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
     #   edge_depth_gap_threshold: 0.15     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
     #   edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
-    #   edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
+    #   edge_intensity_gap_threshold: 20.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
     # device_10:
     #   enable:
     #     edge: true
+    #     intensity_edge: true
     #     plane: true
     #     blob: false
     #   max_points: 2000                   # Maximum number of keypoints of each type to extract
