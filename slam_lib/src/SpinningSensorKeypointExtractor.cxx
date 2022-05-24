@@ -180,6 +180,8 @@ void SpinningSensorKeypointExtractor::ComputeKeyPoints(const PointCloud::Ptr& pc
     this->ComputePlanes();
   if (this->Enabled[Keypoint::EDGE])
     this->ComputeEdges();
+  if (this->Enabled[Keypoint::INTENSITY_EDGE])
+    this->ComputeIntensityEdges();
 }
 
 //-----------------------------------------------------------------------------
@@ -386,31 +388,43 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
       if (!this->IsPointValid[scanLine][index])
         continue;
 
+      // Fill left and right neighborhoods, from central point to sides.
+      // /!\ The way the neighbors are added to the vectors matters,
+      // especially when computing the saliency
+      std::vector<int> leftNeighbors(this->NeighborWidth);
+      std::vector<int> rightNeighbors(this->NeighborWidth);
+      for (int j = index - 1; j >= index - this->NeighborWidth; --j)
+        leftNeighbors[index - 1 - j] = j;
+      for (int j = index + 1; j <= index + this->NeighborWidth; ++j)
+        rightNeighbors[j - index - 1] = j;
+
+      // Compute intensity gap
+      float gap = scanLineCloud[index].intensity - scanLineCloud[index - 1].intensity;
+      float depthGap = (scanLineCloud[index - 1].getVector3fMap() - scanLineCloud[index].getVector3fMap()).norm();
+      if (gap > this->EdgeIntensityGapThreshold && depthGap < 0.1)
+      {
+        // Compute mean intensity on the left
+        float meanIntensityLeft = 0;
+        for (int indexLeft : leftNeighbors)
+          meanIntensityLeft += scanLineCloud[indexLeft].intensity;
+        meanIntensityLeft /= this->NeighborWidth;
+        // Compute mean intensity on the right
+        float meanIntensityRight = 0;
+        for (int indexRight : rightNeighbors)
+          meanIntensityRight += scanLineCloud[indexRight].intensity;
+        meanIntensityRight /= this->NeighborWidth;
+        this->IntensityGap[scanLine][index] = std::abs(meanIntensityLeft - meanIntensityRight);
+      }
+
       // central point
       const Point& currentPoint = scanLineCloud[index];
       const Eigen::Vector3f centralPoint = currentPoint.getVector3fMap();
-
-      // compute intensity gap
-      // CHECK : do not use currentPoint.intensity?
-      const Point& previousPoint = scanLineCloud[index - 1];
-      const Point& nextPoint = scanLineCloud[index + 1];
-      this->IntensityGap[scanLine][index] = std::abs(nextPoint.intensity - previousPoint.intensity);
 
       // We will compute the line that fits the neighbors located before the current point.
       // We will do the same for the neighbors located after the current point.
       // We will then compute the angle between these two lines as an approximation
       // of the "sharpness" of the current point.
-      std::vector<int> leftNeighbors(this->NeighborWidth);
-      std::vector<int> rightNeighbors(this->NeighborWidth);
       LineFitting leftLine, rightLine;
-
-      // Fill left and right neighborhoods, from central point to sides.
-      // /!\ The way the neighbors are added to the vectors matters,
-      // especially when computing the saliency
-      for (int j = index - 1; j >= index - this->NeighborWidth; --j)
-        leftNeighbors[index - 1 - j] = j;
-      for (int j = index + 1; j <= index + this->NeighborWidth; ++j)
-        rightNeighbors[j - index - 1] = j;
 
       // Fit line on the left and right neighborhoods and
       // Indicate if they are flat or not
@@ -579,7 +593,12 @@ void SpinningSensorKeypointExtractor::ComputeEdges()
   this->AddKptsUsingCriterion(Keypoint::EDGE, this->DepthGap, std::pow(this->EdgeDepthGapThreshold, 2), false, 1);
   this->AddKptsUsingCriterion(Keypoint::EDGE, this->Angles, this->EdgeSinAngleThreshold, false, 2);
   this->AddKptsUsingCriterion(Keypoint::EDGE, this->Saliency, std::pow(this->EdgeSaliencyThreshold, 2), false, 3);
-  this->AddKptsUsingCriterion(Keypoint::EDGE, this->IntensityGap, this->EdgeIntensityGapThreshold, false, 4);
+}
+
+//-----------------------------------------------------------------------------
+void SpinningSensorKeypointExtractor::ComputeIntensityEdges()
+{
+  this->AddKptsUsingCriterion(Keypoint::INTENSITY_EDGE, this->IntensityGap, this->EdgeIntensityGapThreshold, false);
 }
 
 //-----------------------------------------------------------------------------
@@ -677,6 +696,7 @@ std::unordered_map<std::string, std::vector<float>> SpinningSensorKeypointExtrac
   map["depth_gap"]      = get1DVector(this->DepthGap);
   map["intensity_gap"]  = get1DVector(this->IntensityGap);
   map["edge_keypoint"]  = get1DVectorFromFlag(this->Label, Keypoint::EDGE);
+  map["intensity_edge_keypoint"]  = get1DVectorFromFlag(this->Label, Keypoint::INTENSITY_EDGE);
   map["plane_keypoint"] = get1DVectorFromFlag(this->Label, Keypoint::PLANE);
   map["blob_keypoint"]  = get1DVectorFromFlag(this->Label, Keypoint::BLOB);
   map["valid"]          = get1DVector(this->IsPointValid);

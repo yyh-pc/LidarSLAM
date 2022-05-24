@@ -130,6 +130,8 @@ Slam::Slam()
   // Set default maps parameters
   if (this->UseKeypoints[EDGE])
     this->InitMap(EDGE);
+  if (this->UseKeypoints[INTENSITY_EDGE])
+    this->InitMap(INTENSITY_EDGE);
   if (this->UseKeypoints[PLANE])
     this->InitMap(PLANE);
   if (this->UseKeypoints[BLOB])
@@ -152,6 +154,9 @@ void Slam::InitMap(Keypoint k)
   switch(k)
   {
     case EDGE:
+      this->LocalMaps[k]->SetLeafSize(0.3);
+      break;
+    case INTENSITY_EDGE:
       this->LocalMaps[k]->SetLeafSize(0.3);
       break;
     case PLANE:

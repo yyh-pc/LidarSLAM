@@ -120,6 +120,7 @@ private:
   // and extract them in correspondant pointcloud
   void ComputePlanes();
   void ComputeEdges();
+  void ComputeIntensityEdges();
   void ComputeBlobs();
 
   // Auto estimate azimuth angle resolution based on current ScanLines
@@ -144,7 +145,7 @@ private:
   // ---------------------------------------------------------------------------
 
   // Keypoints activated
-  std::unordered_map<Keypoint, bool> Enabled = {{EDGE, true}, {PLANE, true}, {BLOB, false}};
+  std::unordered_map<Keypoint, bool> Enabled = {{EDGE, true}, {INTENSITY_EDGE, true}, {PLANE, true}, {BLOB, false}};
 
   // Max number of threads to use to process points in parallel
   int NbThreads = 1;
