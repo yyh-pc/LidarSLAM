@@ -207,11 +207,11 @@ slam:
     # Match
     max_neighbors_distance: 5.      # [m] Max distance allowed between a current keypoint and its neighbors.
     # Point to edge match
-    edge_nb_neighbors: 10           # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
-    edge_min_nb_neighbors: 4        # [>=2] Min number of resulting filtered edge neighbors (close to best line candidate) to approximate the corresponding line model.
+    edge_nb_neighbors: 9            # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
+    edge_min_nb_neighbors: 5        # [>=2] Min number of resulting filtered edge neighbors (close to best line candidate) to approximate the corresponding line model.
     edge_max_model_error: 0.2       # [m] Max RMSE allowed between neighborhood and its fitted line model to create a point to line constraint.
     # Point to plane match
-    plane_nb_neighbors: 5           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
+    plane_nb_neighbors: 7           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
     planarity_threshold: 0.04       # Min ratio between the 2 highest eigen values of the plane neighborhood to create a point to plane constraint :
                                     # Contained in [0, 1]. OK if l1/l2 > planarity_threshold (with l2>l1>l0)
     plane_max_model_error: 0.1      # [m] Max RMSE allowed between neighborhood and its fitted plane model to create a point to plane constraint..
@@ -258,7 +258,7 @@ slam:
     update_maps: 2
     leaf_size:
       edges: 0.30             # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
-      intensity_edges: 0.1    # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
+      intensity_edges: 0.20   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
       planes: 0.60            # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
       blobs: 0.30             # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
     # WARNING: the leaf sizes are linked with the confidence threshold parameter
@@ -277,7 +277,7 @@ slam:
       plane: 2
       blob: 2
     decaying_threshold: -1  # [s] Time duration after which to eliminate a not fixed keypoint from the map.
-    min_frames_per_voxel: 0 # Minimum number of frames that must have reached a map voxel
+    min_frames_per_voxel: 2 # Minimum number of frames that must have reached a map voxel
                             # to consider the voxel contains a target keypoint.
                             # It is used to reject moving objects from the map
                             # WARNING: this parameter may need to be adapted to the velocity of the robot,
@@ -291,16 +291,16 @@ slam:
       intensity_edge: true
       plane: true
       blob: false
-    max_points: 2000                   # Maximum number of keypoints of each type to extract
-    voxel_grid_resolution: 0.3         # [m/voxel] Size of a voxel to downsample the extracted keypoints
+    max_points: 1000                   # Maximum number of keypoints of each type to extract
+    voxel_grid_resolution: 1.          # [m/voxel] Size of a voxel to downsample the extracted keypoints
     min_distance_to_sensor: 1.5        # [m] Minimal point to sensor distance to consider a point as valid.
     min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
     edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
-    edge_depth_gap_threshold: 1.5      # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
+    edge_depth_gap_threshold: 1.       # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
     edge_nb_gap_points: 10             # [points] Minimum number of successive missing points to consider a space gap.
-    edge_intensity_gap_threshold: 30.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
+    edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
 
     # # Multi LiDAR inputs
     # # The multiple devices to use for SLAM.
@@ -313,9 +313,9 @@ slam:
     #     intensity_edge: true
     #     plane: true
     #     blob: false
-    #   max_points: 2000                   # Maximum number of keypoints of each type to extract
-    #   voxel_grid_resolution: 0.3         # [m/voxel] Size of a voxel to downsample the extracted keypoints
-    #   min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
+    #   max_points: 1000                   # Maximum number of keypoints of each type to extract
+    #   voxel_grid_resolution: 1.          # [m/voxel] Size of a voxel to downsample the extracted keypoints
+    #   min_distance_to_sensor: 1.5        # [m] Minimal point to sensor distance to consider a point as valid.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
@@ -329,9 +329,9 @@ slam:
     #     intensity_edge: true
     #     plane: true
     #     blob: false
-    #   max_points: 2000                   # Maximum number of keypoints of each type to extract
-    #   voxel_grid_resolution: 0.3         # [m/voxel] Size of a voxel to downsample the extracted keypoints
-    #   min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
+    #   max_points: 1000                   # Maximum number of keypoints of each type to extract
+    #   voxel_grid_resolution: 1.          # [m/voxel] Size of a voxel to downsample the extracted keypoints
+    #   min_distance_to_sensor: 1.5        # [m] Minimal point to sensor distance to consider a point as valid.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).

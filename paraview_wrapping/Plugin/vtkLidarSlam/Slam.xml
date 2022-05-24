@@ -62,14 +62,14 @@
         </Documentation>
       </InputProperty>
 
-      <OutputPort name="Current transformed frame" index="0" id="port0" />
-      <OutputPort name="Trajectory"                index="1" id="port1" />
-      <OutputPort name="Edge map"                  index="2" id="port2" />
-      <OutputPort name="Intensity edge map"        index="3" id="port3" />
-      <OutputPort name="Planar map"                index="4" id="port4" />
-      <OutputPort name="Current edge keypoints"    index="5" id="port5" />
+      <OutputPort name="Current transformed frame"         index="0" id="port0" />
+      <OutputPort name="Trajectory"                        index="1" id="port1" />
+      <OutputPort name="Edge map"                          index="2" id="port2" />
+      <OutputPort name="Intensity edge map"                index="3" id="port3" />
+      <OutputPort name="Planar map"                        index="4" id="port4" />
+      <OutputPort name="Current edge keypoints"            index="5" id="port5" />
       <OutputPort name="Current intensity edge keypoints"  index="6" id="port6" />
-      <OutputPort name="Current planar keypoints"  index="7" id="port7" />
+      <OutputPort name="Current planar keypoints"          index="7" id="port7" />
 
       <!-- ============= Paraview filter inputs/outputs options ============ -->
 
@@ -104,7 +104,7 @@
 
           *odom*: Wheel odometry, in meters
 
-          *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second
+          *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second^2
         </Documentation>
       </StringVectorProperty>
 
@@ -450,7 +450,7 @@
       <IntVectorProperty name="Number of threads"
                          command="SetNbThreads"
                          number_of_elements="1"
-                         default_values="1">
+                         default_values="4">
         <IntRangeDomain name="range" min="1" max="16"/>
         <Documentation>
           Max number of threads to use for parallel processing.
@@ -791,7 +791,7 @@
       <IntVectorProperty name="Edge nb of neighbors"
                          command="SetLocalizationEdgeNbNeighbors"
                          number_of_elements="1"
-                         default_values="10"
+                         default_values="9"
                          panel_visibility="advanced">
         <Documentation>
           Initial number of edge neighbors to extract, that will be filtered out
@@ -808,7 +808,7 @@
       <IntVectorProperty name="Edge nb min filtered neighbors"
                          command="SetLocalizationEdgeMinNbNeighbors"
                          number_of_elements="1"
-                         default_values="4"
+                         default_values="5"
                          panel_visibility="advanced">
         <Documentation>
           Min number of resulting filtered edge neighbors (close to best line
@@ -839,7 +839,7 @@
       <IntVectorProperty name="Plane nb of neighbors"
                          command="SetLocalizationPlaneNbNeighbors"
                          number_of_elements="1"
-                         default_values="5"
+                         default_values="7"
                          panel_visibility="advanced">
         <Documentation>
           Number of plane neighbors to extract to approximate the corresponding
@@ -1145,7 +1145,7 @@
       <DoubleVectorProperty name="Intensity edges map resolution"
                             command="SetVoxelGridLeafSizeIntensityEdges"
                             number_of_elements="1"
-                            default_values="0.1"
+                            default_values="0.2"
                             panel_visibility="advanced">
         <Documentation>
           Minimum size of a leaf (in meters) when downsampling the intensity edges map using
@@ -1179,7 +1179,7 @@
       <DoubleVectorProperty name="Blobs map resolution"
                             command="SetVoxelGridLeafSizeBlobs"
                             number_of_elements="1"
-                            default_values="0.3"
+                            default_values="0.5"
                             panel_visibility="advanced">
         <Documentation>
           Minimum size of a leaf (in meters) when downsampling the blobs map using
@@ -1227,7 +1227,7 @@
       <IntVectorProperty name="Min number of frames per voxel"
                             command="SetVoxelGridMinFramesPerVoxel"
                             number_of_elements="1"
-                            default_values="0"
+                            default_values="2"
                             panel_visibility="advanced">
         <Documentation>
           Minimum number of frames that must have reached a map voxel
@@ -1432,7 +1432,7 @@
       <IntVectorProperty name="First frame"
                          command="SetFirstFrame"
                          number_of_elements="1"
-                         default_values="0">
+                         default_values="1">
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="All frames" value="0" />
         </Hints>
@@ -1563,7 +1563,7 @@
       <DoubleVectorProperty name="Edge min depth gap"
                             command="SetEdgeDepthGapThreshold"
                             number_of_elements="1"
-                            default_values="0.15"
+                            default_values="1."
                             panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
@@ -1580,7 +1580,7 @@
       <IntVectorProperty name="Edge min nb of missing points"
                             command="SetEdgeNbGapPoints"
                             number_of_elements="1"
-                            default_values="5"
+                            default_values="10"
                             panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
@@ -1594,7 +1594,7 @@
       <DoubleVectorProperty name="Edge min intensity gap"
                             command="SetEdgeIntensityGapThreshold"
                             number_of_elements="1"
-                            default_values="30."
+                            default_values="50."
                             panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
@@ -1621,7 +1621,7 @@
       <DoubleVectorProperty name="Voxel grid resolution"
                             command="SetVoxelResolution"
                             number_of_elements="1"
-                            default_values="0.5"
+                            default_values="1."
                             panel_visibility="advanced">
         <Documentation>
           Resolution of the voxel grid used to downsample the keypoints cloud.

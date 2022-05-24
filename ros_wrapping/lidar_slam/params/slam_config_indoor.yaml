@@ -226,7 +226,7 @@ slam:
 
   # Keyframes parameters. Only keyframes points are added to the maps.
   keyframes:
-    distance_threshold: 0.2  # [m] Min distance to travel since last KF to add a new one
+    distance_threshold: 0.1  # [m] Min distance to travel since last KF to add a new one
     angle_threshold: 5.      # [°] Min angle to rotate since last KF to add a new one
   # WARNING : these parameters are linked to the confidence threshold parameter
   # If they are reduced, the confidence threshold may need to be increased to not take too many moving objects
@@ -258,13 +258,13 @@ slam:
     # to 'slam_command' topic at startup.
     update_maps: 2
     leaf_size:
-      edges: 0.20             # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
-      planes: 0.30            # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
-      blobs: 0.30             # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
-      intensity_edges: 0.1   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
+      edges: 0.2             # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
+      intensity_edges: 0.2   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
+      planes: 0.3            # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
+      blobs: 0.3             # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
     # WARNING: the leaf sizes are linked with the confidence threshold parameter
     # if they are reduced the confidence threshold may need to by reduced as well to extract enough target keypoints
-    size: 50                # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
+    size: 100               # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
     resolution: 5.          # [m/voxel] Resolution of a voxel.
     # The sampling modes allow to decide which point to keep when downsampling the map using a voxel grid.
     # 0) Keep the first point scanned in the voxel,
@@ -278,7 +278,7 @@ slam:
       plane: 2
       blob: 2
     decaying_threshold: -1  # [s] Time duration after which to eliminate a not fixed keypoint from the map.
-    min_frames_per_voxel: 0 # Minimum number of frames that must have reached a map voxel
+    min_frames_per_voxel: 2 # Minimum number of frames that must have reached a map voxel
                             # to consider the voxel contains a target keypoint.
                             # It is used to reject moving objects from the map
                             # WARNING: this parameter may need to be adapted to the velocity of the robot,
@@ -292,8 +292,8 @@ slam:
       intensity_edge: true
       plane: true
       blob: false
-    max_points: 2000                   # Maximum number of keypoints of each type to extract
-    voxel_grid_resolution: 0.3         # [m/voxel] Size of a voxel to downsample the extracted keypoints
+    max_points: 1000                   # Maximum number of keypoints of each type to extract
+    voxel_grid_resolution: 0.5         # [m/voxel] Size of a voxel to downsample the extracted keypoints
     min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
     min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
@@ -314,9 +314,9 @@ slam:
     #     intensity_edge: true
     #     plane: true
     #     blob: false
-    #   max_points: 2000                   # Maximum number of keypoints of each type to extract
-    #   voxel_grid_resolution: 0.3         # [m/voxel] Size of a voxel to downsample the extracted keypoints
-    #   min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
+    #   max_points: 1000                   # Maximum number of keypoints of each type to extract
+    #   voxel_grid_resolution: 0.5         # [m/voxel] Size of a voxel to downsample the extracted keypoints
+    #   min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
@@ -330,8 +330,8 @@ slam:
     #     intensity_edge: true
     #     plane: true
     #     blob: false
-    #   max_points: 2000                   # Maximum number of keypoints of each type to extract
-    #   voxel_grid_resolution: 0.3         # [m/voxel] Size of a voxel to downsample the extracted keypoints
+    #   max_points: 1000                   # Maximum number of keypoints of each type to extract
+    #   voxel_grid_resolution: 0.5         # [m/voxel] Size of a voxel to downsample the extracted keypoints
     #   min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
