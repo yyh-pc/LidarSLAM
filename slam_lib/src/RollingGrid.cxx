@@ -33,6 +33,8 @@ namespace LidarSlam
 RollingGrid::RollingGrid(const Eigen::Vector3f& position)
 {
   this->SubMap.reset(new PointCloud);
+  this->GridInSize = int(this->VoxelResolution / this->LeafSize);
+  this->VoxelWidth = this->GridInSize * this->LeafSize;
   this->Reset(position);
 }
 
@@ -44,7 +46,7 @@ void RollingGrid::Reset(const Eigen::Vector3f& position)
 
   // Initialize VoxelGrid center position
   // Position is rounded down to be a multiple of resolution
-  this->VoxelGridPosition = (position.array() / this->VoxelResolution).floor() * this->VoxelResolution;
+  this->VoxelGridPosition = (position.array() / this->VoxelWidth).floor() * this->VoxelWidth;
 }
 
 //------------------------------------------------------------------------------
@@ -74,17 +76,33 @@ void RollingGrid::SetVoxelResolution(double resolution)
 {
   // We cannot compel the leaf size (inner voxel grid resolution) with the
   // outer voxel grid resolution if we want equally sized inner voxels.
-  // Therefore, the Voxel resolution will be slightly different from the input value.
-  this->VoxelResolution = int (resolution / this->LeafSize) * this->LeafSize;
+  // Therefore, the outer voxel resolution (VoxelWidth) might be a bit lower
+  // than supplied (VoxelResolution) to get to the closest multiple of the leaf size
+  this->VoxelResolution = resolution;
+  this->GridInSize = int(resolution / this->LeafSize);
+  this->VoxelWidth = this->GridInSize * this->LeafSize;
 
   // Round down VoxelGrid center position to be a multiple of resolution
-  this->VoxelGridPosition = (this->VoxelGridPosition / this->VoxelResolution).floor() * this->VoxelResolution;
+  this->VoxelGridPosition = (this->VoxelGridPosition / this->VoxelWidth).floor() * this->VoxelWidth;
 
   // Move points so that they now lie in the right voxel
   PointCloud::Ptr prevMap = this->Get();
   this->Clear();
   if (!prevMap->empty())
     this->Add(prevMap);
+}
+
+//------------------------------------------------------------------------------
+void RollingGrid::SetLeafSize(double ls)
+{
+  this->LeafSize = ls;
+
+  // Update relative values
+  // Reminder : the outer voxel resolution (VoxelWidth) might be a bit lower
+  // than supplied (VoxelResolution) to get to the closest multiple of the leaf size
+  this->GridInSize = int(this->VoxelResolution / this->LeafSize);
+  this->VoxelWidth = this->GridInSize * this->LeafSize;
+  this->VoxelGridPosition = (this->VoxelGridPosition / this->VoxelWidth).floor() * this->VoxelWidth;
 }
 
 //==============================================================================
@@ -120,14 +138,14 @@ void RollingGrid::Roll(const Eigen::Array3f& minPoint, const Eigen::Array3f& max
   // This only moves VoxelGrid so that the given bounding box can entirely fit in rolled map.
 
   // Compute how much the new frame does not fit in current grid
-  double halfGridSize = static_cast<double>(this->GridSize) / 2 * this->VoxelResolution;
+  double halfGridSize = static_cast<double>(this->GridSize) / 2 * this->VoxelWidth;
   Eigen::Array3f downOffset = minPoint - (VoxelGridPosition - halfGridSize);
   Eigen::Array3f upOffset   = maxPoint - (VoxelGridPosition + halfGridSize);
   Eigen::Array3f offset = (upOffset + downOffset) / 2;
 
   // Clamp the rolling movement so that it only moves what is really necessary
   offset = offset.max(downOffset.min(0)).min(upOffset.max(0));
-  Eigen::Array3i voxelsOffset = (offset / this->VoxelResolution).round().cast<int>();
+  Eigen::Array3i voxelsOffset = (offset / this->VoxelWidth).round().cast<int>();
 
   // Exit if there is no need to roll
   if ((voxelsOffset == 0).all())
@@ -139,12 +157,12 @@ void RollingGrid::Roll(const Eigen::Array3f& minPoint, const Eigen::Array3f& max
   for (const auto& kvOut : this->Voxels)
   {
     // Compute new voxel position
-    Eigen::Array3i newIdx3d = this->To3d(kvOut.first) - voxelsOffset;
+    Eigen::Array3i newIdx3d = this->To3d(kvOut.first, this->GridSize) - voxelsOffset;
 
     // Move voxel and keep it only if it lies within bounds
     if (((0 <= newIdx3d) && (newIdx3d < this->GridSize)).all())
     {
-      int newIdx1d = this->To1d(newIdx3d);
+      int newIdx1d = this->To1d(newIdx3d, this->GridSize);
       newNbPoints += kvOut.second.size();
       newVoxels[newIdx1d] = std::move(kvOut.second);
     }
@@ -153,7 +171,7 @@ void RollingGrid::Roll(const Eigen::Array3f& minPoint, const Eigen::Array3f& max
   // Update the voxel grid
   this->NbPoints = newNbPoints;
   this->Voxels.swap(newVoxels);
-  this->VoxelGridPosition += voxelsOffset.cast<float>() * this->VoxelResolution;
+  this->VoxelGridPosition += voxelsOffset.cast<float>() * this->VoxelWidth;
 }
 
 //------------------------------------------------------------------------------
@@ -174,7 +192,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, double curr
   }
 
   // Compute the 3D position of the center of the first voxel
-  Eigen::Array3f voxelGridOrigin = this->VoxelGridPosition - int(this->GridSize / 2) * this->VoxelResolution;
+  Eigen::Array3f voxelGridOrigin = this->VoxelGridPosition - int(this->GridSize / 2) * this->VoxelWidth;
 
   // Boolean grid to check if a voxel has already been reached by another
   // added point to decide whether to update the count attribute or not
@@ -188,18 +206,18 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, double curr
   for (const Point& point : *pointcloud)
   {
     // Find the outer voxel containing this point
-    Eigen::Array3i voxelCoordOut = Utils::PositionToVoxel<Eigen::Array3f>(point.getArray3fMap(), voxelGridOrigin, this->VoxelResolution);
+    Eigen::Array3i voxelCoordOut = Utils::PositionToVoxel<Eigen::Array3f>(point.getArray3fMap(), voxelGridOrigin, this->VoxelWidth);
 
     // Add point to grid if it is indeed within bounds
     if (((0 <= voxelCoordOut) && (voxelCoordOut < this->GridSize)).all())
     {
       // Compute the position of the center of the inner voxel grid (=sampling voxel grid)
       // which is the center of the outer voxel (from the rolling voxel grid)
-      Eigen::Array3f voxelGridCenterIn = voxelCoordOut.cast<float>() * this->VoxelResolution + voxelGridOrigin;
+      Eigen::Array3f voxelGridCenterIn = voxelCoordOut.cast<float>() * this->VoxelWidth + voxelGridOrigin;
       // Find the inner voxel containing this point (from the sampling vg)
       Eigen::Array3i voxelCoordIn = Utils::PositionToVoxel<Eigen::Array3f>(point.getArray3fMap(), voxelGridCenterIn, this->LeafSize);
-      unsigned int idxOut = this->To1d(voxelCoordOut);
-      unsigned int idxIn = this->To1d(voxelCoordIn);
+      unsigned int idxOut = this->To1d(voxelCoordOut, this->GridSize);
+      unsigned int idxIn = this->To1d(voxelCoordIn, this->GridInSize);
       // If the outer voxel or the inner voxel are empty, add new point
       if (!this->Voxels.count(idxOut) ||
           !this->Voxels[idxOut].count(idxIn))
@@ -254,7 +272,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, double curr
           case SamplingMode::CENTER_POINT:
           {
             // Check if the new point is closer to the voxel center than the current voxel point
-            Eigen::Vector3f voxelCenter = voxelGridCenterIn - this->VoxelResolution / 2.f + this->LeafSize * voxelCoordIn.cast<float>();
+            Eigen::Vector3f voxelCenter = voxelGridCenterIn - this->VoxelWidth / 2.f + this->LeafSize * voxelCoordIn.cast<float>();
             if ((point.getVector3fMap()- voxelCenter).norm() < (voxel.point.getVector3fMap() - voxelCenter).norm())
             {
               voxel.point = point;
@@ -362,11 +380,11 @@ void RollingGrid::BuildSubMapKdTree()
 void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen::Array3f& maxPoint, int minNbPoints)
 {
   // Compute the position of the origin cell (0, 0, 0) of the grid
-  Eigen::Array3f voxelGridOrigin = this->VoxelGridPosition - int(this->GridSize / 2) * this->VoxelResolution;
+  Eigen::Array3f voxelGridOrigin = this->VoxelGridPosition - int(this->GridSize / 2) * this->VoxelWidth;
 
   // Get sub-VoxelGrid bounds
-  Eigen::Array3i intersectionMin = Utils::PositionToVoxel<Eigen::Array3f>(minPoint, voxelGridOrigin, this->VoxelResolution).max(0);
-  Eigen::Array3i intersectionMax = Utils::PositionToVoxel<Eigen::Array3f>(maxPoint, voxelGridOrigin, this->VoxelResolution).min(this->GridSize - 1);
+  Eigen::Array3i intersectionMin = Utils::PositionToVoxel<Eigen::Array3f>(minPoint, voxelGridOrigin, this->VoxelWidth).max(0);
+  Eigen::Array3i intersectionMax = Utils::PositionToVoxel<Eigen::Array3f>(maxPoint, voxelGridOrigin, this->VoxelWidth).min(this->GridSize - 1);
 
   // Intersection points
   this->SubMap.reset(new PointCloud);
@@ -381,7 +399,7 @@ void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen:
     for (const auto& kvOut : this->Voxels)
     {
      // Check if the voxel lies within bounds
-     Eigen::Array3i idx3d = this->To3d(kvOut.first);
+     Eigen::Array3i idx3d = this->To3d(kvOut.first, this->GridSize);
      if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
      {
        for (const auto& kvIn : kvOut.second)
@@ -397,7 +415,7 @@ void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen:
     for (const auto& kvOut : this->Voxels)
     {
      // Check if the voxel lies within bounds
-     Eigen::Array3i idx3d = this->To3d(kvOut.first);
+     Eigen::Array3i idx3d = this->To3d(kvOut.first, this->GridSize);
      if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
      {
        // Loop on the inner voxels (sampling vg)
@@ -421,7 +439,7 @@ void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen:
       for (const auto& kvOut : this->Voxels)
       {
        // Check if the voxel lies within bounds
-       Eigen::Array3i idx3d = this->To3d(kvOut.first);
+       Eigen::Array3i idx3d = this->To3d(kvOut.first, this->GridSize);
        if (((intersectionMin <= idx3d) && (idx3d <= intersectionMax)).all())
        {
          for (const auto& kvIn : kvOut.second)
@@ -446,18 +464,18 @@ void RollingGrid::BuildSubMapKdTree(const Eigen::Array3f& minPoint, const Eigen:
 //==============================================================================
 
 //------------------------------------------------------------------------------
-int RollingGrid::To1d(const Eigen::Array3i& voxelId3d) const
+int RollingGrid::To1d(const Eigen::Array3i& voxelId3d, int gridSize) const
 {
-  return voxelId3d.z() * this->GridSize * this->GridSize + voxelId3d.y() * this->GridSize + voxelId3d.x();
+  return voxelId3d.z() * gridSize * gridSize + voxelId3d.y() * gridSize + voxelId3d.x();
 }
 
 //------------------------------------------------------------------------------
-Eigen::Array3i RollingGrid::To3d(int voxelId1d) const
+Eigen::Array3i RollingGrid::To3d(int voxelId1d, int gridSize) const
 {
-  int z = voxelId1d / (this->GridSize * this->GridSize);
-  voxelId1d -= z * this->GridSize * this->GridSize;
-  int y = voxelId1d / this->GridSize;
-  voxelId1d -= y * this->GridSize;
+  int z = voxelId1d / (gridSize * gridSize);
+  voxelId1d -= z * gridSize * gridSize;
+  int y = voxelId1d / gridSize;
+  voxelId1d -= y * gridSize;
   int x = voxelId1d;
   return {x, y, z};
 }

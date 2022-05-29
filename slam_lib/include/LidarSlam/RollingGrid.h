@@ -100,7 +100,7 @@ public:
   void SetVoxelResolution(double resolution);
   GetMacro(VoxelResolution, double)
 
-  SetMacro(LeafSize, double)
+  void SetLeafSize(double ls);
   GetMacro(LeafSize, double)
 
   SetMacro(MinFramesPerVoxel, unsigned int)
@@ -169,11 +169,18 @@ public:
 
 private:
 
-  //! [voxels] Max size of the voxel grid: n*n*n voxels
+  //! [voxels] Max size of the outer voxel grid: n*n*n voxels
   int GridSize = 50;
 
-  //! [m/voxel] Resolution of a voxel
+  //! [voxels] Max size of the inner voxel grid: n*n*n voxels
+  int GridInSize;
+
+  //! [m/voxel] Resolution of an outer voxel
+  //! It stores the parameter supplied by outside process
   double VoxelResolution = 10.;
+  //! [m] Width of an outer voxel. Equivalent to VoxelResolution but
+  //! might be a bit lower as it is the closest multiple of the leaf size
+  double VoxelWidth = 10.;
 
   //! [m] Size of the leaf used to downsample the pointcloud with a VoxelGrid filter within each voxel
   double LeafSize = 0.2;
@@ -214,10 +221,10 @@ private:
 private:
 
   //! Conversion from 3D voxel index to 1D flattened index
-  int To1d(const Eigen::Array3i& voxelId3d) const;
+  int To1d(const Eigen::Array3i& voxelId3d, int gridSize) const;
 
   //! Conversion from 1D flattened voxel index to 3D index
-  Eigen::Array3i To3d(int voxelId1d) const;
+  Eigen::Array3i To3d(int voxelId1d, int gridSize) const;
 };
 
 } // end of LidarSlam namespace
