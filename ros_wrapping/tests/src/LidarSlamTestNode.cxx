@@ -320,9 +320,14 @@ void LidarSlamTestNode::PoseCallback(const nav_msgs::Odometry& poseMsg)
   }
 
   if (this->Verbose)
+  {
+    ROS_INFO_STREAM("Pose difference (at " << std::fixed << std::setprecision(9) << time << ") :\n"
+                    << "\t" << currentDiffAngle * 180.f / M_PI << " degrees\n"
+                    << "\t" << currentDiffPosition << " m");
     ROS_INFO_STREAM("Pose difference average (at " << std::fixed << std::setprecision(9) << time << ") :\n"
-                    << "\t" << this->DiffAngle << " degrees\n"
+                    << "\t" << this->DiffAngle * 180.f / M_PI << " degrees\n"
                     << "\t" << this->DiffPosition << " m");
+  }
 
   diffTransform = refTransform.inverse() * transform;
   diffPose = Utils::IsometryToXYZRPY(diffTransform);
