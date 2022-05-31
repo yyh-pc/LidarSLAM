@@ -58,6 +58,10 @@ public:
 
   vtkCustomSetMacro(MinDistanceToSensor, float)
 
+  vtkCustomSetMacro(AzimuthMin, float)
+
+  vtkCustomSetMacro(AzimuthMax, float)
+
   vtkCustomSetMacro(MinBeamSurfaceAngle, float)
 
   vtkCustomSetMacro(PlaneSinAngleThreshold, float)

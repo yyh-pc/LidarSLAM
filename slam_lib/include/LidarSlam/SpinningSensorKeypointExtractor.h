@@ -85,6 +85,12 @@ public:
   GetMacro(MinDistanceToSensor, float)
   SetMacro(MinDistanceToSensor, float)
 
+  GetMacro(AzimuthMin, float)
+  SetMacro(AzimuthMin, float)
+
+  GetMacro(AzimuthMax, float)
+  SetMacro(AzimuthMax, float)
+
   GetMacro(MinBeamSurfaceAngle, float)
   SetMacro(MinBeamSurfaceAngle, float)
 
@@ -193,6 +199,9 @@ private:
   // Minimum angle between laser beam and surface to consider a point as valid
   float MinBeamSurfaceAngle = 10; // [°]
 
+  float AzimuthMin = 0; // [°]
+  float AzimuthMax = 360; // [°]
+
   // Sharpness threshold to select a planar keypoint
   float PlaneSinAngleThreshold = 0.5;  // sin(30°) (selected if sin angle is less than threshold)
 
@@ -202,7 +211,6 @@ private:
 
   // Threshold upon depth gap in neighborhood to select an edge keypoint
   float EdgeDepthGapThreshold = 0.5;  // [m]
-
 
   // Threshold upon intensity gap to select an edge keypoint
   float EdgeIntensityGapThreshold = 50.;
