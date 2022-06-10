@@ -48,6 +48,10 @@ include_directories(
 add_executable(velodyne_conversion_node src/VelodyneToLidarNode.cxx)
 target_link_libraries(velodyne_conversion_node ${catkin_LIBRARIES})
 
+# Ouster Lidar
+add_executable(ouster_conversion_node src/OusterToLidarNode.cxx)
+target_link_libraries(ouster_conversion_node ${catkin_LIBRARIES})
+
 # Robosense RSLidar
 add_executable(robosense_conversion_node src/RobosenseToLidarNode.cxx)
 target_link_libraries(robosense_conversion_node ${catkin_LIBRARIES})
@@ -56,5 +60,5 @@ target_link_libraries(robosense_conversion_node ${catkin_LIBRARIES})
 ## Install ##
 #############
 
-install(TARGETS velodyne_conversion_node robosense_conversion_node
+install(TARGETS velodyne_conversion_node robosense_conversion_node ouster_conversion_node
         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
