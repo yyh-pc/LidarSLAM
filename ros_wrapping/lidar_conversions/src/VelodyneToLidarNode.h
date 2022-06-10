@@ -20,7 +20,7 @@
 
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
-#include <velodyne_pcl/point_types.h>
+#include <velodyne_point.h>
 #include <LidarSlam/LidarPoint.h>
 
 namespace lidar_conversions

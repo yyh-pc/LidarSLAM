@@ -18,11 +18,14 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   pcl_conversions
   sensor_msgs
-  velodyne_pcl
 )
 
-catkin_package( 
-  CATKIN_DEPENDS roscpp pcl_ros pcl_conversions sensor_msgs velodyne_pcl
+catkin_package(
+  CATKIN_DEPENDS
+    roscpp
+    pcl_ros
+    pcl_conversions
+    sensor_msgs
 )
 
 ###########
@@ -37,6 +40,7 @@ catkin_package(
 # To avoid this, we directly include the correct headers.
 include_directories(
   "../../slam_lib/include/"
+  "./external_include"
   ${catkin_INCLUDE_DIRS}
 )
 

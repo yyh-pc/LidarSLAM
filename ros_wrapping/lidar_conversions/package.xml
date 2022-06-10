@@ -7,12 +7,12 @@
 
     The ROS Velodyne driver can be found at https://github.com/ros-drivers/velodyne.
     The ROS RSLidar driver can be found at https://github.com/RoboSense-LiDAR/ros_rslidar.
+
+    Note that point types are copied in external_include folder and need to be updated if drivers change
   </description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <maintainer email="julia.sanchez@kitware.com">Julia Sanchez</maintainer>
-  <maintainer email="nicolas.cadart@kitware.com">Nicolas Cadart</maintainer>
-
 
   <!-- One license tag required, multiple allowed, one license per tag -->
   <!-- Commonly used license strings: -->
@@ -58,7 +58,6 @@
   <depend>pcl_ros</depend>
   <depend>pcl_conversions</depend>
   <depend>sensor_msgs</depend>
-  <depend>velodyne_pcl</depend> <!-- to be removed when including headers -->
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>
