@@ -118,7 +118,6 @@ if (WITH_PCL)
                 -DBUILD_tracking:BOOL=OFF
                 -DBUILD_ml:BOOL=OFF
                 -DBUILD_keypoints:BOOL=OFF
-                -DBUILD_benchmarks:BOOL=OFF
                 -DBUILD_2d:BOOL=ON
                 -DBUILD_common:BOOL=ON
                 -DBUILD_octree:BOOL=ON
@@ -131,6 +130,13 @@ if (WITH_PCL)
                 -DWITH_QT:BOOL=OFF
                 -DWITH_OPENNI=OFF
                 -DWITH_OPENNI2=OFF
+                -DWITH_VTK:BOOL=OFF
+                -DWITH_LIBUSB:BOOL=OFF
+                -DWITH_PNG:BOOL=OFF
+                -DWITH_QHULL:BOOL=OFF
+                -DWITH_RSSDK:BOOL=OFF
+                -DWITH_RSSDK2:BOOL=OFF
+                -DWITH_OPENGL:BOOL=OFF
                 -DPCL_ONLY_CORE_POINT_TYPES:BOOL=ON
                 -Dflann_DIR:PATH=${CMAKE_INSTALL_PREFIX}/lib/cmake/flann
                 -DEIGEN_DIR:PATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
