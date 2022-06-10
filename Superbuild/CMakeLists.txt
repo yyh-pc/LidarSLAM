@@ -118,7 +118,6 @@ if (WITH_PCL)
                 -DBUILD_tracking:BOOL=OFF
                 -DBUILD_ml:BOOL=OFF
                 -DBUILD_keypoints:BOOL=OFF
-                -DBUILD_benchmarks:BOOL=OFF
                 -DBUILD_2d:BOOL=ON
                 -DBUILD_common:BOOL=ON
                 -DBUILD_octree:BOOL=ON
