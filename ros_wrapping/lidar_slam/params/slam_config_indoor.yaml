@@ -73,7 +73,7 @@ external_sensors:
 
     # Optional GPS positions use to calibrate output SLAM pose to world coordinates and/or optimize SLAM trajectory.
     # If true, subscribes to topic 'gps_odom' (nav_msgs/Odometry), and logs GPS positions during 'slam/logging_timeout' seconds.
-    # (WARNING Can be overridden in slam.launch with 'gps' arg).
+    # (WARNING Can be overridden launch files with 'gps' arg).
     use_gps: false
 
     # Approximate GPS/SLAM calibration (available if use_gps=true)

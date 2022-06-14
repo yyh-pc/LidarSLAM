@@ -1,7 +1,7 @@
 //==============================================================================
-// Copyright 2019-2020 Kitware, Inc., Kitware SAS
+// Copyright 2021-2022 Kitware, Inc., Kitware SAS
 // Author: Sanchez Julia (Kitware SAS)
-// Creation date: 2020-12-10
+// Creation date: 2022-05-10
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,24 +20,24 @@
 
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
-#include <velodyne_point.h>
+#include <ouster_point.h>
 #include <LidarSlam/LidarPoint.h>
 
 namespace lidar_conversions
 {
 
 /**
- * @class VelodyneToLidarNode aims at converting pointclouds published by ROS
+ * @class OusterToLidarNode aims at converting pointclouds published by ROS
  * Velodyne driver to the expected SLAM pointcloud format.
  *
  * The ROS Velodyne driver can be found here :
  * https://github.com/ros-drivers/velodyne
  */
-class VelodyneToLidarNode
+class OusterToLidarNode
 {
 public:
-  using PointV = velodyne_pcl::PointXYZIRT;
-  using CloudV = pcl::PointCloud<PointV>;  ///< Pointcloud published by velodyne driver
+  using PointO = ouster_ros::Point;
+  using CloudV = pcl::PointCloud<PointO>;  ///< Pointcloud published by ouster driver
   using PointS = LidarSlam::LidarPoint;
   using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM
 
@@ -47,7 +47,7 @@ public:
    * @param nh      Public ROS node handle, used to init publisher/subscriber.
    * @param priv_nh Private ROS node handle, used to access parameters.
    */
-  VelodyneToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh);
+  OusterToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh);
 
   //----------------------------------------------------------------------------
   /*!

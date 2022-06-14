@@ -105,8 +105,8 @@ The ROS wrapping has been tested on Linux only.
 ### Usage
 
 ```bash
-roslaunch lidar_slam slam.launch
-roslaunch lidar_slam slam.launch gps:=true   # if GPS/SLAM calibration has to be run
+roslaunch lidar_slam slam_velodyne.launch use_sim_time:=false
+roslaunch lidar_slam slam_velodyne.launch use_sim_time:=false gps:=true   # if GPS/SLAM calibration has to be run
 ```
 
 See [ros_wrapping/lidar_slam/README.md](ros_wrapping/lidar_slam/README.md) for more details.

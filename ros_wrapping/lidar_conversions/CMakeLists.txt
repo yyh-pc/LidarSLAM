@@ -18,11 +18,14 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   pcl_conversions
   sensor_msgs
-  velodyne_pcl
 )
 
-catkin_package( 
-  CATKIN_DEPENDS roscpp pcl_ros pcl_conversions sensor_msgs velodyne_pcl
+catkin_package(
+  CATKIN_DEPENDS
+    roscpp
+    pcl_ros
+    pcl_conversions
+    sensor_msgs
 )
 
 ###########
@@ -37,12 +40,17 @@ catkin_package(
 # To avoid this, we directly include the correct headers.
 include_directories(
   "../../slam_lib/include/"
+  "./external_include"
   ${catkin_INCLUDE_DIRS}
 )
 
 # Velodyne Lidar
 add_executable(velodyne_conversion_node src/VelodyneToLidarNode.cxx)
 target_link_libraries(velodyne_conversion_node ${catkin_LIBRARIES})
+
+# Ouster Lidar
+add_executable(ouster_conversion_node src/OusterToLidarNode.cxx)
+target_link_libraries(ouster_conversion_node ${catkin_LIBRARIES})
 
 # Robosense RSLidar
 add_executable(robosense_conversion_node src/RobosenseToLidarNode.cxx)
@@ -52,5 +60,5 @@ target_link_libraries(robosense_conversion_node ${catkin_LIBRARIES})
 ## Install ##
 #############
 
-install(TARGETS velodyne_conversion_node robosense_conversion_node
+install(TARGETS velodyne_conversion_node robosense_conversion_node ouster_conversion_node
         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
