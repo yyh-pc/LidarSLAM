@@ -27,24 +27,42 @@ To start only raw LiDAR SLAM, just start *lidar_slam_node*:
 ```bash
 rosrun lidar_slam lidar_slam_node
 ```
-If you want to specify parameters, you should consider using a launchfile. One launch file is provided in the folder [`launch/`](launch/) (see after for detailed usage).
+If you want to specify parameters, you should consider using a launchfile. Two launch files are provided in the folder [`launch/`](launch/).
+
+With velodyne launch file:
+- To start SLAM when replaying a velodyne rosbag file, run :
+```bash
+roslaunch lidar_slam slam_velodyne.launch   # in 1st shell
+rosbag play --clock <my_bag_file>  # in 2nd shell
+```
+- When using it in real live conditions, use :
+```bash
+roslaunch lidar_slam slam_velodyne.launch use_sim_time:=false
+```
+
+With ouster launch file:
+- To start SLAM when replaying a ouster rosbag file, run :
+```bash
+roslaunch lidar_slam slam_ouster.launch   # in 1st shell
+rosbag play --clock <my_bag_file>  # in 2nd shell
+```
+- When using it in real live conditions, use :
+```bash
+roslaunch lidar_slam slam_ouster.launch replay:=false
+```
+
+These launch files will start :
+
+* the *lidar_slam_node* which implements the SLAM process,
+* a pre-configured RViz session,
+* the *lidar_conversion_node* which converts the driver point type to expected SLAM use (see next paragraph),
+* (optional) The Lidar drivers if required (see vlp16_driver and os_driver parameters),
+* (optional) GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format (if `gps` arg is enabled). This uses the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below for more info).
+
 
 ### More advanced usage
 
 #### Detailed pipeline
-
-SLAM is often used with a multi-sensor system, for navigation or mapping purposes. Therefore, for easier fusion procedure, it can be useful to output SLAM pose in an other frame than LiDAR sensor's or as a world GPS coordinate. In that case, consider using the given launchfile :
-- To start SLAM when replaying rosbag file, run :
-```bash
-roslaunch lidar_slam slam.launch   # in 1st shell
-rosbag play --clock <my_bag_file>  # in 2nd shell
-```
-- When using it in real conditions, use :
-```bash
-roslaunch lidar_slam slam.launch use_sim_time:=false
-```
-
-This launch file will start a *lidar_slam_node*, a pre-configured RViz session, a *lidar_conversion_node* (converts the point type to expected SLAM use, see next paragraph) and, if `gps` arg is enabled, GPS/UTM conversions nodes to publish SLAM pose as a GPS coordinate in WGS84 format, with the prior that full GPS pose and GPS/LiDAR calibration are correctly known and set (see [GPS/SLAM calibration](#gpsslam-calibration) section below).
 
 The SLAM node subscribes to one or several input pointclouds topics ((default single topic is *lidar_points*) as *sensor_msgs/PointCloud2* messages. These pointclouds should have the following fields:
 - **x**, **y**, **z** (`float`) : point coordinates
@@ -126,7 +144,7 @@ The calibration process can be triggered at any time by publishing the `lidar_sl
 
 To enable this GPS/SLAM auto-calibration, you can use option `gps:=true` :
 ```bash
-roslaunch lidar_slam slam.launch gps:=true  # Start SLAM node and enable GPS use.
+roslaunch lidar_slam slam_velodyne.launch gps:=true  # Start SLAM node and enable GPS use.
 ...
 rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 0"  # Trigger GPS/SLAM calibration
 ```
@@ -141,7 +159,7 @@ NOTE: This PGO is not real-time, and should therefore be run when system is not 
 
 To enable PGO, you can use option `gps:=true` :
 ```bash
-roslaunch lidar_slam slam.launch gps:=true  # Start SLAM node and enable GPS use.
+roslaunch lidar_slam slam_velodyne.launch gps:=true  # Start SLAM node and enable GPS use.
 ...
 rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 2"  # Trigger PGO
 ```
@@ -158,7 +176,7 @@ NOTE: To be able to use this command, SLAM and GPS coordinates must be precisely
 
 To sum up, if you want to run SLAM on same zone, use :
 ```bash
-roslaunch lidar_slam slam.launch gps:=true  # Start SLAM node and enable GPS use.
+roslaunch lidar_slam slam_velodyne.launch gps:=true  # Start SLAM node and enable GPS use.
 ...  # Run 1st real test or bag file
 rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 2"    # Trigger PGO : optimize SLAM map and compute GPS/SLAM calibration
 (rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 8")  # Disable SLAM map update (optional)
@@ -202,7 +220,7 @@ If the tags were activated, one can run a post optimization, using the tags to c
 
 If you want to run SLAM and then to optimize the graph using landmarks, one pipeline can be :
 ```bash
-roslaunch lidar_slam slam.launch tags_topic:="your_tag_topic" # Start SLAM (tags use must be enabled).
+roslaunch lidar_slam slam_velodyne.launch tags_topic:="your_tag_topic" # Start SLAM (tags use must be enabled).
 ...  # Run 1st real test or bag file
 ...  # Stop the acquisition or pause the system
 rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 20, string_arg: path/to/landmarksAbsolutePoses.csv}"    # Trigger PGO : optimize SLAM map and update last pose (if fix_last is set to false)
@@ -236,7 +254,7 @@ utm
 - **utm**: "world" ENU fixed frame, corresponding to the origin of the current considered UTM zone/band in which GPS coordinates are projected into.
 - **enu**: local ENU fixed frame attached to 1st received GPS position in UTM coordinates, easier to use than **utm** because UTM coordinates can grow very large, leading to floating points discretization errors. The static TF `utm -> enu` is published by `gps_conversions/gps_to_utm` node.
 - **map**: first received full 6D GPS pose. It defines the origin of the local map. If GPS does not provide orientation, pitch and heading can be estimated from motion. The static TF `enu -> map` is published by `gps_conversions/gps_to_utm` node.
-- **odom**: origin of the SLAM. The TF `map -> odom` can be published by a custom node, by `lidar_slam/lidar_slam_node` node (in case of GPS/SLAM auto-calibration or PGO), or manually set with tf2 static publishers in [`launch/slam.launch`](launch/slam.launch) (in case of pre-defined calibration).
+- **odom**: origin of the SLAM. The TF `map -> odom` can be published by a custom node, by `lidar_slam/lidar_slam_node` node (in case of GPS/SLAM auto-calibration or PGO), or manually set with tf2 static publishers in [`launch/slam_velodyne.launch`](launch/slam_velodyne.launch) (in case of pre-defined calibration).
 - **base_link**: current pose computed by SLAM algorithm (here `base_link` is the tracking frame). The TF `odom -> base_link` can be published by `lidar_slam/lidar_slam_node` node.
 - **lidar**: pose of the LiDAR sensor on the moving base. The TF `base_link -> lidar` should be published by a `tf2_ros/static_transform_publisher` node.
 - **landmark_detector**: pose of the landmark detector on the moving base. The TF `base_link -> landmark_detector` must be published by a `tf2_ros/static_transform_publisher` node.

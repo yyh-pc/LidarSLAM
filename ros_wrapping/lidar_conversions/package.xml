@@ -6,6 +6,7 @@
     Point type conversion from sensor driver to LidarPoint used in SLAM process.
 
     The ROS Velodyne driver can be found at https://github.com/ros-drivers/velodyne.
+    The ROS Ouster driver can be found at https://github.com/ouster-lidar/ouster_example.
     The ROS RSLidar driver can be found at https://github.com/RoboSense-LiDAR/ros_rslidar.
 
     Note that point types are copied in external_include folder and need to be updated if drivers change
