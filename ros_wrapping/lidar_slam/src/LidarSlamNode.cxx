@@ -576,7 +576,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       {
         ROS_ERROR_STREAM("Cannot optimize pose graph as sensor info logging has not been enabled. "
                          "Please make sure that 'external_sensors/landmark_detector/use_tags' OR 'external_sensors/gps/use_gps' private parameter is set to 'true', "
-                         "and that 'external_sensors/landmark_detector/weight' and 'slam/logging_timeout' private parameters are set to convenient values.");
+                         "and that 'external_sensors/landmark_detector/weight' and 'slam/logging/timeout' private parameters are set to convenient values.");
         break;
       }
 
@@ -913,7 +913,8 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(bool,   "slam/use_blobs", UseBlobs)
   SetSlamParam(int,    "slam/verbosity", Verbosity)
   SetSlamParam(int,    "slam/n_threads", NbThreads)
-  SetSlamParam(double, "slam/logging_timeout", LoggingTimeout)
+  SetSlamParam(double, "slam/logging/timeout", LoggingTimeout)
+  SetSlamParam(bool,   "slam/logging/only_keyframes", LogOnlyKeyframes)
   int egoMotionMode;
   if (this->PrivNh.getParam("slam/ego_motion", egoMotionMode))
   {
@@ -942,7 +943,7 @@ void LidarSlamNode::SetSlamParameters()
     LidarSlam.SetUndistortion(undistortion);
   }
   int pointCloudStorage;
-  if (this->PrivNh.getParam("slam/logging_storage", pointCloudStorage))
+  if (this->PrivNh.getParam("slam/logging/storage_type", pointCloudStorage))
   {
     LidarSlam::PointCloudStorageType storage = static_cast<LidarSlam::PointCloudStorageType>(pointCloudStorage);
     if (storage != LidarSlam::PointCloudStorageType::PCL_CLOUD &&

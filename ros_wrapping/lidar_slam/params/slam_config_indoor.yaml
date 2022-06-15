@@ -160,22 +160,28 @@ slam:
   #  5) 4 + logging/maps memory usage
   verbosity: 3
 
-  # Optional logging of computed pose, localization covariance and keypoints of each processed frame.
-  #  - A value of 0. will disable logging.
-  #  - A negative value will log all incoming data, without any timeout.
-  #  - A positive value will keep only most recent data, forgetting all previous data older than LoggingTimeout seconds.
-  # Logged data will be used for pose graph optimization, GPS antenna/LiDAR sensor calibration using GPS data
-  # and velocity/acceleration estimations.
-  # WARNING : the time window duration must be set lower than this value.
-  logging_timeout: 0.  # [s]
+  logging:
+    # Optional logging of computed pose, localization covariance and keypoints of each processed frame.
+    #  - A value of 0. will disable logging.
+    #  - A negative value will log all incoming data, without any timeout.
+    #  - A positive value will keep only most recent data, forgetting all previous data older than LoggingTimeout seconds.
+    # Logged data will be used for pose graph optimization, GPS antenna/LiDAR sensor calibration using GPS data
+    # and velocity/acceleration estimations.
+    # WARNING : the time window duration must be set lower than this value.
+    timeout: 3600  # [s]
 
-  # How to store pointclouds data during keypoints logging (if logging_timeout != 0):
-  #  0) PCL pointcloud                    (in RAM,     no compression,      no overhead)
-  #  1) Octree compressed binary data     (in RAM,    ~5x compression,   ~3 ms overhead)
-  #  2) Ascii format PCD file             (on disk, ~0.6x compression,   ~5 ms overhead)
-  #  3) Binary format PCD file            (on disk, ~1.3x compression, ~0.3 ms overhead)
-  #  4) Binary compressed format PCD file (on disk, ~1.5x compression, ~0.8 ms overhead)
-  logging_storage: 0
+    # How to store pointclouds data during keypoints logging (if logging_timeout != 0):
+    #  0) PCL pointcloud                    (in RAM,     no compression,      no overhead)
+    #  1) Octree compressed binary data     (in RAM,    ~5x compression,   ~3 ms overhead)
+    #  2) Ascii format PCD file             (on disk, ~0.6x compression,   ~5 ms overhead)
+    #  3) Binary format PCD file            (on disk, ~1.3x compression, ~0.3 ms overhead)
+    #  4) Binary compressed format PCD file (on disk, ~1.5x compression, ~0.8 ms overhead)
+    storage_type: 0
+
+    # Decide whether to log all frames or only keyframes
+    # /!\ All log frames are used in post graph processing
+    only_keyframes: false
+
 
   # ICP and LM parameters for Ego-Motion registration step (used only if ego_motion is 2 or 3)
   ego_motion_registration:
