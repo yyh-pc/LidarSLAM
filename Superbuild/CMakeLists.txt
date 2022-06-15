@@ -7,7 +7,7 @@ option(WITH_EIGEN "Whether to install Eigen3" ON)
 option(WITH_NANOFLANN "Whether to install nanoflann" ON)
 option(WITH_PCL "Whether to install PCL" ON)
 option(WITH_CERES "Whether to install Ceres" ON)
-option(WITH_G2O "Whether to install Ceres" OFF)
+option(WITH_G2O "Whether to install G2O" OFF)
 
 # -----------------------------------------------------------------------------------------------
 # Read CMAKE Arguments
@@ -79,54 +79,46 @@ if (WITH_PCL)
             INSTALL_COMMAND <SOURCE_DIR>/b2 install --without-python
     )
 
-    # INSTALL FLANN
-    message(INFO "${LOG_PREFIX} Generating Flann dependency")
-    # Flann official version has a cmake issue (https://stackoverflow.com/questions/50763621/building-flann-with-cmake-fails)
-    # We use a patched version
-    ExternalProject_Add(
-            FLANN_ext
-
-            GIT_REPOSITORY https://github.com/tkircher/flann
-            GIT_SHALLOW 1
-
-            CMAKE_ARGS
-                -DCMAKE_CXX_STANDARD:STRING=14
-                -DBUILD_EXAMPLES:BOOL=OFF
-                -DBUILD_DOC:BOOL=OFF
-                -DBUILD_PYTHON_BINDINGS:BOOL=OFF
-                -DBUILD_MATLAB_BINDINGS:BOOL=OFF
-                -DBUILD_TESTS:BOOL=OFF
-                ${GENERIC_PROJECTS_ARGS}
-            )
-
     # INSTALL PCL
     message(INFO "${LOG_PREFIX} Generating PCL dependency")
     ExternalProject_Add(
             PCL_ext
-            DEPENDS FLANN_ext Boost_ext Eigen3_ext
+            DEPENDS Boost_ext Eigen3_ext
 
             GIT_REPOSITORY https://github.com/PointCloudLibrary/pcl
             GIT_TAG pcl-1.10.0
             GIT_SHALLOW 1
 
             CMAKE_ARGS
+                -DBUILD_common:BOOL=ON
+                -DBUILD_geometry:BOOL=ON
+                -DBUILD_io:BOOL=ON
+                -DBUILD_octree:BOOL=ON
+                -DPCL_ONLY_CORE_POINT_TYPES:BOOL=ON
                 -DBUILD_examples:BOOL=OFF
+                -DBUILD_apps:BOOL=OFF
+                -DBUILD_tools:BOOL=OFF
                 -DBUILD_global_tests:BOOL=OFF
-                -DBUILD_visualization:BOOL=OFF
                 -DBUILD_stereo:BOOL=OFF
-                -DBUILD_surface_on_nurbs:BOOL=OFF
+                -DBUILD_surface:BOOL=OFF
                 -DBUILD_tracking:BOOL=OFF
                 -DBUILD_ml:BOOL=OFF
                 -DBUILD_keypoints:BOOL=OFF
-                -DBUILD_2d:BOOL=ON
-                -DBUILD_common:BOOL=ON
-                -DBUILD_octree:BOOL=ON
-                -DBUILD_kdtree:BOOL=ON
-                -DBUILD_search:BOOL=ON
-                -DBUILD_sample_consensus:BOOL=ON
-                -DBUILD_features:BOOL=ON
-                -DBUILD_filters:BOOL=ON
-                -DBUILD_registration:BOOL=ON
+                -DBUILD_outofcore:BOOL=OFF
+                -DBUILD_people:BOOL=OFF
+                -DBUILD_2d:BOOL=OFF
+                -DBUILD_CUDA:BOOL=OFF
+                -DBUILD_GPU:BOOL=OFF
+                -DBUILD_kdtree:BOOL=OFF
+                -DBUILD_search:BOOL=OFF
+                -DBUILD_sample_consensus:BOOL=OFF
+                -DBUILD_features:BOOL=OFF
+                -DBUILD_filters:BOOL=OFF
+                -DBUILD_registration:BOOL=OFF
+                -DBUILD_recognition:BOOL=OFF
+                -DBUILD_segmentation:BOOL=OFF
+                -DBUILD_simulation:BOOL=OFF
+                -DBUILD_visualization:BOOL=OFF
                 -DWITH_QT:BOOL=OFF
                 -DWITH_OPENNI=OFF
                 -DWITH_OPENNI2=OFF
@@ -137,9 +129,7 @@ if (WITH_PCL)
                 -DWITH_RSSDK:BOOL=OFF
                 -DWITH_RSSDK2:BOOL=OFF
                 -DWITH_OPENGL:BOOL=OFF
-                -DPCL_ONLY_CORE_POINT_TYPES:BOOL=ON
-                -Dflann_DIR:PATH=${CMAKE_INSTALL_PREFIX}/lib/cmake/flann
-                -DEIGEN_DIR:PATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
+                -DEIGEN_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
                 ${GENERIC_PROJECTS_ARGS}
             )
 
@@ -162,6 +152,7 @@ if (WITH_NANOFLANN)
                 -DNANOFLANN_BUILD_TESTS:BOOL=OFF
                 -DNANOFLANN_BUILD_EXAMPLES:BOOL=OFF
                 -DEigen3_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
+                -DEIGEN_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
                 ${GENERIC_PROJECTS_ARGS}
             )
 
@@ -200,6 +191,7 @@ if (WITH_CERES)
                 -DBUILD_EXAMPLES:BOOL=OFF
                 -DBUILD_TESTING:BOOL=OFF
                 -DEigen3_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
+                -DEIGEN_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
                 -Dglog_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/lib/cmake/glog
                 ${GENERIC_PROJECTS_ARGS}
             )
@@ -224,6 +216,7 @@ if (WITH_G2O)
                 -DG2O_BUILD_APPS:BOOL=OFF
                 -DCeres_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/lib/cmake/Ceres
                 -DEigen3_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
+                -DEIGEN_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
                 -DG2O_BUILD_EXAMPLES:BOOL=OFF
                 ${GENERIC_PROJECTS_ARGS}
             )
