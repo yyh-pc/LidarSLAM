@@ -84,29 +84,37 @@ The *LidarSlam* lib has been tested on Linux, Windows and OS X.
 
 Ensure all *LidarSlam* dependencies are respected. Specific ROS packages dependencies are listed in the table below along with the version used during development and testing.
 
-| Dependency     | Tested Version | Install (`sudo apt-get install <pkg>`)                                           |
-|:--------------:|:--------------:|:--------------------------------------------------------------------------------:|
-| ROS            | melodic        | `ros-melodic-desktop-full` and [tutorial](http://wiki.ros.org/ROS/Installation)  |
-| velodyne_pcl   | 1.6.1          | `ros-noetic-velodyne-pcl` or [git repo](https://github.com/ros-drivers/velodyne) |
-| gps_common     | 0.3.0          | `ros-$ROS_DISTRO-gps-common`                                                     |
-| geodesy        | 0.5.3          | `ros-$ROS_DISTRO-geodesy`                                                        |
+| Dependency     | Tested Versions | Install (`sudo apt-get install <pkg>`)                                           |
+|:--------------:|:---------------:|:--------------------------------------------------------------------------------:|
+| ROS            | melodic, noetic | `ros-melodic-desktop-full` and [tutorial](http://wiki.ros.org/ROS/Installation)  |
+| gps_common     | 0.3.0           | `ros-$ROS_DISTRO-gps-common`                                                     |
+| geodesy        | 0.5.3           | `ros-$ROS_DISTRO-geodesy`                                                        |
 
-Please note that the ROS Velodyne driver with minimum version 1.6 is needed.
+For Velodyne usage, please note that the ROS Velodyne driver with minimum version 1.6 is needed.
 Be careful, this ROS Velodyne driver 1.6 is not backward-compatible with previous versions.
 If you're running on Ubuntu 20 / ROS Noetic, you can install the new Velodyne driver using the command `sudo apt install ros-noetic-velodyne ros-noetic-velodyne-pcl`.
-If running on previous versions of Ubuntu/ROS (18/Melodic and below), you need to compile this driver from source : just clone the [git repo](https://github.com/ros-drivers/velodyne) in your catkin worskpace sources, it will be automatically built with next  `catkin_make`.
+If running on previous versions of Ubuntu/ROS (18/Melodic and below), you need to compile this driver from source : just clone the [git repo](https://github.com/ros-drivers/velodyne) in your catkin worskpace sources, it will be automatically built with next  `catkin_make` or `catkin build`.
+
+For Ouster usage, the driver can be found in this [git repo](https://github.com/ouster-lidar/ouster_example)
 
 ### Installation
 
-Clone this git repo directly into your catkin directory, and run `catkin_make -DCMAKE_BUILD_TYPE=RelWithDebInfo` or `catkin_make -DCMAKE_BUILD_TYPE=Release` (to turn on optimizations, highly recommended when using Eigen). It will automatically build *LidarSlam* lib before ROS packages.
+Clone this git repo directly into your catkin directory, and run `catkin_make -DCMAKE_BUILD_TYPE=RelWithDebInfo` or `catkin_make -DCMAKE_BUILD_TYPE=Release` (to turn on optimizations, highly recommended when using Eigen). The same can be done with `catkin build`. It will automatically build *LidarSlam* lib before ROS packages. Please be sure to use the same PCL library for ROS basic tools and slam library.
 
 The ROS wrapping has been tested on Linux only.
 
-### Usage
+### Live usage
 
+For Velodyne :
 ```bash
 roslaunch lidar_slam slam_velodyne.launch use_sim_time:=false
 roslaunch lidar_slam slam_velodyne.launch use_sim_time:=false gps:=true   # if GPS/SLAM calibration has to be run
+```
+
+For Ouster :
+```bash
+roslaunch lidar_slam slam_ouster.launch replay:=false
+roslaunch lidar_slam slam_ouster.launch replay:=false gps:=true   # if GPS/SLAM calibration has to be run
 ```
 
 See [ros_wrapping/lidar_slam/README.md](ros_wrapping/lidar_slam/README.md) for more details.
@@ -117,9 +125,9 @@ See [ros_wrapping/lidar_slam/README.md](ros_wrapping/lidar_slam/README.md) for m
 
 Ensure all *LidarSlam* dependencies are respected. Specific dependencies are listed in the table below along with the version used during development and testing.
 
-| Dependency | Tested Version |
-| :--------: | :------------: |
-| ParaView   | 5.4 and 5.6    |
+| Dependency | Tested Version    |
+| :--------: | :------------:    |
+| ParaView   | 5.4, 5.6 and 5.9  |
 
 Be careful to use and link to the same libraries as ParaView/LidarView's (especially with VTK, Eigen, PCL, Ceres, nanoflann, etc.). Otherwise, if different flags or modules were enabled, some troubles may arise at build time, or it could lead to version mismatch and segfault at runtime.
 
@@ -153,4 +161,4 @@ Currently, all features are not available in ParaView plugin. Features such as G
 
 This *LidarSlamPlugin* is natively included in [LidarView](https://www.paraview.org/lidarview/). For more detailed information on how to enable and use SLAM filter in LidarView, see [paraview_wrapping/Plugin/doc/How_to_SLAM_with_LidarView.md](paraview_wrapping/Plugin/doc/How_to_SLAM_with_LidarView.md).
 
-Pre-built binaries of LidarView with this SLAM plugin are available for download [here](https://drive.google.com/drive/folders/1ouNd3KD2p62a0XqRu4eJ2Tus6LJ-LBE8?usp=sharing).
+Pre-built binaries of LidarView with this SLAM plugin are available for download [here](https://gitlab.kitware.com/LidarView/lidarview/-/releases).

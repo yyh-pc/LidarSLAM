@@ -161,16 +161,16 @@ To enable PGO, you can use option `gps:=true` :
 ```bash
 roslaunch lidar_slam slam_velodyne.launch gps:=true  # Start SLAM node and enable GPS use.
 ...
-rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 2"  # Trigger PGO
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 20"  # Trigger PGO
 ```
 
 ### Running SLAM on same zone at different times (e.g. refining/aggregating map or running localization only on fixed map)
 
 #### Setting SLAM pose from GPS pose guess
 
-If you want to run another bag on the same zone to refine the SLAM map or to run localization only with the previously built map, you need to give an approximate new init pose to SLAM if trajectory is not continuous with end pose. You can send `lidar_slam/SlamCommand/SET_SLAM_POSE_FROM_GPS` command to '*slam_command*' topic to use the last received GPS pose as a pose guess for SLAM.
+If you want to run another bag on the same zone to refine the SLAM map or to run localization only with the previously built map, you need to give an approximate new init pose to SLAM if trajectory is not continuous with end pose. You can send `lidar_slam/SlamCommand/SET_SLAM_POSE_FROM_GPS` command to '*slam_command*' topic to use the last received GPS position in a pose guess for SLAM.
 
-NOTE: To be able to use this command, SLAM and GPS coordinates must be precisely linked with a valid TF tree. Be sure you already called [pose graph optimization](#slam-pose-graph-optimization-pgo-with-gps-prior) or at least [map/odom calibration](#map-gps--odom-slam-calibration).
+NOTE: To be able to use this command, SLAM and GPS coordinates must be precisely linked with a valid TF tree. Be sure you already called [pose graph optimization](#slam-pose-graph-optimization-pgo-with-gps-prior) or at least [map/odom calibration](#map-gps--odom-slam-calibration). Moreover, the orientation will be set as odometry frame.
 
 #### Running SLAM on same zone
 
@@ -178,9 +178,9 @@ To sum up, if you want to run SLAM on same zone, use :
 ```bash
 roslaunch lidar_slam slam_velodyne.launch gps:=true  # Start SLAM node and enable GPS use.
 ...  # Run 1st real test or bag file
-rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 2"    # Trigger PGO : optimize SLAM map and compute GPS/SLAM calibration
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 20"   # Trigger PGO : optimize SLAM map and compute GPS/SLAM calibration
 (rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 8")  # Disable SLAM map update (optional)
-rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 4"    # If the starting pose of the new bag does not match with last SLAM pose, use GPS pose as initial guess
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 2"    # If the starting pose of the new bag does not match with last SLAM pose, use GPS position to set an initial guess. Warning, if the orientation has changed to much, SLAM may not converge.
 ...  # Run 2nd real test or bag file
 ```
 
@@ -212,7 +212,7 @@ Various relative parameters are available :
 
 All these parameters are described in the supplied config files.
 
-***WARNING***: Please make sure no error occured in the file loading step in the terminal output before supplying data.
+***WARNING***: Make sure no error occured in the file loading step in the terminal output before supplying data.
 
 ### Pose graph optimization
 
