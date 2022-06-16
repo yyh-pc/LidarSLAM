@@ -510,6 +510,32 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       break;
     }
 
+    // Set SLAM pose from last received GPS pose
+    // NOTE : This function should only be called after PGO or SLAM/GPS calib have been triggered.
+    case lidar_slam::SlamCommand::SET_SLAM_POSE_FROM_GPS:
+    {
+      if (!this->UseGps || !this->LidarSlam.GpsHasData())
+      {
+        ROS_ERROR_STREAM("Cannot set SLAM pose from GPS"
+                          "Please check that 'external_sensors/gps/use_gps' private parameter is set to 'true'."
+                          "and that GPS data have been received.");
+        return;
+      }
+
+      LidarSlam::ExternalSensors::GpsMeasurement& meas = this->LastGpsMeas;
+      // Get position of Lidar in UTM
+      Eigen::Vector3d position = this->LidarSlam.GetGpsCalibration().inverse() * meas.Position;
+      // Get position of Lidar in odometry frame
+      position = this->LidarSlam.GetGpsOffset() * position;
+      // Orientation is supposed to be close to odometry frame
+      // Warning : this hypothesis can be totally wrong and lead to bad registrations
+      Eigen::Isometry3d pose = this->LidarSlam.GetLogStates().front().Isometry;
+      pose.translation() = position;
+      this->LidarSlam.SetWorldTransformFromGuess(pose);
+      ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << pose.matrix());
+      break;
+    }
+
     // Disable SLAM maps update
     case lidar_slam::SlamCommand::DISABLE_SLAM_MAP_UPDATE:
       this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::NONE);
