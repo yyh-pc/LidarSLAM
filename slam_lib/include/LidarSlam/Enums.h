@@ -141,4 +141,23 @@ enum class SamplingMode
   CENTROID = 4
 };
 
+//------------------------------------------------------------------------------
+//! External sensors' references
+enum ExternalSensor
+{
+  //! Wheel odometer
+  WHEEL_ODOM = 0,
+
+  //! IMU
+  IMU = 1,
+
+  //! Landmark detector
+  LANDMARK_DETECTOR = 2,
+
+  //! GPS
+  GPS = 3
+};
+
+static const std::map<ExternalSensor, std::string> ExternalSensorNames = { {WHEEL_ODOM, "Wheel odometer"}, {IMU, "IMU"}, {LANDMARK_DETECTOR, "Landmark detector"}, {GPS, "GPS"} };
+
 } // end of LidarSlam namespace

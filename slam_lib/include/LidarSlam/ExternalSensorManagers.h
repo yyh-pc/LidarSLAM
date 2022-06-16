@@ -57,6 +57,14 @@ struct GravityMeasurement
 };
 
 // ---------------------------------------------------------------------------
+struct GpsMeasurement
+{
+  double Time = 0.;
+  Eigen::Vector3d Position = Eigen::Vector3d::Zero();
+  Eigen::Matrix3d Covariance = Eigen::Matrix3d::Identity();
+};
+
+// ---------------------------------------------------------------------------
 template <typename T>
 class SensorManager
 {
@@ -64,10 +72,9 @@ public:
   SensorManager(const std::string& name = "BaseSensor")
   : SensorName(name), PreviousIt(Measures.begin()) {}
 
-  SensorManager(double w, double timeOffset, double timeThreshold,
+  SensorManager(double timeOffset, double timeThreshold,
                 unsigned int maxMeas, const std::string& name = "BaseSensor")
   : TimeOffset(timeOffset),
-    Weight(w),
     TimeThreshold(timeThreshold),
     MaxMeasures(maxMeas),
     SensorName(name),
@@ -80,6 +87,9 @@ public:
 
   GetSensorMacro(Weight, double)
   SetSensorMacro(Weight, double)
+
+  GetSensorMacro(Calibration, Eigen::Isometry3d)
+  SetSensorMacro(Calibration, const Eigen::Isometry3d&)
 
   GetSensorMacro(TimeOffset, double)
   SetSensorMacro(TimeOffset, double)
@@ -135,19 +145,28 @@ public:
   }
 
   // ------------------
-  // Check if sensor can be used in optimization
+  // Check if sensor can be used in tight SLAM optimization
   // The weight must be not null and the measures list must contain
   // at leat 2 elements to be able to interpolate
-  bool CanBeUsed()
+  bool CanBeUsedLocally()
   {
     std::lock_guard<std::mutex> lock(this->Mtx);
     return this->Weight > 1e-6 && this->Measures.size() > 1;
   }
 
+  // ------------------
+  // Check if sensor has enough data to be interpolated
+  // (the measures list must contain at leat 2 elements)
+  bool HasData()
+  {
+    std::lock_guard<std::mutex> lock(this->Mtx);
+    return this->Measures.size() > 1;
+  }
+
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  virtual bool ComputeSynchronizedMeasure(double lidarTime, T& synchMeas, bool verbose = false){return true;}
+  virtual bool ComputeSynchronizedMeasure(double lidarTime, T& synchMeas, bool verbose = false) = 0;
   // Compute the constraint associated to the measurement
-  virtual bool ComputeConstraint(double lidarTime, bool verbose = false){return false;}
+  virtual bool ComputeConstraint(double lidarTime, bool verbose = false) = 0;
 
 protected:
   // ------------------
@@ -208,22 +227,24 @@ protected:
   }
 
 protected:
-  // Sensor name for output
-  std::string SensorName;
   // Measures stored
   std::list<T> Measures;
-  // Iterator pointing to the last measure used
-  // This allows to keep a time track
-  typename std::list<T>::iterator PreviousIt;
-  // Measures length limit
-  // The oldest measures are forgotten
-  unsigned int MaxMeasures = 1e6;
-  // Weight to apply to sensor constraint
+  // Weight to apply to sensor info when used in local optimization
   double Weight = 0.;
+  // Calibration transform with base_link and the sensor
+  Eigen::Isometry3d Calibration = Eigen::Isometry3d::Identity();
   // Time offset to make external sensors/Lidar correspondance
   double TimeOffset = 0.;
   // Time threshold between 2 measures to consider they can be interpolated
   double TimeThreshold = 0.5;
+  // Measures length limit
+  // The oldest measures are forgotten
+  unsigned int MaxMeasures = 1e6;
+  // Sensor name for output
+  std::string SensorName;
+  // Iterator pointing to the last measure used
+  // This allows to keep a time track
+  typename std::list<T>::iterator PreviousIt;
   // Resulting residual
   CeresTools::Residual Residual;
   // Mutex to handle the data from outside the library
@@ -235,6 +256,10 @@ class WheelOdometryManager : public SensorManager<WheelOdomMeasurement>
 {
 public:
   WheelOdometryManager(const std::string& name = "Wheel odometer"): SensorManager(name){}
+  WheelOdometryManager(double w, double timeOffset, double timeThresh,
+                       unsigned int maxMeas, const std::string& name = "Wheel odometer")
+  : SensorManager(timeOffset, timeThresh, maxMeas, name) {this->Weight = w;}
+
   //Setters/Getters
   GetSensorMacro(PreviousPose, Eigen::Isometry3d)
   SetSensorMacro(PreviousPose, const Eigen::Isometry3d&)
@@ -246,10 +271,12 @@ public:
   SetSensorMacro(RefDistance, double)
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose = false);
+  bool ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose = false) override;
   // Wheel odometry constraint (unoriented)
   // Can be relative since last frame or absolute since first pose
   bool ComputeConstraint(double lidarTime, bool verbose = false) override;
+  // odometer drifts too much too be used globally
+  bool CanBeUsedGlobally() {return false;}
 
 private:
   // Members used when using the relative distance with last estimated pose
@@ -265,17 +292,23 @@ class ImuManager : public SensorManager<GravityMeasurement>
 {
 public:
   ImuManager(const std::string& name = "IMU"): SensorManager(name){}
+  ImuManager(double w, double timeOffset, double timeThresh,
+             unsigned int maxMeas, const std::string& name = "IMU")
+  : SensorManager(timeOffset, timeThresh, maxMeas, name) {this->Weight = w;}
+
   //Setters/Getters
   GetSensorMacro(GravityRef, Eigen::Vector3d)
   SetSensorMacro(GravityRef, const Eigen::Vector3d&)
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose = false);
+  bool ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose = false) override;
 
   // IMU constraint (gravity)
   bool ComputeConstraint(double lidarTime, bool verbose = false) override;
   // Compute Reference gravity vector from IMU measurements
   void ComputeGravityRef(double deltaAngle);
+  // IMU drifts too much too be used globally
+  bool CanBeUsedGlobally() {return false;}
 
 private:
   Eigen::Vector3d GravityRef = Eigen::Vector3d::Zero();
@@ -287,8 +320,8 @@ class LandmarkManager: public SensorManager<LandmarkMeasurement>
 public:
   LandmarkManager(const std::string& name = "Tag detector") : SensorManager(name){}
   LandmarkManager(const LandmarkManager& lmManager);
-  LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
-                  double sat, bool positionOnly = true, const std::string& name = "Tag detector");
+  LandmarkManager(double timeOffset, double timeThresh, unsigned int maxMeas,
+                  bool positionOnly = true, const std::string& name = "Tag detector");
 
   void operator=(const LandmarkManager& lmManager);
 
@@ -297,6 +330,9 @@ public:
   // or will be detected online, averaging the previous detections
   GetSensorMacro(AbsolutePose, Eigen::Vector6d)
   GetSensorMacro(AbsolutePoseCovariance, Eigen::Matrix6d)
+
+  GetSensorMacro(Calibration, Eigen::Isometry3d)
+  SetSensorMacro(Calibration, const Eigen::Isometry3d&)
 
   GetSensorMacro(SaturationDistance, float)
   SetSensorMacro(SaturationDistance, float)
@@ -311,7 +347,7 @@ public:
   void SetAbsolutePose(const Eigen::Vector6d& pose, const Eigen::Matrix6d& cov);
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool verbose = false);
+  bool ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool verbose = false) override;
 
   // Landmark constraint
   bool ComputeConstraint(double lidarTime, bool verbose = false) override;
@@ -329,6 +365,7 @@ private:
   Eigen::Vector6d AbsolutePose = Eigen::Vector6d::Zero();
   Eigen::Matrix6d AbsolutePoseCovariance = Eigen::Matrix6d::Zero();
   Eigen::Isometry3d RelativeTransform = Eigen::Isometry3d::Identity();
+  Eigen::Isometry3d Calibration = Eigen::Isometry3d::Identity();
   // Boolean to check the absolute pose has been loaded
   // or if the tag has already been seen
   bool HasAbsolutePose = false;
@@ -345,8 +382,33 @@ private:
   // or only the position -> true (if the orientation is not reliable enough)
   bool PositionOnly = true;
   // Allow to rotate the covariance
-  // Can be disabled if the covariance is fixed
+  // Can be disabled if the covariance is fixed or not used (e.g. for local constraint)
   bool CovarianceRotation = false;
+};
+
+// ---------------------------------------------------------------------------
+class GpsManager: public SensorManager<GpsMeasurement>
+{
+public:
+  GpsManager(const std::string& name = "GPS") : SensorManager(name){}
+  GpsManager(const GpsManager& gpsManager);
+  GpsManager(double timeOffset, double timeThresh,
+             unsigned int maxMeas, const std::string& name = "GPS");
+
+  void operator=(const GpsManager& gpsManager);
+
+  // Setters/Getters
+  GetSensorMacro(Offset, Eigen::Isometry3d)
+  SetSensorMacro(Offset, const Eigen::Isometry3d&)
+
+  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
+  bool ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas, bool verbose = false) override;
+
+  bool ComputeConstraint(double lidarTime, bool verbose) override;
+
+private:
+  // Offset transform to link GPS global frame and Lidar SLAM global frame
+  Eigen::Isometry3d Offset = Eigen::Isometry3d::Identity();
 };
 
 } // end of ExternalSensors namespace

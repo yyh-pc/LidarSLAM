@@ -76,23 +76,6 @@ external_sensors:
     # (WARNING Can be overridden in launch files with 'gps' arg).
     use_gps: false
 
-    # Approximate GPS/SLAM calibration (available if use_gps=true)
-    # Fit GPS trajectory to SLAM trajectory with ICP to estimate the rigid transform that links 'gps_odom/header/frame_id'
-    # to 'odometry_frame', and publish it to static TF server, linking SLAM pose to world coordinates.
-    # GPS/SLAM calibration can be triggered by sending SlamCommand::GPS_SLAM_CALIBRATION to 'slam_command' topic.
-    calibration:
-      no_roll: false            # If true, impose calibration to have no roll rotation. DEBUG
-      publish_icp_paths: false  # If true, publish ICP-aligned GPS and SLAM trajectories to 'icp_gps_path' and 'icp_slam_path' latched topics (default: false).
-
-    # Pose Graph Optimization (PGO) (available if use_gps=true)
-    # Use GPS positions and covariances to optimize SLAM trajectory and maps by correcting drift,
-    # and more precisely link SLAM pose to world coordinates.
-    # PGO can be triggered by sending SlamCommand::GPS_SLAM_POSE_GRAPH_OPTIMIZATION to 'slam_command' topic.
-    # WARNING : this process is not real-time.
-    pgo:
-      g2o_file: "/home/user/pgo.g2o"  # Save pose graph to file (or do not save if null string or unset).
-      publish_path: false             # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic (default: false).
-
   # Optional landmark detector (e.g. camera) use
   landmark_detector:
     use_tags: false          # [bool] To receive and use tags
@@ -117,11 +100,12 @@ external_sensors:
     publish_tags: false      # [bool] To publish the tags as tf
 
 graph:
-  g2o_file_name: ""   # File where to store the g2o log info (viewable with g2o_viewer tool)
-  fix_first: false    # Fix the first pose of the graph. Can be done if one is sure
-                      # about the first pose or want a map at the first pose origin
-  fix_last: false     # Fix the last pose of the graph. Can be done if one wants to ensure
-                      # the motion continuity
+  g2o_file_name: ""    # File where to store the g2o log info (viewable with g2o_viewer tool)
+  fix_first: false     # Fix the first pose of the graph. Can be done if one is sure
+                       # about the first pose or want a map at the first pose origin
+  fix_last: false      # Fix the last pose of the graph. Can be done if one wants to ensure
+                       # the motion continuity
+  publish_path: false  # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
@@ -176,22 +160,27 @@ slam:
   #  5) 4 + logging/maps memory usage
   verbosity: 3
 
-  # Logging of the Lidar states (isometry, covariance, time, keypoints)
-  # They are notably used for pose graph optimization
-  # The minimum number of stored states is 2 (independently of this value)
-  # to be able to run the ego-motion prior estimation and the undistortion.
-  # Logged data will be used for pose graph optimization, GPS antenna/LiDAR sensor calibration using GPS data
-  # and velocity/acceleration estimations.
-  # WARNING : the time window duration must be set lower than this value.
-  logging_timeout: 0.  # [s]
+  logging:
+    # Optional logging of computed pose, localization covariance and keypoints of each processed frame.
+    #  - A value of 0. will disable logging.
+    #  - A negative value will log all incoming data, without any timeout.
+    #  - A positive value will keep only most recent data, forgetting all previous data older than LoggingTimeout seconds.
+    # Logged data will be used for pose graph optimization, GPS antenna/LiDAR sensor calibration using GPS data
+    # and velocity/acceleration estimations.
+    # WARNING : the time window duration must be set lower than this value.
+    timeout: 0  # [s]
 
-  # How to store pointclouds data during keypoints logging (if logging_timeout != 0):
-  #  0) PCL pointcloud                    (in RAM,     no compression,      no overhead)
-  #  1) Octree compressed binary data     (in RAM,    ~5x compression,   ~3 ms overhead)
-  #  2) Ascii format PCD file             (on disk, ~0.6x compression,   ~5 ms overhead)
-  #  3) Binary format PCD file            (on disk, ~1.3x compression, ~0.3 ms overhead)
-  #  4) Binary compressed format PCD file (on disk, ~1.5x compression, ~0.8 ms overhead)
-  logging_storage: 0
+    # How to store pointclouds data during keypoints logging (if logging_timeout != 0):
+    #  0) PCL pointcloud                    (in RAM,     no compression,      no overhead)
+    #  1) Octree compressed binary data     (in RAM,    ~5x compression,   ~3 ms overhead)
+    #  2) Ascii format PCD file             (on disk, ~0.6x compression,   ~5 ms overhead)
+    #  3) Binary format PCD file            (on disk, ~1.3x compression, ~0.3 ms overhead)
+    #  4) Binary compressed format PCD file (on disk, ~1.5x compression, ~0.8 ms overhead)
+    storage_type: 0
+
+    # Decide whether to log all frames or only keyframes
+    # /!\ All log frames are used in post graph processing
+    only_keyframes: false
 
   # ICP and LM parameters for Ego-Motion registration step (used only if ego_motion is 2 or 3)
   ego_motion_registration:

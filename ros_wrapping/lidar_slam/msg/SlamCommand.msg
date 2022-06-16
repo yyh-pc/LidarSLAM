@@ -14,19 +14,11 @@ string string_arg
 # SLAM odometry frame to GPS world/map frame.
 uint8 GPS_SLAM_CALIBRATION = 0
 
-# Run SLAM poses and maps optimization using GPS positions as prior.
-# The pose graph optimization is done via g2o, using SLAM and GPS covariances to
-# fuse information from both sources. If logging is enabled, SLAM maps will also
-# be updated. This allows also to correct SLAM drift and to link more precisely
-# SLAM odometry frame to GPS world/map frame.
-# WARNING : this process is not real time.
-uint8 GPS_SLAM_POSE_GRAPH_OPTIMIZATION = 2
-
-# Tell node to set SLAM pose estimate from last received GPS pose.
+# Force SLAM pose to be reset to last acquired GPS pose.
 # NOTE: SLAM node use of GPS must be enabled.
 # NOTE: Pose graph optimization or GPS/SLAM calibration may have been already
 #       executed in order to match GPS and SLAM coordinates systems.
-uint8 SET_SLAM_POSE_FROM_GPS = 4
+uint8 SET_SLAM_POSE_FROM_GPS = 2
 
 # Disable/enable SLAM maps update with new frames keypoints. This can be useful
 # if we want to keep the pose graph optimized SLAM map
@@ -45,4 +37,9 @@ uint8 SAVE_FILTERED_KEYPOINTS_MAPS = 17
 uint8 LOAD_KEYPOINTS_MAPS = 18
 
 # Stop the slam and optimize pose graph
+# The pose graph optimization is done via g2o, fusing SLAM, GPS and or landmarks detections.
+# If logging is enabled, SLAM maps will also
+# be updated. This allows to correct SLAM drift and to link more precisely
+# SLAM odometry frame to GPS world/map frame.
+# WARNING : this process is not real time.
 uint8 OPTIMIZE_GRAPH = 20

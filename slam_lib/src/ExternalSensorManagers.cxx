@@ -22,10 +22,15 @@ namespace LidarSlam
 {
 namespace ExternalSensors
 {
+
+// ---------------------------------------------------------------------------
+// Wheel odometer
+// ---------------------------------------------------------------------------
+
 // ---------------------------------------------------------------------------
  bool WheelOdometryManager::ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose)
 {
-  if (!this->CanBeUsed())
+  if (!this->CanBeUsedLocally())
     return false;
 
   std::lock_guard<std::mutex> lock(this->Mtx);
@@ -38,7 +43,7 @@ namespace ExternalSensors
   // Interpolate odometry measurement at LiDAR timestamp
   synchMeas.Time = lidarTime;
   double rt = (lidarTime - bounds.first->Time) / (bounds.second->Time - bounds.first->Time);
-  synchMeas.Distance = (1 - rt) * bounds.first->Distance + rt * bounds.second->Distance;
+  synchMeas.Distance = (1.0 - rt) * bounds.first->Distance + rt * bounds.second->Distance;
 
   return true;
 }
@@ -81,9 +86,13 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
 }
 
 // ---------------------------------------------------------------------------
+// IMU
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
  bool ImuManager::ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose)
 {
-  if (!this->CanBeUsed())
+  if (!this->CanBeUsedLocally())
     return false;
 
   std::lock_guard<std::mutex> lock(this->Mtx);
@@ -95,7 +104,7 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
   // Interpolate gravity measurement at LiDAR timestamp
   synchMeas.Time = lidarTime;
   double rt = (lidarTime - bounds.first->Time) / (bounds.second->Time - bounds.first->Time);
-  synchMeas.Acceleration = (1 - rt) * bounds.first->Acceleration.normalized() + rt * bounds.second->Acceleration.normalized();
+  synchMeas.Acceleration = (1.0 - rt) * bounds.first->Acceleration.normalized() + rt * bounds.second->Acceleration.normalized();
   // Normalize interpolated gravity vector
   if (synchMeas.Acceleration.norm() > 1e-6) // Check to ensure consistent IMU measure
     synchMeas.Acceleration.normalize();
@@ -165,42 +174,47 @@ void ImuManager::ComputeGravityRef(double deltaAngle)
 }
 
 // ---------------------------------------------------------------------------
-LandmarkManager::LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
-                                 double sat, bool positionOnly, const std::string& name)
-                : SensorManager(w, timeOffset, timeThresh, maxMeas, name),
-                  SaturationDistance(sat),
+// Landmark manager
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+LandmarkManager::LandmarkManager(double timeOffset, double timeThresh, unsigned int maxMeas,
+                                 bool positionOnly, const std::string& name)
+                : SensorManager(timeOffset, timeThresh, maxMeas, name),
                   PositionOnly(positionOnly),
                   CovarianceRotation(false)
 {}
 
 // ---------------------------------------------------------------------------
 LandmarkManager::LandmarkManager(const LandmarkManager& lmManager)
-                : LandmarkManager(lmManager.GetWeight(),
-                                  lmManager.GetTimeOffset(),
+                : LandmarkManager(lmManager.GetTimeOffset(),
                                   lmManager.GetTimeThreshold(),
                                   lmManager.GetMaxMeasures(),
-                                  lmManager.GetSaturationDistance(),
                                   lmManager.GetPositionOnly(),
                                   lmManager.GetSensorName())
 {
   this->CovarianceRotation = lmManager.GetCovarianceRotation();
   this->Measures = lmManager.GetMeasures();
   this->PreviousIt = this->Measures.begin();
+  // Parameters only useful in local optimization
+  this->Weight = lmManager.GetWeight();
+  this->SaturationDistance = lmManager.GetSaturationDistance();
 }
 
 // ---------------------------------------------------------------------------
 void LandmarkManager::operator=(const LandmarkManager& lmManager)
 {
   this->SensorName = lmManager.GetSensorName();
-  this->Weight = lmManager.GetWeight();
   this->TimeOffset = lmManager.GetTimeOffset();
   this->TimeThreshold = lmManager.GetTimeThreshold();
   this->MaxMeasures = lmManager.GetMaxMeasures();
-  this->SaturationDistance = lmManager.GetSaturationDistance();
   this->PositionOnly = lmManager.GetPositionOnly();
   this->CovarianceRotation = lmManager.GetCovarianceRotation();
   this->Measures = lmManager.GetMeasures();
   this->PreviousIt = this->Measures.begin();
+  // Parameters only useful in local optimization
+  this->Weight = lmManager.GetWeight();
+  this->SaturationDistance = lmManager.GetSaturationDistance();
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +269,7 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
 // ---------------------------------------------------------------------------
  bool LandmarkManager::ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool verbose)
 {
-  if (!this->CanBeUsed())
+  if (!this->HasData())
     return false;
 
   std::lock_guard<std::mutex> lock(this->Mtx);
@@ -284,14 +298,14 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
 {
   this->ResetResidual();
 
-  if (!this->CanBeUsed())
+  if (!this->CanBeUsedLocally())
     return false;
 
   LandmarkMeasurement synchMeas;
   if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
     return false;
 
-  this->RelativeTransform = synchMeas.TransfoRelative;
+  this->RelativeTransform = this->Calibration.inverse() * synchMeas.TransfoRelative;
 
   // Last times the tag was used
   // this is used to update the absolute reference tag pose when the
@@ -334,6 +348,66 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
   #endif
 
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// GPS
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+GpsManager::GpsManager(double timeOffset, double timeThresh,
+                       unsigned int maxMeas, const std::string& name)
+           : SensorManager(timeOffset, timeThresh, maxMeas, name)
+{}
+
+// ---------------------------------------------------------------------------
+GpsManager::GpsManager(const GpsManager& gpsManager)
+           : GpsManager(gpsManager.GetTimeOffset(),
+                        gpsManager.GetTimeThreshold(),
+                        gpsManager.GetMaxMeasures(),
+                        gpsManager.GetSensorName())
+{
+  this->Measures = gpsManager.GetMeasures();
+  this->PreviousIt = this->Measures.begin();
+}
+
+// ---------------------------------------------------------------------------
+void GpsManager::operator=(const GpsManager& gpsManager)
+{
+  this->SensorName = gpsManager.GetSensorName();
+  this->TimeOffset = gpsManager.GetTimeOffset();
+  this->TimeThreshold = gpsManager.GetTimeThreshold();
+  this->MaxMeasures = gpsManager.GetMaxMeasures();
+  this->Measures = gpsManager.GetMeasures();
+  this->PreviousIt = this->Measures.begin();
+}
+
+// ---------------------------------------------------------------------------
+ bool GpsManager::ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas, bool verbose)
+{
+  if (!this->HasData())
+    return false;
+
+  std::lock_guard<std::mutex> lock(this->Mtx);
+  // Compute the two closest measures to current Lidar frame
+  lidarTime -= this->TimeOffset;
+  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  if (bounds.first == bounds.second)
+    return false;
+  // Interpolate landmark relative pose at LiDAR timestamp
+  synchMeas.Time = lidarTime;
+  synchMeas.Position = bounds.first->Position + lidarTime * (bounds.second->Position - bounds.first->Position) / (bounds.second->Time - bounds.first->Time);
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+bool GpsManager::ComputeConstraint(double lidarTime, bool verbose)
+{
+  static_cast<void>(lidarTime);
+  static_cast<void>(verbose);
+  PRINT_WARNING("No local constraint can/should be added from GPS as they are absolute measurements");
+  return false;
 }
 
 } // end of ExternalSensors namespace

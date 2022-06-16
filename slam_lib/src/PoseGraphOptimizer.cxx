@@ -42,7 +42,7 @@ void PoseGraphOptimizer::ResetGraph()
 {
   this->Optimizer.clear();
   this->LMIndicesLinking.clear();
-  this->LandmarkIdx = INT_MAX;
+  this->ExtIdx = INT_MAX;
 }
 
 //------------------------------------------------------------------------------
@@ -58,8 +58,9 @@ void PoseGraphOptimizer::AddExternalSensor(const Eigen::Isometry3d& BaseToSensor
   // Add base/sensor offset parameter
   auto* BaseToSensorSE3Offset = new g2o::ParameterSE3Offset;
   BaseToSensorSE3Offset->setId(index);
+  BaseToSensorSE3Offset->setOffset(BaseToSensorOffset);
+  PRINT_INFO("Calib set for index " << index << " :\n" << BaseToSensorOffset.matrix())
   this->Optimizer.addParameter(BaseToSensorSE3Offset);
-  BaseToSensorSE3Offset->setOffset(BaseToSensorOffset.inverse());
 }
 
 //------------------------------------------------------------------------------
@@ -72,7 +73,7 @@ void PoseGraphOptimizer::AddLandmark(const Eigen::Isometry3d& lm, unsigned int i
   // Choose index of the new landmark -> output index in decreasing order since INT_MAX
   // so the input index does not overwrite a pose vertex index
   // and pose vertices are in correct order
-  int idx = --this->LandmarkIdx;
+  int idx = --this->ExtIdx;
   this->LMIndicesLinking[index] = idx;
   if (onlyPosition)
   {
@@ -100,29 +101,19 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
   if (states.empty())
     return;
 
-  // Extract last keystate
-  unsigned int lastIndex = states.back().Index;
-  auto it = states.end();
-  --it;
-  while (it != states.begin() && !it->IsKeyFrame)
-    --it;
-  lastIndex = it->Index;
-
   // Initialize local values
   int prevIdx = 0;
   Eigen::Isometry3d prevState;
   int nStates = 0;
+  // Loop over all states
   for (const auto& state : states)
   {
-    if (!state.IsKeyFrame)
-      continue;
-
     // Add new state as a new vertex
     auto* newVertex = new g2o::VertexSE3;
     newVertex->setId(state.Index);
     newVertex->setEstimate(state.Isometry);
     bool fixedVertex = (this->FixFirst && state.Index == states.front().Index) ||
-                       (this->FixLast  && state.Index == lastIndex);
+                       (this->FixLast  && state.Index == states.back().Index);
 
     newVertex->setFixed(fixedVertex);
     this->Optimizer.addVertex(newVertex);
@@ -191,8 +182,8 @@ void PoseGraphOptimizer::AddLandmarkConstraint(int lidarIdx, int lmIdx, const Ex
     externalEdge->setMeasurement(lm.TransfoRelative.translation());
     externalEdge->setInformation(lm.Covariance.block(0, 0, 3, 3).inverse());
     // Add offset transformation reference Id
-    // Useless here but compulsory in G2o
-    externalEdge->setParameterId(0, 0);
+    if (!externalEdge->setParameterId(0, int(ExternalSensor::LANDMARK_DETECTOR)))
+      PRINT_ERROR("No calibration found for " << ExternalSensorNames.at(ExternalSensor::LANDMARK_DETECTOR))
     // Add edge
     if (!this->Optimizer.addEdge(externalEdge))
       PRINT_ERROR("Tag constraint could not be added to the graph")
@@ -219,13 +210,41 @@ void PoseGraphOptimizer::AddLandmarkConstraint(int lidarIdx, int lmIdx, const Ex
     }
     externalEdge->read(measureInfo);
     // Add offset transformation reference Id
-    externalEdge->setParameterId(0, 0);
+    if (!externalEdge->setParameterId(0, int(ExternalSensor::LANDMARK_DETECTOR)))
+      PRINT_ERROR("No calibration found for " << ExternalSensorNames.at(ExternalSensor::LANDMARK_DETECTOR))
     // Add edge
     if (!this->Optimizer.addEdge(externalEdge))
       PRINT_ERROR("Tag constraint could not be added to the graph")
   }
   if (this->Verbose)
     PRINT_INFO("Add landmark constraint between state #" << lidarIdx <<" and tag #"<< lmIdx << " (i.e. vertex #" << this->LMIndicesLinking[lmIdx] << ")");
+}
+
+//------------------------------------------------------------------------------
+void PoseGraphOptimizer::AddGpsConstraint(int lidarIdx, const ExternalSensors::GpsMeasurement& gpsMeas)
+{
+  // Add a vertex with a GPS position
+  auto* newVertex = new g2o::VertexPointXYZ;
+  newVertex->setId(this->ExtIdx);
+  newVertex->setEstimate(gpsMeas.Position);
+  newVertex->setFixed(true);
+  this->Optimizer.addVertex(newVertex);
+  // Add an edge between a SLAM pose vertex and the GPS vertex
+  auto* externalEdge = new g2o::EdgeSE3PointXYZ;
+  externalEdge->setVertex(0, this->Optimizer.vertex(lidarIdx));
+  externalEdge->setVertex(1, newVertex);
+  externalEdge->setMeasurement(Eigen::Vector3d::Zero()); // We want to merge this SLAM point to this GPS point.
+  externalEdge->setInformation(gpsMeas.Covariance.inverse());
+  // Add reference Id of calibration transform
+  if (!externalEdge->setParameterId(0, int(ExternalSensor::GPS)))
+    PRINT_ERROR("No calibration found for " << ExternalSensorNames.at(ExternalSensor::GPS))
+
+  // Add edge
+  if (!this->Optimizer.addEdge(externalEdge))
+    PRINT_ERROR("GPS constraint could not be added to the graph")
+
+  if (this->Verbose)
+    PRINT_INFO("Add GPS constraint for state #" << lidarIdx);
 }
 
 //------------------------------------------------------------------------------
@@ -264,8 +283,6 @@ bool PoseGraphOptimizer::Process(std::list<LidarState>& statesToOptimize)
   // Set the output optimized data
   for (auto& state : statesToOptimize)
   {
-    if (!state.IsKeyFrame)
-      continue;
     // Get optimized SLAM vertex pose
     auto* v = this->Optimizer.vertex(state.Index);
     g2o::VertexSE3* vSE3 = dynamic_cast<g2o::VertexSE3*>(v);

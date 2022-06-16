@@ -72,7 +72,7 @@ endif()
 
 find_package(Ceres REQUIRED)
 
-find_package(PCL REQUIRED COMPONENTS common registration io)
+find_package(PCL REQUIRED COMPONENTS common io octree geometry)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 #We do not want VTK for now, FIX WIN32 command too long issue

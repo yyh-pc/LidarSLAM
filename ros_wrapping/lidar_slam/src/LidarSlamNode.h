@@ -88,7 +88,7 @@ public:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief     Optional GPS odom callback, accumulating poses for SLAM/GPS calibration.
+   * @brief     Optional GPS odom callback, accumulating poses.
    * @param[in] msg Converted GPS pose with its associated covariance.
    */
   void GpsCallback(const nav_msgs::Odometry& msg);
@@ -113,7 +113,7 @@ public:
   //----------------------------------------------------------------------------
   /*!
    * @brief     Receive an external command to process, such as pose graph
-   *            optimization, GPS/SLAM calibration, set SLAM pose etc.
+   *            optimization, GPS/SLAM calibration, set SLAM pose, save maps etc.
    * @param[in] msg The command message.
    */
   void SlamCommandCallback(const lidar_slam::SlamCommand& msg);
@@ -159,26 +159,16 @@ protected:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief Run GPS/SLAM calibration from recorded GPS and SLAM poses, and
-   *        publish static TF to link OdometryFrameId to GPS frame.
-   */
-  void GpsSlamCalibration();
-
-  //----------------------------------------------------------------------------
-  /*!
    * @brief Build an id for the april tag output message
    *        if it gives the info of one landmark, the id is the one of this landMark
    *        if it gives the info of a tag bundle, the id is built as [idN [...] id1 id0]
    */
   int BuildId(const std::vector<int>& ids);
 
-  //----------------------------------------------------------------------------
-  /*!
-   * @brief Run pose graph optimization from GPS and SLAM poses, correcting SLAM
-   *        trajectory and maps, and publish optimized LiDAR trajectory and
-   *        static TF to link OdometryFrameId to GPS frame.
-   */
-  void PoseGraphOptimization();
+  // Publish static tf to link world (UTM) frame to SLAM origin
+  // PGO must have been run, so we can average
+  // the correspondant poses (GPS/LidarSLAM) distances to get the offset
+  void BroadcastGpsOffset();
 
   //----------------------------------------------------------------------------
 
@@ -196,6 +186,8 @@ protected:
   // TF stuff
   std::string OdometryFrameId = "odom";       ///< Frame in which SLAM odometry and maps are expressed.
   std::string TrackingFrameId = "base_link";  ///< Frame to track (ensure a valid TF tree is published).
+  std::string GpsFrameId = "GPS"; ///< Frame to represent GPS positions.
+  ros::Time GpsLastTime;
   tf2_ros::Buffer TfBuffer;
   tf2_ros::TransformListener TfListener;
   tf2_ros::TransformBroadcaster TfBroadcaster;
@@ -209,11 +201,10 @@ protected:
   bool UseTags = false;
   ros::Subscriber LandmarksSub;
   bool PublishTags = false;
+  LidarSlam::ExternalSensors::GpsMeasurement LastGpsMeas;
 
-  // Optional use of GPS data to calibrate output SLAM pose to world coordinates or to run pose graph optimization (PGO).
-  bool UseGps = false;                          ///< Enable GPS data logging for Pose Graph Optimization or GPS/SLAM calibration.
-  std::deque<LidarSlam::Transform> GpsPoses;    ///< Buffer of last received GPS poses.
-  std::deque<std::array<double, 9>> GpsCovars;  ///< Buffer of last received GPS positions covariances.
+  // GPS
+  bool UseGps = false; ///< Enable GPS data logging for Pose Graph Optimization or GPS/SLAM calibration.
   Eigen::Isometry3d BaseToGpsOffset = Eigen::Isometry3d::Identity();  ///< Pose of the GPS antenna in BASE coordinates.
   ros::Subscriber GpsOdomSub;
 };

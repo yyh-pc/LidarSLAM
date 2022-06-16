@@ -437,117 +437,65 @@ Visualization Manager:
           Value: true
       Enabled: false
       Name: Current keypoints
-    - Class: rviz/Group
-      Displays:
-        - Angle Tolerance: 0.20000000298023224
-          Class: rviz/Odometry
-          Covariance:
-            Orientation:
-              Alpha: 0.5
-              Color: 255; 255; 127
-              Color Style: Unique
-              Frame: Local
-              Offset: 1
-              Scale: 1
-              Value: false
-            Position:
-              Alpha: 0.5
-              Color: 255; 85; 255
-              Scale: 1
-              Value: true
-            Value: false
-          Enabled: true
-          Keep: 10000
-          Name: GPS odom
-          Position Tolerance: 0.5
-          Queue Size: 10
-          Shape:
-            Alpha: 1
-            Axes Length: 0.30000001192092896
-            Axes Radius: 0.05000000074505806
-            Color: 255; 25; 0
-            Head Length: 0.30000001192092896
-            Head Radius: 0.10000000149011612
-            Shaft Length: 1
-            Shaft Radius: 0.05000000074505806
-            Value: Axes
-          Topic: /gps_odom
-          Unreliable: false
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 0; 157; 255
+      Enabled: true
+      Head Diameter: 0.05000000074505806
+      Head Length: 0.029999999329447746
+      Length: 0.20000000298023224
+      Line Style: Lines
+      Line Width: 0.10000000149011612
+      Name: PGO SLAM path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 0; 157; 255
+      Pose Style: Axes
+      Queue Size: 10
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.05000000074505806
+      Shaft Length: 0
+      Topic: /pgo_slam_path
+      Unreliable: false
+      Value: true
+    - Angle Tolerance: 0.20000000298023224
+      Class: rviz/Odometry
+      Covariance:
+        Orientation:
+          Alpha: 0.5
+          Color: 255; 255; 127
+          Color Style: Unique
+          Frame: Local
+          Offset: 1
+          Scale: 1
+          Value: false
+        Position:
+          Alpha: 0.5
+          Color: 255; 85; 255
+          Scale: 1
           Value: true
-        - Alpha: 1
-          Buffer Length: 1
-          Class: rviz/Path
-          Color: 25; 255; 0
-          Enabled: true
-          Head Diameter: 0.10000000149011612
-          Head Length: 0.10000000149011612
-          Length: 0.25
-          Line Style: Lines
-          Line Width: 0.029999999329447746
-          Name: Calib ICP GPS
-          Offset:
-            X: 0
-            Y: 0
-            Z: 0
-          Pose Color: 115; 210; 22
-          Pose Style: Arrows
-          Queue Size: 10
-          Radius: 0.029999999329447746
-          Shaft Diameter: 0
-          Shaft Length: 0
-          Topic: /icp_gps_path
-          Unreliable: false
-          Value: true
-        - Alpha: 1
-          Buffer Length: 1
-          Class: rviz/Path
-          Color: 239; 41; 41
-          Enabled: true
-          Head Diameter: 0.10000000149011612
-          Head Length: 0.10000000149011612
-          Length: 0.25
-          Line Style: Lines
-          Line Width: 0.029999999329447746
-          Name: Calib ICP SLAM
-          Offset:
-            X: 0
-            Y: 0
-            Z: 0
-          Pose Color: 204; 0; 0
-          Pose Style: Arrows
-          Queue Size: 10
-          Radius: 0.029999999329447746
-          Shaft Diameter: 0
-          Shaft Length: 0
-          Topic: /icp_slam_path
-          Unreliable: false
-          Value: true
-        - Alpha: 1
-          Buffer Length: 1
-          Class: rviz/Path
-          Color: 0; 157; 255
-          Enabled: true
-          Head Diameter: 0.05000000074505806
-          Head Length: 0.029999999329447746
-          Length: 0.20000000298023224
-          Line Style: Lines
-          Line Width: 0.10000000149011612
-          Name: PGO SLAM path
-          Offset:
-            X: 0
-            Y: 0
-            Z: 0
-          Pose Color: 0; 157; 255
-          Pose Style: Axes
-          Queue Size: 10
-          Radius: 0.029999999329447746
-          Shaft Diameter: 0.05000000074505806
-          Shaft Length: 0
-          Topic: /pgo_slam_path
-          Unreliable: false
-          Value: true
+        Value: false
       Enabled: false
-      Name: GPS use
+      Keep: 10000
+      Name: GPS odom
+      Position Tolerance: 0.5
+      Queue Size: 10
+      Shape:
+        Alpha: 1
+        Axes Length: 0.30000001192092896
+        Axes Radius: 0.05000000074505806
+        Color: 255; 25; 0
+        Head Length: 0.30000001192092896
+        Head Radius: 0.10000000149011612
+        Shaft Length: 1
+        Shaft Radius: 0.05000000074505806
+        Value: Axes
+      Topic: /gps_odom
+      Unreliable: false
+      Value: false
   Enabled: true
   Global Options:
     Background Color: 0; 0; 0
