@@ -622,10 +622,8 @@ Eigen::Isometry3d Slam::GetLatencyCompensatedWorldTransform() const
   else if (trajectorySize == 1)
     return this->LogStates.back().Isometry;
   auto itSt = this->LogStates.end();
+  const LidarState& current = *(--itSt);
   const LidarState& previous = *(--itSt);
-  const LidarState& current  = *(--itSt);
-  const Eigen::Isometry3d& H0 = previous.Isometry;
-  const Eigen::Isometry3d& H1 = current.Isometry;
 
   // Linearly compute normalized timestamp of Hpred.
   // We expect H0 and H1 to match with time 0 and 1.
@@ -643,7 +641,7 @@ Eigen::Isometry3d Slam::GetLatencyCompensatedWorldTransform() const
   }
 
   // Extrapolate H0 and H1 to get expected Hpred at current time
-  Eigen::Isometry3d Hpred = LinearInterpolation(H0, H1, current.Time + this->Latency, previous.Time, current.Time);
+  Eigen::Isometry3d Hpred = LinearInterpolation(previous.Isometry, current.Isometry, current.Time + this->Latency, previous.Time, current.Time);
   return Hpred;
 }
 
