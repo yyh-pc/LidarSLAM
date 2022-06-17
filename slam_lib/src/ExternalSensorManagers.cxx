@@ -410,5 +410,41 @@ bool GpsManager::ComputeConstraint(double lidarTime, bool verbose)
   return false;
 }
 
+// ---------------------------------------------------------------------------
+// 3D POSE
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool verbose)
+{
+  if (this->Measures.size() <= 1)
+    return false;
+
+  std::lock_guard<std::mutex> lock(this->Mtx);
+  // Compute the two closest measures to current Lidar frame
+  lidarTime -= this->TimeOffset;
+  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  if (bounds.first == bounds.second)
+    return false;
+
+  // Interpolate external pose at LiDAR timestamp
+  synchMeas.Time = lidarTime;
+  synchMeas.Pose = LinearInterpolation(bounds.first->Pose, bounds.second->Pose, lidarTime, bounds.first->Time, bounds.second->Time);
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+bool PoseManager::ComputeConstraint(double lidarTime, bool verbose)
+{
+  PoseMeasurement synchMeas;
+  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+    return false;
+
+  PRINT_WARNING(
+    "TODO Implement constraint Pose Manager");
+  return false;
+}
+
 } // end of ExternalSensors namespace
 } // end of LidarSlam namespace

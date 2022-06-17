@@ -65,6 +65,13 @@ struct GpsMeasurement
 };
 
 // ---------------------------------------------------------------------------
+struct PoseMeasurement
+{
+  double Time = 0.;
+  Eigen::Isometry3d Pose = Eigen::Isometry3d::Identity();
+};
+
+// ---------------------------------------------------------------------------
 template <typename T>
 class SensorManager
 {
@@ -408,6 +415,23 @@ private:
   // Offset transform to link GPS global frame and Lidar SLAM global frame
   Eigen::Isometry3d Offset = Eigen::Isometry3d::Identity();
 };
+
+// ---------------------------------------------------------------------------
+class PoseManager: public SensorManager<PoseMeasurement>
+{
+public:
+  PoseManager(const std::string& name = "Pose sensor") : SensorManager(name){}
+
+  PoseManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+              const std::string& name = "Pose sensor")
+  : SensorManager(timeOffset, timeThresh, maxMeas, name){this->Weight = w;}
+
+  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
+  bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool verbose = false) override;
+
+  bool ComputeConstraint(double lidarTime, bool verbose = false) override;
+};
+
 
 } // end of ExternalSensors namespace
 } // end of LidarSlam namespace
