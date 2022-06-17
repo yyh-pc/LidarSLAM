@@ -525,13 +525,15 @@ private:
   // **** LOCALIZATION ****
 
   // Global transformation to map the current pointcloud to the previous one
-  Eigen::Isometry3d Trelative;
+  Eigen::Isometry3d Trelative = Eigen::Isometry3d::Identity();
 
   // Transformation to map the current pointcloud in the world coordinates
   // This pose is the pose of BASE in WORLD coordinates, at the time
   // corresponding to the timestamp in the header of input Lidar scan.
-  Eigen::Isometry3d Tworld;
-  Eigen::Isometry3d PreviousTworld;
+  Eigen::Isometry3d Tworld = Eigen::Isometry3d::Identity();
+  // Variable to store initial Tworld value (might be set by SetWorldTransformFromGuess)
+  // It is used to reset the pose in case of failure
+  Eigen::Isometry3d TworldInit = Eigen::Isometry3d::Identity();
 
   // Reflect the success of one SLAM iteration computation (used to log or not the state).
   bool Valid = true;
@@ -880,7 +882,7 @@ private:
   // input scan header. This can be done using estimated egomotion and assuming
   // a constant velocity during a sweep.
 
-  // Extra/Interpolate scan pose using previous motion from PreviousTworld and Tworld.
+  // Extra/Interpolate scan pose using previous motion from previous and current poses.
   // 'time' arg is the time offset in seconds to current frame header.stamp.
   Eigen::Isometry3d InterpolateScanPose(double time);
 
