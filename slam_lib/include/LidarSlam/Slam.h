@@ -379,6 +379,15 @@ public:
 
   bool ImuHasData() {return this->ImuManager && this->ImuManager->HasData();}
 
+  // Pose
+  double GetPoseWeight() const;
+  void SetPoseWeight(double weight);
+
+  void AddPoseMeasurement(const ExternalSensors::PoseMeasurement& pm);
+  bool PoseHasData() {return this->PoseManager && this->PoseManager->HasData();}
+
+  void SetPoseCalibration(const Eigen::Isometry3d& calib);
+
   // Landmark detector
   GetMacro(LandmarkWeight, double)
   void SetLandmarkWeight(double weight);
@@ -684,6 +693,16 @@ private:
   // using External Sensors interface
   std::map<int, ExternalSensors::LandmarkManager> LandmarksManagers;
 
+  // Pose Manager
+  // Manager for the acquisition of pose measurements (e.g. from GNNS system, pre-integrated
+  // IMU or any other device able to give absolute pose.)
+  // It computes a residual with a weight taking into account the timing at which it is captured
+  // The Pose measurements must be filled and cleared from outside this lib
+  // using External Sensors interface
+  std::shared_ptr<ExternalSensors::PoseManager> PoseManager;
+  // Weight
+  double PoseWeight = 0.;
+
   // Calibration
   Eigen::Isometry3d LmDetectorCalibration = Eigen::Isometry3d::Identity();
   // Variable to store the landmark weight to init correctly the landmark managers
@@ -936,6 +955,8 @@ private:
 
   void InitWheelOdom();
   void InitImu();
+  void InitPoseSensor();
+
   // Apply general landmarks parameters to a new landmark
   // WARNING : If the calibration has not been set (cf SetLmDetectorCalibration),
   // default identity calibration is set.
