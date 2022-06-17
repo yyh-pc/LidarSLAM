@@ -110,23 +110,6 @@ inline size_t PointCloudMemorySize(const Slam::PointCloud& cloud)
   return (sizeof(cloud) + (sizeof(Slam::PointCloud::PointType) * cloud.size()));
 }
 
-//-----------------------------------------------------------------------------
-//! Rotate all covariances after poses optimization
-void RotateCovariances(const std::list<LidarState>& init, std::list<LidarState>& states)
-{
-  auto itStates = states.begin();
-  auto itInit = init.begin();
-  while (itInit != init.end())
-  {
-    // Compute relative transform
-    Eigen::Isometry3d Trel = itInit->Isometry.inverse() * itStates->Isometry;
-    Eigen::Vector6d pose = Utils::IsometryToXYZRPY(itInit->Isometry);
-    CeresTools::RotateCovariance(pose, itStates->Covariance, Trel.linear());
-    ++itStates;
-    ++itInit;
-  }
-}
-
 } // end of anonymous namespace
 } // end of Utils namespace
 
@@ -167,7 +150,7 @@ void Slam::Reset(bool resetLog)
 
   // n-DoF parameters
   this->Tworld = Eigen::Isometry3d::Identity();
-  this->PreviousTworld = Eigen::Isometry3d::Identity();
+  this->TworldInit = Eigen::Isometry3d::Identity();
   this->Trelative = Eigen::Isometry3d::Identity();
   this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
 
@@ -238,6 +221,8 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   // If LogStates empty, do not modify Tworld (must be identity after Reset)
   if (!this->LogStates.empty())
     this->Tworld = this->LogStates.back().Isometry;
+  else
+    this->Tworld = this->TworldInit;
 
   PRINT_VERBOSE(2, "\n#########################################################");
   PRINT_VERBOSE(1, "Processing frame " << this->NbrFrameProcessed << std::fixed << std::setprecision(9) <<
@@ -539,7 +524,17 @@ bool Slam::OptimizeGraph()
   // WARNING : covariances are not updated at each graph optimization
   // because g2o does not allow to reach them.
   // Covariances rotation is mandatory if covariances are to be used again afterwards
-  Utils::RotateCovariances(statesInit, this->LogStates);
+  auto itStates = this->LogStates.begin();
+  auto itInit = statesInit.begin();
+  while (itInit != statesInit.end())
+  {
+    // Compute relative transform
+    Eigen::Isometry3d Trel = itInit->Isometry.inverse() * itStates->Isometry;
+    Eigen::Vector6d pose = Utils::IsometryToXYZRPY(itInit->Isometry);
+    CeresTools::RotateCovariance(pose, itStates->Covariance, Trel.linear());
+    ++itStates;
+    ++itInit;
+  }
 
   // Update the maps
   IF_VERBOSE(3, Utils::Timer::Init("PGO : maps update"));
@@ -562,13 +557,16 @@ bool Slam::OptimizeGraph()
 //-----------------------------------------------------------------------------
 void Slam::SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess)
 {
+  // Store pose in case of reinitialization need
+  this->TworldInit = poseGuess;
   // Set current pose
   this->Tworld = poseGuess;
 
   // Ego-Motion estimation is not valid anymore since we imposed a discontinuity.
   // We reset previous pose so that previous ego-motion extrapolation results in Identity matrix.
   // We reset current frame keypoints so that ego-motion registration will be skipped for next frame.
-  this->PreviousTworld = this->Tworld;
+  if (!this->LogStates.empty())
+    this->LogStates.back().Isometry = this->Tworld;
   for (auto k : KeypointTypes)
     this->CurrentRawKeypoints[k].reset(new PointCloud);
 }
@@ -629,10 +627,8 @@ Eigen::Isometry3d Slam::GetLatencyCompensatedWorldTransform() const
   else if (trajectorySize == 1)
     return this->LogStates.back().Isometry;
   auto itSt = this->LogStates.end();
+  const LidarState& current = *(--itSt);
   const LidarState& previous = *(--itSt);
-  const LidarState& current  = *(--itSt);
-  const Eigen::Isometry3d& H0 = previous.Isometry;
-  const Eigen::Isometry3d& H1 = current.Isometry;
 
   // Linearly compute normalized timestamp of Hpred.
   // We expect H0 and H1 to match with time 0 and 1.
@@ -650,7 +646,7 @@ Eigen::Isometry3d Slam::GetLatencyCompensatedWorldTransform() const
   }
 
   // Extrapolate H0 and H1 to get expected Hpred at current time
-  Eigen::Isometry3d Hpred = LinearInterpolation(H0, H1, current.Time + this->Latency, previous.Time, current.Time);
+  Eigen::Isometry3d Hpred = LinearInterpolation(previous.Isometry, current.Isometry, current.Time + this->Latency, previous.Time, current.Time);
   return Hpred;
 }
 
@@ -872,13 +868,16 @@ void Slam::ComputeEgoMotion()
     // Estimate new Tworld with a constant velocity model
     const double t = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
     auto itSt = this->LogStates.end();
+
     const double t1 = (--itSt)->Time;
+    const Eigen::Isometry3d& T1 = itSt->Isometry;
     const double t0 = (--itSt)->Time;
+    const Eigen::Isometry3d& T0 = itSt->Isometry;
     if (std::abs((t - t1) / (t1 - t0)) > this->MaxExtrapolationRatio)
       PRINT_WARNING("Unable to extrapolate scan pose from previous motion : extrapolation time is too far.")
     else
     {
-      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(this->PreviousTworld, this->Tworld, t, t0, t1);
+      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(T0, T1, t, t0, t1);
       this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
     }
   }
@@ -1026,8 +1025,8 @@ void Slam::Localization()
   PRINT_VERBOSE(2, "========== Localization ==========");
 
   // Integrate the relative motion to the world transformation
-  this->PreviousTworld = this->Tworld;
-  this->Tworld = this->PreviousTworld * this->Trelative;
+  // Store previous tworld for next iteration
+  this->Tworld = this->Tworld * this->Trelative;
 
   // Init undistorted keypoints clouds from raw points
   // Warning : pointer copy = points modification :
@@ -1148,8 +1147,10 @@ void Slam::Localization()
     if (this->TotalMatchedKeypoints < this->MinNbMatchedKeypoints)
     {
       // Reset state to previous one to avoid instability
-      this->Trelative = Eigen::Isometry3d::Identity();
-      this->Tworld = this->PreviousTworld;
+      if (this->LogStates.empty())
+        this->Tworld = this->TworldInit;
+      else
+        this->Tworld = this->LogStates.back().Isometry;
       if (this->Undistortion)
         this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
       PRINT_ERROR("Not enough keypoints matched, Localization skipped for this frame.");
@@ -1194,9 +1195,8 @@ void Slam::Localization()
     ceres::Solver::Summary summary = optimizer.Solve();
     PRINT_VERBOSE(4, summary.BriefReport());
 
-    // Update Tworld and Trelative from optimization results
+    // Update Tworld from optimization results
     this->Tworld = optimizer.GetOptimizedPose();
-    this->Trelative = this->PreviousTworld.inverse() * this->Tworld;
 
     // Optionally refine undistortion
     if (this->Undistortion == UndistortionMode::REFINED)
@@ -1224,6 +1224,7 @@ void Slam::Localization()
     std::cout << "Matched keypoints: " << this->TotalMatchedKeypoints << " (";
     for (auto k : KeypointTypes)
       std::cout << this->LocalizationMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+
     std::cout << ")"
               << "\nPosition uncertainty    = " << this->LocalizationUncertainty.PositionError    << " m"
               << " (along [" << this->LocalizationUncertainty.PositionErrorDirection.transpose()    << "])"
@@ -1297,8 +1298,15 @@ void Slam::UpdateMapsUsingTworld()
 //-----------------------------------------------------------------------------
 void Slam::LogCurrentFrameState()
 {
-  if (this->LogOnlyKeyframes && !this->IsKeyFrame)
-    return;
+  // The two last poses are logged in any case for motion extrapolation and undistortion
+  // So, if LogOnlyKeyframes is required, remove the second last pose at each iteration if it was not a keyframe
+  if (this->LogStates.size() > 1)
+  {
+    auto itSt = this->LogStates.end();
+    --itSt; --itSt;
+    if (this->LogOnlyKeyframes && !itSt->IsKeyFrame)
+      this->LogStates.erase(itSt);
+  }
   // Save current state to log buffer.
   // This buffer will be processed in the pose graph optimization
   // and is used locally to compute prior ego-motion estimation
