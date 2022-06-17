@@ -110,23 +110,6 @@ inline size_t PointCloudMemorySize(const Slam::PointCloud& cloud)
   return (sizeof(cloud) + (sizeof(Slam::PointCloud::PointType) * cloud.size()));
 }
 
-//-----------------------------------------------------------------------------
-//! Rotate all covariances after poses optimization
-void RotateCovariances(const std::list<LidarState>& init, std::list<LidarState>& states)
-{
-  auto itStates = states.begin();
-  auto itInit = init.begin();
-  while (itInit != init.end())
-  {
-    // Compute relative transform
-    Eigen::Isometry3d Trel = itInit->Isometry.inverse() * itStates->Isometry;
-    Eigen::Vector6d pose = Utils::IsometryToXYZRPY(itInit->Isometry);
-    CeresTools::RotateCovariance(pose, itStates->Covariance, Trel.linear());
-    ++itStates;
-    ++itInit;
-  }
-}
-
 } // end of anonymous namespace
 } // end of Utils namespace
 
@@ -539,7 +522,17 @@ bool Slam::OptimizeGraph()
   // WARNING : covariances are not updated at each graph optimization
   // because g2o does not allow to reach them.
   // Covariances rotation is mandatory if covariances are to be used again afterwards
-  Utils::RotateCovariances(statesInit, this->LogStates);
+  auto itStates = this->LogStates.begin();
+  auto itInit = statesInit.begin();
+  while (itInit != statesInit.end())
+  {
+    // Compute relative transform
+    Eigen::Isometry3d Trel = itInit->Isometry.inverse() * itStates->Isometry;
+    Eigen::Vector6d pose = Utils::IsometryToXYZRPY(itInit->Isometry);
+    CeresTools::RotateCovariance(pose, itStates->Covariance, Trel.linear());
+    ++itStates;
+    ++itInit;
+  }
 
   // Update the maps
   IF_VERBOSE(3, Utils::Timer::Init("PGO : maps update"));
