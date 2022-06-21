@@ -61,7 +61,10 @@ enum UndistortionMode
   //!  - Scan pose is optimized using rigid registration of undistorted scan and map.
   //!  - Iterate the three previous steps with updated ego-motion and poses.
   //!  - Undistorted scan is added to map.
-  REFINED = 2
+  REFINED = 2,
+
+  //! Undistort once with external pose information
+  EXTERNAL = 3
 };
 
 //------------------------------------------------------------------------------

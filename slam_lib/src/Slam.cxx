@@ -1123,10 +1123,16 @@ void Slam::Localization()
   if (this->Undistortion)
   {
     IF_VERBOSE(3, Utils::Timer::Init("Localization : initial undistortion"));
-    // Init the within frame motion interpolator time bounds
-    this->InitUndistortion();
-    // Undistort keypoints clouds
-    this->RefineUndistortion();
+    if (this->Undistortion != UndistortionMode::EXTERNAL)
+    {
+      // Init the within frame motion interpolator time bounds
+      this->InitUndistortion();
+      // Undistort keypoints clouds
+      this->RefineUndistortion();
+    }
+    else
+      this->UndistortWithPoseMeasurement();
+
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : initial undistortion"));
   }
 
@@ -1487,6 +1493,47 @@ void Slam::InitUndistortion()
     // If frame duration is bigger than 10 seconds, it is probably wrongly set
     PRINT_WARNING("'time' field looks not properly set (frame duration > 10 s) and can lead to faulty undistortion.");
   }
+}
+
+void Slam::UndistortWithPoseMeasurement()
+{
+  if (this->PoseHasData())
+  {
+    // Get synchronized point pose relatively to frame
+    ExternalSensors::PoseMeasurement synchPointPoseMeas;
+    ExternalSensors::PoseMeasurement synchFramePoseMeas;
+    Eigen::Isometry3d invCalib = this->PoseManager->GetCalibration().inverse();
+    if (this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime, synchFramePoseMeas, this->Verbosity >= 3))
+    {
+      synchFramePoseMeas.Pose = synchFramePoseMeas.Pose * invCalib;
+      Eigen::Isometry3d invSynchFrame = synchFramePoseMeas.Pose.inverse();
+      // Undistort keypoints
+      for (auto k : this->UsableKeypoints)
+      {
+        // Compute synchronized measures (not parallelizable)
+        int nbPoints = this->CurrentUndistortedKeypoints[k]->size();
+        std::vector<ExternalSensors::PoseMeasurement> synchMeas (nbPoints);
+        // Sort points by time to speed up synchronization search
+        std::sort(this->CurrentUndistortedKeypoints[k]->points.begin(), this->CurrentUndistortedKeypoints[k]->points.end(), [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
+        int idxPt = 0;
+        for (auto& point : *this->CurrentUndistortedKeypoints[k])
+        {
+          this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime + point.time, synchMeas[idxPt], this->Verbosity >= 3);
+          ++idxPt;
+        }
+
+        // Transform with computed measures (parallelized)
+        #pragma omp parallel for num_threads(this->NbThreads)
+        for (int i = 0; i < nbPoints; ++i)
+        {
+          auto& point = this->CurrentUndistortedKeypoints[k]->at(i);
+          Utils::TransformPoint(point, invSynchFrame * (synchMeas[i].Pose * invCalib));
+        }
+      }
+    }
+  }
+  else
+    PRINT_WARNING("External poses are empty : cannot use them to undistort input pointcloud")
 }
 
 //-----------------------------------------------------------------------------

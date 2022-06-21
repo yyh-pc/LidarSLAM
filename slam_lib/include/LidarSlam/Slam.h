@@ -921,6 +921,9 @@ private:
   // and refine the undistortion of the current keypoints clouds.
   void RefineUndistortion();
 
+  // Undistort the keypoints using external pose measurement information
+  void UndistortWithPoseMeasurement();
+
   // ---------------------------------------------------------------------------
   //   Confidence estimator helpers
   // ---------------------------------------------------------------------------
