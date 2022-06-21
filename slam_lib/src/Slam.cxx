@@ -2038,7 +2038,7 @@ bool Slam::CalibrateWithGps()
     ExternalSensors::GpsMeasurement gpsSynchMeasure;
     if (this->GpsManager->ComputeSynchronizedMeasure(s.Time, gpsSynchMeasure))
     {
-      offset.translation() = s.Isometry.translation() - this->GpsManager->GetCalibration().inverse() * gpsSynchMeasure.Position;
+      offset.translation() = (s.Isometry * this->GpsManager->GetCalibration()).translation() - gpsSynchMeasure.Position;
       break;
     }
   }
