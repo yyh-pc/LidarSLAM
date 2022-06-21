@@ -444,7 +444,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   // Set the maximum number of measurements stored in the SLAM filter
   this->SlamAlgo->SetSensorMaxMeasures(arrayTime->GetNumberOfTuples());
 
-  // Process wheel odometry measures
+  // Process wheel odometer data
   if (csvTable->GetRowData()->HasArray("odom"))
   {
     auto arrayOdom = csvTable->GetRowData()->GetArray("odom");
@@ -457,6 +457,8 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     }
     std::cout << "Odometry data successfully loaded " << std::endl;
   }
+
+  // Process IMU data
   if (csvTable->GetRowData()->HasArray("acc_x")
    && csvTable->GetRowData()->HasArray("acc_y")
    && csvTable->GetRowData()->HasArray("acc_z"))
@@ -474,6 +476,45 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       this->SlamAlgo->AddGravityMeasurement(gravityMeasurement);
     }
     std::cout << "IMU data successfully loaded " << std::endl;
+  }
+
+  // Process Pose data
+  if (csvTable->GetRowData()->HasArray("x")
+   && csvTable->GetRowData()->HasArray("y")
+   && csvTable->GetRowData()->HasArray("z")
+   && csvTable->GetRowData()->HasArray("roll")
+   && csvTable->GetRowData()->HasArray("pitch")
+   && csvTable->GetRowData()->HasArray("yaw"))
+  {
+    auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
+    auto arrayY     = csvTable->GetRowData()->GetArray("y"    );
+    auto arrayZ     = csvTable->GetRowData()->GetArray("z"    );
+    auto arrayRoll  = csvTable->GetRowData()->GetArray("roll" );
+    auto arrayPitch = csvTable->GetRowData()->GetArray("pitch");
+    auto arrayYaw   = csvTable->GetRowData()->GetArray("yaw"  );
+
+    for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
+    {
+      LidarSlam::ExternalSensors::PoseMeasurement meas;
+      meas.Time = arrayTime->GetTuple1(i);
+      // Derive Isometry
+      meas.Pose.linear() = Eigen::Matrix3d(
+                           Eigen::AngleAxisd(arrayPitch->GetTuple1(i), Eigen::Vector3d::UnitY()) *
+                           Eigen::AngleAxisd(arrayRoll->GetTuple1(i),  Eigen::Vector3d::UnitX()) *
+                           Eigen::AngleAxisd(arrayYaw->GetTuple1(i),   Eigen::Vector3d::UnitZ())
+                           );
+      meas.Pose.translation() = Eigen::Vector3d(arrayX->GetTuple1(i), arrayY->GetTuple1(i), arrayZ->GetTuple1(i));
+      meas.Pose.makeAffine();
+      this->SlamAlgo->AddPoseMeasurement(meas);
+    }
+    // Set calibration -> TO BE REMOVED NEXT
+    Eigen::Isometry3d calib;
+    calib.matrix() << 0.66802   , -0.744068  ,  0.010568  ,  0.04237635,
+                      0.704442  ,  0.62774   , -0.331217  ,  0.00739508,
+                      0.239814  ,  0.228704  ,  0.943496  ,  0.08251815,
+                      0.        ,  0.        ,  0.        ,  1.        ;
+    this->SlamAlgo->SetPoseCalibration(calib.inverse());
+    std::cout << "Pose data successfully loaded " << std::endl;
   }
 }
 

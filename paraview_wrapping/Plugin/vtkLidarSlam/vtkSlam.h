@@ -263,6 +263,9 @@ public:
 
   vtkCustomGetMacroExternalSensor(Imu, GravityWeight, double)
   vtkCustomSetMacroExternalSensor(Imu, GravityWeight, double)
+  
+  vtkCustomGetMacroExternalSensor(Pose, PoseWeight, double)
+  vtkCustomSetMacroExternalSensor(Pose, PoseWeight, double)
 
   vtkCustomGetMacro(SensorTimeOffset, double)
   vtkCustomSetMacro(SensorTimeOffset, double)

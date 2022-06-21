@@ -86,15 +86,20 @@
 
       <!-- Sensor data file must be csv.
            A field time in POSIX format is necessary
-           Possible sensor fields are : odom, [acc_x, acc_y, acc_z].
-           This file is loaded in PV wrapping.
-           It is used to add constraints to the SLAM optimization -->
+           Possible sensor fields are :
+           - odom for wheel odometry sensor
+           - [acc_x, acc_y, acc_z] for IMU signal
+           - [x,y,z,roll,pitch,yaw] for external absolute pose measurements (YXZ convention)
+           This file is loaded and used to add constraints or priors to the SLAM optimization -->
       <StringVectorProperty name="SensorDataFile"
                             command="SetSensorData"
                             number_of_elements="1"
                             animateable="0"
                             panel_visibility="advanced">
         <FileListDomain name="files"/>
+        <Hints>
+          <FileChooser extensions="csv" file_description="csv file format" />
+        </Hints>
         <Documentation>
           The path of the external sensor data file to use.
 
@@ -105,6 +110,8 @@
           *odom*: Wheel odometry, in meters
 
           *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second^2
+
+          *x/y/z/roll/pitch/yaw*: Absolute pose measurements in meters and radians (YXZ order)
         </Documentation>
       </StringVectorProperty>
 
@@ -1290,6 +1297,16 @@
         </Documentation>
       </DoubleVectorProperty>
 
+      <DoubleVectorProperty name="Pose weight"
+                            command="SetPoseWeight"
+                            number_of_elements="1"
+                            default_values="0."
+                            panel_visibility="advanced">
+        <Documentation>
+          Weight to apply on the Pose constraint ( which may come from a GNSS sensor ).
+        </Documentation>
+      </DoubleVectorProperty>
+
       <DoubleVectorProperty name="Time threshold"
                             command="SetSensorTimeThreshold"
                             number_of_elements="1"
@@ -1305,6 +1322,7 @@
         <Property name="Wheel odom weight" />
         <Property name="Wheel odometry relative mode" />
         <Property name="IMU gravity weight" />
+        <Property name="Pose weight" />
         <Property name="Time threshold" />
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="SensorDataFile" value="" />
