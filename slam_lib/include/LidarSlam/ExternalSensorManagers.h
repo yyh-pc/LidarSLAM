@@ -203,11 +203,22 @@ protected:
     if (this->PreviousIt == this->Measures.end() || this->PreviousIt->Time > lidarTime)
       this->PreviousIt = this->Measures.begin();
 
+    auto postIt = this->PreviousIt;
     // Get iterator pointing to the first measurement after LiDAR time
-    auto postIt = std::upper_bound(this->PreviousIt,
-                                   this->Measures.end(),
-                                   lidarTime,
-                                   [&](double time, const T& measure) {return time < measure.Time;});
+    if (this->PreviousIt == this->Measures.begin())
+    {
+      // If after reset or for first search, use upper_bound function
+      postIt = std::upper_bound(this->PreviousIt,
+                                this->Measures.end(),
+                                lidarTime,
+                                [&](double time, const T& measure) {return time < measure.Time;});
+    }
+    else
+    {
+      // If in the continuity of search, directly look for closest measurements
+      while (postIt->Time < lidarTime && postIt != this->Measures.end())
+        ++postIt;
+    }
 
     // If the last measure was taken before Lidar points
     // extract the two last measures (for extrapolation)
