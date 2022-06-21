@@ -408,6 +408,8 @@
           <Entry value="1" text="Motion extrapolation"/>
           <Entry value="2" text="Registration on previous frame"/>
           <Entry value="3" text="Motion extrapolation + Registration"/>
+          <Entry value="4" text="External"/>
+          <Entry value="5" text="External OR motion extrapolation"/>
         </EnumerationDomain>
         <Documentation>
           How to estimate Ego-Motion (approximate relative motion since last frame).
@@ -429,6 +431,12 @@
           to estimate new Tworld pose from the 2 previous poses. Then this estimation is refined by globally
           registering new frame on previous frame. Slower and need textured enough environment, but should
           be more precise and rely less on constant motion hypothesis.
+
+          If EXTERNAL, the pose is initialized using external sensor information. Sensor data file must have been loaded.
+          If no external sensor info correspond to Lidar times, no prior egomotion is set.
+
+          If EXTERNAL_OR_MOTION_EXTRAPOLATION, the pose is initialized using external sensor information. Sensor data file must have been loaded.
+          If no external sensor info correspond to Lidar times, a motion extrapolation is performed to get an initial pose.
         </Documentation>
       </IntVectorProperty>
 

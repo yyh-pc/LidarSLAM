@@ -988,7 +988,9 @@ void vtkSlam::SetEgoMotion(int mode)
   if (egoMotion != LidarSlam::EgoMotionMode::NONE                 &&
       egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION &&
       egoMotion != LidarSlam::EgoMotionMode::REGISTRATION         &&
-      egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+      egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION &&
+      egoMotion != LidarSlam::EgoMotionMode::EXTERNAL &&
+      egoMotion != LidarSlam::EgoMotionMode::EXTERNAL_OR_MOTION_EXTRAPOLATION)
   {
     vtkErrorMacro("Invalid ego-motion mode (" << mode << "), ignoring setting.");
     return;

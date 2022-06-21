@@ -919,10 +919,38 @@ void Slam::ComputeEgoMotion()
   // Reset ego-motion
   this->Trelative = Eigen::Isometry3d::Identity();
 
+  bool externalAvailable = false;
   // Linearly extrapolate previous motion to estimate new pose
-  if (this->LogStates.size() >= 2 &&
+  if (!this->LogStates.empty() &&
+      (this->EgoMotion == EgoMotionMode::EXTERNAL ||
+       this->EgoMotion == EgoMotionMode::EXTERNAL_OR_MOTION_EXTRAPOLATION))
+  {
+    if (this->PoseHasData())
+    {
+      ExternalSensors::PoseMeasurement synchPoseMeas;
+      if (this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime, synchPoseMeas, this->Verbosity >= 3))
+      {
+        ExternalSensors::PoseMeasurement synchPreviousPoseMeas;
+        if (this->PoseManager->ComputeSynchronizedMeasure(this->LogStates.back().Time, synchPreviousPoseMeas, this->Verbosity >= 3))
+        {
+          Eigen::Isometry3d synchBasePose = synchPoseMeas.Pose * this->PoseManager->GetCalibration().inverse();
+          Eigen::Isometry3d synchPreviousBasePoseMeas = synchPreviousPoseMeas.Pose * this->PoseManager->GetCalibration().inverse();
+          this->Trelative = synchPreviousBasePoseMeas.inverse() * synchBasePose;
+          externalAvailable = true;
+          PRINT_VERBOSE(3, "Prior pose computed using external poses supplied");
+        }
+      }
+    }
+    else
+      PRINT_WARNING("External poses are empty : cannot use them to compute ego motion")
+  }
+
+  // Linearly extrapolate previous motion to estimate new pose
+  if (this->LogStates.size() >= 2 && (
       (this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION ||
-       this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION))
+       this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION) ||
+      (this->EgoMotion == EgoMotionMode::EXTERNAL_OR_MOTION_EXTRAPOLATION &&
+       !externalAvailable)))
   {
     // Estimate new Tworld with a constant velocity model
     const double t = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);

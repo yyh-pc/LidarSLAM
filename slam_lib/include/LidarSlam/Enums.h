@@ -90,7 +90,13 @@ enum class EgoMotionMode
   //! registering new frame on previous frame.
   //! Slower and need textured enough environment, but should be more precise
   //! and rely less on constant motion hypothesis.
-  MOTION_EXTRAPOLATION_AND_REGISTRATION = 3
+  MOTION_EXTRAPOLATION_AND_REGISTRATION = 3,
+
+  //! Use external pose as prior and none if external not available
+  EXTERNAL = 4,
+
+  //! Use external pose as prior and motion extrapolation if external not available
+  EXTERNAL_OR_MOTION_EXTRAPOLATION = 5
 };
 
 //------------------------------------------------------------------------------
