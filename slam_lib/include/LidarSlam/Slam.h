@@ -186,6 +186,13 @@ public:
   // Set world transform with an initial guess (usually from GPS after calibration).
   void SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess);
 
+  // Initialize pose using pose measurements
+  // This allows to represent the maps and the trajectory of Lidar
+  // in an external frame (not first Lidar frame)
+  // the time of the synchronized pose is input so no Lidar frame needs
+  // to have been loaded to use this function
+  bool InitTworldWithPoseMeasurement(double time);
+
   // Save keypoints maps to disk for later use
   void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::BINARY_COMPRESSED, bool submap = true) const;
 

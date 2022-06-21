@@ -912,6 +912,46 @@ void Slam::ExtractKeypoints()
 }
 
 //-----------------------------------------------------------------------------
+bool Slam::InitTworldWithPoseMeasurement(double time)
+{
+  // Compute synchronized pose
+  if (!this->PoseManager)
+  {
+    PRINT_WARNING("No external pose manager : pose not initialized")
+    return false;
+  }
+  ExternalSensors::PoseMeasurement firstSynchPoseMeas;
+  if (!this->PoseManager->ComputeSynchronizedMeasure(time, firstSynchPoseMeas, this->Verbosity >= 3))
+  {
+    PRINT_WARNING("Cannot find synchronized pose measurement : Lidar pose not initialized")
+    return false;
+  }
+
+  Eigen::Isometry3d external2Odom = firstSynchPoseMeas.Pose * this->PoseManager->GetCalibration().inverse() * this->Tworld.inverse();
+  // Update trajectory
+  if (!this->LogStates.empty())
+  {
+    for (auto& s : this->LogStates)
+    {
+      // Rotate covariance
+      Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(s.Isometry);
+      CeresTools::RotateCovariance(initPose, s.Covariance, external2Odom, true); // new = external2Odom * init
+      // Transform pose
+      s.Isometry = external2Odom * s.Isometry;
+    }
+    // Update maps
+    this->UpdateMaps();
+  }
+  else
+    this->TworldInit = external2Odom * this->Tworld;
+
+  this->Tworld = external2Odom * this->Tworld;
+
+  PRINT_VERBOSE(1, "Pose initialized with external pose measurement");
+  return true;
+}
+
+//-----------------------------------------------------------------------------
 void Slam::ComputeEgoMotion()
 {
   PRINT_VERBOSE(2, "========== Ego-Motion ==========");
