@@ -491,42 +491,107 @@ private:
 };
 
 //------------------------------------------------------------------------------
-struct Rotate {
-  Rotate(const Eigen::Matrix3d& rotation): Rotation(rotation) {}
+/**
+ * \class Transform
+ * \brief Function that transforms a pose. This ceres function can be used to
+ *        compute a Jacobian and derive a rotated covariance
+ * This function takes one 6D parameters block :
+ *   - 3 first parameters to encode translation : X, Y, Z
+ *   - 3 last parameters to encode rotation with Euler angles : rX, rY, rZ
+ *
+ * It outputs a 6D residual block.
+ */
+struct Transform {
+  Transform(const Eigen::Isometry3d& transformation): Transformation(transformation) {}
 
   template <typename T>
   bool operator()(const T* const poseEuler, T* residual) const
   {
     using Matrix3T = Eigen::Matrix<T, 3, 3>;
     using Vector3T = Eigen::Matrix<T, 3, 1>;
+    using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
 
-    Matrix3T rot = this->Rotation.cast<T>();
-    // Get translation part of the pose
-    Eigen::Map<const Vector3T> xyz(&poseEuler[0]);
-    // Rotate XYZ coordinates
-    // The translation is not needed as it won't impact the Jacobian
-    // Fix Template issue by force evaluating
-    residual[0] = static_cast<T>(rot.row(0) * xyz);
-    residual[1] = static_cast<T>(rot.row(1) * xyz);
-    residual[2] = static_cast<T>(rot.row(2) * xyz);
+    // Compute transform matrix of current pose from Euler angles (RPY convention) and position
+    Isometry3T transform;
+    transform.linear() = Utils::RotationMatrixFromRPY(poseEuler[3], poseEuler[4], poseEuler[5]);
+    transform.translation() = Vector3T({poseEuler[0], poseEuler[1], poseEuler[2]});
 
-    // Compute rotation matrix of current pose from Euler angles (RPY convention)
-    Matrix3T R = Utils::RotationMatrixFromRPY(poseEuler[3], poseEuler[4], poseEuler[5]);
-    // Compute new rotation matrix relative to rotated pose
-    Matrix3T Rtot = rot * R;
-    // Extract Euler angles of new rotated pose
-    residual[3] = ceres::atan2(Rtot(2, 1), Rtot(2, 2));
-    residual[4] = -ceres::asin(Rtot(2, 0));
-    residual[5] = ceres::atan2(Rtot(1, 0), Rtot(0, 0));
+    // Transform pose
+    Isometry3T newTransform = transform * this->Transformation.cast<T>();
+    Matrix3T rotation = newTransform.linear();
+    Vector3T translation = newTransform.translation();
+
+    // Reconvert to 6D pose
+    // Compute position
+    residual[0] = translation[0];
+    residual[1] = translation[1];
+    residual[2] = translation[2];
+    // Compute Euler angles of new rotated pose
+    residual[3] = ceres::atan2(rotation(2, 1), rotation(2, 2));
+    residual[4] = -ceres::asin(rotation(2, 0));
+    residual[5] = ceres::atan2(rotation(1, 0), rotation(0, 0));
+
     return true;
   }
 
   // Factory to ease the construction of the auto-diff residual object
-  RESIDUAL_FACTORY(Rotate, 6, 6)
+  RESIDUAL_FACTORY(Transform, 6, 6)
 
 private:
-  // Rotation to transform covariance
-  const Eigen::Matrix3d Rotation;
+  // Transformation to apply to input pose
+  const Eigen::Isometry3d Transformation;
+};
+
+//------------------------------------------------------------------------------
+/**
+ * \class ChangeRefFrame
+ * \brief Function that changes the reference frame of a pose. This ceres function can be used to
+ *        compute a Jacobian and derive a rotated covariance
+ * This function takes one 6D parameters block :
+ *   - 3 first parameters to encode translation : X, Y, Z
+ *   - 3 last parameters to encode rotation with Euler angles : rX, rY, rZ
+ *
+ * It outputs a 6D residual block.
+ */
+struct ChangeRefFrame {
+  ChangeRefFrame(const Eigen::Isometry3d& transformation): Transformation(transformation) {}
+
+  template <typename T>
+  bool operator()(const T* const poseEuler, T* residual) const
+  {
+    using Matrix3T = Eigen::Matrix<T, 3, 3>;
+    using Vector3T = Eigen::Matrix<T, 3, 1>;
+    using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
+
+    // Compute transform matrix of current pose from Euler angles (RPY convention) and position
+    Isometry3T transform;
+    transform.linear() = Utils::RotationMatrixFromRPY(poseEuler[3], poseEuler[4], poseEuler[5]);
+    transform.translation() = Vector3T({poseEuler[0], poseEuler[1], poseEuler[2]});
+
+    // Transform pose
+    Isometry3T newTransform = this->Transformation.cast<T>() * transform;
+    Matrix3T rotation = newTransform.linear();
+    Vector3T translation = newTransform.translation();
+
+    // Reconvert to 6D pose
+    // Compute position
+    residual[0] = translation[0];
+    residual[1] = translation[1];
+    residual[2] = translation[2];
+    // Compute Euler angles of new rotated pose
+    residual[3] = ceres::atan2(rotation(2, 1), rotation(2, 2));
+    residual[4] = -ceres::asin(rotation(2, 0));
+    residual[5] = ceres::atan2(rotation(1, 0), rotation(0, 0));
+
+    return true;
+  }
+
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(ChangeRefFrame, 6, 6)
+
+private:
+  // Transformation to change reference frame of the input pose
+  const Eigen::Isometry3d Transformation;
 };
 
 } // end of namespace CeresCostFunctions
@@ -535,17 +600,26 @@ namespace CeresTools
 {
 //------------------------------------------------------------------------------
 /*!
- * @brief Rotate a covariance to change the reference frame
+ * @brief Transform a covariance to change the reference frame or to transform the pose
  *        Theory : the variables of the pose X represented in frame F1 are associated with a covariance C
- *                 If we want to express the pose X in a new reference frame F2, we apply the function f to X
- *                 The covariance associated to f(X) (pose expressed in frame F2) is JCJ^T (J being the Jacobian of the f function)
+ *                 If we want transform the pose, we apply the function f to X
+ *                 The covariance associated to the new pose f(X) is JCJ^T (J being the Jacobian of the f function)
+ *                 f is the combination of the conversion to Isometry matrix, the transformation and the conversion to 6D pose again.
+ *                 i.e., if changeFrame = false : Pose(Isometry(X) * T), T being the transformation to apply to the pose
+ *                 if changeFrame = true : Pose(T * Isometry(X)), T being the reference frame transformation to apply to the pose
  * @param[in] pose : pose associated to the covariance
- * @param[in] covariance : covariance matrix to rotate
- * @param[in] rotation : 3x3 rotation matrix to apply
+ * @param[in] covariance : covariance matrix to recompute
+ * @param[in] transformation : 3x3 rotation matrix to apply
+ * @param[in] changeFrame : bool to decide in which order to perform the matrix multiplication
  */
-inline Eigen::Matrix<double, 6, 6> RotateCovariance(Eigen::Matrix<double, 6, 1>& pose, const Eigen::Matrix<double, 6, 6>& covariance, const Eigen::Matrix3d& rotation)
+inline Eigen::Matrix<double, 6, 6> RotateCovariance(Eigen::Matrix<double, 6, 1>& pose, const Eigen::Matrix<double, 6, 6>& covariance, const Eigen::Isometry3d& transformation, bool changeFrame = false)
 {
-  ceres::CostFunction* F = new ceres::AutoDiffCostFunction<CeresCostFunctions::Rotate, 6, 6>(new CeresCostFunctions::Rotate(rotation));
+  ceres::CostFunction* F;
+  // Choose whether we want to transform current pose or to change its referential frame (multiplication order)
+  if (changeFrame)
+    F = new ceres::AutoDiffCostFunction<CeresCostFunctions::Transform, 6, 6>(new CeresCostFunctions::Transform(transformation));
+  else
+    F = new ceres::AutoDiffCostFunction<CeresCostFunctions::ChangeRefFrame, 6, 6>(new CeresCostFunctions::ChangeRefFrame(transformation));
   ceres::Problem problem;
   problem.AddResidualBlock(F, nullptr, pose.data());
 

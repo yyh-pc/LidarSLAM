@@ -285,9 +285,9 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
   // Rotate covariance if required
   if (this->CovarianceRotation)
   {
-    Eigen::Isometry3d update = this->RelativeTransform * bounds.first->TransfoRelative.inverse();
+    Eigen::Isometry3d update = bounds.first->TransfoRelative.inverse() * this->RelativeTransform;
     Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(bounds.first->TransfoRelative);
-    synchMeas.Covariance = CeresTools::RotateCovariance(xyzrpy, bounds.first->Covariance, update.linear());
+    synchMeas.Covariance = CeresTools::RotateCovariance(xyzrpy, bounds.first->Covariance, update); // new = init * update
   }
 
   return true;

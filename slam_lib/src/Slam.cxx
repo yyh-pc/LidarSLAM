@@ -603,7 +603,7 @@ bool Slam::OptimizeGraph()
     // Compute relative transform
     Eigen::Isometry3d Trel = itInit->Isometry.inverse() * itStates->Isometry;
     Eigen::Vector6d pose = Utils::IsometryToXYZRPY(itInit->Isometry);
-    CeresTools::RotateCovariance(pose, itStates->Covariance, Trel.linear());
+    CeresTools::RotateCovariance(pose, itStates->Covariance, Trel); // new = init * Trel
     ++itStates;
     ++itInit;
   }
@@ -2049,14 +2049,14 @@ bool Slam::CalibrateWithGps()
     return false;
 
   // Reset poses in odom frame (first Lidar pose)
-  Eigen::Isometry3d odomInverse = this->LogStates.front().Isometry.inverse();
+  Eigen::Isometry3d firstInverse = this->LogStates.front().Isometry.inverse();
   for (auto& s : this->LogStates)
   {
     // Rotate covariance
     Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(s.Isometry);
-    CeresTools::RotateCovariance(initPose, s.Covariance, odomInverse.linear());
+    CeresTools::RotateCovariance(initPose, s.Covariance, firstInverse, true); // new = first^-1 * init
     // Transform pose
-    s.Isometry = odomInverse * s.Isometry;
+    s.Isometry = firstInverse * s.Isometry;
   }
 
   // Update the maps and the pose with new trajectory
@@ -2064,8 +2064,8 @@ bool Slam::CalibrateWithGps()
   this->SetWorldTransformFromGuess(this->LogStates.back().Isometry);
 
   // Set refined offset : first Lidar pose + initial offset
-  odomInverse.translation() += offset.translation();
-  this->GpsManager->SetOffset(odomInverse);
+  firstInverse.translation() += offset.translation();
+  this->GpsManager->SetOffset(firstInverse);
 
   return true;
 }
