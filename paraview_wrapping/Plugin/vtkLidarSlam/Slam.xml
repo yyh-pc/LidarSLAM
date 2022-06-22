@@ -112,6 +112,17 @@
           *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second^2
 
           *x/y/z/roll/pitch/yaw*: Absolute pose measurements in meters and radians (YXZ order)
+          WARNING : these poses must come along with a calibration file in the same location named calibration_external_sensor.txt.
+          This calibration should contain the 4x4 calibration matrix representing the transform from external poses sensor to Lidar sensor.
+
+          Example :
+
+             1 0 0 0.5
+
+             0 -1 0 2
+
+             0 0 -1 0.2
+
         </Documentation>
       </StringVectorProperty>
 

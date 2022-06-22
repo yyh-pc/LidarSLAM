@@ -486,6 +486,35 @@ void vtkSlam::SetSensorData(const std::string& fileName)
    && csvTable->GetRowData()->HasArray("pitch")
    && csvTable->GetRowData()->HasArray("yaw"))
   {
+    // Set calibration
+    // Look for calib file next to first file
+    std::string path = fileName.substr(0, fileName.find_last_of("/") + 1);
+    std::ifstream fin (path + "calibration_external_sensor.txt");
+    Eigen::Isometry3d base2Sensor = Eigen::Isometry3d::Identity();
+    if (fin.is_open())
+    {
+      int i = 0;
+      while (fin.good())
+      {
+        std::string elementString;
+        fin >> elementString;
+        base2Sensor.matrix()(i) = stof(elementString);
+        ++i;
+      }
+      base2Sensor.matrix().transposeInPlace();
+    }
+    else
+    {
+      vtkErrorMacro("Could not find external poses calibration file : "
+                    <<path + "calibration_external_sensor.txt\n"
+                    <<"-> calibration is set to identity, measurements must represent base_link motion");
+    }
+
+    this->SlamAlgo->SetPoseCalibration(base2Sensor);
+    vtkDebugMacro("External poses sensor calibration found at "
+                    << path + "calibration_external_sensor.txt : \n"
+                    << base2Sensor.matrix() <<"\n" << std::endl);
+
     auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
     auto arrayY     = csvTable->GetRowData()->GetArray("y"    );
     auto arrayZ     = csvTable->GetRowData()->GetArray("z"    );
@@ -507,14 +536,8 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       meas.Pose.makeAffine();
       this->SlamAlgo->AddPoseMeasurement(meas);
     }
-    // Set calibration -> TO BE REMOVED NEXT
-    Eigen::Isometry3d calib;
-    calib.matrix() << 0.66802   , -0.744068  ,  0.010568  ,  0.04237635,
-                      0.704442  ,  0.62774   , -0.331217  ,  0.00739508,
-                      0.239814  ,  0.228704  ,  0.943496  ,  0.08251815,
-                      0.        ,  0.        ,  0.        ,  1.        ;
-    this->SlamAlgo->SetPoseCalibration(calib.inverse());
-    std::cout << "Pose data successfully loaded " << std::endl;
+
+    vtkDebugMacro("Pose data successfully loaded");
   }
 }
 
