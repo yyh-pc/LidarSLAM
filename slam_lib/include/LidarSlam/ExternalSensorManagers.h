@@ -437,10 +437,28 @@ public:
               const std::string& name = "Pose sensor")
   : SensorManager(timeOffset, timeThresh, maxMeas, name){this->Weight = w;}
 
+  // Setters/Getters
+  GetSensorMacro(PrevLidarTime, double)
+  SetSensorMacro(PrevLidarTime, double)
+
+  GetSensorMacro(PrevPoseTransform, Eigen::Isometry3d)
+  SetSensorMacro(PrevPoseTransform, const Eigen::Isometry3d&)
+
+  GetSensorMacro(SaturationDistance, float)
+  SetSensorMacro(SaturationDistance, float)
+
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
   bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool verbose = false) override;
 
   bool ComputeConstraint(double lidarTime, bool verbose = false) override;
+
+private:
+  // Threshold distance to not take into account the external pose constraint
+  // the external pose sensor may have failed
+  // This distance is used in a robustifier to weight the landmark residuals
+  float SaturationDistance = 5.f;
+  double PrevLidarTime = 0.;
+  Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
 };
 
 

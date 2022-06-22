@@ -443,12 +443,19 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 //-----------------------------------------------------------------------------
 void Slam::ComputeSensorConstraints()
 {
-  if (this->PoseManager && this->PoseManager->ComputeConstraint(currLidarTime, this->Verbosity >= 3))
-    PRINT_VERBOSE(3, "Adding Pose constraint")
   if (this->WheelOdomManager && this->WheelOdomManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
     PRINT_VERBOSE(3, "Wheel odometry constraint added")
   if (this->ImuManager && this->ImuManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
     PRINT_VERBOSE(3, "IMU constraint added")
+  if (this->PoseManager)
+  {
+    // Update last pose information because the external pose constraint is relative
+    this->PoseManager->SetPrevLidarTime(this->LogStates.back().Time);
+    this->PoseManager->SetPrevPoseTransform(this->LogStates.back().Isometry);
+    if (this->PoseManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+      PRINT_VERBOSE(3, "External pose constraint added")
+
+  }
   for (auto& idLm : this->LandmarksManagers)
   {
     PRINT_VERBOSE(3, "Checking state of tag #" << idLm.first)

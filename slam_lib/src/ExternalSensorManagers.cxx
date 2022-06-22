@@ -438,13 +438,47 @@ bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& 
 // ---------------------------------------------------------------------------
 bool PoseManager::ComputeConstraint(double lidarTime, bool verbose)
 {
-  PoseMeasurement synchMeas;
-  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+  this->ResetResidual();
+
+  if (!this->CanBeUsedLocally())
     return false;
 
-  PRINT_WARNING(
-    "TODO Implement constraint Pose Manager");
-  return false;
+  // Compute synchronized measures
+
+  PoseMeasurement synchPrevMeas;
+  if (!this->ComputeSynchronizedMeasure(this->PrevLidarTime, synchPrevMeas, verbose))
+    return false;
+
+  PoseMeasurement synchMeas;
+  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+    return false;
+
+  // Deduce measured relative transform
+  Eigen::Vector6d TrelMeas = Utils::IsometryToXYZRPY((synchPrevMeas.Pose* this->Calibration.inverse()).inverse()
+                                                     * synchMeas.Pose * this->Calibration.inverse());
+
+  this->Residual.Cost = CeresCostFunctions::ExternalPoseResidual::Create(TrelMeas, this->PrevPoseTransform);
+
+  // Use a robustifier to limit the contribution of an outlier tag detection (the tag may have been moved)
+  // Tukey loss applied on residual square:
+  //   rho(residual^2) = a^2 / 3 * ( 1 - (1 - residual^2 / a^2)^3 )   for residual^2 <= a^2,
+  //   rho(residual^2) = a^2 / 3                                      for residual^2 >  a^2.
+  // a is the scaling parameter of the function
+  // See http://ceres-solver.org/nnls_modeling.html#theory for details
+  auto* robustifier = new ceres::TukeyLoss(this->SaturationDistance);
+
+  // Weight the contribution of the given match by its reliability
+  // WARNING : in CERES version < 2.0.0, the Tukey loss is badly implemented, so we have to correct the weight by a factor 2
+  // See https://github.com/ceres-solver/ceres-solver/commit/6da364713f5b78ddf15b0e0ad92c76362c7c7683 for details
+  // This is important for covariance scaling
+  #if (CERES_VERSION_MAJOR < 2)
+    this->Residual.Robustifier.reset(new ceres::ScaledLoss(robustifier, 2.0 * this->Weight, ceres::TAKE_OWNERSHIP));
+  // If Ceres version >= 2.0.0, the Tukey loss is corrected.
+  #else
+    this->Residual.Robustifier.reset(new ceres::ScaledLoss(robustifier, this->Weight, ceres::TAKE_OWNERSHIP));
+  #endif
+
+  return true;
 }
 
 } // end of ExternalSensors namespace

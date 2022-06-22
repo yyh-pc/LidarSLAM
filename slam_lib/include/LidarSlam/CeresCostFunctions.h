@@ -492,6 +492,62 @@ private:
 
 //------------------------------------------------------------------------------
 /**
+ * \class ExternalPoseResidual
+ * \brief Cost function to optimize the affine isometry transformation
+ *        (rotation and translation) so that the absolute pose is consistent
+ *        with an external pose measurement by other sensor.
+ *
+ * This function takes one 6D parameters block :
+ *   - 3 first parameters to encode translation : X, Y, Z
+ *   - 3 last parameters to encode rotation with Euler angles : rX, rY, rZ
+ *
+ * It outputs a 6D residual block.
+ */
+struct ExternalPoseResidual
+{
+  using Vector6d = Eigen::Matrix<double, 6, 1>;
+
+  ExternalPoseResidual(const Vector6d& extPose, const Eigen::Isometry3d& prevPose)
+    : ExternalRelativePose(extPose),
+      PrevPose(prevPose)
+  {}
+
+  template <typename T>
+  bool operator()(const T* const w, T* residual) const
+  {
+    using Vector6T = Eigen::Matrix<T, 6, 1>;
+    using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
+
+    // Get transformation, in a static way.
+    // The idea is that all landmark residual functions will need to evaluate those
+    // sin/cos so we only compute them once each time the parameters change.
+    static Isometry3T currentPoseTransfo = Isometry3T::Identity();
+    static T lastT[6] = {T(-1.)};
+    if (!std::equal(w, w + 6, lastT))
+    {
+      currentPoseTransfo = Utils::XYZRPYtoIsometry(w[0], w[1], w[2], w[3], w[4], w[5]);
+      std::copy(w, w + 6, lastT);
+    }
+
+    Isometry3T Trel = this->PrevPose.cast<T>().inverse() * currentPoseTransfo;
+
+    // Compute residual
+    Eigen::Map<Vector6T> residualVec(residual);
+    residualVec = (Utils::IsometryToXYZRPY(Trel) - ExternalRelativePose.cast<T>());
+
+    return true;
+  }
+
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(ExternalPoseResidual, 6, 6)
+
+private:
+  const Vector6d ExternalRelativePose;
+  const Eigen::Isometry3d PrevPose;
+};
+
+//------------------------------------------------------------------------------
+/**
  * \class Transform
  * \brief Function that transforms a pose. This ceres function can be used to
  *        compute a Jacobian and derive a rotated covariance
