@@ -302,7 +302,7 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
     return false;
 
   LandmarkMeasurement synchMeas;
-  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
     return false;
 
   this->RelativeTransform = this->Calibration.inverse() * synchMeas.TransfoRelative;
@@ -328,6 +328,7 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
     this->Residual.Cost = CeresCostFunctions::LandmarkPositionResidual::Create(this->RelativeTransform, this->AbsolutePose);
   else
     this->Residual.Cost = CeresCostFunctions::LandmarkResidual::Create(this->RelativeTransform, this->AbsolutePose);
+
   // Use a robustifier to limit the contribution of an outlier tag detection (the tag may have been moved)
   // Tukey loss applied on residual square:
   //   rho(residual^2) = a^2 / 3 * ( 1 - (1 - residual^2 / a^2)^3 )   for residual^2 <= a^2,

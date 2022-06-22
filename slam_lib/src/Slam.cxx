@@ -443,17 +443,16 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 //-----------------------------------------------------------------------------
 void Slam::ComputeSensorConstraints()
 {
-  double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  if (this->WheelOdomManager && this->WheelOdomManager->ComputeConstraint(currLidarTime, this->Verbosity >= 3))
-    PRINT_VERBOSE(3, "Adding wheel odometry constraint")
-  if (this->ImuManager && this->ImuManager->ComputeConstraint(currLidarTime, this->Verbosity >= 3))
-    PRINT_VERBOSE(3, "Adding IMU constraint")
   if (this->PoseManager && this->PoseManager->ComputeConstraint(currLidarTime, this->Verbosity >= 3))
     PRINT_VERBOSE(3, "Adding Pose constraint")
+  if (this->WheelOdomManager && this->WheelOdomManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+    PRINT_VERBOSE(3, "Wheel odometry constraint added")
+  if (this->ImuManager && this->ImuManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+    PRINT_VERBOSE(3, "IMU constraint added")
   for (auto& idLm : this->LandmarksManagers)
   {
     PRINT_VERBOSE(3, "Checking state of tag #" << idLm.first)
-    if (idLm.second.ComputeConstraint(currLidarTime, this->Verbosity >= 3))
+    if (idLm.second.ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
       PRINT_VERBOSE(3, "\t Adding constraint for tag #" << idLm.first)
   }
 }
@@ -993,18 +992,17 @@ void Slam::ComputeEgoMotion()
        !externalAvailable)))
   {
     // Estimate new Tworld with a constant velocity model
-    const double t = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
     auto itSt = this->LogStates.end();
 
     const double t1 = (--itSt)->Time;
     const Eigen::Isometry3d& T1 = itSt->Isometry;
     const double t0 = (--itSt)->Time;
     const Eigen::Isometry3d& T0 = itSt->Isometry;
-    if (std::abs((t - t1) / (t1 - t0)) > this->MaxExtrapolationRatio)
+    if (std::abs((this->CurrentTime - t1) / (t1 - t0)) > this->MaxExtrapolationRatio)
       PRINT_WARNING("Unable to extrapolate scan pose from previous motion : extrapolation time is too far.")
     else
     {
-      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(T0, T1, t, t0, t1);
+      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(T0, T1, this->CurrentTime, t0, t1);
       this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
     }
   }
@@ -1491,14 +1489,13 @@ Eigen::Isometry3d Slam::InterpolateScanPose(double time)
     return this->Tworld;
 
   const double prevPoseTime = this->LogStates.back().Time;
-  const double currPoseTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  if (std::abs(time / (currPoseTime - prevPoseTime)) > this->MaxExtrapolationRatio)
+  if (std::abs(time / (this->CurrentTime - prevPoseTime)) > this->MaxExtrapolationRatio)
   {
     PRINT_WARNING("Unable to interpolate scan pose from motion : extrapolation time is too far.");
     return this->Tworld;
   }
 
-  return LinearInterpolation(this->LogStates.back().Isometry, this->Tworld, currPoseTime + time, prevPoseTime, currPoseTime);
+  return LinearInterpolation(this->LogStates.back().Isometry, this->Tworld, this->CurrentTime + time, prevPoseTime, this->CurrentTime);
 }
 
 //-----------------------------------------------------------------------------
