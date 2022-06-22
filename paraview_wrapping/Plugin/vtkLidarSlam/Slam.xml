@@ -1340,12 +1340,30 @@
         </Documentation>
       </DoubleVectorProperty>
 
+      <IntVectorProperty name="Time synchronization"
+                         command="SetSensorTimeSynchronization"
+                         number_of_elements="1"
+                         default_values="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Network"/>
+          <Entry value="1" text="Lidar frame"/>
+        </EnumerationDomain>
+        <Documentation>
+          How to synchronize temporally external sensors.
+
+          If NETWORK, the external sensors are synchronized onto network time (packet reception time)
+
+          If LIDAR FRAME, the external sensors are synchronized onto the Lidar frame time (header time).
+        </Documentation>
+      </IntVectorProperty>
+
       <PropertyGroup label="External sensors">
         <Property name="Wheel odom weight" />
         <Property name="Wheel odometry relative mode" />
         <Property name="IMU gravity weight" />
         <Property name="Pose weight" />
         <Property name="Time threshold" />
+        <Property name="Time synchronization" />
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="SensorDataFile" value="" />
         </Hints>

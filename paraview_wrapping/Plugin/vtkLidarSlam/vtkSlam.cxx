@@ -202,15 +202,19 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 
   auto arrayTime = input->GetPointData()->GetArray(this->TimeArrayName.c_str());
   // Get frame first point time in vendor format
-  double frameFirstPointTime = arrayTime->GetRange()[0] * this->TimeToSecondsFactor;
-  // Get first frame packet reception time
-  vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
-  double frameReceptionPOSIXTime = inInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
-  double absCurrentOffset = std::abs(this->SlamAlgo->GetSensorTimeOffset());
-  double potentialOffset = frameFirstPointTime - frameReceptionPOSIXTime;
-  // We exclude the first frame cause frameReceptionPOSIXTime can be badly set
-  if (this->SlamAlgo->GetNbrFrameProcessed() > 0 && (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset))
-    this->SlamAlgo->SetSensorTimeOffset(potentialOffset);
+  double* range = arrayTime->GetRange();
+  double frameFirstPointTime = range[0] * this->TimeToSecondsFactor;
+  if (this->SynchronizeOnPacket)
+  {
+    // Get first frame packet reception time
+    vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
+    double frameReceptionPOSIXTime = inInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
+    double absCurrentOffset = std::abs(this->SlamAlgo->GetSensorTimeOffset());
+    double potentialOffset = frameFirstPointTime - frameReceptionPOSIXTime;
+    // We exclude the first frame cause frameReceptionPOSIXTime can be badly set
+    if (this->SlamAlgo->GetNbrFrameProcessed() > 0 && (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset))
+      this->SlamAlgo->SetSensorTimeOffset(potentialOffset);
+  }
 
   // Run SLAM
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : input conversions"));
@@ -539,6 +543,17 @@ void vtkSlam::SetSensorData(const std::string& fileName)
 
     vtkDebugMacro("Pose data successfully loaded");
   }
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetSensorTimeSynchronization(int mode)
+{
+  if (mode > 1)
+  {
+    vtkErrorMacro("Invalid time synchronization mode (" << mode << "), ignoring setting.");
+    return;
+  }
+  this->SynchronizeOnPacket = (mode == 0);
 }
 
 //-----------------------------------------------------------------------------
