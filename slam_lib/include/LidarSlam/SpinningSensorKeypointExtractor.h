@@ -79,6 +79,9 @@ public:
   GetMacro(MaxPoints, int)
   SetMacro(MaxPoints, int)
 
+  GetMacro(InputSamplingRatio, float)
+  SetMacro(InputSamplingRatio, float)
+
   GetMacro(NeighborWidth, int)
   SetMacro(NeighborWidth, int)
 
@@ -189,6 +192,9 @@ private:
 
   // Maximum number of keypoints to extract
   int MaxPoints = INT_MAX;
+
+  // Sampling ratio to perform for real time issues
+  float InputSamplingRatio = 1.;
 
   // Width of the neighborhood used to compute discrete differential operators
   int NeighborWidth = 4;

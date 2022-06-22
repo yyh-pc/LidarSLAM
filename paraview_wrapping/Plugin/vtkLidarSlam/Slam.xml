@@ -1652,6 +1652,16 @@
         </Documentation>
       </DoubleVectorProperty>
 
+      <DoubleVectorProperty name="Ratio of points"
+                            command="SetInputSamplingRatio"
+                            number_of_elements="1"
+                            default_values="1."
+                            panel_visibility="advanced">
+        <Documentation>
+          Ratio to randomly downsample the input frame to extract keypoints. This can be used to solve computation time issues.
+        </Documentation>
+      </DoubleVectorProperty>
+
       <PropertyGroup label="Spinning Sensor Keypoints Extractor parameters">
         <Property name="Neighborhood width" />
         <Property name="Min distance to sensor" />
@@ -1665,6 +1675,7 @@
         <Property name="Edge min intensity gap" />
         <Property name="Maximum keypoints number" />
         <Property name="Voxel grid resolution" />
+        <Property name="Ratio of points" />
       </PropertyGroup>
 
     </Proxy>

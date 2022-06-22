@@ -26,6 +26,8 @@
 
 #include <pcl/common/common.h>
 
+#include <random>
+
 namespace LidarSlam
 {
 
@@ -257,6 +259,10 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
   while (azimuthMaxRad < 0)
     azimuthMaxRad += 2 * M_PI;
 
+  std::random_device rd;  // Will be used to obtain a seed for the random number engine
+  std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+  std::uniform_real_distribution<> dis(0.0, 1.0);
+
   // loop over scans lines
   #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (int scanLine = 0; scanLine < static_cast<int>(this->NbLaserRings); ++scanLine)
@@ -272,7 +278,11 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
     // Loop over points in the current scan line
     for (int index = 0; index < Npts; ++index)
     {
-      // central point
+      // Random sampling to decrease keypoints extraction
+      // computation time
+      if (this->InputSamplingRatio < 1.f && dis(gen) > this->InputSamplingRatio)
+        continue;
+      // Central point
       const Eigen::Vector3f& centralPoint = scanLineCloud[index].getVector3fMap();
       float centralDepth = centralPoint.norm();
 

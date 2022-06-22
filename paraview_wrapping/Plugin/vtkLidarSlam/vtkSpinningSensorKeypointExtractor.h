@@ -54,6 +54,8 @@ public:
 
   vtkCustomSetMacro(VoxelResolution, float)
 
+  vtkCustomSetMacro(InputSamplingRatio, float)
+
   vtkCustomSetMacro(NeighborWidth, int)
 
   vtkCustomSetMacro(MinDistanceToSensor, float)
