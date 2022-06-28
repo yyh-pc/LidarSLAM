@@ -1561,9 +1561,6 @@
           If the angle is close enough to 0° or 180° (sin(Angle) low enough), we consider
           the point as a planar keypoint.
         </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
-        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Edge min sinus angle"
@@ -1577,9 +1574,6 @@
           If the angle is close enough to 90° (sin(Angle) high enough), we consider
           the point as an edge keypoint.
         </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
-        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Edge min depth gap"
@@ -1594,9 +1588,6 @@
           gap is big enough on at least one side, we consider the point as an
           edge keypoint.
         </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
-        </Hints>
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Edge min nb of missing points"
@@ -1608,9 +1599,6 @@
           One strategy to consider a point as an edge keypoint is to compute
           the number of points that were missed because of no return (e.g. some window)
         </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
-        </Hints>
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Edge min intensity gap"
@@ -1623,9 +1611,6 @@
           the intensity gap between the point and its left and right neighbors.
           If the gap is big enough, we consider the point as an intensity edge keypoint.
         </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use intensity edges" value="1" />
-        </Hints>
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Maximum keypoints number"
