@@ -27,6 +27,7 @@
 #include <pcl/point_cloud.h>
 
 #include <unordered_map>
+#include <map>
 #include <bitset>
 #include <map>
 
@@ -185,7 +186,7 @@ private:
   // ---------------------------------------------------------------------------
 
   // Keypoints activated
-  std::unordered_map<Keypoint, bool> Enabled = {{EDGE, true}, {INTENSITY_EDGE, true}, {PLANE, true}, {BLOB, false}};
+  std::map<Keypoint, bool> Enabled = {{EDGE, true}, {INTENSITY_EDGE, true}, {PLANE, true}, {BLOB, false}};
 
   // Max number of threads to use to process points in parallel
   int NbThreads = 1;

@@ -481,7 +481,7 @@ private:
   int NbThreads = 1;
 
   // Booleans to decide whether to extract the keypoints of the relative type or not
-  std::unordered_map<Keypoint, bool> UseKeypoints = {{EDGE, true}, {INTENSITY_EDGE, true}, {PLANE, true}, {BLOB, false}};
+  std::map<Keypoint, bool> UseKeypoints = {{EDGE, true}, {INTENSITY_EDGE, true}, {PLANE, true}, {BLOB, false}};
   std::vector<Keypoint> UsableKeypoints = {EDGE, INTENSITY_EDGE, PLANE};
 
   // How to estimate Ego-Motion (approximate relative motion since last frame).
@@ -682,7 +682,7 @@ private:
   // taking account of the acquisition time correspondance
   // The tag measurements must be filled and cleared from outside this lib
   // using External Sensors interface
-  std::unordered_map<int, ExternalSensors::LandmarkManager> LandmarksManagers;
+  std::map<int, ExternalSensors::LandmarkManager> LandmarksManagers;
 
   // Calibration
   Eigen::Isometry3d LmDetectorCalibration = Eigen::Isometry3d::Identity();
