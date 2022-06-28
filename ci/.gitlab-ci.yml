@@ -18,7 +18,9 @@ default:
     # [[runners]] section, defined in the 'config.toml' file.
     - |
       echo "Using following cmake arguments that are optionally defined by the runner:"
+      echo "slam_cmake_option_Eigen_INLCUDE_DIR=$slam_cmake_option_Eigen_INCLUDE_DIR"
       echo "slam_cmake_option_Eigen_DIR=$slam_cmake_option_Eigen_DIR"
+      echo "slam_cmake_option_glog_DIR=$slam_cmake_option_glog_DIR"
       echo "slam_cmake_option_Ceres_DIR=$slam_cmake_option_Ceres_DIR"
       echo "slam_cmake_option_nanoflann_DIR=$slam_cmake_option_nanoflann_DIR"
       echo "slam_cmake_option_Boost_DIR=$slam_cmake_option_Boost_DIR"
@@ -129,6 +131,8 @@ build_superbuild:
       -DCMAKE_BUILD_TYPE=Release
       -DBUILD_SHARED_LIBS=OFF
       $slam_cmake_option_Eigen_DIR
+      $slam_cmake_option_Eigen_INCLUDE_DIR
+      $slam_cmake_option_glog_DIR
       $slam_cmake_option_Ceres_DIR
       $slam_cmake_option_nanoflann_DIR
       $slam_cmake_option_Boost_DIR
@@ -199,6 +203,8 @@ linux_slam_lib:
     - catkin_make
       -DCMAKE_BUILD_TYPE=Release
       $slam_cmake_option_Eigen_DIR
+      $slam_cmake_option_Eigen_INCLUDE_DIR
+      $slam_cmake_option_glog_DIR
       $slam_cmake_option_Ceres_DIR
       $slam_cmake_option_nanoflann_DIR
       $slam_cmake_option_Boost_DIR
@@ -358,6 +364,8 @@ ros_test2:
       -DBUILD_SHARED_LIBS=OFF
       -DSLAM_PARAVIEW_PLUGIN=ON
       $slam_cmake_option_Eigen_DIR
+      $slam_cmake_option_Eigen_INCLUDE_DIR
+      $slam_cmake_option_glog_DIR
       $slam_cmake_option_Ceres_DIR
       $slam_cmake_option_nanoflann_DIR
       $slam_cmake_option_Boost_DIR
