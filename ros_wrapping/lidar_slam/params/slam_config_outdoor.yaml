@@ -30,15 +30,18 @@ output:
     predicted_tf: false    # Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction' (default: false).
   maps:
     edges: true            # Publish edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
+    intensity_edges: true  # Publish intensity edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/intensity_edges'.
     planes: true           # Publish planes keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
     blobs: true            # Publish blobs keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
   submaps:
     edges: true            # Publish edges keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/edges'.
+    intensity_edges: true  # Publish intensity edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/intensity_edges'.
     planes: true           # Publish planes keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/planes'.
     blobs: true            # Publish blobs keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/blobs'.
   # WARNING : The submaps only exist if update_maps is not 0 (the map is not fixed)
   keypoints:
     edges: true            # Publish extracted edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
+    intensity_edges: true  # Publish extracted intensity edges keypoints from current frame as a PointCloud2 msg to topic 'keypoints/intensity_edges'.
     planes: true           # Publish extracted planes keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
     blobs: true            # Publish extracted blobs keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
   confidence: true         # Publish confidence estimators as a confidence msg to topic 'slam_confidence'.
@@ -113,7 +116,6 @@ slam:
   # General parameters
   n_threads: 4      # Max number of threads to use for parallel processing (default: 1)
   2d_mode: false    # Optimize only 2D pose (X, Y, rZ) of tracking_frame relatively to odometry_frame.
-  use_blobs: false  # Use only edge and planar keypoints (do not use blob keypoints)
 
   # How to estimate Ego-Motion (approximate relative motion since last frame).
   # The ego-motion step aims to give a fast and approximate initialization of new
@@ -205,11 +207,11 @@ slam:
     # Match
     max_neighbors_distance: 5.      # [m] Max distance allowed between a current keypoint and its neighbors.
     # Point to edge match
-    edge_nb_neighbors: 10           # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
-    edge_min_nb_neighbors: 4        # [>=2] Min number of resulting filtered edge neighbors (close to best line candidate) to approximate the corresponding line model.
+    edge_nb_neighbors: 9            # [>=2] Initial number of edge neighbors to extract, that will be filtered out to keep best candidates.
+    edge_min_nb_neighbors: 5        # [>=2] Min number of resulting filtered edge neighbors (close to best line candidate) to approximate the corresponding line model.
     edge_max_model_error: 0.2       # [m] Max RMSE allowed between neighborhood and its fitted line model to create a point to line constraint.
     # Point to plane match
-    plane_nb_neighbors: 5           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
+    plane_nb_neighbors: 7           # [>=3] Number of plane neighbors to extract to approximate the corresponding plane model.
     planarity_threshold: 0.04       # Min ratio between the 2 highest eigen values of the plane neighborhood to create a point to plane constraint :
                                     # Contained in [0, 1]. OK if l1/l2 > planarity_threshold (with l2>l1>l0)
     plane_max_model_error: 0.1      # [m] Max RMSE allowed between neighborhood and its fitted plane model to create a point to plane constraint..
@@ -254,9 +256,11 @@ slam:
     #          *SlamCommand::ENABLE_SLAM_MAP_UPDATE
     # to 'slam_command' topic at startup.
     update_maps: 2
-    leaf_size_edges: 0.30   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
-    leaf_size_planes: 0.60  # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
-    leaf_size_blobs: 0.30   # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
+    leaf_size:
+      edges: 0.30             # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
+      intensity_edges: 0.20   # [m] Resolution used to downsample the edges map with a VoxelGrid filter.
+      planes: 0.60            # [m] Resolution used to downsample the planes map with a VoxelGrid filter.
+      blobs: 0.30             # [m] Resolution used to downsample the blobs map with a VoxelGrid filter.
     # WARNING: the leaf sizes are linked with the confidence threshold parameter
     # if they are reduced the confidence threshold may need to by reduced as well to extract enough target keypoints
     size: 50                # [voxels] Size of the voxel grid used to store keypoints maps : n*n*n voxels.
@@ -267,11 +271,13 @@ slam:
     # 2) Select the point with max intensity,
     # 3) Select the closest point to the voxel center,
     # 4) Compute the centroid of all points laying in the voxel.
-    sampling_mode_edges: 2
-    sampling_mode_planes: 2
-    sampling_mode_blobs: 2
+    sampling_mode:
+      edge: 2
+      intensity_edge: 2
+      plane: 2
+      blob: 2
     decaying_threshold: -1  # [s] Time duration after which to eliminate a not fixed keypoint from the map.
-    min_frames_per_voxel: 0 # Minimum number of frames that must have reached a map voxel
+    min_frames_per_voxel: 2 # Minimum number of frames that must have reached a map voxel
                             # to consider the voxel contains a target keypoint.
                             # It is used to reject moving objects from the map
                             # WARNING: this parameter may need to be adapted to the velocity of the robot,
@@ -280,13 +286,23 @@ slam:
   # Keypoint extractor for each LiDAR sensor
   ke:
     # Single LiDAR input
+    enable:
+      edge: true
+      intensity_edge: true
+      plane: true
+      blob: false
+    max_points: 1000                   # Maximum number of keypoints of each type to extract
+    voxel_grid_resolution: 1.          # [m/voxel] Size of a voxel to downsample the extracted keypoints
+    input_sampling_ratio: 1.           # Ratio of points from which to extract the keypoints (for computation time issues)
     min_distance_to_sensor: 1.5        # [m] Minimal point to sensor distance to consider a point as valid.
+    min_azimuth: 0.                    # [°] Minimal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
+    max_azimuth: 360.                  # [°] Maximal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
     min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
     edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
-    edge_depth_gap_threshold: 0.15     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
-    edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
+    edge_depth_gap_threshold: 1.       # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
+    edge_nb_gap_points: 10             # [points] Minimum number of successive missing points to consider a space gap.
     edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
 
     # # Multi LiDAR inputs
@@ -295,20 +311,40 @@ slam:
     # device_ids: [0, 10]
     # # Keypoint extractors parameters for each LiDAR sensor "device_<device_id>"
     # device_0:
-    #   min_distance_to_sensor: 3.         # [m] Minimal point to sensor distance to consider a point as valid.
+    #   enable:
+    #     edge: true
+    #     intensity_edge: true
+    #     plane: true
+    #     blob: false
+    #   max_points: 1000                   # Maximum number of keypoints of each type to extract
+    #   voxel_grid_resolution: 1.          # [m/voxel] Size of a voxel to downsample the extracted keypoints
+    #   input_sampling_ratio: 0.6          # Ratio of points from which to extract the keypoints (for computation time issues)
+    #   min_distance_to_sensor: 1.5        # [m] Minimal point to sensor distance to consider a point as valid.
+    #   min_azimuth: -45                   # [°] Minimal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
+    #   max_azimuth: 45                    # [°] Maximal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
     #   edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
-    #   edge_depth_gap_threshold: 0.15     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
-    #   edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
-    #   edge_intensity_gap_threshold: 50.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
+    #   edge_depth_gap_threshold: 1.5      # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
+    #   edge_nb_gap_points: 10             # [points] Minimum number of successive missing points to consider a space gap.
+    #   edge_intensity_gap_threshold: 30.  # [0-255] Threshold upon intensity gap to select an edge keypoint.
     # device_10:
-    #   min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
+    #   enable:
+    #     edge: true
+    #     intensity_edge: true
+    #     plane: true
+    #     blob: false
+    #   max_points: 1000                   # Maximum number of keypoints of each type to extract
+    #   voxel_grid_resolution: 1.          # [m/voxel] Size of a voxel to downsample the extracted keypoints
+    #   input_sampling_ratio: 1.           # Ratio of points from which to extract the keypoints (for computation time issues)
+    #   min_distance_to_sensor: 1.5        # [m] Minimal point to sensor distance to consider a point as valid.
+    #   min_azimuth: -45                   # [°] Minimal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
+    #   max_azimuth: 45                    # [°] Maximal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
     #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
     #   edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
-    #   edge_depth_gap_threshold: 0.30     # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
-    #   edge_saliency_threshold: 1.5       # [m] Threshold upon saliency of a neighborhood to select an edge keypoint.
+    #   edge_depth_gap_threshold: 1.5      # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
+    #   edge_nb_gap_points: 10             # [points] Minimum number of successive missing points to consider a space gap.
     #   edge_intensity_gap_threshold: 200. # [0-255] Threshold upon intensity gap to select an edge keypoint.

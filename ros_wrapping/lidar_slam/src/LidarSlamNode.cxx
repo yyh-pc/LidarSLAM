@@ -19,6 +19,8 @@
 #include "LidarSlamNode.h"
 #include "ros_transform_utils.h"
 
+#include <LidarSlam/Utilities.h>
+
 #include <pcl_conversions/pcl_conversions.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/Path.h>
@@ -27,26 +29,29 @@
 
 enum Output
 {
-  POSE_ODOM,             // Publish SLAM pose as an Odometry msg on 'slam_odom' topic (default : true).
-  POSE_TF,               // Publish SLAM pose as a TF from 'odometry_frame' to 'tracking_frame' (default : true).
-  POSE_PREDICTION_ODOM,  // Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
-  POSE_PREDICTION_TF,    // Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
+  POSE_ODOM,                 // Publish SLAM pose as an Odometry msg on 'slam_odom' topic (default : true).
+  POSE_TF,                   // Publish SLAM pose as a TF from 'odometry_frame' to 'tracking_frame' (default : true).
+  POSE_PREDICTION_ODOM,      // Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic.
+  POSE_PREDICTION_TF,        // Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction'.
 
-  EDGES_MAP,             // Publish edge keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
-  PLANES_MAP,            // Publish plane keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
-  BLOBS_MAP,             // Publish blob keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
+  EDGES_MAP,                 // Publish edge keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
+  INTENSITY_EDGES_MAP,       // Publish intensity edge keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/intensity_edges'.
+  PLANES_MAP,                // Publish plane keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/planes'.
+  BLOBS_MAP,                 // Publish blob keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/blobs'.
 
-  EDGES_SUBMAP,          // Publish edge keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/edges'.
-  PLANES_SUBMAP,         // Publish plane keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/planes'.
-  BLOBS_SUBMAP,          // Publish blob keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/blobs'.
+  EDGES_SUBMAP,              // Publish edge keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/edges'.
+  INTENSITY_EDGES_SUBMAP,    // Publish intensity edge keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/intensity_edges'.
+  PLANES_SUBMAP,             // Publish plane keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/planes'.
+  BLOBS_SUBMAP,              // Publish blob keypoints submap as a LidarPoint PointCloud2 msg to topic 'submaps/blobs'.
 
-  EDGE_KEYPOINTS,        // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
-  PLANE_KEYPOINTS,       // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
-  BLOB_KEYPOINTS,        // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
+  EDGE_KEYPOINTS,            // Publish extracted edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/edges'.
+  INTENSITY_EDGE_KEYPOINTS,  // Publish extracted intensity edge keypoints from current frame as a PointCloud2 msg to topic 'keypoints/intensity_edges'.
+  PLANE_KEYPOINTS,           // Publish extracted plane keypoints from current frame as a PointCloud2 msg to topic 'keypoints/planes'.
+  BLOB_KEYPOINTS,            // Publish extracted blob keypoints from current frame as a PointCloud2 msg to topic 'keypoints/blobs'.
 
-  SLAM_REGISTERED_POINTS,// Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_registered_points'.
+  SLAM_REGISTERED_POINTS,    // Publish SLAM pointcloud as LidarPoint PointCloud2 msg to topic 'slam_registered_points'.
 
-  CONFIDENCE,            // Publish confidence estimators on output pose to topic 'slam_confidence'.
+  CONFIDENCE,                // Publish confidence estimators on output pose to topic 'slam_confidence'.
 
   PGO_PATH,              // Publish optimized SLAM trajectory as Path msg to 'pgo_slam_path' latched topic.
 };
@@ -63,7 +68,6 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 {
   // ***************************************************************************
   // Init SLAM state
-
   // Get SLAM params
   this->SetSlamParameters();
 
@@ -113,17 +117,33 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   initPublisher(POSE_ODOM,            "slam_odom",           nav_msgs::Odometry, "output/pose/odom",           true,  1, false);
   initPublisher(POSE_PREDICTION_ODOM, "slam_predicted_odom", nav_msgs::Odometry, "output/pose/predicted_odom", false, 1, false);
 
-  initPublisher(EDGES_MAP,  "maps/edges",  CloudS, "output/maps/edges",  true, 1, false);
-  initPublisher(PLANES_MAP, "maps/planes", CloudS, "output/maps/planes", true, 1, false);
-  initPublisher(BLOBS_MAP,  "maps/blobs",  CloudS, "output/maps/blobs",  true, 1, false);
+  if(this->LidarSlam.KeypointTypeEnabled(LidarSlam::EDGE))
+  {
+    initPublisher(EDGES_MAP,  "maps/edges",  CloudS, "output/maps/edges",  true, 1, false);
+    initPublisher(EDGES_SUBMAP,  "submaps/edges",  CloudS, "output/submaps/edges",  true, 1, false);
+    initPublisher(EDGE_KEYPOINTS,  "keypoints/edges",  CloudS, "output/keypoints/edges",  true, 1, false);
+  }
 
-  initPublisher(EDGES_SUBMAP,  "submaps/edges",  CloudS, "output/submaps/edges",  true, 1, false);
-  initPublisher(PLANES_SUBMAP, "submaps/planes", CloudS, "output/submaps/planes", true, 1, false);
-  initPublisher(BLOBS_SUBMAP,  "submaps/blobs",  CloudS, "output/submaps/blobs",  true, 1, false);
+  if(this->LidarSlam.KeypointTypeEnabled(LidarSlam::INTENSITY_EDGE))
+  {
+    initPublisher(INTENSITY_EDGES_MAP,  "maps/intensity_edges",  CloudS, "output/maps/intensity_edges",  true, 1, false);
+    initPublisher(INTENSITY_EDGES_SUBMAP,  "submaps/intensity_edges",  CloudS, "output/submaps/intensity_edges",  true, 1, false);
+    initPublisher(INTENSITY_EDGE_KEYPOINTS,  "keypoints/intensity_edges",  CloudS, "output/keypoints/intensity_edges",  true, 1, false);
+  }
 
-  initPublisher(EDGE_KEYPOINTS,  "keypoints/edges",  CloudS, "output/keypoints/edges",  true, 1, false);
-  initPublisher(PLANE_KEYPOINTS, "keypoints/planes", CloudS, "output/keypoints/planes", true, 1, false);
-  initPublisher(BLOB_KEYPOINTS,  "keypoints/blobs",  CloudS, "output/keypoints/blobs",  true, 1, false);
+  if(this->LidarSlam.KeypointTypeEnabled(LidarSlam::PLANE))
+  {
+    initPublisher(PLANES_MAP, "maps/planes", CloudS, "output/maps/planes", true, 1, false);
+    initPublisher(PLANES_SUBMAP, "submaps/planes", CloudS, "output/submaps/planes", true, 1, false);
+    initPublisher(PLANE_KEYPOINTS, "keypoints/planes", CloudS, "output/keypoints/planes", true, 1, false);
+  }
+
+  if(this->LidarSlam.KeypointTypeEnabled(LidarSlam::BLOB))
+  {
+    initPublisher(BLOBS_MAP,  "maps/blobs",  CloudS, "output/maps/blobs",  true, 1, false);
+    initPublisher(BLOBS_SUBMAP,  "submaps/blobs",  CloudS, "output/submaps/blobs",  true, 1, false);
+    initPublisher(BLOB_KEYPOINTS,  "keypoints/blobs",  CloudS, "output/keypoints/blobs",  true, 1, false);
+  }
 
   initPublisher(SLAM_REGISTERED_POINTS, "slam_registered_points", CloudS, "output/registered_points", true, 1, false);
 
@@ -740,16 +760,19 @@ void LidarSlamNode::PublishOutput()
 
   // Keypoints maps
   publishPointCloud(EDGES_MAP,  this->LidarSlam.GetMap(LidarSlam::EDGE));
+  publishPointCloud(INTENSITY_EDGES_MAP,  this->LidarSlam.GetMap(LidarSlam::INTENSITY_EDGE));
   publishPointCloud(PLANES_MAP, this->LidarSlam.GetMap(LidarSlam::PLANE));
   publishPointCloud(BLOBS_MAP,  this->LidarSlam.GetMap(LidarSlam::BLOB));
 
   // Keypoints submaps
   publishPointCloud(EDGES_SUBMAP,  this->LidarSlam.GetTargetSubMap(LidarSlam::EDGE));
+  publishPointCloud(INTENSITY_EDGES_SUBMAP,  this->LidarSlam.GetTargetSubMap(LidarSlam::INTENSITY_EDGE));
   publishPointCloud(PLANES_SUBMAP, this->LidarSlam.GetTargetSubMap(LidarSlam::PLANE));
   publishPointCloud(BLOBS_SUBMAP,  this->LidarSlam.GetTargetSubMap(LidarSlam::BLOB));
 
   // Current keypoints
   publishPointCloud(EDGE_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::EDGE));
+  publishPointCloud(INTENSITY_EDGE_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::INTENSITY_EDGE));
   publishPointCloud(PLANE_KEYPOINTS, this->LidarSlam.GetKeypoints(LidarSlam::PLANE));
   publishPointCloud(BLOB_KEYPOINTS,  this->LidarSlam.GetKeypoints(LidarSlam::BLOB));
 
@@ -779,10 +802,8 @@ void LidarSlamNode::PublishOutput()
 void LidarSlamNode::SetSlamParameters()
 {
   #define SetSlamParam(type, rosParam, slamParam) { type val; if (this->PrivNh.getParam(rosParam, val)) this->LidarSlam.Set##slamParam(val); }
-
   // General
   SetSlamParam(bool,   "slam/2d_mode", TwoDMode)
-  SetSlamParam(bool,   "slam/use_blobs", UseBlobs)
   SetSlamParam(int,    "slam/verbosity", Verbosity)
   SetSlamParam(int,    "slam/n_threads", NbThreads)
   SetSlamParam(double, "slam/logging/timeout", LoggingTimeout)
@@ -814,6 +835,7 @@ void LidarSlamNode::SetSlamParameters()
     }
     LidarSlam.SetUndistortion(undistortion);
   }
+
   int pointCloudStorage;
   if (this->PrivNh.getParam("slam/logging/storage_type", pointCloudStorage))
   {
@@ -835,6 +857,69 @@ void LidarSlamNode::SetSlamParameters()
   this->LidarSlam.SetWorldFrameId(this->OdometryFrameId);
   this->PrivNh.param("tracking_frame", this->TrackingFrameId, this->TrackingFrameId);
   this->LidarSlam.SetBaseFrameId(this->TrackingFrameId);
+
+  // Keypoint extractors
+  auto InitKeypointsExtractor = [this](auto& ke, const std::string& prefix)
+  {
+    #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (this->PrivNh.getParam(rosParam, val)) ke->Set##keParam(val);}
+    SetKeypointsExtractorParam(int,   "slam/n_threads", NbThreads)
+    SetKeypointsExtractorParam(int,   prefix + "neighbor_width", NeighborWidth)
+    SetKeypointsExtractorParam(float, prefix + "min_distance_to_sensor", MinDistanceToSensor)
+    SetKeypointsExtractorParam(float, prefix + "min_beam_surface_angle", MinBeamSurfaceAngle)
+    SetKeypointsExtractorParam(float, prefix + "min_azimuth", AzimuthMin)
+    SetKeypointsExtractorParam(float, prefix + "max_azimuth", AzimuthMax)
+    SetKeypointsExtractorParam(float, prefix + "plane_sin_angle_threshold", PlaneSinAngleThreshold)
+    SetKeypointsExtractorParam(float, prefix + "edge_sin_angle_threshold", EdgeSinAngleThreshold)
+    SetKeypointsExtractorParam(float, prefix + "edge_depth_gap_threshold", EdgeDepthGapThreshold)
+    SetKeypointsExtractorParam(float, prefix + "edge_nb_gap_points", EdgeNbGapPoints)
+    SetKeypointsExtractorParam(float, prefix + "edge_intensity_gap_threshold", EdgeIntensityGapThreshold)
+    SetKeypointsExtractorParam(int,   prefix + "max_points", MaxPoints)
+    SetKeypointsExtractorParam(float, prefix + "voxel_grid_resolution", VoxelResolution)
+    SetKeypointsExtractorParam(float, prefix + "input_sampling_ratio", InputSamplingRatio)
+    #define EnableKeypoint(kType) \
+    { \
+      bool enabled = false; \
+      std::string name = LidarSlam::KeypointTypeNames.at(kType); \
+      if (this->PrivNh.getParam(prefix + "enable/"+ name, enabled)) \
+        this->LidarSlam.EnableKeypointType(kType, enabled); \
+      if (enabled) \
+        ROS_INFO_STREAM("Keypoint of type " + name + " enabled"); \
+      else \
+        ROS_INFO_STREAM("Keypoint of type " + name + " disabled"); \
+    }
+    EnableKeypoint(LidarSlam::Keypoint::EDGE);
+    EnableKeypoint(LidarSlam::Keypoint::INTENSITY_EDGE);
+    EnableKeypoint(LidarSlam::Keypoint::PLANE);
+    EnableKeypoint(LidarSlam::Keypoint::BLOB);
+  };
+
+  // Multi-LiDAR devices
+  std::vector<int> deviceIds;
+  if (this->PrivNh.getParam("slam/ke/device_ids", deviceIds))
+  {
+    ROS_INFO_STREAM("Multi-LiDAR devices setup");
+    for (auto deviceId: deviceIds)
+    {
+      // Init Keypoint extractor with default params
+      auto ke = std::make_shared<LidarSlam::SpinningSensorKeypointExtractor>();
+
+      // Change default parameters using ROS parameter server
+      std::string prefix = "slam/ke/device_" + std::to_string(deviceId) + "/";
+      InitKeypointsExtractor(ke, prefix);
+
+      // Add extractor to SLAM
+      this->LidarSlam.SetKeyPointsExtractor(ke, deviceId);
+      ROS_INFO_STREAM("Adding keypoint extractor for LiDAR device " << deviceId);
+    }
+  }
+  // Single LiDAR device
+  else
+  {
+    ROS_INFO_STREAM("Single LiDAR device setup");
+    auto ke = std::make_shared<LidarSlam::SpinningSensorKeypointExtractor>();
+    InitKeypointsExtractor(ke, "slam/ke/");
+    this->LidarSlam.SetKeyPointsExtractor(ke);
+  }
 
   // Ego motion
   SetSlamParam(int,    "slam/ego_motion_registration/ICP_max_iter", EgoMotionICPMaxIter)
@@ -907,22 +992,24 @@ void LidarSlamNode::SetSlamParameters()
     this->LidarSlam.SetMapUpdate(mapUpdate);
   }
   double size;
-  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_edges", size))
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size/edges", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::EDGE))
     this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::EDGE, size);
-  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_planes", size))
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size/intensity_edges", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::INTENSITY_EDGE))
+    this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::INTENSITY_EDGE, size);
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size/planes", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::PLANE))
     this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::PLANE, size);
-  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size_blobs", size))
+  if (this->PrivNh.getParam("slam/voxel_grid/leaf_size/blobs", size) && this->LidarSlam.KeypointTypeEnabled(LidarSlam::BLOB))
     this->LidarSlam.SetVoxelGridLeafSize(LidarSlam::BLOB, size);
   SetSlamParam(double, "slam/voxel_grid/resolution", VoxelGridResolution)
   SetSlamParam(int,    "slam/voxel_grid/size", VoxelGridSize)
   SetSlamParam(double, "slam/voxel_grid/decaying_threshold", VoxelGridDecayingThreshold)
   SetSlamParam(int,    "slam/voxel_grid/min_frames_per_voxel", VoxelGridMinFramesPerVoxel)
-
-  // Helper lambda function to set the sampling mode for each map
-  auto SetSamplingMode = [&](std::string paramName, LidarSlam::Keypoint k)
+  for (auto k : LidarSlam::KeypointTypes)
   {
+    if (!this->LidarSlam.KeypointTypeEnabled(k))
+      continue;
     int samplingMode;
-    if (this->PrivNh.getParam(paramName, samplingMode))
+    if (this->PrivNh.getParam("slam/voxel_grid/sampling_mode/" + LidarSlam::KeypointTypeNames.at(k), samplingMode))
     {
       LidarSlam::SamplingMode sampling = static_cast<LidarSlam::SamplingMode>(samplingMode);
       if (sampling != LidarSlam::SamplingMode::FIRST &&
@@ -931,57 +1018,13 @@ void LidarSlamNode::SetSlamParameters()
           sampling != LidarSlam::SamplingMode::CENTER_POINT &&
           sampling != LidarSlam::SamplingMode::CENTROID)
       {
-        ROS_ERROR_STREAM("Invalid sampling mode (" << samplingMode << ") for " << paramName << ". Setting it to 'MAX_INTENSITY'.");
+        ROS_ERROR_STREAM("Invalid sampling mode (" << samplingMode << ") for "
+                                                   << LidarSlam::Utils::Plural(LidarSlam::KeypointTypeNames.at(k))
+                                                   << ". Setting it to 'MAX_INTENSITY'.");
         sampling = LidarSlam::SamplingMode::MAX_INTENSITY;
       }
       this->LidarSlam.SetVoxelGridSamplingMode(k, sampling);
     }
-  };
-
-  SetSamplingMode("slam/voxel_grid/sampling_mode_edges", LidarSlam::Keypoint::EDGE);
-  SetSamplingMode("slam/voxel_grid/sampling_mode_planes", LidarSlam::Keypoint::PLANE);
-  SetSamplingMode("slam/voxel_grid/sampling_mode_blobs", LidarSlam::Keypoint::BLOB);
-
-  // Keypoint extractors
-  auto InitKeypointsExtractor = [this](auto& ke, const std::string& prefix)
-  {
-    #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (this->PrivNh.getParam(rosParam, val)) ke->Set##keParam(val);}
-    SetKeypointsExtractorParam(int,   "slam/n_threads", NbThreads)
-    SetKeypointsExtractorParam(int,   prefix + "neighbor_width", NeighborWidth)
-    SetKeypointsExtractorParam(float, prefix + "min_distance_to_sensor", MinDistanceToSensor)
-    SetKeypointsExtractorParam(float, prefix + "min_beam_surface_angle", MinBeamSurfaceAngle)
-    SetKeypointsExtractorParam(float, prefix + "plane_sin_angle_threshold", PlaneSinAngleThreshold)
-    SetKeypointsExtractorParam(float, prefix + "edge_sin_angle_threshold", EdgeSinAngleThreshold)
-    SetKeypointsExtractorParam(float, prefix + "edge_depth_gap_threshold", EdgeDepthGapThreshold)
-    SetKeypointsExtractorParam(float, prefix + "edge_saliency_threshold", EdgeSaliencyThreshold)
-    SetKeypointsExtractorParam(float, prefix + "edge_intensity_gap_threshold", EdgeIntensityGapThreshold)
-  };
-  // Multi-LiDAR devices
-  std::vector<int> deviceIds;
-  if (this->PrivNh.getParam("slam/ke/device_ids", deviceIds))
-  {
-    ROS_INFO_STREAM("Multi-LiDAR devices setup");
-    for (auto deviceId: deviceIds)
-    {
-      // Init Keypoint extractor with default params
-      auto ke = std::make_shared<LidarSlam::SpinningSensorKeypointExtractor>();
-
-      // Change default parameters using ROS parameter server
-      std::string prefix = "slam/ke/device_" + std::to_string(deviceId) + "/";
-      InitKeypointsExtractor(ke, prefix);
-
-      // Add extractor to SLAM
-      this->LidarSlam.SetKeyPointsExtractor(ke, deviceId);
-      ROS_INFO_STREAM("Adding keypoint extractor for LiDAR device " << deviceId);
-    }
-  }
-  // Single LiDAR device
-  else
-  {
-    ROS_INFO_STREAM("Single LiDAR device setup");
-    auto ke = std::make_shared<LidarSlam::SpinningSensorKeypointExtractor>();
-    InitKeypointsExtractor(ke, "slam/ke/");
-    this->LidarSlam.SetKeyPointsExtractor(ke);
   }
 }
 

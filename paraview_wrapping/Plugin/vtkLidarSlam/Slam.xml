@@ -62,14 +62,14 @@
         </Documentation>
       </InputProperty>
 
-      <OutputPort name="Current transformed frame" index="0" id="port0" />
-      <OutputPort name="Trajectory"                index="1" id="port1" />
-      <OutputPort name="Edge map"                  index="2" id="port2" />
-      <OutputPort name="Planar map"                index="3" id="port3" />
-      <OutputPort name="Blob map"                  index="4" id="port4" />
-      <OutputPort name="Current edge keypoints"    index="5" id="port5" />
-      <OutputPort name="Current planar keypoints"  index="6" id="port6" />
-      <OutputPort name="Current blob keypoints"    index="7" id="port7" />
+      <OutputPort name="Current transformed frame"         index="0" id="port0" />
+      <OutputPort name="Trajectory"                        index="1" id="port1" />
+      <OutputPort name="Edge map"                          index="2" id="port2" />
+      <OutputPort name="Intensity edge map"                index="3" id="port3" />
+      <OutputPort name="Planar map"                        index="4" id="port4" />
+      <OutputPort name="Current edge keypoints"            index="5" id="port5" />
+      <OutputPort name="Current intensity edge keypoints"  index="6" id="port6" />
+      <OutputPort name="Current planar keypoints"          index="7" id="port7" />
 
       <!-- ============= Paraview filter inputs/outputs options ============ -->
 
@@ -104,7 +104,7 @@
 
           *odom*: Wheel odometry, in meters
 
-          *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second
+          *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second^2
         </Documentation>
       </StringVectorProperty>
 
@@ -224,7 +224,7 @@
 
            - Trajectory : matching summary, localization error summary, confidence estimators
 
-           - Output transformed frame : saliency, planarity, intensity gap, keypoint validity
+           - Output transformed frame : planarity, intensity gap, keypoint validity
 
            - Extracted keypoints : ICP matching results
 
@@ -323,13 +323,43 @@
         </Documentation>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Use edges"
+                         command="EnableEdges"
+                         number_of_elements="1"
+                         default_values="1" >
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, edge keypoints are used in optimization.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Use intensity edges"
+                         command="EnableIntensityEdges"
+                         number_of_elements="1"
+                         default_values="1" >
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, intensity edge keypoints are used in optimization.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Use planes"
+                         command="EnablePlanes"
+                         number_of_elements="1"
+                         default_values="1" >
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, plane keypoints are used in optimization.
+        </Documentation>
+      </IntVectorProperty>
+
       <IntVectorProperty name="Use blobs"
-                         command="SetUseBlobs"
+                         command="EnableBlobs"
                          number_of_elements="1"
                          default_values="0" >
         <BooleanDomain name="bool" />
         <Documentation>
-          If enabled, blob keypoints are used in localization step.
+          If enabled, blob keypoints are used in optimization.
         </Documentation>
       </IntVectorProperty>
 
@@ -420,7 +450,7 @@
       <IntVectorProperty name="Number of threads"
                          command="SetNbThreads"
                          number_of_elements="1"
-                         default_values="1">
+                         default_values="4">
         <IntRangeDomain name="range" min="1" max="16"/>
         <Documentation>
           Max number of threads to use for parallel processing.
@@ -429,6 +459,9 @@
 
       <PropertyGroup label="General Parameters">
         <Property name="2d mode" />
+        <Property name="Use edges" />
+        <Property name="Use intensity edges" />
+        <Property name="Use planes" />
         <Property name="Use blobs" />
         <Property name="Verbosity level" />
         <Property name="Ego-Motion mode" />
@@ -624,6 +657,9 @@
           At least 3 points are needed to build a valid plane model.
           If below, plane models won't be usable and will be ignored.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Planarity threshold EM"
@@ -640,6 +676,9 @@
 
           The thickness of the plane can be checked with the max model error.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Plane max model error EM"
@@ -651,6 +690,9 @@
           Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
           keep only accurate models
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Init saturation distance EM"
@@ -749,7 +791,7 @@
       <IntVectorProperty name="Edge nb of neighbors"
                          command="SetLocalizationEdgeNbNeighbors"
                          number_of_elements="1"
-                         default_values="10"
+                         default_values="9"
                          panel_visibility="advanced">
         <Documentation>
           Initial number of edge neighbors to extract, that will be filtered out
@@ -758,12 +800,15 @@
           At least 2 points are needed to build a valid line model.
           If below, line models won't be usable and will be ignored.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <IntVectorProperty name="Edge nb min filtered neighbors"
                          command="SetLocalizationEdgeMinNbNeighbors"
                          number_of_elements="1"
-                         default_values="4"
+                         default_values="5"
                          panel_visibility="advanced">
         <Documentation>
           Min number of resulting filtered edge neighbors (close to best line
@@ -772,6 +817,9 @@
           At least 2 points are needed to build a valid line model.
           If below, line models won't be usable and will be ignored.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Edge max model error"
@@ -783,12 +831,15 @@
           Max RMSE (in meters) allowed between neighborhood and its fitted line model to
           keep only accurate models
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Plane nb of neighbors"
                          command="SetLocalizationPlaneNbNeighbors"
                          number_of_elements="1"
-                         default_values="5"
+                         default_values="7"
                          panel_visibility="advanced">
         <Documentation>
           Number of plane neighbors to extract to approximate the corresponding
@@ -797,6 +848,9 @@
           At least 3 points are needed to build a valid plane model.
           If below, plane models won't be usable and will be ignored.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Planarity threshold"
@@ -813,6 +867,9 @@
 
           The thickness of the plane can be checked with the max model error.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Plane max model error"
@@ -824,6 +881,9 @@
           Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
           keep only accurate models
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Blob nb of neighbors"
@@ -973,6 +1033,38 @@
 
           If CENTROID, the centroid of all points having landed to the voxel is computed.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Intensity edges map sampling mode"
+                         command="SetVoxelGridSamplingModeIntensityEdges"
+                         number_of_elements="1"
+                         default_values="2">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="First"/>
+          <Entry value="1" text="Last"/>
+          <Entry value="2" text="Intensity"/>
+          <Entry value="3" text="Center point"/>
+          <Entry value="4" text="Centroid"/>
+        </EnumerationDomain>
+        <Documentation>
+          Which point to set in a voxel when downsampling the map using a voxel grid.
+
+          If FIRST, the first point acquired is kept,
+
+          If LAST, the last point acquired is selected,
+
+          If INTENSITY, the point with max intensity is selected,
+
+          If CENTER_POINT, the point closest to the voxel center is selected,
+
+          If CENTROID, the centroid of all points having landed to the voxel is computed.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use intensity edges" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <IntVectorProperty name="Planes map sampling mode"
@@ -999,6 +1091,9 @@
 
           If CENTROID, the centroid of all points having landed to the voxel is computed.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </IntVectorProperty>
 
       <IntVectorProperty name="Blobs map sampling mode"
@@ -1042,6 +1137,26 @@
           be too low or the geometric information will be too local and
           computation time may increase.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Intensity edges map resolution"
+                            command="SetVoxelGridLeafSizeIntensityEdges"
+                            number_of_elements="1"
+                            default_values="0.2"
+                            panel_visibility="advanced">
+        <Documentation>
+          Minimum size of a leaf (in meters) when downsampling the intensity edges map using
+          a voxel grid filter. It should not be too big or some high
+          frequency geometric information will be lost. It should not
+          be too low or the geometric information will be too local and
+          computation time may increase.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use intensity edges" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Planes map resolution"
@@ -1056,12 +1171,15 @@
           be too low or the geometric information will be too local and
           computation time may increase.
         </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Blobs map resolution"
                             command="SetVoxelGridLeafSizeBlobs"
                             number_of_elements="1"
-                            default_values="0.3"
+                            default_values="0.5"
                             panel_visibility="advanced">
         <Documentation>
           Minimum size of a leaf (in meters) when downsampling the blobs map using
@@ -1109,7 +1227,7 @@
       <IntVectorProperty name="Min number of frames per voxel"
                             command="SetVoxelGridMinFramesPerVoxel"
                             number_of_elements="1"
-                            default_values="0"
+                            default_values="2"
                             panel_visibility="advanced">
         <Documentation>
           Minimum number of frames that must have reached a map voxel
@@ -1127,9 +1245,11 @@
         <Property name="Keyframe distance threshold" />
         <Property name="Keyframe angle threshold" />
         <Property name="Edges map sampling mode" />
+        <Property name="Intensity edges map sampling mode" />
         <Property name="Planes map sampling mode" />
         <Property name="Blobs map sampling mode" />
         <Property name="Edges map resolution" />
+        <Property name="Intensity edges map resolution" />
         <Property name="Planes map resolution" />
         <Property name="Blobs map resolution" />
         <Property name="Rolling grid dimension" />
@@ -1312,7 +1432,7 @@
       <IntVectorProperty name="First frame"
                          command="SetFirstFrame"
                          number_of_elements="1"
-                         default_values="0">
+                         default_values="1">
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="All frames" value="0" />
         </Hints>
@@ -1367,7 +1487,7 @@
 
       <Documentation
         short_help="Extract keypoints from a spinning LiDAR sensor pointcloud."
-        long_help="Extract edges, planes and blobs keypoints from a spinning LiDAR sensor pointcloud.">
+        long_help="Extract edges (geometric + intensity based), planes and blobs keypoints from a spinning LiDAR sensor pointcloud.">
         Extract edges, planes and blobs keypoints from a spinning LiDAR sensor pointcloud.
       </Documentation>
 
@@ -1392,6 +1512,28 @@
           Minimum distance between a point and the sensor to be processed for
           the keypoint extraction. In other words, all points too close from the
           sensor are automatically rejected.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Min azimuth angle"
+                            command="SetAzimuthMin"
+                            number_of_elements="1"
+                            default_values="0"
+                            panel_visibility="advanced">
+        <Documentation>
+          Minimum azimuth angle in degrees to extract a keypoint. This allows to not etract false edges due to permanent occlusions
+          (due to vehicle/robot/pedestrian) or to handle reduced field of view cases. Space from min to max azimuth compels with the right thumb rule.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Max azimuth angle"
+                            command="SetAzimuthMax"
+                            number_of_elements="1"
+                            default_values="360"
+                            panel_visibility="advanced">
+        <Documentation>
+          Maximum azimuth angle in degrees to extract a keypoint. This allows to not etract false edges due to permanent occlusions
+          (due to vehicle/robot/pedestrian) or to handle reduced field of view cases. Space from min to max azimuth compels with the right thumb rule.
         </Documentation>
       </DoubleVectorProperty>
 
@@ -1434,34 +1576,10 @@
         </Documentation>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Edge min saliency distance"
-                            command="SetEdgeSaliencyThreshold"
-                            number_of_elements="1"
-                            default_values="1.5"
-                            panel_visibility="advanced">
-        <Documentation>
-          One strategy to consider a point as an edge keypoint is to compute
-          the depth gap between the point and its far background neighborhood.
-          If the gap is big enough, we consider the point as an edge keypoint.
-        </Documentation>
-      </DoubleVectorProperty>
-
-      <DoubleVectorProperty name="Edge min intensity gap"
-                            command="SetEdgeIntensityGapThreshold"
-                            number_of_elements="1"
-                            default_values="50."
-                            panel_visibility="advanced">
-        <Documentation>
-          One strategy to consider a point as an edge keypoint is to compute
-          the intensity gap between the point and its left and right neighbors.
-          If the gap is big enough, we consider the point as an edge keypoint.
-        </Documentation>
-      </DoubleVectorProperty>
-
       <DoubleVectorProperty name="Edge min depth gap"
                             command="SetEdgeDepthGapThreshold"
                             number_of_elements="1"
-                            default_values="0.15"
+                            default_values="1."
                             panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
@@ -1472,15 +1590,77 @@
         </Documentation>
       </DoubleVectorProperty>
 
+      <IntVectorProperty name="Edge min nb of missing points"
+                            command="SetEdgeNbGapPoints"
+                            number_of_elements="1"
+                            default_values="10"
+                            panel_visibility="advanced">
+        <Documentation>
+          One strategy to consider a point as an edge keypoint is to compute
+          the number of points that were missed because of no return (e.g. some window)
+        </Documentation>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Edge min intensity gap"
+                            command="SetEdgeIntensityGapThreshold"
+                            number_of_elements="1"
+                            default_values="50."
+                            panel_visibility="advanced">
+        <Documentation>
+          One strategy to consider a point as an edge keypoint is to compute
+          the intensity gap between the point and its left and right neighbors.
+          If the gap is big enough, we consider the point as an intensity edge keypoint.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty name="Maximum keypoints number"
+                         command="SetMaxPoints"
+                         number_of_elements="1"
+                         default_values="1000"
+                         panel_visibility="advanced">
+        <Documentation>
+          Maximum number of keypoints of each type to extract. A voxel grid is used to downsample the keypoints cloud.
+          Points in voxels are sorted following their certainty value. The most certain points are extracted in each voxel
+          until reaching this threshold number.
+        </Documentation>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Voxel grid resolution"
+                            command="SetVoxelResolution"
+                            number_of_elements="1"
+                            default_values="1."
+                            panel_visibility="advanced">
+        <Documentation>
+          Resolution of the voxel grid used to downsample the keypoints cloud.
+          Points in voxels are sorted following their certainty value.
+          The most certain points are extracted in each voxel until reaching the "maximum keypoints" number threshold.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Ratio of points"
+                            command="SetInputSamplingRatio"
+                            number_of_elements="1"
+                            default_values="1."
+                            panel_visibility="advanced">
+        <Documentation>
+          Ratio to randomly downsample the input frame to extract keypoints. This can be used to solve computation time issues.
+        </Documentation>
+      </DoubleVectorProperty>
+
       <PropertyGroup label="Spinning Sensor Keypoints Extractor parameters">
         <Property name="Neighborhood width" />
         <Property name="Min distance to sensor" />
+        <Property name="Min azimuth angle" />
+        <Property name="Max azimuth angle" />
         <Property name="Min laser beam to surface angle" />
         <Property name="Plane max sinus angle" />
         <Property name="Edge min sinus angle" />
-        <Property name="Edge min saliency distance" />
-        <Property name="Edge min intensity gap" />
         <Property name="Edge min depth gap" />
+        <Property name="Edge min nb of missing points" />
+        <Property name="Edge min intensity gap" />
+        <Property name="Maximum keypoints number" />
+        <Property name="Voxel grid resolution" />
+        <Property name="Ratio of points" />
       </PropertyGroup>
 
     </Proxy>

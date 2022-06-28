@@ -30,13 +30,14 @@ namespace LidarSlam
 enum Keypoint
 {
   EDGE  = 0,   ///< edge keypoint (sharp local structure)
-  PLANE = 1,   ///< plane keypoint (flat local structure)
-  BLOB  = 2,   ///< blob keypoint (spherical local structure)
+  INTENSITY_EDGE  = 1,   ///< intensity edge keypoint (sharp local intensity)
+  PLANE = 2,   ///< plane keypoint (flat local structure)
+  BLOB  = 3,   ///< blob keypoint (spherical local structure)
   nKeypointTypes
 };
 
-static const std::vector<Keypoint> KeypointTypes = { EDGE, PLANE, BLOB };
-static const std::map<Keypoint, std::string> KeypointTypeNames = { {EDGE, "edge"}, {PLANE, "plane"}, {BLOB, "blob"} };
+static const std::vector<Keypoint> KeypointTypes = { EDGE, INTENSITY_EDGE, PLANE, BLOB };
+static const std::map<Keypoint, std::string> KeypointTypeNames = { {EDGE, "edge"}, {INTENSITY_EDGE, "intensity_edge"}, {PLANE, "plane"}, {BLOB, "blob"} };
 
 //------------------------------------------------------------------------------
 //! How to deal with undistortion

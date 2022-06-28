@@ -50,9 +50,19 @@ public:
   vtkTypeMacro(vtkSpinningSensorKeypointExtractor, vtkObject)
   void PrintSelf(ostream& os, vtkIndent indent) override;
 
+  vtkCustomSetMacro(MaxPoints, int)
+
+  vtkCustomSetMacro(VoxelResolution, float)
+
+  vtkCustomSetMacro(InputSamplingRatio, float)
+
   vtkCustomSetMacro(NeighborWidth, int)
 
   vtkCustomSetMacro(MinDistanceToSensor, float)
+
+  vtkCustomSetMacro(AzimuthMin, float)
+
+  vtkCustomSetMacro(AzimuthMax, float)
 
   vtkCustomSetMacro(MinBeamSurfaceAngle, float)
 
@@ -62,9 +72,9 @@ public:
 
   vtkCustomSetMacro(EdgeDepthGapThreshold, float)
 
-  vtkCustomSetMacro(EdgeSaliencyThreshold, float)
-
   vtkCustomSetMacro(EdgeIntensityGapThreshold, float)
+
+  vtkCustomSetMacro(EdgeNbGapPoints, int)
 
   std::shared_ptr<LidarSlam::SpinningSensorKeypointExtractor> GetExtractor() const { return Extractor; }
 
