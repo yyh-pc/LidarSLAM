@@ -5,10 +5,16 @@ if (g2o_FOUND)
   message("Lidar SLAM : G2O was found, pose graph API compiled")
 endif()
 
-# If GTSAM is available, compile pose graph optimization stuff
+# If GTSAM is available, compile IMU stuff
 if (GTSAM_FOUND)
   set(gtsam_targets gtsam)
   message("Lidar SLAM : GTSAM was found, IMU preintegration compiled")
+endif()
+
+# If OpenCV is available, compile camera stuff
+if (OpenCV_FOUND)
+  set(opencv_targets opencv_core opencv_highgui opencv_imgproc opencv_video)
+  message("Lidar SLAM : OPENCV was found, camera API compiled")
 endif()
 
 # Generate export symbols on Windows to use this lib
@@ -35,6 +41,7 @@ target_link_libraries(LidarSlam
     ${PCL_LIBRARIES}
     ${g2o_targets}
     ${gtsam_targets}
+    ${opencv_targets}
   PRIVATE
     ${Eigen3_target}
     ${OpenMP_target}
@@ -50,7 +57,12 @@ if (GTSAM_FOUND)
   set(gtsam_def USE_GTSAM=1)
 endif()
 
-target_compile_definitions(LidarSlam PUBLIC ${g2o_def} ${gtsam_def})
+# If OpenCV is available, set a precompilation variable
+if (OpenCV_FOUND)
+  set(opencv_def USE_OPENCV=1)
+endif()
+
+target_compile_definitions(LidarSlam PUBLIC ${g2o_def} ${gtsam_def} ${opencv_def})
 
 target_include_directories(LidarSlam PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
