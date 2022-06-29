@@ -563,6 +563,22 @@ public:
 
   void SetPoseCalibration(const Eigen::Isometry3d& calib);
 
+  // Camera
+  void AddCameraImage(const ExternalSensors::Image& image);
+
+  void SetCameraCalibration(const Eigen::Isometry3d& calib);
+
+  void SetCameraIntrinsicCalibration(const Eigen::Matrix3f& k);
+
+  bool CameraHasData() {return this->CameraManager && this->CameraManager->HasData();}
+  bool CameraCanBeUsedLocally() {return this->CameraManager && this->CameraManager->CanBeUsedLocally();}
+
+  double GetCameraWeight() const;
+  void SetCameraWeight(double weight);
+
+  float GetCameraSaturationDistance() const;
+  void SetCameraSaturationDistance(float dist);
+
   // ---------------------------------------------------------------------------
   //   Key frames and Maps parameters
   // ---------------------------------------------------------------------------
@@ -944,6 +960,12 @@ private:
   // Calibration
   Eigen::Isometry3d GpsCalibration = Eigen::Isometry3d::Identity();
 
+  // Camera Manager
+  // Manager for RGB images
+  // The Camera images must be filled and cleared from outside this lib
+  // using External Sensors interface
+  std::shared_ptr<ExternalSensors:: CameraManager> CameraManager;
+
   // Pose Manager
   // Manager for the acquisition of pose measurements (e.g. from GNNS system, pre-integrated
   // IMU or any other device able to give absolute pose.)
@@ -1244,8 +1266,10 @@ private:
   // If worldCoordinates=true, it returns points in WORLD coordinates (optionally undistorted).
   // The LIDAR to BASE offsets specific to each sensor are properly added.
   // The output aggregated points timestamps are corrected to be relative to the 1st frame timestamp.
-  // WARNING : this function is parallelized internally, do not put it in a parallelized loop
-  PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates, bool undistort = true) const;
+  // NOTE: If transforming to WORLD coordinates, be sure that Tworld has been updated
+  //       (e.g. during Localization step).
+  // This function is parallelized internally, do not put it in a parallelized loop
+  PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates = false, bool undistort = true) const;
 
   // ---------------------------------------------------------------------------
   //   External sensor helpers
@@ -1261,6 +1285,7 @@ private:
   void InitLandmarkManager(int id);
   void InitGps();
   void InitPoseSensor();
+  void InitCamera();
 };
 
 } // end of LidarSlam namespace

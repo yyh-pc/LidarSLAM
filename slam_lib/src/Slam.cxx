@@ -109,6 +109,8 @@
     this->GpsManager->inFuncProto; \
   if (this->PoseManager) \
     this->PoseManager->inFuncProto; \
+  if (this->CameraManager) \
+    this->CameraManager->inFuncProto; \
 }
 
 namespace LidarSlam
@@ -307,7 +309,8 @@ bool Slam::IsExtSensorForLocalOpt()
          (this->GravityManager && this->GravityManager->CanBeUsedLocally()) ||
          (this->ImuManager && this->ImuManager->CanBeUsedLocally()) ||
           this->LmCanBeUsedLocally() ||
-         (this->PoseManager && this->PoseManager->CanBeUsedLocally());
+         (this->PoseManager && this->PoseManager->CanBeUsedLocally()) ||
+         this->CameraCanBeUsedLocally();
 }
 
 //-----------------------------------------------------------------------------
@@ -516,6 +519,21 @@ void Slam::ComputeSensorConstraints()
       if (this->PoseManager->ComputeConstraint(this->CurrentTime))
         PRINT_VERBOSE(3, "External pose constraint added")
     }
+  }
+  if (this->CameraCanBeUsedLocally())
+  {
+    if (!this->LogStates.empty())
+    {
+      // Update last pose information because the camera constraint is relative
+      // The last pose logged corresponds to last lidar frame
+      this->CameraManager->SetPrevLidarTime(this->LogStates.back().Time);
+      this->CameraManager->SetPrevPoseTransform(this->LogStates.back().Isometry);
+      if (this->CameraManager->ComputeConstraint(this->CurrentTime))
+        PRINT_VERBOSE(3, "Camera constraint added")
+    }
+    // Store the current frame for next iteration
+    PointCloud::Ptr aggregatedFrames = this->AggregateFrames(this->CurrentFrames);
+    this->CameraManager->SetPrevLidarFrame(aggregatedFrames);
   }
 }
 
@@ -1930,6 +1948,14 @@ LocalOptimizer::RegistrationError Slam::EstimatePose(const std::map<Keypoint, Po
         if (idLm.second.GetResidual().Cost)
           optimizer.AddResidual(idLm.second.GetResidual());
       }
+
+      // Add camera constraints
+      // if constraints have been successfully created
+      if (this->CameraManager && this->CameraManager->GetResidual().Cost)
+      {
+        for (const auto& res : this->CameraManager->GetResiduals())
+          optimizer.AddResidual(res);
+      }
     }
 
     // Run LM optimization
@@ -2481,6 +2507,16 @@ void Slam::InitPoseSensor()
                                                                      this->Verbosity >= 3);
 }
 
+//-----------------------------------------------------------------------------
+void Slam::InitCamera()
+{
+  this->CameraManager = std::make_shared<ExternalSensors::CameraManager>(0.,
+                                                                         this->SensorTimeOffset,
+                                                                         this->SensorTimeThreshold,
+                                                                         this->SensorMaxMeasures,
+                                                                         this->Verbosity >= 3);
+}
+
 // Sensor data
 //-----------------------------------------------------------------------------
 
@@ -2726,6 +2762,16 @@ void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
   this->PoseManager->SetCalibration(calib);
 }
 
+// RGB camera
+//-----------------------------------------------------------------------------
+void Slam::AddCameraImage(const ExternalSensors::Image& image)
+{
+  if (!this->CameraManager)
+    this->InitCamera();
+
+  this->CameraManager->AddMeasurement(image);
+}
+
 // Sensors' parameters
 //-----------------------------------------------------------------------------
 void Slam::ResetSensors(bool emptyMeasurements)
@@ -2929,6 +2975,57 @@ void Slam::SetPoseWeight(double weight)
     this->InitPoseSensor();
   this->PoseWeight = weight;
   this->PoseManager->SetWeight(weight);
+}
+
+// RGB camera
+//-----------------------------------------------------------------------------
+double Slam::GetCameraWeight() const
+{
+  if (this->CameraManager)
+    return this->CameraManager->GetWeight();
+  PRINT_ERROR("Camera has not been set : can't get camera weight")
+  return 0.;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetCameraWeight(double weight)
+{
+  if (!this->CameraManager)
+    this->InitCamera();
+  this->CameraManager->SetWeight(weight);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetCameraCalibration(const Eigen::Isometry3d& calib)
+{
+  if (!this->CameraManager)
+    this->InitCamera();
+  this->CameraManager->SetCalibration(calib);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetCameraIntrinsicCalibration(const Eigen::Matrix3f& k)
+{
+  if (!this->CameraManager)
+    this->InitCamera();
+  this->CameraManager->SetIntrinsicCalibration(k);
+}
+
+//-----------------------------------------------------------------------------
+float Slam::GetCameraSaturationDistance() const
+{
+  if (this->CameraManager)
+    return this->CameraManager->GetSaturationDistance();
+  PRINT_ERROR("Camera has not been set : can't get camera saturation distance")
+  return 0.;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetCameraSaturationDistance(float dist)
+{
+  if (!this->CameraManager)
+    this->InitCamera();
+  this->CameraManager->SetSaturationDistance(dist);
 }
 
 //==============================================================================
