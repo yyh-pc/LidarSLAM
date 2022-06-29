@@ -683,5 +683,13 @@ Eigen::Isometry3d PoseManager::GetPose(double time)
     return this->Measures.back().Pose;
 }
 
+// Camera
+// ---------------------------------------------------------------------------
+bool CameraManager::ComputeConstraint(double lidarTime)
+{
+  PRINT_WARNING("the constraint for camera has not been developped yet");
+  return false;
+}
+
 } // end of ExternalSensors namespace
 } // end of LidarSlam namespace
