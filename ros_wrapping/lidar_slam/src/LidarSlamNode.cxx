@@ -25,6 +25,11 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/Path.h>
 
+#ifdef USE_CV_BRIDGE
+#include <cv_bridge/cv_bridge.h>
+#endif
+#include <sensor_msgs/image_encodings.h>
+
 #define BOLD_GREEN(s) "\033[1;32m" << s << "\033[0m"
 
 enum Output
@@ -76,6 +81,8 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   this->UseExtSensor[LidarSlam::GPS] = priv_nh.param("external_sensors/gps/use_gps", false);
   // Use tags data for local optimization.
   this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR] = priv_nh.param("external_sensors/landmark_detector/use_tags", false);
+  // Use camera rgb images in local optimization.
+  this->UseExtSensor[LidarSlam::CAMERA] = priv_nh.param("external_sensors/camera/use_camera", false);
 
   // ***************************************************************************
   // Init ROS publishers
@@ -152,18 +159,33 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   this->SlamCommandSub = nh.subscribe("slam_command", 1, &LidarSlamNode::SlamCommandCallback, this);
 
   // Init logging of GPS data for GPS/SLAM calibration or Pose Graph Optimization.
+  // Perfect synchronization is not required as GPS data are not used in SLAM local process
   if (this->UseExtSensor[LidarSlam::GPS])
     this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
 
-  // Init logging of landmark data
-  if (this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR])
+  // Init logging of landmark data and/or Camera data
+  if (this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR] || this->UseExtSensor[LidarSlam::CAMERA])
   {
-    // Create an external independent spinner to get the landmarks' info in a parallel way
-    ros::SubscribeOptions ops;
-    ops.initByFullCallbackType<apriltag_ros::AprilTagDetectionArray>("tag_detections", 200,
-                                                                      boost::bind(&LidarSlamNode::TagCallback, this, boost::placeholders::_1));
-    ops.callback_queue = &this->ExternalQueue;
-    this->LandmarksSub = nh.subscribe(ops);
+    // Create an external independent spinner to get the landmarks and/or camera info in a parallel way
+
+    if (this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR])
+    {
+      ros::SubscribeOptions ops;
+      ops.initByFullCallbackType<apriltag_ros::AprilTagDetectionArray>("tag_detections", 200,
+                                                                        boost::bind(&LidarSlamNode::TagCallback, this, boost::placeholders::_1));
+      ops.callback_queue = &this->ExternalQueue;
+      this->LandmarksSub = nh.subscribe(ops);
+    }
+
+    if (this->UseExtSensor[LidarSlam::CAMERA])
+    {
+      ros::SubscribeOptions opsImage;
+      opsImage.initByFullCallbackType<sensor_msgs::Image>("camera", 10, boost::bind(&LidarSlamNode::ImageCallback,
+                                                          this, boost::placeholders::_1));
+      opsImage.callback_queue = &this->ExternalQueue;
+      this->CameraSub = nh.subscribe(opsImage);
+    }
+
     this->ExternalSpinnerPtr = std::make_shared<ros::AsyncSpinner>(ros::AsyncSpinner(this->LidarSlam.GetNbThreads(), &this->ExternalQueue));
     this->ExternalSpinnerPtr->start();
   }
@@ -237,6 +259,41 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
 
   // Add new frame to SLAM input frames
   this->Frames.push_back(cloudS_ptr);
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::ImageCallback(const sensor_msgs::Image& imageMsg)
+{
+  #ifdef USE_CV_BRIDGE
+  if (!this->UseExtSensor[LidarSlam::CAMERA])
+    return;
+
+  // Transform to apply to points represented in GPS frame to express them in base frame
+  Eigen::Isometry3d baseToCamera;
+  if (Utils::Tf2LookupTransform(baseToCamera, this->TfBuffer, this->TrackingFrameId, imageMsg.header.frame_id, imageMsg.header.stamp))
+  {
+    cv_bridge::CvImagePtr cvPtr;
+    try
+    {
+      cvPtr = cv_bridge::toCvCopy(imageMsg, sensor_msgs::image_encodings::BGR8);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("Camera info cannot be used -> cv_bridge exception: %s", e.what());
+      return;
+    }
+
+    ROS_INFO_STREAM("Adding Camera info : "<< std::fixed << std::setprecision(9) << imageMsg.header.stamp.sec + imageMsg.header.stamp.nsec * 1e-9);
+    // Add camera measurement to measurements list
+    LidarSlam::ExternalSensors::Image image;
+    image.Time = imageMsg.header.stamp.sec + imageMsg.header.stamp.nsec * 1e-9;
+    image.Data = cvPtr->image;
+    this->LidarSlam.AddCameraImage(image);
+  }
+  #else
+  static_cast<void>(imageMsg);
+  ROS_WARN_STREAM("cv_bridge was not found so images cannot be processed, camera will not be used")
+  #endif
 }
 
 //------------------------------------------------------------------------------

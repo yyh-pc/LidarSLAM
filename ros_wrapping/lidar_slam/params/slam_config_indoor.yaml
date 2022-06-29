@@ -107,6 +107,8 @@ external_sensors:
                              # id,x,y,z,roll,pitch,yaw,cov0,[...],cov35
                              # /!\ The order of the elements matters.
     publish_tags: false      # [bool] To publish the tags as tf
+  camera:
+    use_camera: false        # [bool] To receive and use RGB images from a camera
 
 graph:
   g2o_file_name: ""    # File where to store the g2o log info (viewable with g2o_viewer tool)
