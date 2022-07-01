@@ -1061,6 +1061,8 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(float,  "external_sensors/landmark_detector/saturation_distance", LandmarkSaturationDistance)
   SetSlamParam(bool,   "external_sensors/landmark_detector/position_only", LandmarkPositionOnly)
   this->PublishTags    = this->PrivNh.param("external_sensors/landmark_detector/publish_tags", false);
+  SetSlamParam(float,   "external_sensors/camera/weight", CameraWeight)
+  SetSlamParam(float,   "external_sensors/camera/saturation_distance", CameraSaturationDistance)
 
   // Graph parameters
   SetSlamParam(std::string, "graph/g2o_file_name", G2oFileName)

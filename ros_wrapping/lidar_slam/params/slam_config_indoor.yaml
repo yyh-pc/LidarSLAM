@@ -109,6 +109,10 @@ external_sensors:
     publish_tags: false      # [bool] To publish the tags as tf
   camera:
     use_camera: false        # [bool] To receive and use RGB images from a camera
+    weight: 0.               # Weight to apply to one pixel match constraint in the local optimization
+                             # 0 disables the feature
+                             # It is to be compared to each geometric constraint defined by a keypoint match
+    saturation_distance: 10. # Pixelic distance threshold to discard a pixel match from optical flow
 
 graph:
   g2o_file_name: ""    # File where to store the g2o log info (viewable with g2o_viewer tool)
