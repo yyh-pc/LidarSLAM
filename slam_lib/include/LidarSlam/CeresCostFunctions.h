@@ -554,6 +554,80 @@ private:
 
 //------------------------------------------------------------------------------
 /**
+ * \class CameraResidual
+ * \brief Cost function to optimize the affine isometry transformation
+ *        (rotation and translation) so that successive frames from an RGB camera
+ *        are consistent using pixel matches based contraints
+ *
+ * This function takes one 6D parameters block :
+ *   - 3 first parameters to encode translation : X, Y, Z
+ *   - 3 last parameters to encode rotation with Euler angles : rX, rY, rZ
+ *
+ * It outputs a 6D residual block.
+ */
+struct CameraResidual
+{
+  CameraResidual(const Eigen::Vector3f& pt, const Eigen::Vector2f& pix,
+                 const Eigen::Isometry3d& prevPoseTransfo,
+                 const Eigen::Isometry3d& ext, const Eigen::Matrix3f& in)
+    : Point3D (pt),
+      Pixel(pix),
+      PrevPoseTransfo(prevPoseTransfo),
+      Extrinsic(ext),
+      Intrinsic(in)
+  {}
+
+  template <typename T>
+  bool operator()(const T* const w, T* residual) const
+  {
+    using Vector2T = Eigen::Matrix<T, 2, 1>;
+    using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
+
+    // Get transformation, in a static way.
+    // The idea is that all landmark residual functions will need to evaluate those
+    // sin/cos so we only compute them once each time the parameters change.
+    static Isometry3T currentPoseTransfo = Isometry3T::Identity();
+    static T lastT[6] = {T(-1.)};
+    if (!std::equal(w, w + 6, lastT))
+    {
+      currentPoseTransfo = Utils::XYZRPYtoIsometry(w[0], w[1], w[2], w[3], w[4], w[5]);
+      std::copy(w, w + 6, lastT);
+    }
+
+    // Compute residual : pixel to pixel match
+    Eigen::Map<Vector2T> residualVec(residual);
+    Isometry3T prevBaseToCamera = this->PrevPoseTransfo.inverse().cast<T>() * currentPoseTransfo * this->Extrinsic.cast<T>();
+    residualVec = (this->Intrinsic.cast<T>() * (prevBaseToCamera * this->Point3D.cast<T>())).hnormalized()
+                  - this->Pixel.cast<T>();
+
+    // Residual lower than 1 pixel are not taken into account
+    // because the 3D point can be in any place inside the pixel of the first image
+    // The pixel of the second image is built from the center of the first pixel (optical flow)
+    if (residualVec.norm() < static_cast<T>(1.f))
+      residualVec.Zero();
+
+    return true;
+  }
+
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(CameraResidual, 2, 6)
+
+private:
+  // 3D Point in last pose frame
+  Eigen::Vector3f Point3D;
+  // pixel that must contain the 3D point in new frame
+  Eigen::Vector2f Pixel;
+  // Last pose frame transform
+  Eigen::Isometry3d PrevPoseTransfo;
+  // Extrinsic calibration
+  Eigen::Isometry3d Extrinsic;
+  // Intrinsic calibration
+  Eigen::Matrix3f Intrinsic;
+};
+
+
+//------------------------------------------------------------------------------
+/**
  * \class Transform
  * \brief Function that transforms a pose. This ceres function can be used to
  *        compute a Jacobian and derive a rotated covariance
