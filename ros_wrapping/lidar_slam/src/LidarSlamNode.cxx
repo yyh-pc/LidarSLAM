@@ -184,6 +184,12 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
                                                           this, boost::placeholders::_1));
       opsImage.callback_queue = &this->ExternalQueue;
       this->CameraSub = nh.subscribe(opsImage);
+
+      ros::SubscribeOptions opsCameraInfo;
+      opsCameraInfo.initByFullCallbackType<sensor_msgs::CameraInfo>("camera_info", 10, boost::bind(&LidarSlamNode::CameraInfoCallback,
+                                                                    this, boost::placeholders::_1));
+      opsCameraInfo.callback_queue = &this->ExternalQueue;
+      this->CameraInfoSub = nh.subscribe(opsCameraInfo);
     }
 
     this->ExternalSpinnerPtr = std::make_shared<ros::AsyncSpinner>(ros::AsyncSpinner(this->LidarSlam.GetNbThreads(), &this->ExternalQueue));
@@ -272,6 +278,9 @@ void LidarSlamNode::ImageCallback(const sensor_msgs::Image& imageMsg)
   Eigen::Isometry3d baseToCamera;
   if (Utils::Tf2LookupTransform(baseToCamera, this->TfBuffer, this->TrackingFrameId, imageMsg.header.frame_id, imageMsg.header.stamp))
   {
+    if (!this->LidarSlam.CameraCanBeUsedLocally())
+      this->LidarSlam.SetCameraCalibration(baseToCamera);
+
     cv_bridge::CvImagePtr cvPtr;
     try
     {
@@ -293,6 +302,25 @@ void LidarSlamNode::ImageCallback(const sensor_msgs::Image& imageMsg)
   #else
   static_cast<void>(imageMsg);
   ROS_WARN_STREAM("cv_bridge was not found so images cannot be processed, camera will not be used")
+  #endif
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::CameraInfoCallback(const sensor_msgs::CameraInfo& calibMsg)
+{
+  #ifdef USE_CV_BRIDGE
+  // The intrinsic calibration must not changed so we can only use
+  // the camera info until the camera is ready to be used
+  if (this->LidarSlam.CameraCanBeUsedLocally())
+    return;
+
+  Eigen::Matrix3f k;
+  for (int i = 0; i < 9; ++i)
+    k(int(i / 3), i % 3) = calibMsg.K[i];
+
+  this->LidarSlam.SetCameraIntrinsicCalibration(k);
+  #else
+  static_cast<void>(calibMsg);
   #endif
 }
 

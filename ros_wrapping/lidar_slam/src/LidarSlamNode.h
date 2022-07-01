@@ -32,6 +32,7 @@
 #include <apriltag_ros/AprilTagDetection.h>
 #include <apriltag_ros/AprilTagDetectionArray.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/CameraInfo.h>
 
 // SLAM
 #include <LidarSlam/Slam.h>
@@ -115,6 +116,13 @@ public:
    * @param[in] msg compressed RGB image
    */
   void ImageCallback(const sensor_msgs::Image& imageMsg);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief     Optional image info callback, when using RGB camera into SLAM
+   * @param[in] msg camera calibration
+   */
+  void CameraInfoCallback(const sensor_msgs::CameraInfo& calibMsg);
 
   //----------------------------------------------------------------------------
   /*!
@@ -252,6 +260,7 @@ protected:
 
   // Camera
   ros::Subscriber CameraSub;
+  ros::Subscriber CameraInfoSub;
 };
 
 #endif // LIDAR_SLAM_NODE_H
