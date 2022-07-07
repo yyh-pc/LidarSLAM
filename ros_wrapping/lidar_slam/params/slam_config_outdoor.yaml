@@ -63,7 +63,7 @@ maps:
   export_pcd_format: 2
 
 external_sensors:
-  max_measures: 1e3   # [nb] Maximum number of measures stored for each sensor
+  max_measures: 1000  # [nb] Maximum number of measures stored for each sensor
                       # (used to look for synchronized values + to get back in time in play back mode)
   time_threshold: 0.2 # [s] Maximum time difference between one measure and the studied pose to extrapolate
                       # and between two measures to interpolate
