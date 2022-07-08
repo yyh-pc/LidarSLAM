@@ -386,15 +386,6 @@ public:
 
   bool ImuHasData() {return this->ImuManager && this->ImuManager->HasData();}
 
-  // Pose
-  double GetPoseWeight() const;
-  void SetPoseWeight(double weight);
-
-  void AddPoseMeasurement(const ExternalSensors::PoseMeasurement& pm);
-  bool PoseHasData() {return this->PoseManager && this->PoseManager->HasData();}
-
-  void SetPoseCalibration(const Eigen::Isometry3d& calib);
-
   // Landmark detector
   GetMacro(LandmarkWeight, double)
   void SetLandmarkWeight(double weight);
@@ -423,7 +414,10 @@ public:
   // GPS
   void AddGpsMeasurement(const ExternalSensors::GpsMeasurement& gpsMeas);
 
+  Eigen::Isometry3d GetGpsCalibration();
   void SetGpsCalibration(const Eigen::Isometry3d& calib);
+
+  Eigen::Isometry3d GetGpsOffset();
 
   bool GpsHasData() {return this->GpsManager && this->GpsManager->HasData();}
 
@@ -432,8 +426,14 @@ public:
   // is adapted for precision purposes but the offset position is stored in GPS manager
   bool CalibrateWithGps();
 
-  Eigen::Isometry3d GetGpsOffset();
-  Eigen::Isometry3d GetGpsCalibration();
+  // Pose
+  double GetPoseWeight() const;
+  void SetPoseWeight(double weight);
+
+  void AddPoseMeasurement(const ExternalSensors::PoseMeasurement& pm);
+  bool PoseHasData() {return this->PoseManager && this->PoseManager->HasData();}
+
+  void SetPoseCalibration(const Eigen::Isometry3d& calib);
 
   // ---------------------------------------------------------------------------
   //   Key frames and Maps parameters
@@ -699,17 +699,6 @@ private:
   // The tag measurements must be filled and cleared from outside this lib
   // using External Sensors interface
   std::map<int, ExternalSensors::LandmarkManager> LandmarksManagers;
-
-  // Pose Manager
-  // Manager for the acquisition of pose measurements (e.g. from GNNS system, pre-integrated
-  // IMU or any other device able to give absolute pose.)
-  // It computes a residual with a weight taking into account the timing at which it is captured
-  // The Pose measurements must be filled and cleared from outside this lib
-  // using External Sensors interface
-  std::shared_ptr<ExternalSensors::PoseManager> PoseManager;
-  // Weight
-  double PoseWeight = 0.;
-
   // Calibration
   Eigen::Isometry3d LmDetectorCalibration = Eigen::Isometry3d::Identity();
   // Variable to store the landmark weight to init correctly the landmark managers
@@ -734,6 +723,16 @@ private:
   std::shared_ptr<ExternalSensors::GpsManager> GpsManager;
   // Calibration
   Eigen::Isometry3d GpsCalibration = Eigen::Isometry3d::Identity();
+
+  // Pose Manager
+  // Manager for the acquisition of pose measurements (e.g. from GNNS system, pre-integrated
+  // IMU or any other device able to give absolute pose.)
+  // It computes a residual with a weight taking into account the timing at which it is captured
+  // The Pose measurements must be filled and cleared from outside this lib
+  // using External Sensors interface
+  std::shared_ptr<ExternalSensors::PoseManager> PoseManager;
+  // Weight
+  double PoseWeight = 0.;
 
   // Time difference between Lidar's measurements and external sensors'
   // not null if they are not expressed relatively to the same time reference
@@ -962,17 +961,16 @@ private:
   // ---------------------------------------------------------------------------
   //   External sensor helpers
   // ---------------------------------------------------------------------------
-
+  // All external sensors are shared ptr.
+  // The init function creates the objects with known parameters
   void InitWheelOdom();
   void InitImu();
-  void InitPoseSensor();
-
-  // Apply general landmarks parameters to a new landmark
-  // WARNING : If the calibration has not been set (cf SetLmDetectorCalibration),
-  // default identity calibration is set.
+  // WARNING : If the calibration has not been set for the landmarks detector (cf SetLmDetectorCalibration),
+  // default identity calibration is set to the current landmark.
+  // This way, data can be stored before receiving the calibration.
   void InitLandmarkManager(int id);
   void InitGps();
-
+  void InitPoseSensor();
 };
 
 } // end of LidarSlam namespace

@@ -449,6 +449,15 @@ void Slam::ComputeSensorConstraints()
   if (this->ImuManager && this->ImuManager->CanBeUsedLocally() &&
       this->ImuManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
     PRINT_VERBOSE(3, "IMU constraint added")
+  if (this->LmCanBeUsedLocally())
+  {
+    for (auto& idLm : this->LandmarksManagers)
+    {
+      PRINT_VERBOSE(3, "Checking state of tag #" << idLm.first)
+      if (idLm.second.ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+        PRINT_VERBOSE(3, "\t Adding constraint for tag #" << idLm.first)
+    }
+  }
   if (this->PoseManager && this->PoseManager->CanBeUsedLocally())
   {
     if (!this->LogStates.empty())
@@ -459,15 +468,6 @@ void Slam::ComputeSensorConstraints()
       this->PoseManager->SetPrevPoseTransform(this->LogStates.back().Isometry);
       if (this->PoseManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
         PRINT_VERBOSE(3, "External pose constraint added")
-    }
-  }
-  if (this->LmCanBeUsedLocally())
-  {
-    for (auto& idLm : this->LandmarksManagers)
-    {
-      PRINT_VERBOSE(3, "Checking state of tag #" << idLm.first)
-      if (idLm.second.ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
-        PRINT_VERBOSE(3, "\t Adding constraint for tag #" << idLm.first)
     }
   }
 }
@@ -2090,12 +2090,12 @@ void Slam::ClearSensorMeasurements()
     this->WheelOdomManager->Reset();
   if (this->ImuManager)
     this->ImuManager->Reset();
-  if (this->PoseManager)
-    this->PoseManager->Reset();
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.Reset();
   if (this->GpsManager)
     this->GpsManager->Reset();
+  if (this->PoseManager)
+    this->PoseManager->Reset();
 }
 
 //-----------------------------------------------------------------------------
@@ -2105,12 +2105,13 @@ void Slam::SetSensorTimeOffset(double timeOffset)
     this->WheelOdomManager->SetTimeOffset(timeOffset);
   if (this->ImuManager)
     this->ImuManager->SetTimeOffset(timeOffset);
-  if (this->PoseManager)
-    this->PoseManager->SetTimeOffset(timeOffset);
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetTimeOffset(timeOffset);
   if (this->GpsManager)
     this->GpsManager->SetTimeOffset(timeOffset);
+  if (this->PoseManager)
+    this->PoseManager->SetTimeOffset(timeOffset);
+
   this->SensorTimeOffset = timeOffset;
 }
 
@@ -2121,12 +2122,13 @@ void Slam::SetSensorTimeThreshold(double thresh)
     this->WheelOdomManager->SetTimeThreshold(thresh);
   if (this->ImuManager)
     this->ImuManager->SetTimeThreshold(thresh);
-  if (this->PoseManager)
-    this->PoseManager->SetTimeThreshold(thresh);
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetTimeThreshold(thresh);
   if (this->GpsManager)
     this->GpsManager->SetTimeThreshold(thresh);
+  if (this->PoseManager)
+    this->PoseManager->SetTimeThreshold(thresh);
+
   this->SensorTimeThreshold = thresh;
 }
 
@@ -2137,12 +2139,13 @@ void Slam::SetSensorMaxMeasures(unsigned int max)
     this->WheelOdomManager->SetMaxMeasures(max);
   if (this->ImuManager)
     this->ImuManager->SetMaxMeasures(max);
-  if (this->PoseManager)
-    this->PoseManager->SetMaxMeasures(max);
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetMaxMeasures(max);
   if (this->GpsManager)
     this->GpsManager->SetMaxMeasures(max);
+  if (this->PoseManager)
+    this->PoseManager->SetMaxMeasures(max);
+
   this->SensorMaxMeasures = max;
 }
 
@@ -2202,25 +2205,6 @@ void Slam::SetGravityWeight(double weight)
   this->ImuManager->SetWeight(weight);
 }
 
-// Pose
-//-----------------------------------------------------------------------------
-double Slam::GetPoseWeight() const
-{
-  if (this->PoseManager)
-    return this->PoseManager->GetWeight();
-  PRINT_ERROR("Pose sensor has not been set : can't get pose weight")
-  return 0.;
-}
-
-//-----------------------------------------------------------------------------
-void Slam::SetPoseWeight(double weight)
-{
-  if (!this->PoseManager)
-    this->InitPoseSensor();
-  this->PoseWeight = weight;
-  this->PoseManager->SetWeight(weight);
-}
-
 // Landmark detector
 //-----------------------------------------------------------------------------
 void Slam::SetLandmarkWeight(double weight)
@@ -2252,6 +2236,25 @@ void Slam::SetLandmarkCovarianceRotation(bool rotate)
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetCovarianceRotation(rotate);
   this->LandmarkCovarianceRotation = rotate;
+}
+
+// Pose
+//-----------------------------------------------------------------------------
+double Slam::GetPoseWeight() const
+{
+  if (this->PoseManager)
+    return this->PoseManager->GetWeight();
+  PRINT_ERROR("Pose sensor has not been set : can't get pose weight")
+  return 0.;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetPoseWeight(double weight)
+{
+  if (!this->PoseManager)
+    this->InitPoseSensor();
+  this->PoseWeight = weight;
+  this->PoseManager->SetWeight(weight);
 }
 
 //==============================================================================
