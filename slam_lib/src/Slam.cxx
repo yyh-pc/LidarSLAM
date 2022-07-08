@@ -443,24 +443,32 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 //-----------------------------------------------------------------------------
 void Slam::ComputeSensorConstraints()
 {
-  if (this->WheelOdomManager && this->WheelOdomManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+  if (this->WheelOdomManager && this->WheelOdomManager->CanBeUsedLocally() &&
+      this->WheelOdomManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
     PRINT_VERBOSE(3, "Wheel odometry constraint added")
-  if (this->ImuManager && this->ImuManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+  if (this->ImuManager && this->ImuManager->CanBeUsedLocally() &&
+      this->ImuManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
     PRINT_VERBOSE(3, "IMU constraint added")
-  if (this->PoseManager)
+  if (this->PoseManager && this->PoseManager->CanBeUsedLocally())
   {
-    // Update last pose information because the external pose constraint is relative
-    this->PoseManager->SetPrevLidarTime(this->LogStates.back().Time);
-    this->PoseManager->SetPrevPoseTransform(this->LogStates.back().Isometry);
-    if (this->PoseManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
-      PRINT_VERBOSE(3, "External pose constraint added")
-
+    if (!this->LogStates.empty())
+    {
+      // Update last pose information because the external pose constraint is relative
+      // The last pose logged corresponds to last lidar frame
+      this->PoseManager->SetPrevLidarTime(this->LogStates.back().Time);
+      this->PoseManager->SetPrevPoseTransform(this->LogStates.back().Isometry);
+      if (this->PoseManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+        PRINT_VERBOSE(3, "External pose constraint added")
+    }
   }
-  for (auto& idLm : this->LandmarksManagers)
+  if (this->LmCanBeUsedLocally())
   {
-    PRINT_VERBOSE(3, "Checking state of tag #" << idLm.first)
-    if (idLm.second.ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
-      PRINT_VERBOSE(3, "\t Adding constraint for tag #" << idLm.first)
+    for (auto& idLm : this->LandmarksManagers)
+    {
+      PRINT_VERBOSE(3, "Checking state of tag #" << idLm.first)
+      if (idLm.second.ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+        PRINT_VERBOSE(3, "\t Adding constraint for tag #" << idLm.first)
+    }
   }
 }
 
