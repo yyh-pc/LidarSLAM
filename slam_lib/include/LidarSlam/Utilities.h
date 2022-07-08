@@ -283,7 +283,7 @@ void ComputeMeanAndPCA(const pcl::PointCloud<PointT>& cloud,
 template<typename PointT>
 inline void TransformPoint(PointT& p, const Eigen::Isometry3d& transform)
 {
-  p.getVector4fMap() = (transform * p.getVector4fMap().template cast<double>()).template cast<float>();
+  p.getVector4fMap() = transform.template cast<float>() * p.getVector4fMap();
 }
 
 //------------------------------------------------------------------------------

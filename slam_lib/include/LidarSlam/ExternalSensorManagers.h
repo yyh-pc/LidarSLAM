@@ -65,6 +65,13 @@ struct GpsMeasurement
 };
 
 // ---------------------------------------------------------------------------
+struct PoseMeasurement
+{
+  double Time = 0.;
+  Eigen::Isometry3d Pose = Eigen::Isometry3d::Identity();
+};
+
+// ---------------------------------------------------------------------------
 template <typename T>
 class SensorManager
 {
@@ -196,11 +203,22 @@ protected:
     if (this->PreviousIt == this->Measures.end() || this->PreviousIt->Time > lidarTime)
       this->PreviousIt = this->Measures.begin();
 
+    auto postIt = this->PreviousIt;
     // Get iterator pointing to the first measurement after LiDAR time
-    auto postIt = std::upper_bound(this->PreviousIt,
-                                   this->Measures.end(),
-                                   lidarTime,
-                                   [&](double time, const T& measure) {return time < measure.Time;});
+    if (this->PreviousIt == this->Measures.begin())
+    {
+      // If after reset or for first search, use upper_bound function
+      postIt = std::upper_bound(this->PreviousIt,
+                                this->Measures.end(),
+                                lidarTime,
+                                [&](double time, const T& measure) {return time < measure.Time;});
+    }
+    else
+    {
+      // If in the continuity of search, directly look for closest measurements
+      while (postIt->Time < lidarTime && postIt != this->Measures.end())
+        ++postIt;
+    }
 
     // If the last measure was taken before Lidar points
     // extract the two last measures (for extrapolation)
@@ -331,9 +349,6 @@ public:
   GetSensorMacro(AbsolutePose, Eigen::Vector6d)
   GetSensorMacro(AbsolutePoseCovariance, Eigen::Matrix6d)
 
-  GetSensorMacro(Calibration, Eigen::Isometry3d)
-  SetSensorMacro(Calibration, const Eigen::Isometry3d&)
-
   GetSensorMacro(SaturationDistance, float)
   SetSensorMacro(SaturationDistance, float)
 
@@ -365,7 +380,6 @@ private:
   Eigen::Vector6d AbsolutePose = Eigen::Vector6d::Zero();
   Eigen::Matrix6d AbsolutePoseCovariance = Eigen::Matrix6d::Zero();
   Eigen::Isometry3d RelativeTransform = Eigen::Isometry3d::Identity();
-  Eigen::Isometry3d Calibration = Eigen::Isometry3d::Identity();
   // Boolean to check the absolute pose has been loaded
   // or if the tag has already been seen
   bool HasAbsolutePose = false;
@@ -406,10 +420,47 @@ public:
 
   bool ComputeConstraint(double lidarTime, bool verbose) override;
 
+  bool CanBeUsedLocally(){return false;}
+
 private:
   // Offset transform to link GPS global frame and Lidar SLAM global frame
   Eigen::Isometry3d Offset = Eigen::Isometry3d::Identity();
 };
+
+// ---------------------------------------------------------------------------
+class PoseManager: public SensorManager<PoseMeasurement>
+{
+public:
+  PoseManager(const std::string& name = "Pose sensor") : SensorManager(name){}
+
+  PoseManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+              const std::string& name = "Pose sensor")
+  : SensorManager(timeOffset, timeThresh, maxMeas, name){this->Weight = w;}
+
+  // Setters/Getters
+  GetSensorMacro(PrevLidarTime, double)
+  SetSensorMacro(PrevLidarTime, double)
+
+  GetSensorMacro(PrevPoseTransform, Eigen::Isometry3d)
+  SetSensorMacro(PrevPoseTransform, const Eigen::Isometry3d&)
+
+  GetSensorMacro(SaturationDistance, float)
+  SetSensorMacro(SaturationDistance, float)
+
+  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
+  bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool verbose = false) override;
+
+  bool ComputeConstraint(double lidarTime, bool verbose = false) override;
+
+private:
+  // Threshold distance to not take into account the external pose constraint
+  // the external pose sensor may have failed
+  // This distance is used in a robustifier to weight the landmark residuals
+  float SaturationDistance = 5.f;
+  double PrevLidarTime = 0.;
+  Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
+};
+
 
 } // end of ExternalSensors namespace
 } // end of LidarSlam namespace

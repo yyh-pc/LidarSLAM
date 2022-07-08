@@ -202,15 +202,19 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 
   auto arrayTime = input->GetPointData()->GetArray(this->TimeArrayName.c_str());
   // Get frame first point time in vendor format
-  double frameFirstPointTime = arrayTime->GetRange()[0] * this->TimeToSecondsFactor;
-  // Get first frame packet reception time
-  vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
-  double frameReceptionPOSIXTime = inInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
-  double absCurrentOffset = std::abs(this->SlamAlgo->GetSensorTimeOffset());
-  double potentialOffset = frameFirstPointTime - frameReceptionPOSIXTime;
-  // We exclude the first frame cause frameReceptionPOSIXTime can be badly set
-  if (this->SlamAlgo->GetNbrFrameProcessed() > 0 && (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset))
-    this->SlamAlgo->SetSensorTimeOffset(potentialOffset);
+  double* range = arrayTime->GetRange();
+  double frameFirstPointTime = range[0] * this->TimeToSecondsFactor;
+  if (this->SynchronizeOnPacket)
+  {
+    // Get first frame packet reception time
+    vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
+    double frameReceptionPOSIXTime = inInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
+    double absCurrentOffset = std::abs(this->SlamAlgo->GetSensorTimeOffset());
+    double potentialOffset = frameFirstPointTime - frameReceptionPOSIXTime;
+    // We exclude the first frame cause frameReceptionPOSIXTime can be badly set
+    if (this->SlamAlgo->GetNbrFrameProcessed() > 0 && (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset))
+      this->SlamAlgo->SetSensorTimeOffset(potentialOffset);
+  }
 
   // Run SLAM
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : input conversions"));
@@ -444,7 +448,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   // Set the maximum number of measurements stored in the SLAM filter
   this->SlamAlgo->SetSensorMaxMeasures(arrayTime->GetNumberOfTuples());
 
-  // Process wheel odometry measures
+  // Process wheel odometer data
   if (csvTable->GetRowData()->HasArray("odom"))
   {
     auto arrayOdom = csvTable->GetRowData()->GetArray("odom");
@@ -457,6 +461,8 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     }
     std::cout << "Odometry data successfully loaded " << std::endl;
   }
+
+  // Process IMU data
   if (csvTable->GetRowData()->HasArray("acc_x")
    && csvTable->GetRowData()->HasArray("acc_y")
    && csvTable->GetRowData()->HasArray("acc_z"))
@@ -475,6 +481,79 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     }
     std::cout << "IMU data successfully loaded " << std::endl;
   }
+
+  // Process Pose data
+  if (csvTable->GetRowData()->HasArray("x")
+   && csvTable->GetRowData()->HasArray("y")
+   && csvTable->GetRowData()->HasArray("z")
+   && csvTable->GetRowData()->HasArray("roll")
+   && csvTable->GetRowData()->HasArray("pitch")
+   && csvTable->GetRowData()->HasArray("yaw"))
+  {
+    // Set calibration
+    // Look for calib file next to first file
+    std::string path = fileName.substr(0, fileName.find_last_of("/") + 1);
+    std::ifstream fin (path + "calibration_external_sensor.txt");
+    Eigen::Isometry3d base2Sensor = Eigen::Isometry3d::Identity();
+    if (fin.is_open())
+    {
+      int i = 0;
+      while (fin.good())
+      {
+        std::string elementString;
+        fin >> elementString;
+        base2Sensor.matrix()(i) = stof(elementString);
+        ++i;
+      }
+      base2Sensor.matrix().transposeInPlace();
+    }
+    else
+    {
+      vtkErrorMacro("Could not find external poses calibration file : "
+                    <<path + "calibration_external_sensor.txt\n"
+                    <<"-> calibration is set to identity, measurements must represent base_link motion");
+    }
+
+    this->SlamAlgo->SetPoseCalibration(base2Sensor);
+    vtkDebugMacro("External poses sensor calibration found at "
+                    << path + "calibration_external_sensor.txt : \n"
+                    << base2Sensor.matrix() <<"\n" << std::endl);
+
+    auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
+    auto arrayY     = csvTable->GetRowData()->GetArray("y"    );
+    auto arrayZ     = csvTable->GetRowData()->GetArray("z"    );
+    auto arrayRoll  = csvTable->GetRowData()->GetArray("roll" );
+    auto arrayPitch = csvTable->GetRowData()->GetArray("pitch");
+    auto arrayYaw   = csvTable->GetRowData()->GetArray("yaw"  );
+
+    for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
+    {
+      LidarSlam::ExternalSensors::PoseMeasurement meas;
+      meas.Time = arrayTime->GetTuple1(i);
+      // Derive Isometry
+      meas.Pose.linear() = Eigen::Matrix3d(
+                           Eigen::AngleAxisd(arrayPitch->GetTuple1(i), Eigen::Vector3d::UnitY()) *
+                           Eigen::AngleAxisd(arrayRoll->GetTuple1(i),  Eigen::Vector3d::UnitX()) *
+                           Eigen::AngleAxisd(arrayYaw->GetTuple1(i),   Eigen::Vector3d::UnitZ())
+                           );
+      meas.Pose.translation() = Eigen::Vector3d(arrayX->GetTuple1(i), arrayY->GetTuple1(i), arrayZ->GetTuple1(i));
+      meas.Pose.makeAffine();
+      this->SlamAlgo->AddPoseMeasurement(meas);
+    }
+
+    vtkDebugMacro("Pose data successfully loaded");
+  }
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetSensorTimeSynchronization(int mode)
+{
+  if (mode > 1)
+  {
+    vtkErrorMacro("Invalid time synchronization mode (" << mode << "), ignoring setting.");
+    return;
+  }
+  this->SynchronizeOnPacket = (mode == 0);
 }
 
 //-----------------------------------------------------------------------------
@@ -947,7 +1026,9 @@ void vtkSlam::SetEgoMotion(int mode)
   if (egoMotion != LidarSlam::EgoMotionMode::NONE                 &&
       egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION &&
       egoMotion != LidarSlam::EgoMotionMode::REGISTRATION         &&
-      egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION)
+      egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION &&
+      egoMotion != LidarSlam::EgoMotionMode::EXTERNAL &&
+      egoMotion != LidarSlam::EgoMotionMode::EXTERNAL_OR_MOTION_EXTRAPOLATION)
   {
     vtkErrorMacro("Invalid ego-motion mode (" << mode << "), ignoring setting.");
     return;
@@ -974,7 +1055,8 @@ void vtkSlam::SetUndistortion(int mode)
   LidarSlam::UndistortionMode undistortion = static_cast<LidarSlam::UndistortionMode>(mode);
   if (undistortion != LidarSlam::UndistortionMode::NONE &&
       undistortion != LidarSlam::UndistortionMode::ONCE &&
-      undistortion != LidarSlam::UndistortionMode::REFINED)
+      undistortion != LidarSlam::UndistortionMode::REFINED &&
+      undistortion != LidarSlam::UndistortionMode::EXTERNAL)
   {
     vtkErrorMacro("Invalid undistortion mode (" << mode << "), ignoring setting.");
     return;

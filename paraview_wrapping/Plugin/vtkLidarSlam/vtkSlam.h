@@ -263,6 +263,9 @@ public:
 
   vtkCustomGetMacroExternalSensor(Imu, GravityWeight, double)
   vtkCustomSetMacroExternalSensor(Imu, GravityWeight, double)
+  
+  vtkCustomGetMacroExternalSensor(Pose, PoseWeight, double)
+  vtkCustomSetMacroExternalSensor(Pose, PoseWeight, double)
 
   vtkCustomGetMacro(SensorTimeOffset, double)
   vtkCustomSetMacro(SensorTimeOffset, double)
@@ -272,6 +275,8 @@ public:
 
   vtkCustomGetMacro(SensorMaxMeasures, unsigned int)
   vtkCustomSetMacro(SensorMaxMeasures, unsigned int)
+
+  void SetSensorTimeSynchronization(int mode);
 
   // ---------------------------------------------------------------------------
   //   Keypoints extractor, Key frames and Maps parameters
@@ -438,6 +443,10 @@ private:
   float OverlapSamplingRatio = 0.25;
   // Internal variable to store window time to estimate local velocity when advanced return mode is disabled.
   float TimeWindowDuration = 0.5;
+
+  // Choose whether to synchronize on network packet
+  // reception time or on Lidar frame header time
+  bool SynchronizeOnPacket = false;
 };
 
 #endif // VTK_SLAM_H

@@ -285,9 +285,9 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
   // Rotate covariance if required
   if (this->CovarianceRotation)
   {
-    Eigen::Isometry3d update = this->RelativeTransform * bounds.first->TransfoRelative.inverse();
+    Eigen::Isometry3d update = bounds.first->TransfoRelative.inverse() * this->RelativeTransform;
     Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(bounds.first->TransfoRelative);
-    synchMeas.Covariance = CeresTools::RotateCovariance(xyzrpy, bounds.first->Covariance, update.linear());
+    synchMeas.Covariance = CeresTools::RotateCovariance(xyzrpy, bounds.first->Covariance, update); // new = init * update
   }
 
   return true;
@@ -302,7 +302,7 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
     return false;
 
   LandmarkMeasurement synchMeas;
-  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
     return false;
 
   this->RelativeTransform = this->Calibration.inverse() * synchMeas.TransfoRelative;
@@ -328,6 +328,7 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
     this->Residual.Cost = CeresCostFunctions::LandmarkPositionResidual::Create(this->RelativeTransform, this->AbsolutePose);
   else
     this->Residual.Cost = CeresCostFunctions::LandmarkResidual::Create(this->RelativeTransform, this->AbsolutePose);
+
   // Use a robustifier to limit the contribution of an outlier tag detection (the tag may have been moved)
   // Tukey loss applied on residual square:
   //   rho(residual^2) = a^2 / 3 * ( 1 - (1 - residual^2 / a^2)^3 )   for residual^2 <= a^2,
@@ -408,6 +409,76 @@ bool GpsManager::ComputeConstraint(double lidarTime, bool verbose)
   static_cast<void>(verbose);
   PRINT_WARNING("No local constraint can/should be added from GPS as they are absolute measurements");
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// 3D POSE
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool verbose)
+{
+  if (this->Measures.size() <= 1)
+    return false;
+
+  std::lock_guard<std::mutex> lock(this->Mtx);
+  // Compute the two closest measures to current Lidar frame
+  lidarTime -= this->TimeOffset;
+  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  if (bounds.first == bounds.second)
+    return false;
+
+  // Interpolate external pose at LiDAR timestamp
+  synchMeas.Time = lidarTime;
+  synchMeas.Pose = LinearInterpolation(bounds.first->Pose, bounds.second->Pose, lidarTime, bounds.first->Time, bounds.second->Time);
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+bool PoseManager::ComputeConstraint(double lidarTime, bool verbose)
+{
+  this->ResetResidual();
+
+  if (!this->CanBeUsedLocally())
+    return false;
+
+  // Compute synchronized measures
+
+  PoseMeasurement synchPrevMeas;
+  if (!this->ComputeSynchronizedMeasure(this->PrevLidarTime, synchPrevMeas, verbose))
+    return false;
+
+  PoseMeasurement synchMeas;
+  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+    return false;
+
+  // Deduce measured relative transform
+  Eigen::Vector6d TrelMeas = Utils::IsometryToXYZRPY((synchPrevMeas.Pose* this->Calibration.inverse()).inverse()
+                                                     * synchMeas.Pose * this->Calibration.inverse());
+
+  this->Residual.Cost = CeresCostFunctions::ExternalPoseResidual::Create(TrelMeas, this->PrevPoseTransform);
+
+  // Use a robustifier to limit the contribution of an outlier tag detection (the tag may have been moved)
+  // Tukey loss applied on residual square:
+  //   rho(residual^2) = a^2 / 3 * ( 1 - (1 - residual^2 / a^2)^3 )   for residual^2 <= a^2,
+  //   rho(residual^2) = a^2 / 3                                      for residual^2 >  a^2.
+  // a is the scaling parameter of the function
+  // See http://ceres-solver.org/nnls_modeling.html#theory for details
+  auto* robustifier = new ceres::TukeyLoss(this->SaturationDistance);
+
+  // Weight the contribution of the given match by its reliability
+  // WARNING : in CERES version < 2.0.0, the Tukey loss is badly implemented, so we have to correct the weight by a factor 2
+  // See https://github.com/ceres-solver/ceres-solver/commit/6da364713f5b78ddf15b0e0ad92c76362c7c7683 for details
+  // This is important for covariance scaling
+  #if (CERES_VERSION_MAJOR < 2)
+    this->Residual.Robustifier.reset(new ceres::ScaledLoss(robustifier, 2.0 * this->Weight, ceres::TAKE_OWNERSHIP));
+  // If Ceres version >= 2.0.0, the Tukey loss is corrected.
+  #else
+    this->Residual.Robustifier.reset(new ceres::ScaledLoss(robustifier, this->Weight, ceres::TAKE_OWNERSHIP));
+  #endif
+
+  return true;
 }
 
 } // end of ExternalSensors namespace

@@ -61,7 +61,10 @@ enum UndistortionMode
   //!  - Scan pose is optimized using rigid registration of undistorted scan and map.
   //!  - Iterate the three previous steps with updated ego-motion and poses.
   //!  - Undistorted scan is added to map.
-  REFINED = 2
+  REFINED = 2,
+
+  //! Undistort once with external pose information
+  EXTERNAL = 3
 };
 
 //------------------------------------------------------------------------------
@@ -90,7 +93,13 @@ enum class EgoMotionMode
   //! registering new frame on previous frame.
   //! Slower and need textured enough environment, but should be more precise
   //! and rely less on constant motion hypothesis.
-  MOTION_EXTRAPOLATION_AND_REGISTRATION = 3
+  MOTION_EXTRAPOLATION_AND_REGISTRATION = 3,
+
+  //! Use external pose as prior and none if external not available
+  EXTERNAL = 4,
+
+  //! Use external pose as prior and motion extrapolation if external not available
+  EXTERNAL_OR_MOTION_EXTRAPOLATION = 5
 };
 
 //------------------------------------------------------------------------------
@@ -156,9 +165,12 @@ enum ExternalSensor
   LANDMARK_DETECTOR = 2,
 
   //! GPS
-  GPS = 3
+  GPS = 3,
+
+  //! Pose sensor
+  POSE = 4
 };
 
-static const std::map<ExternalSensor, std::string> ExternalSensorNames = { {WHEEL_ODOM, "Wheel odometer"}, {IMU, "IMU"}, {LANDMARK_DETECTOR, "Landmark detector"}, {GPS, "GPS"} };
+static const std::map<ExternalSensor, std::string> ExternalSensorNames = { {WHEEL_ODOM,"Wheel odometer"}, {IMU, "IMU"}, {LANDMARK_DETECTOR, "Landmark detector"}, {GPS, "GPS"}, {POSE, "POSE"} };
 
 } // end of LidarSlam namespace

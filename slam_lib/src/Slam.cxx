@@ -313,7 +313,8 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 
   if ((this->WheelOdomManager && this->WheelOdomManager->CanBeUsedLocally()) ||
       (this->ImuManager && this->ImuManager->CanBeUsedLocally()) ||
-      this->LmCanBeUsedLocally())
+       this->LmCanBeUsedLocally() ||
+      (this->PoseManager && this->PoseManager->CanBeUsedLocally()))
   {
     IF_VERBOSE(3, Utils::Timer::Init("External sensor constraints computation"));
     this->ComputeSensorConstraints();
@@ -442,16 +443,32 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 //-----------------------------------------------------------------------------
 void Slam::ComputeSensorConstraints()
 {
-  double currLidarTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  if (this->WheelOdomManager && this->WheelOdomManager->ComputeConstraint(currLidarTime, this->Verbosity >= 3))
-    PRINT_VERBOSE(3, "Adding wheel odometry constraint")
-  if (this->ImuManager && this->ImuManager->ComputeConstraint(currLidarTime, this->Verbosity >= 3))
-    PRINT_VERBOSE(3, "Adding IMU constraint")
-  for (auto& idLm : this->LandmarksManagers)
+  if (this->WheelOdomManager && this->WheelOdomManager->CanBeUsedLocally() &&
+      this->WheelOdomManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+    PRINT_VERBOSE(3, "Wheel odometry constraint added")
+  if (this->ImuManager && this->ImuManager->CanBeUsedLocally() &&
+      this->ImuManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+    PRINT_VERBOSE(3, "IMU constraint added")
+  if (this->LmCanBeUsedLocally())
   {
-    PRINT_VERBOSE(3, "Checking state of tag #" << idLm.first)
-    if (idLm.second.ComputeConstraint(currLidarTime, this->Verbosity >= 3))
-      PRINT_VERBOSE(3, "\t Adding constraint for tag #" << idLm.first)
+    for (auto& idLm : this->LandmarksManagers)
+    {
+      PRINT_VERBOSE(3, "Checking state of tag #" << idLm.first)
+      if (idLm.second.ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+        PRINT_VERBOSE(3, "\t Adding constraint for tag #" << idLm.first)
+    }
+  }
+  if (this->PoseManager && this->PoseManager->CanBeUsedLocally())
+  {
+    if (!this->LogStates.empty())
+    {
+      // Update last pose information because the external pose constraint is relative
+      // The last pose logged corresponds to last lidar frame
+      this->PoseManager->SetPrevLidarTime(this->LogStates.back().Time);
+      this->PoseManager->SetPrevPoseTransform(this->LogStates.back().Isometry);
+      if (this->PoseManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+        PRINT_VERBOSE(3, "External pose constraint added")
+    }
   }
 }
 
@@ -600,7 +617,7 @@ bool Slam::OptimizeGraph()
     // Compute relative transform
     Eigen::Isometry3d Trel = itInit->Isometry.inverse() * itStates->Isometry;
     Eigen::Vector6d pose = Utils::IsometryToXYZRPY(itInit->Isometry);
-    CeresTools::RotateCovariance(pose, itStates->Covariance, Trel.linear());
+    CeresTools::RotateCovariance(pose, itStates->Covariance, Trel); // new = init * Trel
     ++itStates;
     ++itInit;
   }
@@ -909,6 +926,46 @@ void Slam::ExtractKeypoints()
 }
 
 //-----------------------------------------------------------------------------
+bool Slam::InitTworldWithPoseMeasurement(double time)
+{
+  // Compute synchronized pose
+  if (!this->PoseManager)
+  {
+    PRINT_WARNING("No external pose manager : pose not initialized")
+    return false;
+  }
+  ExternalSensors::PoseMeasurement firstSynchPoseMeas;
+  if (!this->PoseManager->ComputeSynchronizedMeasure(time, firstSynchPoseMeas, this->Verbosity >= 3))
+  {
+    PRINT_WARNING("Cannot find synchronized pose measurement : Lidar pose not initialized")
+    return false;
+  }
+
+  Eigen::Isometry3d external2Odom = firstSynchPoseMeas.Pose * this->PoseManager->GetCalibration().inverse() * this->Tworld.inverse();
+  // Update trajectory
+  if (!this->LogStates.empty())
+  {
+    for (auto& s : this->LogStates)
+    {
+      // Rotate covariance
+      Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(s.Isometry);
+      CeresTools::RotateCovariance(initPose, s.Covariance, external2Odom, true); // new = external2Odom * init
+      // Transform pose
+      s.Isometry = external2Odom * s.Isometry;
+    }
+    // Update maps
+    this->UpdateMaps();
+  }
+  else
+    this->TworldInit = external2Odom * this->Tworld;
+
+  this->Tworld = external2Odom * this->Tworld;
+
+  PRINT_VERBOSE(1, "Pose initialized with external pose measurement");
+  return true;
+}
+
+//-----------------------------------------------------------------------------
 void Slam::ComputeEgoMotion()
 {
   PRINT_VERBOSE(2, "========== Ego-Motion ==========");
@@ -916,24 +973,51 @@ void Slam::ComputeEgoMotion()
   // Reset ego-motion
   this->Trelative = Eigen::Isometry3d::Identity();
 
+  bool externalAvailable = false;
   // Linearly extrapolate previous motion to estimate new pose
-  if (this->LogStates.size() >= 2 &&
+  if (!this->LogStates.empty() &&
+      (this->EgoMotion == EgoMotionMode::EXTERNAL ||
+       this->EgoMotion == EgoMotionMode::EXTERNAL_OR_MOTION_EXTRAPOLATION))
+  {
+    if (this->PoseHasData())
+    {
+      ExternalSensors::PoseMeasurement synchPoseMeas;
+      if (this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime, synchPoseMeas, this->Verbosity >= 3))
+      {
+        ExternalSensors::PoseMeasurement synchPreviousPoseMeas;
+        if (this->PoseManager->ComputeSynchronizedMeasure(this->LogStates.back().Time, synchPreviousPoseMeas, this->Verbosity >= 3))
+        {
+          Eigen::Isometry3d synchBasePose = synchPoseMeas.Pose * this->PoseManager->GetCalibration().inverse();
+          Eigen::Isometry3d synchPreviousBasePoseMeas = synchPreviousPoseMeas.Pose * this->PoseManager->GetCalibration().inverse();
+          this->Trelative = synchPreviousBasePoseMeas.inverse() * synchBasePose;
+          externalAvailable = true;
+          PRINT_VERBOSE(3, "Prior pose computed using external poses supplied");
+        }
+      }
+    }
+    else
+      PRINT_WARNING("External poses are empty : cannot use them to compute ego motion")
+  }
+
+  // Linearly extrapolate previous motion to estimate new pose
+  if (this->LogStates.size() >= 2 && (
       (this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION ||
-       this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION))
+       this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION) ||
+      (this->EgoMotion == EgoMotionMode::EXTERNAL_OR_MOTION_EXTRAPOLATION &&
+       !externalAvailable)))
   {
     // Estimate new Tworld with a constant velocity model
-    const double t = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
     auto itSt = this->LogStates.end();
 
     const double t1 = (--itSt)->Time;
     const Eigen::Isometry3d& T1 = itSt->Isometry;
     const double t0 = (--itSt)->Time;
     const Eigen::Isometry3d& T0 = itSt->Isometry;
-    if (std::abs((t - t1) / (t1 - t0)) > this->MaxExtrapolationRatio)
+    if (std::abs((this->CurrentTime - t1) / (t1 - t0)) > this->MaxExtrapolationRatio)
       PRINT_WARNING("Unable to extrapolate scan pose from previous motion : extrapolation time is too far.")
     else
     {
-      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(T0, T1, t, t0, t1);
+      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(T0, T1, this->CurrentTime, t0, t1);
       this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
     }
   }
@@ -1092,10 +1176,16 @@ void Slam::Localization()
   if (this->Undistortion)
   {
     IF_VERBOSE(3, Utils::Timer::Init("Localization : initial undistortion"));
-    // Init the within frame motion interpolator time bounds
-    this->InitUndistortion();
-    // Undistort keypoints clouds
-    this->RefineUndistortion();
+    if (this->Undistortion != UndistortionMode::EXTERNAL)
+    {
+      // Init the within frame motion interpolator time bounds
+      this->InitUndistortion();
+      // Undistort keypoints clouds
+      this->RefineUndistortion();
+    }
+    else
+      this->UndistortWithPoseMeasurement();
+
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : initial undistortion"));
   }
 
@@ -1238,6 +1328,11 @@ void Slam::Localization()
     // if constraint has been successfully created
     if (this->ImuManager && this->ImuManager->GetResidual().Cost)
       optimizer.AddResidual(this->ImuManager->GetResidual());
+
+    // Add Pose constraint
+    // if constraint has been successfully created
+    if (this->PoseManager && this->PoseManager->GetResidual().Cost)
+      optimizer.AddResidual(this->PoseManager->GetResidual());
 
     // Add available landmark constraints
     for (auto& idLm : this->LandmarksManagers)
@@ -1409,14 +1504,13 @@ Eigen::Isometry3d Slam::InterpolateScanPose(double time)
     return this->Tworld;
 
   const double prevPoseTime = this->LogStates.back().Time;
-  const double currPoseTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
-  if (std::abs(time / (currPoseTime - prevPoseTime)) > this->MaxExtrapolationRatio)
+  if (std::abs(time / (this->CurrentTime - prevPoseTime)) > this->MaxExtrapolationRatio)
   {
     PRINT_WARNING("Unable to interpolate scan pose from motion : extrapolation time is too far.");
     return this->Tworld;
   }
 
-  return LinearInterpolation(this->LogStates.back().Isometry, this->Tworld, currPoseTime + time, prevPoseTime, currPoseTime);
+  return LinearInterpolation(this->LogStates.back().Isometry, this->Tworld, this->CurrentTime + time, prevPoseTime, this->CurrentTime);
 }
 
 //-----------------------------------------------------------------------------
@@ -1451,6 +1545,47 @@ void Slam::InitUndistortion()
     // If frame duration is bigger than 10 seconds, it is probably wrongly set
     PRINT_WARNING("'time' field looks not properly set (frame duration > 10 s) and can lead to faulty undistortion.");
   }
+}
+
+void Slam::UndistortWithPoseMeasurement()
+{
+  if (this->PoseHasData())
+  {
+    // Get synchronized point pose relatively to frame
+    ExternalSensors::PoseMeasurement synchPointPoseMeas;
+    ExternalSensors::PoseMeasurement synchFramePoseMeas;
+    Eigen::Isometry3d invCalib = this->PoseManager->GetCalibration().inverse();
+    if (this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime, synchFramePoseMeas, this->Verbosity >= 3))
+    {
+      synchFramePoseMeas.Pose = synchFramePoseMeas.Pose * invCalib;
+      Eigen::Isometry3d invSynchFrame = synchFramePoseMeas.Pose.inverse();
+      // Undistort keypoints
+      for (auto k : this->UsableKeypoints)
+      {
+        // Compute synchronized measures (not parallelizable)
+        int nbPoints = this->CurrentUndistortedKeypoints[k]->size();
+        std::vector<ExternalSensors::PoseMeasurement> synchMeas (nbPoints);
+        // Sort points by time to speed up synchronization search
+        std::sort(this->CurrentUndistortedKeypoints[k]->points.begin(), this->CurrentUndistortedKeypoints[k]->points.end(), [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
+        int idxPt = 0;
+        for (auto& point : *this->CurrentUndistortedKeypoints[k])
+        {
+          this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime + point.time, synchMeas[idxPt], this->Verbosity >= 3);
+          ++idxPt;
+        }
+
+        // Transform with computed measures (parallelized)
+        #pragma omp parallel for num_threads(this->NbThreads)
+        for (int i = 0; i < nbPoints; ++i)
+        {
+          auto& point = this->CurrentUndistortedKeypoints[k]->at(i);
+          Utils::TransformPoint(point, invSynchFrame * (synchMeas[i].Pose * invCalib));
+        }
+      }
+    }
+  }
+  else
+    PRINT_WARNING("External poses are empty : cannot use them to undistort input pointcloud")
 }
 
 //-----------------------------------------------------------------------------
@@ -1757,6 +1892,15 @@ void Slam::InitGps()
                                                                    this->SensorMaxMeasures);
 }
 
+//-----------------------------------------------------------------------------
+void Slam::InitPoseSensor()
+{
+  this->PoseManager = std::make_shared<ExternalSensors::PoseManager>(this->PoseWeight,
+                                                                     this->SensorTimeOffset,
+                                                                     this->SensorTimeThreshold,
+                                                                     this->SensorMaxMeasures);
+}
+
 // Sensor data
 //-----------------------------------------------------------------------------
 
@@ -1776,6 +1920,23 @@ void Slam::AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm)
   if (!this->ImuManager)
     this->InitImu();
   this->ImuManager->AddMeasurement(gm);
+}
+
+// Pose
+//-----------------------------------------------------------------------------
+void Slam::AddPoseMeasurement(const ExternalSensors::PoseMeasurement& pm)
+{
+  if (!this->PoseManager)
+    this->InitPoseSensor();
+  this->PoseManager->AddMeasurement(pm);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
+{
+  if (!this->PoseManager)
+    this->InitPoseSensor();
+  this->PoseManager->SetCalibration(calib);
 }
 
 // Landmark detector
@@ -1889,7 +2050,7 @@ bool Slam::CalibrateWithGps()
     ExternalSensors::GpsMeasurement gpsSynchMeasure;
     if (this->GpsManager->ComputeSynchronizedMeasure(s.Time, gpsSynchMeasure))
     {
-      offset.translation() = s.Isometry.translation() - this->GpsManager->GetCalibration().inverse() * gpsSynchMeasure.Position;
+      offset.translation() = (s.Isometry * this->GpsManager->GetCalibration()).translation() - gpsSynchMeasure.Position;
       break;
     }
   }
@@ -1900,14 +2061,14 @@ bool Slam::CalibrateWithGps()
     return false;
 
   // Reset poses in odom frame (first Lidar pose)
-  Eigen::Isometry3d odomInverse = this->LogStates.front().Isometry.inverse();
+  Eigen::Isometry3d firstInverse = this->LogStates.front().Isometry.inverse();
   for (auto& s : this->LogStates)
   {
     // Rotate covariance
     Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(s.Isometry);
-    CeresTools::RotateCovariance(initPose, s.Covariance, odomInverse.linear());
+    CeresTools::RotateCovariance(initPose, s.Covariance, firstInverse, true); // new = first^-1 * init
     // Transform pose
-    s.Isometry = odomInverse * s.Isometry;
+    s.Isometry = firstInverse * s.Isometry;
   }
 
   // Update the maps and the pose with new trajectory
@@ -1915,8 +2076,8 @@ bool Slam::CalibrateWithGps()
   this->SetWorldTransformFromGuess(this->LogStates.back().Isometry);
 
   // Set refined offset : first Lidar pose + initial offset
-  odomInverse.translation() += offset.translation();
-  this->GpsManager->SetOffset(odomInverse);
+  firstInverse.translation() += offset.translation();
+  this->GpsManager->SetOffset(firstInverse);
 
   return true;
 }
@@ -1933,6 +2094,8 @@ void Slam::ClearSensorMeasurements()
     idLm.second.Reset();
   if (this->GpsManager)
     this->GpsManager->Reset();
+  if (this->PoseManager)
+    this->PoseManager->Reset();
 }
 
 //-----------------------------------------------------------------------------
@@ -1946,6 +2109,9 @@ void Slam::SetSensorTimeOffset(double timeOffset)
     idLm.second.SetTimeOffset(timeOffset);
   if (this->GpsManager)
     this->GpsManager->SetTimeOffset(timeOffset);
+  if (this->PoseManager)
+    this->PoseManager->SetTimeOffset(timeOffset);
+
   this->SensorTimeOffset = timeOffset;
 }
 
@@ -1960,6 +2126,9 @@ void Slam::SetSensorTimeThreshold(double thresh)
     idLm.second.SetTimeThreshold(thresh);
   if (this->GpsManager)
     this->GpsManager->SetTimeThreshold(thresh);
+  if (this->PoseManager)
+    this->PoseManager->SetTimeThreshold(thresh);
+
   this->SensorTimeThreshold = thresh;
 }
 
@@ -1974,6 +2143,9 @@ void Slam::SetSensorMaxMeasures(unsigned int max)
     idLm.second.SetMaxMeasures(max);
   if (this->GpsManager)
     this->GpsManager->SetMaxMeasures(max);
+  if (this->PoseManager)
+    this->PoseManager->SetMaxMeasures(max);
+
   this->SensorMaxMeasures = max;
 }
 
@@ -2064,6 +2236,25 @@ void Slam::SetLandmarkCovarianceRotation(bool rotate)
   for (auto& idLm : this->LandmarksManagers)
     idLm.second.SetCovarianceRotation(rotate);
   this->LandmarkCovarianceRotation = rotate;
+}
+
+// Pose
+//-----------------------------------------------------------------------------
+double Slam::GetPoseWeight() const
+{
+  if (this->PoseManager)
+    return this->PoseManager->GetWeight();
+  PRINT_ERROR("Pose sensor has not been set : can't get pose weight")
+  return 0.;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetPoseWeight(double weight)
+{
+  if (!this->PoseManager)
+    this->InitPoseSensor();
+  this->PoseWeight = weight;
+  this->PoseManager->SetWeight(weight);
 }
 
 //==============================================================================
