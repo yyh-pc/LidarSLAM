@@ -12,8 +12,8 @@
   <arg name="port" default="2368" />
   <arg name="pcap" default="" />
   <!-- /!\ rpm and timestamp_first_packet are also used to generate approximate point-wise timestamps as 'time' field is not usable. -->
-  <arg name="rpm" default="600." doc="Ouster sensor spinning speed."/>
-  <arg name="timestamp_first_packet" default="false" doc="If Ouster timestamping is based on the first or last packet of each scan."/>
+  <arg name="rpm" default="600." doc="Velodyne sensor spinning speed."/>
+  <arg name="timestamp_first_packet" default="false" doc="If Velodyne timestamping is based on the first or last packet of each scan."/>
 
   <!-- Sim Time, used when replaying rosbag files (with mandatory option 'clock') -->
   <!-- /!\ if replaying pcap files use_sim_time must be false-->
@@ -39,7 +39,7 @@
       <arg name="repeat_delay"           value="0.0"/>
       <arg name="rpm"                    value="$(arg rpm)"/>
       <arg name="gps_time"               value="false"/>
-      <arg name="cut_angle"              value="-0.01"/>
+      <arg name="cut_angle"              value="0.0"/>
       <arg name="timestamp_first_packet" value="$(arg timestamp_first_packet)"/>
     </include>
 
