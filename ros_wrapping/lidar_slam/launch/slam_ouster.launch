@@ -12,6 +12,7 @@
   <arg name="udp_dest" default="" doc="Hostname or IP where the sensor will send data packets"/>
   <arg name="lidar_port" default="0" doc="Port to which the sensor should send lidar data"/>
   <arg name="imu_port" default="0" doc="Port to which the sensor should send imu data"/>
+  <arg name="metadata_in" default="$(find ouster_ros)/../tests/metadata/1_14_beta_os1-991937000062-64_legacy.json" doc="Configuration file for Ouster data to replay"/>
   <arg name="metadata_out" default="" doc="Output Ouster config file"/>
   <!-- lidar_mode must be linked to frequency / rpm -->
   <arg name="lidar_mode" default="1024x10" doc="Lidar mode : 1024x10, 2048x10, 1024x20, 2048x20"/>
@@ -33,9 +34,10 @@
     <group if="$(arg replay)">
       <node pkg="ouster_ros" name="os_node" type="os_node" output="screen" required="true">
         <param name="~/replay" value="true"/>
-        <param name="~/metadata" value="$(find ouster_ros)/../tests/metadata/1_14_beta_os1-991937000062-64_legacy.json"/>
+        <param name="~/metadata" value="$(arg metadata_in)"/>
       </node>
     </group>
+
 
     <!-- Live -->
     <group unless="$(arg replay)">
