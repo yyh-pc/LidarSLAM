@@ -1,6 +1,6 @@
 # lidar_slam
 
-- [lidar_slam](#lidarslam)
+- [lidar_slam](#lidar_slam)
   - [LiDAR SLAM node](#lidar-slam-node)
     - [Description and basic usage](#description-and-basic-usage)
     - [More advanced usage](#more-advanced-usage)
@@ -8,7 +8,6 @@
     - [Map (GPS) / Odom (SLAM) calibration](#map-gps--odom-slam-calibration)
     - [SLAM pose graph optimization (PGO) with GPS prior](#slam-pose-graph-optimization-pgo-with-gps-prior)
     - [Running SLAM on same zone at different times (e.g. refining/aggregating map or running localization only on fixed map)](#running-slam-on-same-zone-at-different-times-eg-refiningaggregating-map-or-running-localization-only-on-fixed-map)
-      - [Enabling/disabling SLAM map udpate](#enablingdisabling-slam-map-udpate)
       - [Setting SLAM pose from GPS pose guess](#setting-slam-pose-from-gps-pose-guess)
       - [Running SLAM on same zone](#running-slam-on-same-zone)
   - [About the published TF tree](#about-the-published-tf-tree)
