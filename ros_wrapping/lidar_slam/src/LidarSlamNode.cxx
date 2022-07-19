@@ -196,6 +196,15 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 }
 
 //------------------------------------------------------------------------------
+LidarSlamNode::~LidarSlamNode()
+{
+    // Gracefully stop spinner
+    // Not stopping async spinner can lead to boost::lock error on shutdown
+    if (ExternalSpinnerPtr)
+        this->ExternalSpinnerPtr->stop();
+}
+
+//------------------------------------------------------------------------------
 void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
 {
   if(cloudS_ptr->empty())

@@ -52,6 +52,14 @@ public:
 
   //----------------------------------------------------------------------------
   /*!
+   * @brief     Destructor.
+   *
+   * Used to shut down external spinners
+   */
+  ~LidarSlamNode();
+
+  //----------------------------------------------------------------------------
+  /*!
    * @brief     New main LiDAR frame callback, running SLAM and publishing TF.
    * @param[in] cloud New frame, published by conversion node.
    *
