@@ -43,6 +43,10 @@
 // PCL
 #include <pcl/common/transforms.h>
 
+//Boost
+// TODO : replace by std when passing to C++17 minimum
+#include <boost/filesystem.hpp>
+
 // vtkSlam filter input ports (vtkPolyData and vtkTable)
 #define LIDAR_FRAME_INPUT_PORT 0       ///< Current LiDAR frame
 #define CALIBRATION_INPUT_PORT 1       ///< LiDAR calibration (vtkTable)
@@ -492,8 +496,9 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   {
     // Set calibration
     // Look for calib file next to first file
-    std::string path = fileName.substr(0, fileName.find_last_of("/") + 1);
-    std::ifstream fin (path + "calibration_external_sensor.txt");
+    boost::filesystem::path path(fileName);
+    std::string calibFileName = (path.parent_path() / "calibration_external_sensor.txt").string();
+    std::ifstream fin (calibFileName);
     Eigen::Isometry3d base2Sensor = Eigen::Isometry3d::Identity();
     if (fin.is_open())
     {
@@ -510,13 +515,13 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     else
     {
       vtkErrorMacro("Could not find external poses calibration file : "
-                    <<path + "calibration_external_sensor.txt\n"
-                    <<"-> calibration is set to identity, measurements must represent base_link motion");
+                    <<calibFileName <<"\n"
+                    <<"\t-> calibration is set to identity, measurements must represent base_link motion");
     }
 
     this->SlamAlgo->SetPoseCalibration(base2Sensor);
     vtkDebugMacro("External poses sensor calibration found at "
-                    << path + "calibration_external_sensor.txt : \n"
+                    << calibFileName << " : \n"
                     << base2Sensor.matrix() <<"\n" << std::endl);
 
     auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
