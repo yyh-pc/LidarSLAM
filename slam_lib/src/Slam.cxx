@@ -1922,23 +1922,6 @@ void Slam::AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm)
   this->ImuManager->AddMeasurement(gm);
 }
 
-// Pose
-//-----------------------------------------------------------------------------
-void Slam::AddPoseMeasurement(const ExternalSensors::PoseMeasurement& pm)
-{
-  if (!this->PoseManager)
-    this->InitPoseSensor();
-  this->PoseManager->AddMeasurement(pm);
-}
-
-//-----------------------------------------------------------------------------
-void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
-{
-  if (!this->PoseManager)
-    this->InitPoseSensor();
-  this->PoseManager->SetCalibration(calib);
-}
-
 // Landmark detector
 //-----------------------------------------------------------------------------
 void Slam::AddLandmarkMeasurement(const ExternalSensors::LandmarkMeasurement& lm, int id)
@@ -2080,6 +2063,23 @@ bool Slam::CalibrateWithGps()
   this->GpsManager->SetOffset(firstInverse);
 
   return true;
+}
+
+// Pose
+//-----------------------------------------------------------------------------
+void Slam::AddPoseMeasurement(const ExternalSensors::PoseMeasurement& pm)
+{
+  if (!this->PoseManager)
+    this->InitPoseSensor();
+  this->PoseManager->AddMeasurement(pm);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
+{
+  if (!this->PoseManager)
+    this->InitPoseSensor();
+  this->PoseManager->SetCalibration(calib);
 }
 
 // Sensors' parameters

@@ -657,15 +657,15 @@ namespace CeresTools
 //------------------------------------------------------------------------------
 /*!
  * @brief Transform a covariance to change the reference frame or to transform the pose
- *        Theory : the variables of the pose X represented in frame F1 are associated with a covariance C
- *                 If we want transform the pose, we apply the function f to X
+ *        Theory : the variables of the pose X are associated with a covariance C
+ *                 If we want to transform the pose, we apply the function f to X
  *                 The covariance associated to the new pose f(X) is JCJ^T (J being the Jacobian of the f function)
  *                 f is the combination of the conversion to Isometry matrix, the transformation and the conversion to 6D pose again.
  *                 i.e., if changeFrame = false : Pose(Isometry(X) * T), T being the transformation to apply to the pose
  *                 if changeFrame = true : Pose(T * Isometry(X)), T being the reference frame transformation to apply to the pose
  * @param[in] pose : pose associated to the covariance
  * @param[in] covariance : covariance matrix to recompute
- * @param[in] transformation : 3x3 rotation matrix to apply
+ * @param[in] transformation : 3d isometry to apply (containing a 4x4 matrix)
  * @param[in] changeFrame : bool to decide in which order to perform the matrix multiplication
  */
 inline Eigen::Matrix<double, 6, 6> RotateCovariance(Eigen::Matrix<double, 6, 1>& pose, const Eigen::Matrix<double, 6, 6>& covariance, const Eigen::Isometry3d& transformation, bool changeFrame = false)
