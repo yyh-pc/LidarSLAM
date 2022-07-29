@@ -605,7 +605,6 @@ bool Slam::OptimizeGraph()
     PRINT_ERROR("Pose graph optimization failed.");
     return false;
   }
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
   // WARNING : covariances are not updated at each graph optimization
   // because g2o does not allow to reach them.
@@ -621,6 +620,8 @@ bool Slam::OptimizeGraph()
     ++itStates;
     ++itInit;
   }
+
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
   // Update the maps
   IF_VERBOSE(3, Utils::Timer::Init("PGO : maps update"));
