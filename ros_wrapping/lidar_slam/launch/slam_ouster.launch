@@ -7,6 +7,8 @@
   <arg name="os_driver" default="false" doc="If true, activate os_node."/>
   <arg name="gps" default="false" doc="If true, use GPS data to calibrate SLAM output. Otherwise, provide calibration."/>
   <arg name="tags_topic" default="tag_detections" doc="topic from which to get the tag measurements."/>
+  <arg name="camera_topic" default="camera" doc="topic from which to get the rgb camera data"/>
+  <arg name="camera_info_topic" default="camera_info" doc="topic from which to get the rgb camera info"/>
   <!-- Ouster driver parameters -->
   <arg name="sensor_hostname" default="" doc="Hostname or IP in dotted decimal form of the sensor"/>
   <arg name="udp_dest" default="" doc="Hostname or IP where the sensor will send data packets"/>
@@ -73,6 +75,8 @@
     <rosparam unless="$(arg outdoor)" file="$(find lidar_slam)/params/slam_config_indoor.yaml" command="load"/>
     <param name="gps/use_gps" value="$(arg gps)"/>
     <remap from="tag_detections" to="$(arg tags_topic)"/>
+    <remap from="camera" to="$(arg camera_topic)"/>
+    <remap from="camera_info" to="$(arg camera_info_topic)"/>
   </node>
 
   <!-- Launch GPS/UTM conversions nodes -->
