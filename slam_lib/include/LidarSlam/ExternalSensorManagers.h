@@ -27,8 +27,11 @@
 #include <cfloat>
 #include <mutex>
 #include "LidarSlam/LidarPoint.h"
+
+#ifdef USE_OPENCV
 #include <opencv2/opencv.hpp>
 #include <opencv2/video/tracking.hpp>
+#endif
 
 #ifdef USE_GTSAM
 #include <gtsam/navigation/ImuFactor.h>
@@ -116,7 +119,9 @@ struct ImuMeasurement
 struct Image
 {
   double Time = 0.;
+  #ifdef USE_OPENCV
   cv::Mat Data;
+  #endif
 };
 
 // SENSOR MANAGERS

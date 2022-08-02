@@ -701,7 +701,9 @@ bool CameraManager::ComputeSynchronizedMeasure(double lidarTime, Image& synchMea
   float diffTime1 = std::abs(bounds.first->Time - lidarTime);
   float diffTime2 = std::abs(bounds.second->Time - lidarTime);
   synchMeas.Time = diffTime1 < diffTime2 ? bounds.first->Time : bounds.second->Time;
+  #ifdef USE_OPENCV
   synchMeas.Data = diffTime1 < diffTime2 ? bounds.first->Data : bounds.second->Data;
+  #endif
 
   return true;
 }
@@ -729,6 +731,8 @@ bool CameraManager::ComputeConstraint(double lidarTime)
 
   this->Residuals.clear();
   this->Residuals.reserve(this->PrevLidarFrame->size());
+
+  #ifdef USE_OPENCV
 
   std::vector<cv::Point2f> prevPixels, currPixels;
   std::vector<int> pointIndices;
@@ -867,6 +871,9 @@ bool CameraManager::ComputeConstraint(double lidarTime)
   }
 
   return true;
+  #else
+  return false;
+  #endif
 }
 
 } // end of ExternalSensors namespace
