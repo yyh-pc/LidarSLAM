@@ -407,7 +407,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     std::map<Keypoint, unsigned int> points;
     std::map<Keypoint, unsigned int> memory;
     // Initialize number of points and memory per keypoint type
-    for (auto k : UsableKeypoints)
+    for (auto k : this->UsableKeypoints)
     {
       points[k] = 0;
       memory[k] = 0;
@@ -415,7 +415,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     // Sum points and memory allocated of each keypoints cloud
     for (auto const& st: this->LogStates)
     {
-      for (auto k : UsableKeypoints)
+      for (auto k : this->UsableKeypoints)
       {
         points[k] += st.Keypoints.at(k)->PointsSize();
         memory[k] += st.Keypoints.at(k)->MemorySize();
@@ -423,7 +423,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     }
 
     // Print keypoints memory usage
-    for (auto k : UsableKeypoints)
+    for (auto k : this->UsableKeypoints)
     {
       std::cout << Utils::Capitalize(Utils::Plural(KeypointTypeNames.at(k)))<< " log  : "
                 << LogStates.size() << " frames, "
@@ -477,11 +477,11 @@ void Slam::UpdateMaps()
 {
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(UsableKeypoints.size());
+  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
   #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
-    Keypoint k = static_cast<Keypoint>(UsableKeypoints[i]);
+    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
     this->LocalMaps[k]->Clear();
     PointCloud::Ptr keypoints(new PointCloud);
     for (auto& state : this->LogStates)
@@ -605,7 +605,6 @@ bool Slam::OptimizeGraph()
     PRINT_ERROR("Pose graph optimization failed.");
     return false;
   }
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
   // WARNING : covariances are not updated at each graph optimization
   // because g2o does not allow to reach them.
@@ -621,6 +620,8 @@ bool Slam::OptimizeGraph()
     ++itStates;
     ++itInit;
   }
+
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
   // Update the maps
   IF_VERBOSE(3, Utils::Timer::Init("PGO : maps update"));
@@ -1547,6 +1548,7 @@ void Slam::InitUndistortion()
   }
 }
 
+//-----------------------------------------------------------------------------
 void Slam::UndistortWithPoseMeasurement()
 {
   if (this->PoseHasData())

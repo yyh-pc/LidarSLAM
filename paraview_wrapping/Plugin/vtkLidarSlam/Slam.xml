@@ -123,6 +123,7 @@
 
              0 0 -1 0.2
 
+             0 0 0 1
         </Documentation>
       </StringVectorProperty>
 
@@ -1335,7 +1336,7 @@
                             default_values="0.5"
                             panel_visibility="advanced">
         <Documentation>
-          Maximum time between 2 successive external sensor measurements to interpolate them
+          Maximum time in seconds between 2 successive external sensor measurements to interpolate them
           and integrate them in the optimization.
         </Documentation>
       </DoubleVectorProperty>
@@ -1377,7 +1378,7 @@
                             default_values="0.25"
                             panel_visibility="advanced">
         <Documentation>
-          Ratio of points (between 0 and 1) from the current frame to compute
+          Ratio of points [0,1] from the current frame to compute
           overlap on.
 
           The overlap estimates how much the current scan is well registered on
@@ -1567,7 +1568,7 @@
                             default_values="1.5"
                             panel_visibility="advanced">
         <Documentation>
-          Minimum distance between a point and the sensor to be processed for
+          Minimum distance in meters between a point and the sensor to be processed for
           the keypoint extraction. In other words, all points too close from the
           sensor are automatically rejected.
         </Documentation>
@@ -1601,7 +1602,7 @@
                             default_values="10."
                             panel_visibility="advanced">
         <Documentation>
-          Minimum angle between the laser beam and the surface on which
+          Minimum angle in degrees between the laser beam and the surface on which
           a point is laying to consider it as a potential keypoint.
           In other words, all points laying on too oblique surfaces
           relatively to the sensor are automatically rejected.
@@ -1641,8 +1642,7 @@
                             panel_visibility="advanced">
         <Documentation>
           One strategy to consider a point as an edge keypoint is to compute
-          the gap between the point and its neighborhood, fitted by a line. Then
-          we compute the distance between the point and the fitted lines. If the
+          the gap between the point and its azimuthal neighbors. If the
           gap is big enough on at least one side, we consider the point as an
           edge keypoint.
         </Documentation>
@@ -1665,7 +1665,7 @@
                             default_values="50."
                             panel_visibility="advanced">
         <Documentation>
-          One strategy to consider a point as an edge keypoint is to compute
+          One strategy to consider a point as an intensity edge keypoint is to compute
           the intensity gap between the point and its left and right neighbors.
           If the gap is big enough, we consider the point as an intensity edge keypoint.
         </Documentation>
@@ -1689,7 +1689,7 @@
                             default_values="1."
                             panel_visibility="advanced">
         <Documentation>
-          Resolution of the voxel grid used to downsample the keypoints cloud.
+          Resolution of the voxel grid used to downsample the keypoints cloud in meters.
           Points in voxels are sorted following their certainty value.
           The most certain points are extracted in each voxel until reaching the "maximum keypoints" number threshold.
         </Documentation>
@@ -1701,7 +1701,7 @@
                             default_values="1."
                             panel_visibility="advanced">
         <Documentation>
-          Ratio to randomly downsample the input frame to extract keypoints. This can be used to solve computation time issues.
+          Ratio to randomly downsample the input frame to extract keypoints [0, 1]. This can be used to solve computation time issues.
         </Documentation>
       </DoubleVectorProperty>
 
