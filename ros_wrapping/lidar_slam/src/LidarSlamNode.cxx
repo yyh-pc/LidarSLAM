@@ -70,34 +70,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // Init SLAM state
   // Get SLAM params
   this->SetSlamParameters();
-
-  // Load initial SLAM maps if requested
-  std::string mapsPathPrefix = priv_nh.param<std::string>("maps/initial_maps", "");
-  if (!mapsPathPrefix.empty())
-  {
-    ROS_INFO_STREAM("Loading initial keypoints maps from PCD.");
-    this->LidarSlam.LoadMapsFromPCD(mapsPathPrefix);
-  }
-
-  // Load initial Landmarks poses if requested
-  std::string lmpath = priv_nh.param<std::string>("external_sensors/landmark_detector/landmarks_file_path", "");
-  if (!lmpath.empty())
-  {
-    ROS_INFO_STREAM("Loading initial landmarks info from CSV.");
-    this->LoadLandmarks(lmpath);
-    this->LidarSlam.SetLandmarkConstraintLocal(false);
-  }
-  else
-    this->LidarSlam.SetLandmarkConstraintLocal(true);
-
-  // Set initial SLAM pose if requested
-  std::vector<double> initialPose;
-  if (priv_nh.getParam("maps/initial_pose", initialPose) && initialPose.size() == 6)
-  {
-    Eigen::Isometry3d poseTransform = LidarSlam::Utils::XYZRPYtoIsometry(initialPose.data());
-    this->LidarSlam.SetWorldTransformFromGuess(poseTransform);
-    ROS_INFO_STREAM("Setting initial SLAM pose to:\n" << poseTransform.matrix());
-  }
+  this->SetSlamInitialState();
 
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
   priv_nh.getParam("external_sensors/gps/use_gps", this->UseGps);
@@ -583,6 +556,13 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       ROS_WARN_STREAM("Enabling SLAM maps update with new keypoints.");
       break;
 
+    // Reset the SLAM internal state.
+    case lidar_slam::SlamCommand::RESET_SLAM:
+      ROS_WARN_STREAM("Resetting the SLAM internal state.");
+      this->LidarSlam.Reset(true);
+      this->SetSlamInitialState();
+      break;
+
     // Save SLAM keypoints maps to PCD files
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
     {
@@ -1034,6 +1014,39 @@ void LidarSlamNode::SetSlamParameters()
       }
       this->LidarSlam.SetVoxelGridSamplingMode(k, sampling);
     }
+  }
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::SetSlamInitialState()
+{
+  // Load initial SLAM maps if requested
+  std::string mapsPathPrefix = this->PrivNh.param<std::string>("maps/initial_maps", "");
+  if (!mapsPathPrefix.empty())
+  {
+    ROS_INFO_STREAM("Loading initial keypoints maps from PCD.");
+    this->LidarSlam.LoadMapsFromPCD(mapsPathPrefix);
+  }
+
+  // Load initial Landmarks poses if requested
+  std::string lmpath =
+    this->PrivNh.param<std::string>("external_sensors/landmark_detector/landmarks_file_path", "");
+  if (!lmpath.empty())
+  {
+    ROS_INFO_STREAM("Loading initial landmarks info from CSV.");
+    this->LoadLandmarks(lmpath);
+    this->LidarSlam.SetLandmarkConstraintLocal(false);
+  }
+  else
+    this->LidarSlam.SetLandmarkConstraintLocal(true);
+
+  // Set initial SLAM pose if requested
+  std::vector<double> initialPose;
+  if (this->PrivNh.getParam("maps/initial_pose", initialPose) && initialPose.size() == 6)
+  {
+    Eigen::Isometry3d poseTransform = LidarSlam::Utils::XYZRPYtoIsometry(initialPose.data());
+    this->LidarSlam.SetWorldTransformFromGuess(poseTransform);
+    ROS_INFO_STREAM("Setting initial SLAM pose to:\n" << poseTransform.matrix());
   }
 }
 

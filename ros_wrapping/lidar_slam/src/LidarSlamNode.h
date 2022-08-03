@@ -156,6 +156,13 @@ protected:
 
   //----------------------------------------------------------------------------
   /*!
+   * @brief Fill the SLAM initial state with the given initial maps, pose and
+   *        landmarks.
+   */
+  void SetSlamInitialState();
+
+  //----------------------------------------------------------------------------
+  /*!
    * @brief Get and fill landmarks managers with absolute pose information
    *        provided by the user in a csv file.
    *        The fields must be : idx, x, y, z, roll, pitch, yaw, cov0, ..., cov35
