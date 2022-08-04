@@ -25,8 +25,8 @@ This repo contains LiDAR-only visual SLAM developped by Kitware, as well as ROS 
 It has been successfully tested on data from several common LiDAR sensors:
 - Velodyne (VLP-16, VLP-32c, HDL-32, HDL-64, VLS-128)
 - Ouster (OS0/1/2-32/64/128)
-- RoboSense (RS-LiDAR-16)
-- Hesai (Pandar128)
+- RoboSense (RS-LiDAR-16 RS-LiDAR-32)
+- Hesai (PandarXT16, PandarXT32, Pandar128)
 
 Have a look at our [SLAM demo video](https://vimeo.com/524848891)!
 
@@ -34,6 +34,7 @@ This codebase is under active development. If you're interested by new features,
 
 Repo contents :
 - `slam_lib/` : core *LidarSlam* library containing SLAM algorithm and other utilities.
+- `Superbuild/` : Dependencies installer.
 - `ros_wrapping/` : ROS packages to enable SLAM use on a ROS system.
 - `paraview_wrapping/` : ParaView plugin to enable SLAM use with ParaView/LidarView.
 - `ci/` : continuous integration files to automatically build and check *LidarSlam* lib.
@@ -63,22 +64,55 @@ Dependencies are listed in the table below along with the version used during de
 
 ### Installation
 
+The *LidarSlam* lib has been tested on Linux, Windows and OS X.
+
+#### With system dependencies
+
 To build only *LidarSlam* lib, just `cd` to this repo root dir and run :
 
 ```bash
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
-make
-make install
+cmake --build . -j
+```
+#### With local dependencies
+
+You can link the local libraries you are using adding cmake flags. Notably with Ceres and G2O:
+```bash
+cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
+```
+#### With Superbuild
+
+1. Install the superbuild:
+
+```bash
+mkdir SB-build
+cd SB-build
+cmake ../Superbuild
+cmake --build . -j
 ```
 
-The *LidarSlam* lib has been tested on Linux, Windows and OS X.
+**WARNING**: Boost is required to compile the superbuild.
 
-**NOTE:** You can link the local libraries you are using adding cmake flags. Notably with G2O:
-  cmake -DCeres_DIR=/usr/local/lib/cmake/Ceres -Dg2o_DIR=/usr/local/lib/cmake/g2o path/to/slam_sources
+**NOTE**: you can decide which dependencies to build with the superbuild using the options **WITH_XX**. For example, to not compile PCL :
+```bash
+cmake ../Superbuild -DWITH_PCL=OFF
+```
+
+2. Build the slam library linking to the superbuild dependencies
+
+```bash
+cd ..
+mkdir build
+cd build
+cmake .. -DSUPERBUILD_INSTALL_DIR=../SB-build/install
+cmake --build . -j
+```
 
 ## ROS wrapping
+
+The ROS wrapping has been tested on Linux only.
 
 ### Dependencies
 
@@ -99,9 +133,11 @@ For Ouster usage, the driver can be found in this [git repo](https://github.com/
 
 ### Installation
 
-Clone this git repo directly into your catkin directory, and run `catkin_make -DCMAKE_BUILD_TYPE=RelWithDebInfo` or `catkin_make -DCMAKE_BUILD_TYPE=Release` (to turn on optimizations, highly recommended when using Eigen). The same can be done with `catkin build`. It will automatically build *LidarSlam* lib before ROS packages. Please be sure to use the same PCL library for ROS basic tools and slam library.
+Clone this git repo directly into your catkin directory, and run `catkin_make -DCMAKE_BUILD_TYPE=RelWithDebInfo` or `catkin_make -DCMAKE_BUILD_TYPE=Release` (to turn on optimizations, highly recommended when using Eigen). The same can be done with `catkin build`. It will automatically build *LidarSlam* lib before ROS packages.
 
-The ROS wrapping has been tested on Linux only.
+**NOTE** : The superbuild can also be used here setting the **SUPERBUILD_INSTALL_DIR** variable.
+
+**WARNING** : Be sure to use the same PCL library dependency for ROS basic tools and slam library to avoid compilation errors and/or segfaults.
 
 ### Live usage
 
@@ -120,6 +156,8 @@ roslaunch lidar_slam slam_ouster.launch replay:=false gps:=true   # if GPS/SLAM 
 See [ros_wrapping/lidar_slam/README.md](ros_wrapping/lidar_slam/README.md) for more details.
 
 ## ParaView wrapping
+
+The *LidarSlamPlugin* Paraview wrapping has been tested on Linux, Windows and OS X.
 
 ### Dependencies
 
@@ -141,11 +179,10 @@ To build *LidarSlam* lib and this ParaView plugin *LidarSlamPlugin*, just `cd` t
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSLAM_PARAVIEW_PLUGIN:BOOL=ON
-make
-make install
+cmake --build . -j
 ```
 
-The *LidarSlamPlugin* Paraview wrapping has been tested on Linux, Windows and OS X.
+Set XX_DIR variables to the same path dependencies of ParaView/LidarView when they exist (Eigen, Ceres, nanoflann, etc...).
 
 ### Usage
 
