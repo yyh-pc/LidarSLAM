@@ -94,6 +94,15 @@ if (ENABLE_g2o)
   endif()
 endif()
 
+# Find optional gtsam (only used for pose IMU raw data integration)
+option(ENABLE_gtsam "Use GTSAM, necessary for raw IMU data integration." ON)
+if (ENABLE_gtsam)
+  find_package(GTSAM QUIET)
+  if (NOT GTSAM_FOUND)
+    message("Lidar SLAM : GTSAM requested but not found, IMU raw data will be ignored.")
+  endif()
+endif()
+
 # Find optional OpenMP
 find_package(OpenMP)
 if(TARGET OpenMP::OpenMP_CXX)

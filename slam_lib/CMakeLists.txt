@@ -5,6 +5,12 @@ if (g2o_FOUND)
   message("Lidar SLAM : G2O was found, pose graph API compiled")
 endif()
 
+# If GTSAM is available, compile pose graph optimization stuff
+if (GTSAM_FOUND)
+  set(gtsam_targets gtsam)
+  message("Lidar SLAM : GTSAM was found, IMU preintegration compiled")
+endif()
+
 # Generate export symbols on Windows to use this lib
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
@@ -28,6 +34,7 @@ target_link_libraries(LidarSlam
     ceres
     ${PCL_LIBRARIES}
     ${g2o_targets}
+    ${gtsam_targets}
   PRIVATE
     ${Eigen3_target}
     ${OpenMP_target}
@@ -35,8 +42,15 @@ target_link_libraries(LidarSlam
 
 # If G2O is available, set a precompilation variable
 if (g2o_FOUND)
-  target_compile_definitions(LidarSlam PUBLIC USE_G2O=1)
+  set(g2o_def USE_G2O=1)
 endif()
+
+# If GTSAM is available, set a precompilation variable
+if (GTSAM_FOUND)
+  set(gtsam_def USE_GTSAM=1)
+endif()
+
+target_compile_definitions(LidarSlam PUBLIC ${g2o_def} ${gtsam_def})
 
 target_include_directories(LidarSlam PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
