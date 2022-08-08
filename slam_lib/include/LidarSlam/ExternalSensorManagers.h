@@ -23,6 +23,9 @@
 #include <list>
 #include <cfloat>
 #include <mutex>
+#ifdef USE_GTSAM
+#include <gtsam/navigation/ImuFactor.h>
+#endif
 
 namespace LidarSlam
 {
@@ -78,12 +81,25 @@ struct PoseMeasurement
 };
 
 // ---------------------------------------------------------------------------
+struct ImuMeasurement
+{
+  double Time = 0.;
+  Eigen::Vector3d Acceleration  = Eigen::Vector3d::Zero();
+  Eigen::Vector3d AngleVelocity = Eigen::Vector3d::Zero();
+  // NOTE : Imu preintegrator makes the assumption the
+  // covariance is fixed for all IMU measurements so we
+  // attach the covariances to the IMU manager
+};
+
+// ---------------------------------------------------------------------------
 // SENSOR MANAGERS
 // ---------------------------------------------------------------------------
 
 // Base class to derive all external sensors
 // Contains some tools for time synchronization
 // data management and general parameters
+
+// ---------------------------------------------------------------------------
 template <typename T>
 class SensorManager
 {
@@ -528,7 +544,7 @@ public:
 
   bool ComputeConstraint(double lidarTime) override;
 
-private:
+protected:
   double PrevLidarTime = -1.;
   Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
   // Allow to rotate the covariance
@@ -543,6 +559,117 @@ private:
   bool CheckBounds(std::list<PoseMeasurement>::iterator& prevIt, std::list<PoseMeasurement>::iterator& postIt) override;
 };
 
+// ---------------------------------------------------------------------------
+// IMU raw data (accelerations and angular rates) must be preprocessed to be able to integrate them into the SLAM optimization
+// This manager allows to preintegrate them. The main problem is to correctly estimate the bias which is a slowly varying error
+// made on raw measurements. This bias can be corrected at each new SLAM pose output using this manager.
+// This manager is derived from PoseManager so that once the data are preintegrated, the pose manager
+// can be used to compute synchronized data and a local constraint
+// NOTE : init values and useful constants were found here : https://github.com/TixiaoShan/LIO-SAM/
+class ImuManager: public PoseManager
+{
+public:
+  ImuManager(const std::string& name = "IMU")
+  : PoseManager(name){this->Reset();}
+
+  ImuManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+             bool verbose = false, const std::string& name = "IMU")
+  : PoseManager(w, timeOffset, timeThresh, maxMeas, verbose, name) {this->Reset();}
+
+  // ---------------------------------------------------------------------------
+
+  // Setters/Getters
+  GetSensorMacro(Gravity, Eigen::Vector3d)
+  SetSensorMacro(Gravity, const Eigen::Vector3d&)
+
+  GetSensorMacro(Frequency, float)
+  SetSensorMacro(Frequency, float)
+
+  // ---------------------------------------------------------------------------
+  void Reset(bool resetMeas = false)
+  {
+    this->SensorManager::Reset(resetMeas);
+    if (resetMeas)
+    {
+      std::lock_guard<std::mutex> lock(this->Mtx);
+      this->RawMeasures.clear();
+    }
+    // Initialize preintegrator
+    // Set measurement noise and gravity (in world reference frame)
+    // boost smart pointer mandatory to initialize preintegrators
+    boost::shared_ptr<gtsam::PreintegrationParams> p = boost::make_shared<gtsam::PreintegrationParams>(-this->Gravity);
+    p->accelerometerCovariance = this->AccCovariance;
+    p->gyroscopeCovariance     = this->GyrCovariance;
+    // Set integration noise (from velocities to positions)
+    p->integrationCovariance = std::pow(1e-4, 2) * Eigen::Matrix3d::Identity();
+    // Initialize a null bias
+    this->Bias = gtsam::imuBias::ConstantBias(Eigen::Vector6d::Zero());
+    // Initialize preintegrators with noise and bias
+    this->PreintegratorNewData = std::make_shared<gtsam::PreintegratedImuMeasurements>(p, this->Bias);
+  }
+
+  // --------------------------------------------------------------------------
+  // Add one measure at a time in measures list
+  // The measure added (acc, vel) is not of the same type as the one used in optimization (pose)
+  // so we overload the function AddMeasurement
+  // WARNING for postprocess : preintegration can be heavy,
+  // resulting poses are only used in local SLAM optimization,
+  // we advice to not add measures that are far away from studied SLAM time
+  using PoseManager::AddMeasurement;
+  void AddMeasurement(const ImuMeasurement& m)
+  {
+    #ifdef USE_GTSAM
+    std::lock_guard<std::mutex> lock(this->Mtx);
+    // Update preintegration with new measurement
+    // If this is the first measurement,
+    // dt is approximated using frequency set externally
+    double dt = this->RawMeasures.empty()? 1. / this->Frequency : m.Time - this->RawMeasures.back().Time;
+    this->PreintegratorNewData->integrateMeasurement(m.Acceleration, m.AngleVelocity, dt);
+    // Store raw measurement
+    this->RawMeasures.emplace_back(m);
+    // Use gravity, new data, previously optimized SLAM pose, previously optimized SLAM velocity
+    // and previously optimized bias to derive new IMU pose
+    // and store it into the measures list
+    gtsam::NavState imuState = this->PreintegratorNewData->predict(this->PrevState, this->Bias);
+    PoseMeasurement imuPose;
+    imuPose.Pose.linear() = imuState.R();
+    imuPose.Pose.translation() = imuState.t();
+    imuPose.Time = m.Time;
+    this->Measures.emplace_back(imuPose);
+    if (this->Measures.size() > this->MaxMeasures)
+    {
+      if (this->PreviousIt == this->Measures.begin())
+        ++this->PreviousIt;
+      this->Measures.pop_front();
+      this->RawMeasures.pop_front();
+    }
+    return;
+    #endif
+    static_cast<void>(m);
+  }
+
+private:
+  // ---------------Preintegration relative members---------------
+  // List of old raw measurements received
+  std::list<ImuMeasurement> RawMeasures;
+  // Covariance of raw measurement
+  // NOTE : As covariance is fixed for all raw measurements,
+  // it is attached to the manager and not to the measurements
+  Eigen::Matrix3d AccCovariance = std::pow(3.9939570888238808e-03, 2) * Eigen::Matrix3d::Identity();
+  Eigen::Matrix3d GyrCovariance = std::pow(1.5636343949698187e-03, 2) * Eigen::Matrix3d::Identity();
+  // Estimated gravity (m/s^2)
+  Eigen::Vector3d Gravity = {0., 0., -9.80511}; // default : z upward
+  // Frequency of the IMU
+  float Frequency = 100.f; // Used when dt is not available
+  #ifdef USE_GTSAM
+  // IMU bias on acceleration and angular velocity
+  gtsam::imuBias::ConstantBias Bias = gtsam::imuBias::ConstantBias(Eigen::Vector6d::Zero());
+  // Preintegrator for data since last lidar time
+  // Used to get poses at IMU frequency
+  // NOTE : Those poses can then be used in SLAM optimization
+  std::shared_ptr<gtsam::PreintegratedImuMeasurements> PreintegratorNewData;
+  #endif
+};
 
 } // end of ExternalSensors namespace
 } // end of LidarSlam namespace
