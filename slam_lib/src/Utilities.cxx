@@ -59,12 +59,6 @@ Eigen::Vector3d RotationMatrixToRPY(const Eigen::Matrix3d& rot)
 }
 
 //------------------------------------------------------------------------------
-Eigen::Isometry3d PoseToIsometry(const Eigen::Vector6d& pose)
-{
-  return XYZRPYtoIsometry(pose(0), pose(1), pose(2), pose(3), pose(4), pose(5));
-}
-
-//------------------------------------------------------------------------------
 Eigen::Isometry3d XYZRPYtoIsometry(double x, double y, double z, double roll, double pitch, double yaw)
 {
   Eigen::Isometry3d transform;

@@ -117,7 +117,7 @@ void vtkSlam::Reset()
   // Init the SLAM state (map + pose)
   if (!this->InitMapPrefix.empty())
     this->SlamAlgo->LoadMapsFromPCD(this->InitMapPrefix);
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::PoseToIsometry(this->InitPose));
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
 
   // Init the output SLAM trajectory
   this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
@@ -163,7 +163,7 @@ void vtkSlam::SetInitialPoseTranslation(double x, double y, double z)
   this->InitPose.x() = x;
   this->InitPose.y() = y;
   this->InitPose.z() = z;
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::PoseToIsometry(this->InitPose));
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
   this->ParametersModificationTime.Modified();
 }
 
@@ -173,7 +173,7 @@ void vtkSlam::SetInitialPoseRotation(double roll, double pitch, double yaw)
   this->InitPose(3) = roll;
   this->InitPose(4) = pitch;
   this->InitPose(5) = yaw;
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::PoseToIsometry(this->InitPose));
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
   this->ParametersModificationTime.Modified();
 }
 
