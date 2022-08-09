@@ -13,32 +13,32 @@ set(LOG_PREFIX " [Superbuild] -- ")
 
 # EIGEN
 if (WITH_EIGEN)
-   set(Eigen3_DIR ${SUPERBUILD_INSTALL_DIR}/share/eigen3/cmake CACHE STRING "Description")
+   set(Eigen3_DIR ${SUPERBUILD_INSTALL_DIR}/share/eigen3/cmake CACHE PATH "Path to Eigen3Config.cmake")
    message(INFO "${LOG_PREFIX} Force Eigen3_DIR to: ${Eigen3_DIR}")
 endif()
 
 # PCL
 if (WITH_PCL)
-   set(PCL_DIR ${SUPERBUILD_INSTALL_DIR}/share/pcl-1.10/)
+   set(PCL_DIR ${SUPERBUILD_INSTALL_DIR}/share/pcl-1.10/ CACHE PATH "Path to PCLConfig.cmake")
    message(INFO "${LOG_PREFIX} Force PCL_DIR to: ${PCL_DIR}")
 endif()
 
 # CERES
 if (WITH_CERES)
-   set(glog_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/glog)
+   set(glog_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/glog CACHE PATH "Path to glogConfig.cmake")
    message(INFO "${LOG_PREFIX} Force glog_DIR to: ${glog_DIR}")
-   set(Ceres_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/Ceres)
+   set(Ceres_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/Ceres CACHE PATH "Path to CeresConfig.cmake")
    message(INFO "${LOG_PREFIX} Force Ceres_DIR to: ${Ceres_DIR}")
 endif()
 
 # NANOFLANN
 if (WITH_NANOFLANN)
-   set(nanoflann_DIR ${SUPERBUILD_INSTALL_DIR}/share/nanoflann/cmake)
+   set(nanoflann_DIR ${SUPERBUILD_INSTALL_DIR}/share/nanoflann/cmake CACHE PATH "Path to nanoflannConfig.cmake")
    message(INFO "${LOG_PREFIX} Force nanoflann_DIR to: ${nanoflann_DIR}")
 endif()
 
 # G2O
 if (WITH_G2O)
-   set(g2o_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/g2o)
-   message(INFO "${LOG_PREFIX} Force g2o_DIR to: ${G2O_DIR}")
+   set(g2o_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/g2o CACHE PATH "Path to g2oConfig.cmake")
+   message(INFO "${LOG_PREFIX} Force g2o_DIR to: ${g2o_DIR}")
 endif()

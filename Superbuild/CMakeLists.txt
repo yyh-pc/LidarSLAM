@@ -5,7 +5,7 @@ project(Superbuild)
 # Select Options
 option(WITH_EIGEN "Whether to install Eigen3" ON)
 option(WITH_NANOFLANN "Whether to install nanoflann" ON)
-option(WITH_PCL "Whether to install PCL" ON)
+option(WITH_PCL "Whether to install PCL" OFF)
 option(WITH_CERES "Whether to install Ceres" ON)
 option(WITH_G2O "Whether to install G2O" OFF)
 
@@ -45,7 +45,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/superbuild_import.cmake.in ${CMAKE_IN
 
 # -----------------------------------------------------------------------------------------------
 # INSTALL Eigen3
-if (WITH_EIGEN)
+if (WITH_EIGEN OR WITH_G2O OR WITH_PCL OR WITH_NANOFLANN OR WITH_CERES)
 
     message(INFO "${LOG_PREFIX} Generating Eigen3 dependency")
     ExternalProject_Add(
@@ -65,25 +65,11 @@ endif ()
 # -----------------------------------------------------------------------------------------------
 # INSTALL PCL
 if (WITH_PCL)
-
-    # INSTALL Boost
-    message(INFO "${LOG_PREFIX} Generating Boost dependency")
-    ExternalProject_Add(
-            Boost_ext
-            GIT_REPOSITORY https://github.com/boostorg/boost.git
-            GIT_TAG boost-1.71.0
-            GIT_SHALLOW 1
-            BUILD_IN_SOURCE True # needed as Boost is meant to be built in source
-            CONFIGURE_COMMAND <SOURCE_DIR>/bootstrap.sh --prefix=${CMAKE_INSTALL_PREFIX}
-            BUILD_COMMAND <SOURCE_DIR>/b2 --without-python
-            INSTALL_COMMAND <SOURCE_DIR>/b2 install --without-python
-    )
-
     # INSTALL PCL
     message(INFO "${LOG_PREFIX} Generating PCL dependency")
     ExternalProject_Add(
             PCL_ext
-            DEPENDS Boost_ext Eigen3_ext
+            DEPENDS Eigen3_ext
 
             GIT_REPOSITORY https://github.com/PointCloudLibrary/pcl
             GIT_TAG pcl-1.10.0
@@ -152,7 +138,6 @@ if (WITH_NANOFLANN)
                 -DNANOFLANN_BUILD_TESTS:BOOL=OFF
                 -DNANOFLANN_BUILD_EXAMPLES:BOOL=OFF
                 -DEigen3_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
-                -DEIGEN_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
                 ${GENERIC_PROJECTS_ARGS}
             )
 
@@ -160,7 +145,7 @@ endif ()
 
 # -----------------------------------------------------------------------------------------------
 # INSTALL Ceres
-if (WITH_CERES)
+if (WITH_CERES OR WITH_G2O)
 
     # Install glog
     message(INFO "${LOG_PREFIX} Generating Glog dependency")
@@ -184,14 +169,13 @@ if (WITH_CERES)
             DEPENDS Eigen3_ext glog_ext
 
             GIT_REPOSITORY https://github.com/ceres-solver/ceres-solver
-            GIT_TAG 2.0.0
+            GIT_TAG 2.1.0
             GIT_SHALLOW 1
 
             CMAKE_ARGS
                 -DBUILD_EXAMPLES:BOOL=OFF
                 -DBUILD_TESTING:BOOL=OFF
                 -DEigen3_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
-                -DEIGEN_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
                 -Dglog_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/lib/cmake/glog
                 ${GENERIC_PROJECTS_ARGS}
             )
@@ -216,7 +200,6 @@ if (WITH_G2O)
                 -DG2O_BUILD_APPS:BOOL=OFF
                 -DCeres_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/lib/cmake/Ceres
                 -DEigen3_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
-                -DEIGEN_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
                 -DG2O_BUILD_EXAMPLES:BOOL=OFF
                 ${GENERIC_PROJECTS_ARGS}
             )
