@@ -265,6 +265,16 @@ bool Slam::KeypointTypeEnabled(Keypoint k) const
 }
 
 //-----------------------------------------------------------------------------
+bool Slam::IsExtSensorForLocalOpt()
+{
+  return (this->WheelOdomManager && this->WheelOdomManager->CanBeUsedLocally()) ||
+         (this->GravityManager && this->GravityManager->CanBeUsedLocally()) ||
+         (this->ImuManager && this->ImuManager->CanBeUsedLocally()) ||
+          this->LmCanBeUsedLocally() ||
+         (this->PoseManager && this->PoseManager->CanBeUsedLocally());
+}
+
+//-----------------------------------------------------------------------------
 void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 {
   Utils::Timer::Init("SLAM frame processing");
@@ -312,10 +322,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->ComputeEgoMotion();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
 
-  if ((this->WheelOdomManager && this->WheelOdomManager->CanBeUsedLocally()) ||
-      (this->GravityManager && this->GravityManager->CanBeUsedLocally()) ||
-       this->LmCanBeUsedLocally() ||
-      (this->PoseManager && this->PoseManager->CanBeUsedLocally()))
+  if (this->IsExtSensorForLocalOpt())
   {
     IF_VERBOSE(3, Utils::Timer::Init("External sensor constraints computation"));
     this->ComputeSensorConstraints();
@@ -2168,6 +2175,16 @@ void Slam::InitGravity()
 }
 
 //-----------------------------------------------------------------------------
+void Slam::InitImu()
+{
+  this->ImuManager = std::make_shared<ExternalSensors::ImuManager>(0.,
+                                                                   this->SensorTimeOffset,
+                                                                   this->SensorTimeThreshold,
+                                                                   this->SensorMaxMeasures,
+                                                                   this->Verbosity >= 3);
+}
+
+//-----------------------------------------------------------------------------
 void Slam::InitLandmarkManager(int id)
 {
   this->LandmarksManagers[id] = ExternalSensors::LandmarkManager(this->SensorTimeOffset,
@@ -2219,6 +2236,22 @@ void Slam::AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm)
   if (!this->GravityManager)
     this->InitGravity();
   this->GravityManager->AddMeasurement(gm);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::AddImuMeasurement(const ExternalSensors::ImuMeasurement& m)
+{
+  if (!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->AddMeasurement(m);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetImuCalibration(const Eigen::Isometry3d& calib)
+{
+  if (!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->SetCalibration(calib);
 }
 
 // Landmark detector
@@ -2394,6 +2427,8 @@ void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
     this->WheelOdomManager->inFuncProto; \
   if (this->GravityManager) \
     this->GravityManager->inFuncProto; \
+  if (this->ImuManager) \
+    this->ImuManager->inFuncProto; \
   for (auto& idLm : this->LandmarksManagers) \
     idLm.second.inFuncProto; \
   if (this->GpsManager) \
@@ -2480,6 +2515,57 @@ void Slam::SetGravityWeight(double weight)
   if(!this->GravityManager)
     this->InitGravity();
   this->GravityManager->SetWeight(weight);
+}
+
+//-----------------------------------------------------------------------------
+double Slam::GetImuWeight() const
+{
+  if(this->ImuManager)
+    return this->ImuManager->GetWeight();
+  PRINT_ERROR("IMU has not been set : can't get IMU weight")
+  return 0.;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetImuWeight(double weight)
+{
+  if(!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->SetWeight(weight);
+}
+
+//-----------------------------------------------------------------------------
+Eigen::Vector3d Slam::GetImuGravity() const
+{
+  if(this->ImuManager)
+    return this->ImuManager->GetGravity();
+  PRINT_ERROR("IMU has not been set : can't get IMU gravity")
+  return {0., 0., 0.};
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetImuGravity(const Eigen::Vector3d& gravity)
+{
+  if(!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->SetGravity(gravity);
+}
+
+//-----------------------------------------------------------------------------
+unsigned int Slam::GetImuResetThreshold() const
+{
+  if(this->ImuManager)
+    return this->ImuManager->GetResetThreshold();
+  PRINT_ERROR("IMU has not been set : can't get IMU reset threshold")
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetImuResetThreshold(unsigned int thresh)
+{
+  if(!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->SetResetThreshold(thresh);
 }
 
 // Landmark detector

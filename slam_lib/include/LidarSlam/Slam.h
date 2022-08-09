@@ -453,6 +453,10 @@ public:
 
   void ResetSensors(bool emptyMeasurements = false);
 
+  // Check if there are external sensor data
+  // available for local optimization
+  bool IsExtSensorForLocalOpt();
+
   // Odometer
   double GetWheelOdomWeight() const;
   void SetWheelOdomWeight(double weight);
@@ -471,6 +475,21 @@ public:
   void AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm);
 
   bool GravityHasData() const {return this->GravityManager && this->GravityManager->HasData();}
+
+  double GetImuWeight() const;
+  void SetImuWeight(double weight);
+
+  void SetImuCalibration(const Eigen::Isometry3d& calib);
+
+  Eigen::Vector3d GetImuGravity() const;
+  void SetImuGravity(const Eigen::Vector3d& gravity);
+
+  unsigned int GetImuResetThreshold() const;
+  void SetImuResetThreshold(unsigned int);
+
+  void AddImuMeasurement(const ExternalSensors::ImuMeasurement& gm);
+
+  bool ImuHasData() const {return this->ImuManager && this->ImuManager->HasData();}
 
   // Landmark detector
   GetMacro(LandmarkWeight, double)
@@ -856,12 +875,20 @@ private:
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::WheelOdometryManager> WheelOdomManager;
 
-  // IMU manager
+  // IMU managers
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
   // The IMU measurements must be filled and cleared from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::ImuGravityManager> GravityManager;
+  // Raw IMU data manager
+  // It performs the IMU data (accelerations + angle velocities) preintegration
+  // using an external gravity vector, the SLAM output poses
+  // taking into account the acquisition time correspondance.
+  // This preintegration is used as an external pose (see the pose manager below)
+  // The IMU measurements must be filled from outside this lib
+  // using External Sensors interface
+  std::shared_ptr<ExternalSensors::ImuManager> ImuManager;
 
   // Landmarks manager
   // Each landmark has its own manager and is identified by its ID.
@@ -1183,6 +1210,7 @@ private:
   // The init function creates the objects with known parameters
   void InitWheelOdom();
   void InitGravity();
+  void InitImu();
   // WARNING : If the calibration has not been set for the landmarks detector (cf SetLmDetectorCalibration),
   // default identity calibration is set to the current landmark.
   // This way, data can be stored before receiving the calibration.
