@@ -5,7 +5,7 @@ project(Superbuild)
 # Select Options
 option(WITH_EIGEN "Whether to install Eigen3" ON)
 option(WITH_NANOFLANN "Whether to install nanoflann" ON)
-option(WITH_PCL "Whether to install PCL" ON)
+option(WITH_PCL "Whether to install PCL" OFF)
 option(WITH_CERES "Whether to install Ceres" ON)
 option(WITH_G2O "Whether to install G2O" OFF)
 
