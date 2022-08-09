@@ -45,7 +45,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/superbuild_import.cmake.in ${CMAKE_IN
 
 # -----------------------------------------------------------------------------------------------
 # INSTALL Eigen3
-if (WITH_EIGEN)
+if (WITH_EIGEN OR WITH_G2O OR WITH_PCL OR WITH_NANOFLANN OR WITH_CERES)
 
     message(INFO "${LOG_PREFIX} Generating Eigen3 dependency")
     ExternalProject_Add(
@@ -159,7 +159,7 @@ endif ()
 
 # -----------------------------------------------------------------------------------------------
 # INSTALL Ceres
-if (WITH_CERES)
+if (WITH_CERES OR WITH_G2O)
 
     # Install glog
     message(INFO "${LOG_PREFIX} Generating Glog dependency")
