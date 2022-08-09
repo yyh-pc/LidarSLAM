@@ -152,7 +152,6 @@ if (WITH_NANOFLANN)
                 -DNANOFLANN_BUILD_TESTS:BOOL=OFF
                 -DNANOFLANN_BUILD_EXAMPLES:BOOL=OFF
                 -DEigen3_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
-                -DEIGEN_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
                 ${GENERIC_PROJECTS_ARGS}
             )
 
@@ -191,7 +190,6 @@ if (WITH_CERES)
                 -DBUILD_EXAMPLES:BOOL=OFF
                 -DBUILD_TESTING:BOOL=OFF
                 -DEigen3_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
-                -DEIGEN_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
                 -Dglog_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/lib/cmake/glog
                 ${GENERIC_PROJECTS_ARGS}
             )
@@ -216,7 +214,6 @@ if (WITH_G2O)
                 -DG2O_BUILD_APPS:BOOL=OFF
                 -DCeres_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/lib/cmake/Ceres
                 -DEigen3_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
-                -DEIGEN_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
                 -DG2O_BUILD_EXAMPLES:BOOL=OFF
                 ${GENERIC_PROJECTS_ARGS}
             )
