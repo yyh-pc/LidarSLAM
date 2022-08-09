@@ -1858,7 +1858,7 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
 //-----------------------------------------------------------------------------
 void Slam::InitWheelOdom()
 {
-  this->WheelOdomManager = std::make_shared<ExternalSensors::WheelOdometryManager>(this->WheelOdomWeight,
+  this->WheelOdomManager = std::make_shared<ExternalSensors::WheelOdometryManager>(0.,
                                                                                    this->SensorTimeOffset,
                                                                                    this->SensorTimeThreshold,
                                                                                    this->SensorMaxMeasures);
@@ -1867,7 +1867,7 @@ void Slam::InitWheelOdom()
 //-----------------------------------------------------------------------------
 void Slam::InitImu()
 {
-  this->ImuManager = std::make_shared<ExternalSensors::ImuManager>(this->ImuWeight,
+  this->ImuManager = std::make_shared<ExternalSensors::ImuManager>(0.,
                                                                    this->SensorTimeOffset,
                                                                    this->SensorTimeThreshold,
                                                                    this->SensorMaxMeasures);
@@ -1897,7 +1897,7 @@ void Slam::InitGps()
 //-----------------------------------------------------------------------------
 void Slam::InitPoseSensor()
 {
-  this->PoseManager = std::make_shared<ExternalSensors::PoseManager>(this->PoseWeight,
+  this->PoseManager = std::make_shared<ExternalSensors::PoseManager>(0.,
                                                                      this->SensorTimeOffset,
                                                                      this->SensorTimeThreshold,
                                                                      this->SensorMaxMeasures);
@@ -2166,7 +2166,6 @@ void Slam::SetWheelOdomWeight(double weight)
 {
   if(!this->WheelOdomManager)
     this->InitWheelOdom();
-  this->WheelOdomWeight = weight;
   this->WheelOdomManager->SetWeight(weight);
 }
 
@@ -2184,7 +2183,6 @@ void Slam::SetWheelOdomRelative(bool isRelative)
 {
   if(!this->WheelOdomManager)
     this->InitWheelOdom();
-  this->WheelOdomRelative = isRelative;
   this->WheelOdomManager->SetRelative(isRelative);
 }
 
@@ -2203,7 +2201,6 @@ void Slam::SetGravityWeight(double weight)
 {
   if(!this->ImuManager)
     this->InitImu();
-  this->ImuWeight = weight;
   this->ImuManager->SetWeight(weight);
 }
 
@@ -2255,7 +2252,6 @@ void Slam::SetPoseWeight(double weight)
 {
   if (!this->PoseManager)
     this->InitPoseSensor();
-  this->PoseWeight = weight;
   this->PoseManager->SetWeight(weight);
 }
 

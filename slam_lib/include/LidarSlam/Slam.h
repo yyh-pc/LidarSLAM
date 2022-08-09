@@ -676,10 +676,6 @@ private:
   // The odometry measurements must be filled and cleared from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::WheelOdometryManager> WheelOdomManager;
-  // Weight
-  double WheelOdomWeight = 0.;
-  // relative mode for wheel odometer
-  bool WheelOdomRelative = false;
 
   // IMU manager
   // Compute the residual with a weight, a measurements list and
@@ -687,8 +683,6 @@ private:
   // The IMU measurements must be filled and cleared from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::ImuManager> ImuManager;
-  // Weight
-  double ImuWeight = 0.;
 
   // Landmarks manager
   // Each landmark has its own manager and is identified by its ID.
@@ -731,8 +725,6 @@ private:
   // The Pose measurements must be filled and cleared from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::PoseManager> PoseManager;
-  // Weight
-  double PoseWeight = 0.;
 
   // Time difference between Lidar's measurements and external sensors'
   // not null if they are not expressed relatively to the same time reference
