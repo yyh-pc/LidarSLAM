@@ -40,5 +40,5 @@ endif()
 # G2O
 if (WITH_G2O)
    set(g2o_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/g2o)
-   message(INFO "${LOG_PREFIX} Force g2o_DIR to: ${G2O_DIR}")
+   message(INFO "${LOG_PREFIX} Force g2o_DIR to: ${g2o_DIR}")
 endif()
