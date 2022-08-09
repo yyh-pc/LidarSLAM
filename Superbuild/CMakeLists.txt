@@ -65,25 +65,11 @@ endif ()
 # -----------------------------------------------------------------------------------------------
 # INSTALL PCL
 if (WITH_PCL)
-
-    # INSTALL Boost
-    message(INFO "${LOG_PREFIX} Generating Boost dependency")
-    ExternalProject_Add(
-            Boost_ext
-            GIT_REPOSITORY https://github.com/boostorg/boost.git
-            GIT_TAG boost-1.71.0
-            GIT_SHALLOW 1
-            BUILD_IN_SOURCE True # needed as Boost is meant to be built in source
-            CONFIGURE_COMMAND <SOURCE_DIR>/bootstrap.sh --prefix=${CMAKE_INSTALL_PREFIX}
-            BUILD_COMMAND <SOURCE_DIR>/b2 --without-python
-            INSTALL_COMMAND <SOURCE_DIR>/b2 install --without-python
-    )
-
     # INSTALL PCL
     message(INFO "${LOG_PREFIX} Generating PCL dependency")
     ExternalProject_Add(
             PCL_ext
-            DEPENDS Boost_ext Eigen3_ext
+            DEPENDS Eigen3_ext
 
             GIT_REPOSITORY https://github.com/PointCloudLibrary/pcl
             GIT_TAG pcl-1.10.0
