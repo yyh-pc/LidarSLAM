@@ -928,7 +928,7 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
   // Compute synchronized pose
   if (!this->PoseManager)
   {
-    PRINT_WARNING("No external pose manager : pose not initialized")
+    PRINT_WARNING("No external pose manager : Lidar pose not initialized")
     return false;
   }
   ExternalSensors::PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
@@ -2023,13 +2023,17 @@ bool Slam::CalibrateWithGps()
     return false;
   }
 
+  // The search for a synchronized data is one-time so we
+  // don't want to keep track of time for next searches (see ComputeSynchronizedMeasure)
+  bool trackTime = false;
+
   // Initialize GPS offset with first synchronized measurements
   // The first graph optimizations will mainly correct the orientations
   Eigen::Isometry3d offset = Eigen::Isometry3d::Identity();
   for (auto& s : this->LogStates)
   {
     ExternalSensors::GpsMeasurement gpsSynchMeasure; // Virtual measure with synchronized timestamp and no offset applied
-    if (this->GpsManager->ComputeSynchronizedMeasure(s.Time, gpsSynchMeasure))
+    if (this->GpsManager->ComputeSynchronizedMeasure(s.Time, gpsSynchMeasure, trackTime))
     {
       offset.translation() = (s.Isometry * this->GpsManager->GetCalibration()).translation() - gpsSynchMeasure.Position;
       break;

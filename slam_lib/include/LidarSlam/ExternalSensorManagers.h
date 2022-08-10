@@ -187,8 +187,10 @@ public:
     return this->Measures.size() > 1;
   }
 
-  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  virtual bool ComputeSynchronizedMeasure(double lidarTime, T& synchMeas) = 0;
+  // Compute the interpolated measure to be synchronized with SLAM output (at lidarTime)
+  // 'trackTime' allows to keep a time track and to speed up multiple searches
+  // when following chronological order
+  virtual bool ComputeSynchronizedMeasure(double lidarTime, T& synchMeas, bool trackTime = true) = 0;
   // Compute the constraint associated to the measurement
   virtual bool ComputeConstraint(double lidarTime) = 0;
 
@@ -202,7 +204,7 @@ protected:
   }
 
   // ------------------
-  std::pair<typename std::list<T>::iterator, typename std::list<T>::iterator> GetMeasureBounds(double lidarTime)
+  std::pair<typename std::list<T>::iterator, typename std::list<T>::iterator> GetMeasureBounds(double lidarTime, bool trackTime = true)
   {
     // Check if the measurements can be interpolated (or slightly extrapolated)
     if (lidarTime < this->Measures.front().Time || lidarTime > this->Measures.back().Time + this->TimeThreshold)
@@ -216,16 +218,17 @@ protected:
       return std::make_pair(this->Measures.begin(), this->Measures.begin());
     }
 
+    auto prevIt = this->PreviousIt;
     // Reset if the timeline has been modified (and if there is memory of a previous pose)
-    if (this->PreviousIt == this->Measures.end() || this->PreviousIt->Time > lidarTime)
-      this->PreviousIt = this->Measures.begin();
+    if (prevIt == this->Measures.end() || prevIt->Time > lidarTime)
+      prevIt = this->Measures.begin();
 
-    auto postIt = this->PreviousIt;
+    auto postIt = prevIt;
     // Get iterator pointing to the first measurement after LiDAR time
-    if (this->PreviousIt == this->Measures.begin())
+    if (prevIt == this->Measures.begin())
     {
       // If after reset or for first search, use upper_bound function
-      postIt = std::upper_bound(this->PreviousIt,
+      postIt = std::upper_bound(prevIt,
                                 this->Measures.end(),
                                 lidarTime,
                                 [&](double time, const T& measure) {return time < measure.Time;});
@@ -243,22 +246,23 @@ protected:
       --postIt;
 
     // Get iterator pointing to the last measurement before LiDAR time
-    auto preIt = postIt;
-    --preIt;
+    prevIt = postIt;
+    --prevIt;
 
     // Update the previous iterator for next call
-    this->PreviousIt = preIt;
+    if (trackTime)
+      this->PreviousIt = prevIt;
 
     // If the time between the 2 measurements is too long
     // Do not use the current measures
-    if (postIt->Time - preIt->Time > this->TimeThreshold)
+    if (postIt->Time - prevIt->Time > this->TimeThreshold)
     {
       if (this->Verbose)
         PRINT_INFO("\t The two last " << this->SensorName << " measures can not be interpolated (too much time difference)"
                    << "-> " << this->SensorName << " not used")
       return std::make_pair(this->Measures.begin(), this->Measures.begin());
     }
-    return std::make_pair(preIt, postIt);
+    return std::make_pair(prevIt, postIt);
   }
 
 protected:
@@ -314,8 +318,8 @@ public:
   GetSensorMacro(RefDistance, double)
   SetSensorMacro(RefDistance, double)
 
-  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas) override;
+  // Compute the interpolated measure to be synchronized with SLAM output (at lidarTime)
+  bool ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool trackTime = true) override;
   // Wheel odometry constraint (unoriented)
   // Can be relative since last frame or absolute since first pose
   bool ComputeConstraint(double lidarTime) override;
@@ -349,11 +353,11 @@ public:
   GetSensorMacro(GravityRef, Eigen::Vector3d)
   SetSensorMacro(GravityRef, const Eigen::Vector3d&)
 
-  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas) override;
+  // Compute the interpolated measure to be synchronized with SLAM output (at lidarTime)
+  bool ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool trackTime = true) override;
 
   // Compute the interpolated measure to be synchronized with SLAM output (at lidarTime) in base frame
-  bool ComputeSynchronizedMeasureBase(double lidarTime, GravityMeasurement& synchMeas);
+  bool ComputeSynchronizedMeasureBase(double lidarTime, GravityMeasurement& synchMeas, bool trackTime = true);
 
   // IMU constraint (gravity)
   bool ComputeConstraint(double lidarTime) override;
@@ -400,12 +404,12 @@ public:
   // NOTE : the absolute pose can be updated if UpdateAbsolutePose is called
   void SetAbsolutePose(const Eigen::Vector6d& pose, const Eigen::Matrix6d& cov);
 
-  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas) override;
+  // Compute the interpolated measure (landmark pose) to be synchronized with SLAM output at lidarTime
+  bool ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool trackTime = true) override;
 
   // Compute the interpolated measure (landmark pose)
   // to be synchronized with SLAM output at lidarTimenfrom base frame
-  bool ComputeSynchronizedMeasureBase(double lidarTime, LandmarkMeasurement& synchMeas);
+  bool ComputeSynchronizedMeasureBase(double lidarTime, LandmarkMeasurement& synchMeas, bool trackTime = true);
 
   // Landmark constraint
   bool ComputeConstraint(double lidarTime) override;
@@ -467,12 +471,12 @@ public:
   GetSensorMacro(Offset, Eigen::Isometry3d)
   SetSensorMacro(Offset, const Eigen::Isometry3d&)
 
-  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas) override;
+  // Compute the interpolated measure (GPS position in GPS referential) to be synchronized with SLAM output at lidarTime
+  bool ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas, bool trackTime = true) override;
 
   // Compute the interpolated measure (GPS position in SLAM referential) to be synchronized with SLAM output at lidarTime
   // The measures data track GPS sensor frame (not base frame) but are represented in the same referential
-  bool ComputeSynchronizedMeasureOffset(double lidarTime, GpsMeasurement& synchMeas);
+  bool ComputeSynchronizedMeasureOffset(double lidarTime, GpsMeasurement& synchMeas, bool trackTime = true);
 
   bool ComputeConstraint(double lidarTime) override;
 
@@ -506,12 +510,13 @@ public:
   GetSensorMacro(SaturationDistance, float)
   SetSensorMacro(SaturationDistance, float)
 
-  // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas) override;
+  // Compute the interpolated measure (pose of the external pose sensor's)
+  // to be synchronized with SLAM output at lidarTime
+  bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool trackTime = true) override;
 
   // Compute the interpolated measure (base pose)
   // to be synchronized with SLAM output at lidarTime : calibration is applied
-  bool ComputeSynchronizedMeasureBase(double lidarTime, PoseMeasurement& synchMeas);
+  bool ComputeSynchronizedMeasureBase(double lidarTime, PoseMeasurement& synchMeas, bool trackTime = true);
 
   bool ComputeConstraint(double lidarTime) override;
 
@@ -520,7 +525,7 @@ private:
   // the external pose sensor may have failed
   // This distance is used in a robustifier to weight the landmark residuals
   float SaturationDistance = 5.f;
-  double PrevLidarTime = 0.;
+  double PrevLidarTime = -1.;
   Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
 };
 
