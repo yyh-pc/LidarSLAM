@@ -252,14 +252,14 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
   // the relative transform measured
   if (NeedsReferencePoseRefresh(lidarTime))
   {
-    this->AbsolutePose = Utils::IsometryToXYZRPY(baseTransform * this->RelativeTransform);
+    this->AbsolutePose = Utils::IsometryToXYZRPY(baseTransform * this->Calibration * this->RelativeTransform);
     this->HasAbsolutePose = true;
     this->Count = 1;
   }
   // If it has already been seen, the absolute pose is updated averaging the computed poses
   else
   {
-    Eigen::Vector6d newAbsolutePose = Utils::IsometryToXYZRPY(baseTransform * this->RelativeTransform);
+    Eigen::Vector6d newAbsolutePose = Utils::IsometryToXYZRPY(baseTransform * this->Calibration * this->RelativeTransform);
     this->AbsolutePose = ( (this->AbsolutePose * this->Count) + newAbsolutePose ) / (this->Count + 1);
     ++this->Count;
   }
@@ -278,17 +278,21 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
   auto bounds = this->GetMeasureBounds(lidarTime, verbose);
   if (bounds.first == bounds.second)
     return false;
-  // Interpolate landmark relative pose at LiDAR timestamp
-  this->RelativeTransform = LinearInterpolation(bounds.first->TransfoRelative, bounds.second->TransfoRelative, lidarTime, bounds.first->Time, bounds.second->Time);
+  // Fill measure
   synchMeas.Time = lidarTime;
-  synchMeas.TransfoRelative = this->RelativeTransform;
+  synchMeas.Covariance = bounds.first->Covariance;
+  // Interpolate landmark relative pose at LiDAR timestamp
+  synchMeas.TransfoRelative = LinearInterpolation(bounds.first->TransfoRelative, bounds.second->TransfoRelative, lidarTime, bounds.first->Time, bounds.second->Time);
   // Rotate covariance if required
   if (this->CovarianceRotation)
   {
-    Eigen::Isometry3d update = bounds.first->TransfoRelative.inverse() * this->RelativeTransform;
+    Eigen::Isometry3d update = bounds.first->TransfoRelative.inverse() * synchMeas.TransfoRelative;
     Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(bounds.first->TransfoRelative);
     synchMeas.Covariance = CeresTools::RotateCovariance(xyzrpy, bounds.first->Covariance, update); // new = init * update
   }
+
+  // Update RelativeTransform for AbsolutePose update
+  this->RelativeTransform = synchMeas.TransfoRelative;
 
   return true;
 }
@@ -301,11 +305,10 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
   if (!this->CanBeUsedLocally())
     return false;
 
+  // Virtual measure with synchronized timestamp (no calibration applied)
   LandmarkMeasurement synchMeas;
   if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
     return false;
-
-  this->RelativeTransform = this->Calibration.inverse() * synchMeas.TransfoRelative;
 
   // Last times the tag was used
   // this is used to update the absolute reference tag pose when the
@@ -325,9 +328,9 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
   // NOTE : the covariances are not used because the uncertainty is not comparable with common keypoint constraints
   // The user must play with the weight parameter to get the best result depending on the tag detection accuracy.
   if (this->PositionOnly)
-    this->Residual.Cost = CeresCostFunctions::LandmarkPositionResidual::Create(this->RelativeTransform, this->AbsolutePose);
+    this->Residual.Cost = CeresCostFunctions::LandmarkPositionResidual::Create(this->Calibration * synchMeas.TransfoRelative, this->AbsolutePose);
   else
-    this->Residual.Cost = CeresCostFunctions::LandmarkResidual::Create(this->RelativeTransform, this->AbsolutePose);
+    this->Residual.Cost = CeresCostFunctions::LandmarkResidual::Create(this->Calibration * synchMeas.TransfoRelative, this->AbsolutePose);
 
   // Use a robustifier to limit the contribution of an outlier tag detection (the tag may have been moved)
   // Tukey loss applied on residual square:

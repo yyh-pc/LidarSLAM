@@ -37,7 +37,7 @@ namespace ExternalSensors
 struct LandmarkMeasurement
 {
   double Time = 0.;
-  // Relative transform between the tracking frame and the tag
+  // Relative transform between the detector and the tag
   Eigen::Isometry3d TransfoRelative = Eigen::Isometry3d::Identity();
   Eigen::Matrix6d Covariance = Eigen::Matrix6d::Identity();
 };
@@ -379,6 +379,9 @@ private:
   // Absolute pose of the landmark in the global frame
   Eigen::Vector6d AbsolutePose = Eigen::Vector6d::Zero();
   Eigen::Matrix6d AbsolutePoseCovariance = Eigen::Matrix6d::Zero();
+  // Relative transform (detector/landmark) stored to be used when updating the absolute pose
+  // It represents the transform between the detector and the landmark
+  // i.e. detector to landmark, no calibration.
   Eigen::Isometry3d RelativeTransform = Eigen::Isometry3d::Identity();
   // Boolean to check the absolute pose has been loaded
   // or if the tag has already been seen
