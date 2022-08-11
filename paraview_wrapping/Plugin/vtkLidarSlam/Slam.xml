@@ -110,7 +110,7 @@
            - [acc_x, acc_y, acc_z] for IMU signal
            - [x,y,z,roll,pitch,yaw] for external absolute pose measurements (YXZ convention)
            This file is loaded and used to add constraints or priors to the SLAM optimization -->
-      <StringVectorProperty name="SensorDataFile"
+      <StringVectorProperty name="External sensors data file"
                             command="SetSensorData"
                             number_of_elements="1"
                             animateable="0"
@@ -130,9 +130,14 @@
 
           *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second^2
 
+          *w_x/w_y/w_z*: Rotation velocity from IMU, in radians/second
+
           *x/y/z/roll/pitch/yaw*: Absolute pose measurements in meters and radians (YXZ order)
-          WARNING : these poses must come along with a calibration file in the same location named calibration_external_sensor.txt.
-          This calibration should contain the 4x4 calibration matrix representing the transform from external poses sensor to Lidar sensor.
+
+          WARNING : these data must come along with a calibration file in the
+          same location named calibration_external_sensor.mat.
+          This calibration must contain the 4x4 calibration matrix representing
+          the transform from external poses sensor to Base frame (i.e. the tracked frame).
 
           Example :
 
@@ -349,7 +354,7 @@
         <Property name="Reset state" />
         <Property name="Empty first" />
         <Property name="Rebuild maps" />
-        <Property name="SensorDataFile" />
+        <Property name="External sensors data file" />
         <Property name="Reload trajectory" />
         <Property name="Auto detect input arrays" />
         <Property name="Time array" />
@@ -1383,7 +1388,7 @@
         <Property name="Min number of frames per voxel" />
       </PropertyGroup>
 
-      <!-- ==================== External sensors' parameters ==================== -->
+     <!-- ==================== External sensors' parameters ==================== -->
 
       <DoubleVectorProperty name="Wheel odom weight"
                             command="SetWheelOdomWeight"
@@ -1412,7 +1417,28 @@
                             default_values="0."
                             panel_visibility="advanced">
         <Documentation>
+          Weight to apply on the IMU gravity constraint.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="IMU weight"
+                            command="SetImuWeight"
+                            number_of_elements="1"
+                            default_values="0."
+                            panel_visibility="advanced">
+        <Documentation>
           Weight to apply on the IMU constraint.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Gravity"
+                            command="SetImuGravity"
+                            number_of_elements="3"
+                            default_values="0. 0. -9.80511"
+                            panel_visibility="advanced">
+        <Documentation>
+          Gravity represented in world reference frame (defined by initTransform and first frame).
+          Default supposes z upwards.
         </Documentation>
       </DoubleVectorProperty>
 
@@ -1425,6 +1451,17 @@
           Weight to apply on the Pose constraint ( which may come from a GNSS sensor ).
         </Documentation>
       </DoubleVectorProperty>
+
+      <IntVectorProperty name="Imu reset threshold"
+                         command="SetImuResetThreshold"
+                         number_of_elements="1"
+                         default_values="400">
+        <Documentation>
+          When raw IMU data are used, a graph is built between SLAM poses and IMU preintegration
+          to refine the IMU bias. This threshold allows to reset the graph every n frames to maintain
+          a reasonable graph size.
+        </Documentation>
+      </IntVectorProperty>
 
       <DoubleVectorProperty name="Time threshold"
                             command="SetSensorTimeThreshold"
@@ -1459,10 +1496,13 @@
         <Property name="Wheel odometry relative mode" />
         <Property name="IMU gravity weight" />
         <Property name="Pose weight" />
+        <Property name="Imu reset threshold" />
         <Property name="Time threshold" />
         <Property name="Time synchronization" />
+        <Property name="IMU weight" />
+        <Property name="Gravity" />
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="SensorDataFile" value="" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="External sensors data file" value="" />
         </Hints>
       </PropertyGroup>
 

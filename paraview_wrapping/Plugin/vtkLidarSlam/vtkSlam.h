@@ -375,6 +375,14 @@ public:
   vtkCustomGetMacroExternalSensor(Gravity, GravityWeight, double)
   vtkCustomSetMacroExternalSensor(Gravity, GravityWeight, double)
 
+  vtkCustomGetMacroExternalSensor(Imu, ImuWeight, double)
+  vtkCustomSetMacroExternalSensor(Imu, ImuWeight, double)
+
+  void SetImuGravity(double x, double y, double z);
+
+  vtkCustomGetMacro(ImuResetThreshold, unsigned int)
+  vtkCustomSetMacro(ImuResetThreshold, unsigned int)
+
   vtkCustomGetMacroExternalSensor(Pose, PoseWeight, double)
   vtkCustomSetMacroExternalSensor(Pose, PoseWeight, double)
 
