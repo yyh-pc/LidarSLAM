@@ -385,6 +385,15 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     IF_VERBOSE(3, Utils::Timer::Init("Logging"));
     this->LogCurrentFrameState();
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
+
+    if (this->ImuHasData())
+    {
+      // Update IMU graph with new slam pose to refine the biases
+      IF_VERBOSE(3, Utils::Timer::Init("IMU biases refinement"));
+      this->ImuManager->Update(this->LogStates.back());
+      ++this->ImuHasBeenUpdated;
+      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("IMU biases refinement"));
+    }
   }
 
   // Motion and localization parameters estimation information display
@@ -861,7 +870,7 @@ Slam::PointCloud::Ptr Slam::GetRegisteredFrame()
   // If the input points have not been aggregated to WORLD coordinates yet,
   // transform and aggregate them
   if (this->RegisteredFrame->header.stamp != this->CurrentFrames[0]->header.stamp)
-    this->RegisteredFrame = this->AggregateFrames(this->CurrentFrames, true);
+    this->RegisteredFrame = this->AggregateFrames(this->CurrentFrames, true, true);
   return this->RegisteredFrame;
 }
 
@@ -987,7 +996,7 @@ void Slam::ExtractKeypoints()
 
   // Merge all keypoints extracted from different frames together
   for (auto k : this->UsableKeypoints)
-    this->CurrentRawKeypoints[k] = this->AggregateFrames(keypoints[k], false);
+    this->CurrentRawKeypoints[k] = this->AggregateFrames(keypoints[k], false, false);
 
   if (this->Verbosity >= 2)
   {
@@ -1185,8 +1194,13 @@ void Slam::Localization()
       // Undistort keypoints clouds
       this->RefineUndistortion();
     }
-    else
-      this->UndistortWithPoseMeasurement();
+    else if (this->PoseHasData())
+    {
+      // Get synchronized point pose relatively to frame
+      // CurrentUndistortedKeypoints are represented in base frame
+      for (auto k : this->UsableKeypoints)
+        this->UndistortWithPoseMeasurement(this->CurrentUndistortedKeypoints[k]);
+    }
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : initial undistortion"));
   }
@@ -1850,43 +1864,44 @@ void Slam::InitUndistortion()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::UndistortWithPoseMeasurement()
+void Slam::UndistortWithPoseMeasurement(PointCloud::Ptr pc) const
 {
-  if (this->PoseHasData())
+  if (!this->PoseHasData())
   {
-    // Get synchronized point pose relatively to frame
-    ExternalSensors::PoseMeasurement synchPoseMeasCurrent; // Virtual measure with synchronized timestamp and calibration applied
-    if (this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime, synchPoseMeasCurrent))
-    {
-      Eigen::Isometry3d invSynchPoseMeasCurrent = synchPoseMeasCurrent.Pose.inverse();
-      // Undistort keypoints
-      for (auto k : this->UsableKeypoints)
-      {
-        // Compute synchronized measures (not parallelizable)
-        int nbPoints = this->CurrentUndistortedKeypoints[k]->size();
-        std::vector<ExternalSensors::PoseMeasurement> synchMeas (nbPoints); // Virtual measures with synchronized timestamp and calibration applied
-        // Sort points by time to speed up synchronization search
-        std::sort(this->CurrentUndistortedKeypoints[k]->points.begin(), this->CurrentUndistortedKeypoints[k]->points.end(), [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
-        int idxPt = 0;
-        for (auto& point : *this->CurrentUndistortedKeypoints[k])
-        {
-          this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime + point.time, synchMeas[idxPt]);
-          ++idxPt;
-        }
-
-        // Transform with computed measures (parallelized)
-        #pragma omp parallel for num_threads(this->NbThreads)
-        for (int i = 0; i < nbPoints; ++i)
-        {
-          auto& point = this->CurrentUndistortedKeypoints[k]->at(i);
-          Utils::TransformPoint(point, invSynchPoseMeasCurrent * synchMeas[i].Pose);
-        }
-      }
-      PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
-    }
-  }
-  else
     PRINT_WARNING("External poses are empty : cannot use them to undistort input pointcloud")
+    return;
+  }
+
+  ExternalSensors::PoseMeasurement synchPoseMeasCurrent; // Virtual measure with synchronized timestamp and calibration applied
+
+  if (!this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime, synchPoseMeasCurrent))
+  {
+    PRINT_WARNING("Could not perform undistortion using external poses supplied")
+    return;
+  }
+
+  // Compute synchronized measures (not parallelizable)
+  std::vector<ExternalSensors::PoseMeasurement> synchMeas(pc->size()); // Virtual measures with synchronized timestamp and calibration applied
+  // Sort points by time to speed up synchronization search
+  std::sort(pc->points.begin(), pc->points.end(), [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
+
+  // Compute synchronized poses for each point
+  for (unsigned int idxPt = 0; idxPt < pc->size(); ++idxPt)
+    this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime + pc->at(idxPt).time, synchMeas[idxPt]);
+
+
+  Eigen::Isometry3d invSynchPoseMeasCurrent = synchPoseMeasCurrent.Pose.inverse();
+
+  // Transform with computed measures (parallelized)
+  #pragma omp parallel for num_threads(this->NbThreads)
+  for (int idxPt = 0; idxPt < int(pc->size()); ++idxPt)
+  {
+    // Get transform from base at current time to base at point time
+    Eigen::Isometry3d update = invSynchPoseMeasCurrent * synchMeas[idxPt].Pose;
+    Utils::TransformPoint(pc->at(idxPt), update);
+  }
+
+  PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
 }
 
 //-----------------------------------------------------------------------------
@@ -2082,7 +2097,7 @@ Slam::PointCloud::Ptr Slam::TransformPointCloud(PointCloud::ConstPtr cloud,
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates) const
+Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates, bool undistort) const
 {
   PointCloud::Ptr aggregatedFrames(new PointCloud);
   aggregatedFrames->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
@@ -2107,17 +2122,58 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
     Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(frame->front().device_id);
 
     // Rigid transform from LIDAR to BASE then undistortion from BASE to WORLD
-    if (worldCoordinates && this->Undistortion)
+    if (undistort)
     {
-      auto transformInterpolator = this->WithinFrameMotion;
-      transformInterpolator.SetTransforms(this->Tworld * this->WithinFrameMotion.GetH0() * baseToLidar,
-                                          this->Tworld * this->WithinFrameMotion.GetH1() * baseToLidar);
-      #pragma omp parallel for num_threads(this->NbThreads)
-      for (int i = startIdx; i < endIdx; ++i)
+      if (this->Undistortion != UndistortionMode::EXTERNAL || !this->PoseHasData())
       {
-        auto& point = aggregatedFrames->at(i);
-        point.time += timeOffset;
-        Utils::TransformPoint(point, transformInterpolator(point.time));
+        auto transformInterpolator = this->WithinFrameMotion;
+        Eigen::Isometry3d h0 = worldCoordinates? this->Tworld * this->WithinFrameMotion.GetH0() * baseToLidar : this->WithinFrameMotion.GetH0() * baseToLidar;
+        Eigen::Isometry3d h1 = worldCoordinates? this->Tworld * this->WithinFrameMotion.GetH1() * baseToLidar : this->WithinFrameMotion.GetH1() * baseToLidar;
+        transformInterpolator.SetTransforms(h0, h1);
+        #pragma omp parallel for num_threads(this->NbThreads)
+        for (int i = startIdx; i < endIdx; ++i)
+        {
+          auto& point = aggregatedFrames->at(i);
+          point.time += timeOffset;
+          Utils::TransformPoint(point, transformInterpolator(point.time));
+        }
+        PRINT_VERBOSE(3, "Undistortion performed using motion interpolation")
+      }
+      else
+      {
+        ExternalSensors::PoseMeasurement synchPoseMeasCurrent; // Virtual measure with synchronized timestamp and calibration applied
+
+        if (!this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime, synchPoseMeasCurrent))
+        {
+          PRINT_WARNING("Could not perform undistortion using external poses supplied")
+          continue;
+        }
+        // Compute synchronized measures (not parallelizable)
+        std::vector<ExternalSensors::PoseMeasurement> synchMeas (aggregatedFrames->size()); // Virtual measures with synchronized timestamp and calibration applied
+        // Sort points by time to speed up synchronization search
+        std::sort(aggregatedFrames->points.begin() + startIdx, aggregatedFrames->points.end(), [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
+        for (unsigned int idxPt = startIdx; idxPt < aggregatedFrames->size(); ++idxPt)
+          this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime + aggregatedFrames->at(idxPt).time + timeOffset, synchMeas[idxPt]);
+
+        // Get synchronized external pose at CurrentTime
+        // To get only the relative update for eachpoint since CurrentTime
+        Eigen::Isometry3d invSynchPoseMeasCurrent = synchPoseMeasCurrent.Pose.inverse();
+
+        // Transform with computed measures (parallelized)
+        #pragma omp parallel for num_threads(this->NbThreads)
+        for (int idxPt = startIdx; idxPt < int(aggregatedFrames->size()); ++idxPt)
+        {
+          auto& point = aggregatedFrames->at(idxPt);
+
+          // Transform from base at CurrentTime to base at point time
+          Eigen::Isometry3d update = invSynchPoseMeasCurrent * synchMeas[idxPt].Pose;
+          // Transform from base at CurrentTime to Lidar at point time
+          // OR from world to Lidar at point time
+          Eigen::Isometry3d ptTransform = worldCoordinates? this->Tworld * update * baseToLidar : update * baseToLidar;
+          point.time += timeOffset;
+          Utils::TransformPoint(point, ptTransform);
+        }
+        PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
       }
     }
 
@@ -2210,7 +2266,7 @@ void Slam::InitGps()
 //-----------------------------------------------------------------------------
 void Slam::InitPoseSensor()
 {
-  this->PoseManager = std::make_shared<ExternalSensors::PoseManager>(0.,
+  this->PoseManager = std::make_shared<ExternalSensors::PoseManager>(this->PoseWeight,
                                                                      this->SensorTimeOffset,
                                                                      this->SensorTimeThreshold,
                                                                      this->SensorMaxMeasures,
@@ -2244,6 +2300,8 @@ void Slam::AddImuMeasurement(const ExternalSensors::ImuMeasurement& m)
   if (!this->ImuManager)
     this->InitImu();
   this->ImuManager->AddMeasurement(m);
+  if (!this->PoseHasData())
+    this->PoseManager = this->ImuManager;
 }
 
 //-----------------------------------------------------------------------------
@@ -2441,6 +2499,10 @@ void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
 void Slam::ResetSensors(bool emptyMeasurements)
 {
   ExtSensorMacro(Reset(emptyMeasurements))
+  this->ImuHasBeenUpdated = 0;
+  if (emptyMeasurements)
+    // Break link between IMU and Pose managers
+    this->InitPoseSensor();
 }
 
 //-----------------------------------------------------------------------------
@@ -2616,6 +2678,7 @@ void Slam::SetPoseWeight(double weight)
 {
   if (!this->PoseManager)
     this->InitPoseSensor();
+  this->PoseWeight = weight;
   this->PoseManager->SetWeight(weight);
 }
 

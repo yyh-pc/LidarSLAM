@@ -536,7 +536,14 @@ public:
   void SetPoseWeight(double weight);
 
   void AddPoseMeasurement(const ExternalSensors::PoseMeasurement& pm);
-  bool PoseHasData() {return this->PoseManager && this->PoseManager->HasData();}
+  // Check if pose manager has been filled with poses
+  // and if it has been filled by the IMU manager, check that it has been updated
+  // at least twice to trust the measurements
+  // This is mostly done because if the frame timestamp references to the frame last point
+  // The update before this timestamp won't have been done.
+  // Moreover, the bias may be still wrong after the first graph optimization.
+  bool PoseHasData() const {return this->PoseManager && this->PoseManager->HasData() &&
+                                   (!this->ImuHasData() || this->ImuHasBeenUpdated > 2);}
 
   void SetPoseCalibration(const Eigen::Isometry3d& calib);
 
@@ -889,6 +896,9 @@ private:
   // The IMU measurements must be filled from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::ImuManager> ImuManager;
+  // Variable used internally to store the IMU update information
+  // IMU should not be used before having been updated once with a SLAM state
+  unsigned int ImuHasBeenUpdated = 0;
 
   // Landmarks manager
   // Each landmark has its own manager and is identified by its ID.
@@ -931,6 +941,11 @@ private:
   // The Pose measurements must be filled and cleared from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::PoseManager> PoseManager;
+
+  // Weight for pose when integrating it to the SLAM optimization
+  // This needs a specific variable storage to be able to switch between
+  // IMU data and Poses data as they share the same pointer
+  double PoseWeight = 0.;
 
   // Time difference between Lidar's measurements and external sensors'
   // not null if they are not expressed relatively to the same time reference
@@ -1172,8 +1187,9 @@ private:
   // and refine the undistortion of the current keypoints clouds.
   void RefineUndistortion();
 
-  // Undistort the keypoints using external pose measurement information
-  void UndistortWithPoseMeasurement();
+  // Undistort the points using external pose measurement information
+  // the input points must be represented in base frame, each at their own timestamp
+  void UndistortWithPoseMeasurement(PointCloud::Ptr pc) const;
 
   // ---------------------------------------------------------------------------
   //   Confidence estimator helpers
@@ -1201,7 +1217,7 @@ private:
   // The output aggregated points timestamps are corrected to be relative to the 1st frame timestamp.
   // NOTE: If transforming to WORLD coordinates, be sure that Tworld/WithinFrameMotion have been updated
   //       (updated during the Localization step).
-  PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates) const;
+  PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates, bool undistort = true) const;
 
   // ---------------------------------------------------------------------------
   //   External sensor helpers
