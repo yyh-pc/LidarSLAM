@@ -249,6 +249,7 @@ public:
   // landmarks' constraints as a postprocess
   bool OptimizeGraph();
 
+  Eigen::Isometry3d GetTworld(double time = -1.);
   // Set world transform with an initial guess (usually from GPS after calibration).
   void SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess);
 
@@ -297,6 +298,10 @@ public:
   // Warning! Undefined behavior if LogStates is empty
   LidarState& GetLastState();
   GetMacro(LogStates, std::list<LidarState>)
+  // Get the last states since last input frame timestamp
+  // at a specified frequency
+  // This will use external sensor measurements and/or poses interpolation
+  std::vector<LidarState> GetLastStates(double freq = -1);
 
   GetMacro(Latency, double)
 

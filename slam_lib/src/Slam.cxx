@@ -1424,6 +1424,62 @@ LidarState& Slam::GetLastState()
   return this->LogStates.back();
 }
 
+//-----------------------------------------------------------------------------
+std::vector<LidarState> Slam::GetLastStates(double freq)
+{
+  if (this->LogStates.empty())
+  {
+    LidarSlam::LidarState state;
+    state.Isometry = this->TworldInit;
+    return {state.Isometry};
+  }
+
+  if (freq < 0 || this->LogStates.size() == 1)
+    return {this->LogStates.back()};
+
+  auto itLogStates = this->LogStates.end();
+  LidarState last = *(--itLogStates);
+  LidarState prevLast = *(--itLogStates);
+
+  double time = prevLast.Time + 1. / freq;
+  std::vector<LidarState> lastStates;
+  lastStates.reserve(std::ceil((last.Time + 1e-6 - prevLast.Time) * freq));
+
+  if (!this->PoseHasData())
+  {
+    LinearTransformInterpolator<double> interpolator(prevLast.Isometry, last.Isometry, prevLast.Time, last.Time);
+    while (time < last.Time - 1e-6)
+    {
+      LidarSlam::LidarState state;
+      state.Time = time;
+      state.Covariance = last.Covariance;
+      state.Isometry = interpolator(time);
+      lastStates.emplace_back(state);
+      time += 1. / freq;
+    }
+    lastStates.emplace_back(last);
+  }
+  else
+  {
+    while (time < last.Time - 1e-6)
+    {
+      LidarSlam::LidarState state;
+      state.Time = time;
+      state.Covariance = last.Covariance;
+      ExternalSensors::PoseMeasurement meas;
+      if (!this->PoseManager->ComputeSynchronizedMeasureBase(time, meas))
+        state.Isometry = LinearInterpolation(lastStates.back().Isometry, last.Isometry,
+                                             time, lastStates.back().Time, last.Time);
+      else
+        state.Isometry = meas.Pose;
+      lastStates.emplace_back(state);
+      time += 1. / freq;
+    }
+    lastStates.emplace_back(last);
+  }
+  return lastStates;
+}
+
 //==============================================================================
 //   Loop Closure usage
 //==============================================================================
@@ -2310,6 +2366,41 @@ void Slam::SetImuCalibration(const Eigen::Isometry3d& calib)
   if (!this->ImuManager)
     this->InitImu();
   this->ImuManager->SetCalibration(calib);
+}
+
+//-----------------------------------------------------------------------------
+Eigen::Isometry3d Slam::GetTworld(double time)
+{
+  if (time < 0)
+    return this->LogStates.back().Isometry;
+
+  if (this->ImuHasData())
+    return this->ImuManager->GetPose(time);
+  else if (this->PoseHasData())
+  {
+    ExternalSensors::PoseMeasurement synchMeas;
+    this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas);
+    return synchMeas.Pose;
+  }
+  else
+  {
+    // Get iterator pointing to the first state after time
+    auto postIt = std::upper_bound(this->LogStates.begin(),
+                                   this->LogStates.end(),
+                                   time,
+                                   [&](double time, const LidarState& state) {return time < state.Time;});
+
+    auto preIt = postIt;
+    --preIt;
+
+    if (postIt == this->LogStates.end())
+    {
+      PRINT_WARNING("Time " << time << " has not been reached yet. Returning last pose at time " << this->LogStates.back().Time)
+      return this->LogStates.back().Isometry;
+    }
+
+    return LinearInterpolation(preIt->Isometry, postIt->Isometry, time, preIt->Time, postIt->Time);
+  }
 }
 
 // Landmark detector

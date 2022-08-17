@@ -562,6 +562,9 @@ public:
 
   bool ComputeConstraint(double lidarTime) override;
 
+  // Get pose at a specific timestamp
+  Eigen::Isometry3d GetPose(double time = -1);
+
 protected:
   double PrevLidarTime = -1.;
   Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
