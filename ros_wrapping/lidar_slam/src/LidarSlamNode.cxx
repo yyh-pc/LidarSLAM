@@ -237,41 +237,41 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
 //------------------------------------------------------------------------------
 void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& gpsMsg)
 {
-    if (!this->UseExtSensor[LidarSlam::GPS])
-      return;
+  if (!this->UseExtSensor[LidarSlam::GPS])
+    return;
 
-    // Transform to apply to points represented in GPS frame to express them in base frame
-    Eigen::Isometry3d baseToGps;
-    if (Utils::Tf2LookupTransform(baseToGps, this->TfBuffer, this->TrackingFrameId, gpsMsg.header.frame_id, gpsMsg.header.stamp))
+  // Transform to apply to points represented in GPS frame to express them in base frame
+  Eigen::Isometry3d baseToGps;
+  if (Utils::Tf2LookupTransform(baseToGps, this->TfBuffer, this->TrackingFrameId, gpsMsg.header.frame_id, gpsMsg.header.stamp))
+  {
+    ROS_INFO_STREAM("Adding GPS info");
+    // Get gps pose
+    this->LastGpsMeas.Position = Utils::PoseMsgToIsometry(gpsMsg.pose.pose).translation();
+    // Get gps timestamp
+    this->LastGpsMeas.Time = gpsMsg.header.stamp.sec + gpsMsg.header.stamp.nsec * 1e-9;
+
+    // Get GPS covariance
+    // ROS covariance message is row major
+    // Eigen matrix is col major by default
+    for (int i = 0; i < 3; ++i)
     {
-      ROS_INFO_STREAM("Adding GPS info");
-      // Get gps pose
-      this->LastGpsMeas.Position = Utils::PoseMsgToIsometry(gpsMsg.pose.pose).translation();
-      // Get gps timestamp
-      this->LastGpsMeas.Time = gpsMsg.header.stamp.sec + gpsMsg.header.stamp.nsec * 1e-9;
-
-      // Get GPS covariance
-      // ROS covariance message is row major
-      // Eigen matrix is col major by default
-      for (int i = 0; i < 3; ++i)
-      {
-        for (int j = 0; j < 3; ++j)
-          this->LastGpsMeas.Covariance(i, j) = gpsMsg.pose.covariance[i * 6 + j];
-      }
-      // Correct GPS covariance if needed
-      if (!LidarSlam::Utils::isCovarianceValid(this->LastGpsMeas.Covariance))
-        this->LastGpsMeas.Covariance = Eigen::Matrix3d::Identity() * 4e-4; // 2cm
-
-      if (!this->LidarSlam.GpsHasData())
-        this->LidarSlam.SetGpsCalibration(baseToGps);
-
-      // Add gps measurement to measurements list
-      this->LidarSlam.AddGpsMeasurement(this->LastGpsMeas);
-      this->GpsLastTime = ros::Time(this->LastGpsMeas.Time);
-      this->GpsFrameId = gpsMsg.header.frame_id;
+      for (int j = 0; j < 3; ++j)
+        this->LastGpsMeas.Covariance(i, j) = gpsMsg.pose.covariance[i * 6 + j];
     }
-    else
-      ROS_WARN_STREAM("The transform between the GPS and the tracking frame was not found -> GPS info ignored");
+    // Correct GPS covariance if needed
+    if (!LidarSlam::Utils::isCovarianceValid(this->LastGpsMeas.Covariance))
+      this->LastGpsMeas.Covariance = Eigen::Matrix3d::Identity() * 4e-4; // 2cm
+
+    if (!this->LidarSlam.GpsHasData())
+      this->LidarSlam.SetGpsCalibration(baseToGps);
+
+    // Add gps measurement to measurements list
+    this->LidarSlam.AddGpsMeasurement(this->LastGpsMeas);
+    this->GpsLastTime = ros::Time(this->LastGpsMeas.Time);
+    this->GpsFrameId = gpsMsg.header.frame_id;
+  }
+  else
+    ROS_WARN_STREAM("The transform between the GPS and the tracking frame was not found -> GPS info ignored");
 }
 
 //------------------------------------------------------------------------------
