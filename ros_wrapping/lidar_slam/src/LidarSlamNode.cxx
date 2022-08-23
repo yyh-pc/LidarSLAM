@@ -73,9 +73,9 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   this->SetSlamInitialState();
 
   // Use GPS data for GPS/SLAM calibration or Pose Graph Optimization.
-  priv_nh.getParam("external_sensors/gps/use_gps", this->UseGps);
+  this->UseExtSensor[LidarSlam::GPS] = priv_nh.param("external_sensors/gps/use_gps", false);
   // Use tags data for local optimization.
-  this->UseTags = priv_nh.param("external_sensors/landmark_detector/use_tags", false);
+  this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR] = priv_nh.param("external_sensors/landmark_detector/use_tags", false);
 
   // ***************************************************************************
   // Init ROS publishers
@@ -122,7 +122,7 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   initPublisher(CONFIDENCE, "slam_confidence", lidar_slam::Confidence, "output/confidence", true, 1, false);
 
-  if (this->UseGps || this->UseTags)
+  if (this->UseExtSensor[LidarSlam::GPS] || this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR])
   {
     initPublisher(PGO_PATH, "pgo_slam_path", nav_msgs::Path, "graph/publish_path", false, 1, true);
   }
@@ -149,11 +149,11 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   this->SlamCommandSub = nh.subscribe("slam_command", 1, &LidarSlamNode::SlamCommandCallback, this);
 
   // Init logging of GPS data for GPS/SLAM calibration or Pose Graph Optimization.
-  if (this->UseGps)
+  if (this->UseExtSensor[LidarSlam::GPS])
     this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
 
   // Init logging of landmark data
-  if (this->UseTags)
+  if (this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR])
   {
     // Create an external independent spinner to get the landmarks' info in a parallel way
     ros::SubscribeOptions ops;
@@ -237,7 +237,7 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
 //------------------------------------------------------------------------------
 void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& gpsMsg)
 {
-    if (!this->UseGps)
+    if (!this->UseExtSensor[LidarSlam::GPS])
       return;
 
     // Transform to apply to points represented in GPS frame to express them in base frame
@@ -294,7 +294,7 @@ int LidarSlamNode::BuildId(const std::vector<int>& ids)
 //------------------------------------------------------------------------------
 void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tagsInfo)
 {
-  if (!this->UseTags)
+  if (!this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR])
     return;
   for (auto& tagInfo : tagsInfo.detections)
   {
@@ -497,7 +497,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     // NOTE : This function should only be called after PGO or SLAM/GPS calib have been triggered.
     case lidar_slam::SlamCommand::GPS_SLAM_CALIBRATION:
     {
-      if (!this->UseGps || !this->LidarSlam.GpsHasData())
+      if (!this->UseExtSensor[LidarSlam::GPS] || !this->LidarSlam.GpsHasData())
       {
         ROS_ERROR_STREAM("Cannot set SLAM pose from GPS"
                          "Please check that 'external_sensors/gps/use_gps' private parameter is set to 'true'."
@@ -515,7 +515,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     // NOTE : This function should only be called after PGO or SLAM/GPS calib have been triggered.
     case lidar_slam::SlamCommand::SET_SLAM_POSE_FROM_GPS:
     {
-      if (!this->UseGps || !this->LidarSlam.GpsHasData())
+      if (!this->UseExtSensor[LidarSlam::GPS] || !this->LidarSlam.GpsHasData())
       {
         ROS_ERROR_STREAM("Cannot set SLAM pose from GPS"
                           "Please check that 'external_sensors/gps/use_gps' private parameter is set to 'true'."
@@ -539,28 +539,36 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
 
     // Disable SLAM maps update
     case lidar_slam::SlamCommand::DISABLE_SLAM_MAP_UPDATE:
+    {
       this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::NONE);
       ROS_WARN_STREAM("Disabling SLAM maps update.");
       break;
+    }
 
     // Enable the agregation of keypoints to a fixed initial map
     case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_EXPANSION:
+    {
       this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP);
       ROS_WARN_STREAM("Enabling SLAM maps expansion with new keypoints.");
       break;
+    }
 
     // Enable the update of the map with new keypoints
     case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_UPDATE:
+    {
       this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::UPDATE);
       ROS_WARN_STREAM("Enabling SLAM maps update with new keypoints.");
       break;
+    }
 
     // Reset the SLAM internal state.
     case lidar_slam::SlamCommand::RESET_SLAM:
+    {
       ROS_WARN_STREAM("Resetting the SLAM internal state.");
       this->LidarSlam.Reset(true);
       this->SetSlamInitialState();
       break;
+    }
 
     // Save SLAM keypoints maps to PCD files
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
@@ -600,12 +608,16 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
 
     // Load SLAM keypoints maps from PCD files
     case lidar_slam::SlamCommand::LOAD_KEYPOINTS_MAPS:
+    {
       ROS_INFO_STREAM("Loading keypoints maps from PCD.");
       this->LidarSlam.LoadMapsFromPCD(msg.string_arg);
       break;
+    }
 
     case lidar_slam::SlamCommand::OPTIMIZE_GRAPH:
-      if ((!this->UseGps && !this->UseTags) || this->LidarSlam.GetSensorMaxMeasures() < 2 || this->LidarSlam.GetLoggingTimeout() < 0.2)
+    {
+      if ((!this->UseExtSensor[LidarSlam::GPS] && !this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR]) ||
+           this->LidarSlam.GetSensorMaxMeasures() < 2 || this->LidarSlam.GetLoggingTimeout() < 0.2)
       {
         ROS_ERROR_STREAM("Cannot optimize pose graph as sensor info logging has not been enabled. "
                          "Please make sure that 'external_sensors/landmark_detector/use_tags' OR 'external_sensors/gps/use_gps' private parameter is set to 'true', "
@@ -641,13 +653,36 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
           optimSlamTraj.poses.emplace_back(Utils::IsometryToPoseStampedMsg(s.Isometry, s.Time, this->OdometryFrameId));
         this->Publishers[PGO_PATH].publish(optimSlamTraj);
       }
-
       break;
+    }
+
+    case lidar_slam::SlamCommand::SWITCH_SENSOR:
+    {
+      // Get sensor to enable/disable
+      LidarSlam::ExternalSensor sensor;
+      try
+      {
+        sensor = static_cast<LidarSlam::ExternalSensor>(std::stoi(msg.string_arg));
+      }
+      catch(...)
+      {
+        ROS_WARN_STREAM("External sensor #" << msg.string_arg << " does not exist.");
+        break;
+      }
+
+      std::string onOff;
+      onOff= this->UseExtSensor[sensor]? "Disabling " : "Enabling ";
+      ROS_INFO_STREAM(onOff << LidarSlam::ExternalSensorNames.at(sensor));
+      this->UseExtSensor[sensor] = !this->UseExtSensor[sensor];
+      break;
+    }
 
     // Unknown command
     default:
+    {
       ROS_ERROR_STREAM("Unknown SLAM command : " << (unsigned int) msg.command);
       break;
+    }
   }
 }
 

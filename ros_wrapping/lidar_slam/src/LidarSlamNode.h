@@ -213,19 +213,24 @@ protected:
   std::shared_ptr<ros::AsyncSpinner> ExternalSpinnerPtr;
   ros::CallbackQueue ExternalQueue;
 
+  // Booleans to select which sensor to activate
+  // If sensor enabled, data are received and stored
+  // External sensor data can be used in local optimization or in postprocess pose graph optimization
+  std::unordered_map<LidarSlam::ExternalSensor, bool> UseExtSensor = {{LidarSlam::GPS, false},
+                                                                      {LidarSlam::LANDMARK_DETECTOR, false},
+                                                                      {LidarSlam::POSE, false}};
+
   // If lidar time contained in the header is not POSIX
   // The offset between network reception time
   // and Lidar time is computed
   bool LidarTimePosix = true;
 
   // Landmarks
-  bool UseTags = false;
   ros::Subscriber LandmarksSub;
   bool PublishTags = false;
   LidarSlam::ExternalSensors::GpsMeasurement LastGpsMeas;
 
   // GPS
-  bool UseGps = false; ///< Enable GPS data logging for Pose Graph Optimization or GPS/SLAM calibration.
   Eigen::Isometry3d BaseToGpsOffset = Eigen::Isometry3d::Identity();  ///< Pose of the GPS antenna in BASE coordinates.
   ros::Subscriber GpsOdomSub;
 };

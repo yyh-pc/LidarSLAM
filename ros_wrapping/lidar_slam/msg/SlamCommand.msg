@@ -46,3 +46,13 @@ uint8 LOAD_KEYPOINTS_MAPS = 18
 # SLAM odometry frame to GPS world/map frame.
 # WARNING : this process is not real time.
 uint8 OPTIMIZE_GRAPH = 20
+
+# Enable/Disable an external sensor
+# If enabled, sensor data are received and stored to then be processed.
+# External sensor data can be used in the local optimization or in
+# a pose graph optimization in a postprocess manner
+# Use 'string_arg' to tell which sensor should be activated
+# options are :
+#   * LANDMARK_DETECTOR : "2"
+#   * GPS : "3"
+uint8 SWITCH_SENSOR = 25
