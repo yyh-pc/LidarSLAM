@@ -118,6 +118,9 @@ public:
   GetSensorMacro(TimeThreshold, double)
   SetSensorMacro(TimeThreshold, double)
 
+  GetSensorMacro(SaturationDistance, float)
+  SetSensorMacro(SaturationDistance, float)
+
   GetSensorMacro(Verbose, bool)
   SetSensorMacro(Verbose, bool)
 
@@ -276,6 +279,9 @@ protected:
   double TimeOffset = 0.;
   // Time threshold between 2 measures to consider they can be interpolated
   double TimeThreshold = 0.5;
+  // Threshold distance to not take into account the constraint
+  // This distance is used in the constraint robustifier
+  float SaturationDistance = 5.f;
   // Measures length limit
   // The oldest measures are forgotten
   unsigned int MaxMeasures = 1e6;
@@ -392,9 +398,6 @@ public:
   GetSensorMacro(AbsolutePose, Eigen::Vector6d)
   GetSensorMacro(AbsolutePoseCovariance, Eigen::Matrix6d)
 
-  GetSensorMacro(SaturationDistance, float)
-  SetSensorMacro(SaturationDistance, float)
-
   GetSensorMacro(PositionOnly, bool)
   SetSensorMacro(PositionOnly, bool)
 
@@ -438,10 +441,6 @@ private:
   // This is used to average the pose in case the absolute poses
   // were not supplied initially and are updated (cf. UpdateAbsolutePose)
   int Count = 0;
-  // Threshold distance to not take into account the landmark constraint
-  // (The tag may have been moved or the SLAM has drifted too much)
-  // This distance is used in a robustifier to weight the landmark residuals
-  float SaturationDistance = 5.f;
   // The constraint created can use the whole position (orientation + position) -> false
   // or only the position -> true (if the orientation is not reliable enough)
   bool PositionOnly = true;
@@ -507,9 +506,6 @@ public:
   GetSensorMacro(PrevPoseTransform, Eigen::Isometry3d)
   SetSensorMacro(PrevPoseTransform, const Eigen::Isometry3d&)
 
-  GetSensorMacro(SaturationDistance, float)
-  SetSensorMacro(SaturationDistance, float)
-
   // Compute the interpolated measure (pose of the external pose sensor's)
   // to be synchronized with SLAM output at lidarTime
   bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool trackTime = true) override;
@@ -521,10 +517,6 @@ public:
   bool ComputeConstraint(double lidarTime) override;
 
 private:
-  // Threshold distance to not take into account the external pose constraint
-  // the external pose sensor may have failed
-  // This distance is used in a robustifier to weight the landmark residuals
-  float SaturationDistance = 5.f;
   double PrevLidarTime = -1.;
   Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
 };
