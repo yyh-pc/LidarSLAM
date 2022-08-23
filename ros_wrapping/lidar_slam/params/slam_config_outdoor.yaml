@@ -114,6 +114,7 @@ graph:
                        # the continuity of the motion
   publish_path: false  # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic
   covariance_scale: 1. # Scale to apply to SLAM pose covariances in pose graph optimization
+  iterations_nb: 100   # Number of iterations to perform to optimize the graph
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:

@@ -245,6 +245,9 @@ public:
   GetMacro(CovarianceScale, float)
   SetMacro(CovarianceScale, float)
 
+  GetMacro(NbGraphIterations, int)
+  SetMacro(NbGraphIterations, int)
+
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
   // ---------------------------------------------------------------------------
@@ -818,6 +821,7 @@ private:
   bool FixLastVertex = false;
   // Scale to increase or decrease SLAM pose covariances
   float CovarianceScale = 1.f;
+  int NbGraphIterations = 100;
 
   // ---------------------------------------------------------------------------
   //   Confidence estimation

@@ -985,6 +985,7 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(bool,        "graph/fix_first", FixFirstVertex)
   SetSlamParam(bool,        "graph/fix_last", FixLastVertex)
   SetSlamParam(float,       "graph/covariance_scale", CovarianceScale)
+  SetSlamParam(int,         "graph/iterations_nb", NbGraphIterations)
 
   // Confidence estimators
   // Overlap

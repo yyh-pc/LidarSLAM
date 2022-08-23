@@ -522,7 +522,7 @@ bool Slam::OptimizeGraph()
   // Clear the graph
   graphManager.ResetGraph();
   // Init pose graph optimizer
-  graphManager.SetNbIteration(500);
+  graphManager.SetNbIteration(this->NbGraphIterations);
   graphManager.SetVerbose(this->Verbosity >= 2);
   graphManager.SetSaveG2OFile(!this->G2oFileName.empty());
   graphManager.SetG2OFileName(this->G2oFileName);
