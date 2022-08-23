@@ -1459,12 +1459,19 @@ void Slam::LogCurrentFrameState()
   // and to undistort the input points
   LidarState state;
   state.Isometry = this->Tworld;
-  state.Covariance = this->LocalizationUncertainty.Covariance;
+  // Increase covariance area by scale
+  state.Covariance = std::pow(this->CovarianceScale, 2) * this->LocalizationUncertainty.Covariance;
+  float defaultPositionError = 1e-2; // 1cm
+  float defaultAngleError = Utils::Deg2Rad(1.f); // 1°
+  if (!Utils::isCovarianceValid(state.Covariance))
+    state.Covariance = Utils::CreateDefaultCovariance(defaultPositionError, defaultAngleError); //1mm, 0.5°
+
+  // If 2D mode enabled, supply constant covariance for unevaluated variables
   if (this->TwoDMode)
   {
-    state.Covariance(2, 2) = std::pow(0.01, 2);
-    state.Covariance(3, 3) = std::pow(Utils::Deg2Rad(2.), 2);
-    state.Covariance(4, 4) = std::pow(Utils::Deg2Rad(2.), 2);
+    state.Covariance(2, 2) = std::pow(defaultPositionError, 2);
+    state.Covariance(3, 3) = std::pow(defaultAngleError,    2);
+    state.Covariance(4, 4) = std::pow(defaultAngleError,    2);
   }
   state.Time = this->CurrentTime;
   state.Index = this->NbrFrameProcessed;

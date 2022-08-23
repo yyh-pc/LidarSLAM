@@ -250,19 +250,17 @@ void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& gpsMsg)
       // Get gps timestamp
       this->LastGpsMeas.Time = gpsMsg.header.stamp.sec + gpsMsg.header.stamp.nsec * 1e-9;
 
-      // Get tag covariance
-      bool ValidCovariance = false;
-      for (int i = 0; i < 6; ++i)
+      // Get GPS covariance
+      // ROS covariance message is row major
+      // Eigen matrix is col major by default
+      for (int i = 0; i < 3; ++i)
       {
-        for (int j = 0; j < 6; ++j)
-        {
+        for (int j = 0; j < 3; ++j)
           this->LastGpsMeas.Covariance(i, j) = gpsMsg.pose.covariance[i * 6 + j];
-          if (abs(this->LastGpsMeas.Covariance(i, j)) > 1e-10)
-            ValidCovariance = true;
-        }
       }
-      if (!ValidCovariance)
-        this->LastGpsMeas.Covariance = Eigen::Matrix3d::Identity() * 1e-4;
+      // Correct GPS covariance if needed
+      if (!LidarSlam::Utils::isCovarianceValid(this->LastGpsMeas.Covariance))
+        this->LastGpsMeas.Covariance = Eigen::Matrix3d::Identity() * 4e-4; // 2cm
 
       if (!this->LidarSlam.GpsHasData())
         this->LidarSlam.SetGpsCalibration(baseToGps);
@@ -312,18 +310,16 @@ void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tags
       lm.Time = tagInfo.pose.header.stamp.sec + tagInfo.pose.header.stamp.nsec * 1e-9;
 
       // Get tag covariance
-      bool ValidCovariance = false;
+      // ROS covariance message is row major
+      // Eigen matrix is col major by default
       for (int i = 0; i < 6; ++i)
       {
         for (int j = 0; j < 6; ++j)
-        {
           lm.Covariance(i, j) = tagInfo.pose.pose.covariance[i * 6 + j];
-          if (abs(lm.Covariance(i, j)) > 1e-10)
-            ValidCovariance = true;
-        }
       }
-      if (!ValidCovariance)
-        lm.Covariance = Eigen::Matrix6d::Identity() * 1e-4;
+      // Correct tag covariance if needed
+      if (!LidarSlam::Utils::isCovarianceValid(lm.Covariance))
+        lm.Covariance = LidarSlam::Utils::CreateDefaultCovariance(1e-2, LidarSlam::Utils::Deg2Rad(1)); // 1cm, 1°
 
       // Compute tag ID
       int id = this->BuildId(tagInfo.id);
@@ -951,8 +947,9 @@ void LidarSlamNode::SetSlamParameters()
 
   // Graph parameters
   SetSlamParam(std::string, "graph/g2o_file_name", G2oFileName)
-  SetSlamParam(bool,   "graph/fix_first", FixFirstVertex)
-  SetSlamParam(bool,   "graph/fix_last", FixLastVertex)
+  SetSlamParam(bool,        "graph/fix_first", FixFirstVertex)
+  SetSlamParam(bool,        "graph/fix_last", FixLastVertex)
+  SetSlamParam(float,       "graph/covariance_scale", CovarianceScale)
 
   // Confidence estimators
   // Overlap

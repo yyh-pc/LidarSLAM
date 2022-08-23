@@ -111,8 +111,9 @@ graph:
   fix_first: false     # Fix the first pose of the graph. Can be done if one is sure
                        # about the first pose or want a map at the first pose origin
   fix_last: false      # Fix the last pose of the graph. Can be done if one wants to ensure
-                       # the motion continuity
+                       # the continuity of the motion
   publish_path: false  # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic
+  covariance_scale: 1. # Scale to apply to SLAM pose covariances in pose graph optimization
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:

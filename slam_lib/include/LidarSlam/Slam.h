@@ -242,6 +242,9 @@ public:
   GetMacro(FixLastVertex, bool)
   SetMacro(FixLastVertex, bool)
 
+  GetMacro(CovarianceScale, float)
+  SetMacro(CovarianceScale, float)
+
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
   // ---------------------------------------------------------------------------
@@ -813,6 +816,8 @@ private:
   // Boolean to decide if we want to some vertices of the graph
   bool FixFirstVertex = false;
   bool FixLastVertex = false;
+  // Scale to increase or decrease SLAM pose covariances
+  float CovarianceScale = 1.f;
 
   // ---------------------------------------------------------------------------
   //   Confidence estimation

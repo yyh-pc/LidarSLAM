@@ -143,7 +143,7 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
     // Lidar Slam gives the covariance expressed in the map frame
     // We want the covariance expressed in the last frame to be consistent with supplied relative transform
     Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(state.Isometry);
-    Eigen::Matrix6d covariance = CeresTools::RotateCovariance(xyzrpy, state.Covariance, lastFrameInv, true); // new = prevState^-1 * state
+    Eigen::Matrix6d covariance = CeresTools::RotateCovariance(xyzrpy, state.Covariance, lastFrameInv, true); // new = prevState^-1 * init
     // Use g2o read function to transform Euler covariance into quaternion covariance
     // This function takes an istream as input
     // It needs the measurement vector as 6D euler pose in addition to the covariance
@@ -152,6 +152,7 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
     Eigen::Vector6d poseRelative = Utils::IsometryToXYZRPY(Trelative);
     measureInfo << poseRelative(0) << " " << poseRelative(1) << " " << poseRelative(2) << " "
                 << poseRelative(3) << " " << poseRelative(4) << " " << poseRelative(5) << " ";
+
     Eigen::Matrix6d information = covariance.inverse();
     for (int i = 0; i < 6; ++i)
     {
