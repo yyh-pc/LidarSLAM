@@ -69,6 +69,10 @@ external_sensors:
                       # and between two measures to interpolate
                       # /!\ For landmarks this parameter is also used to define a maximum time without seeing a tag
                       # to reset the absolute pose with new observation (only in the case no poses were initially needed).
+  lidar_is_posix: true # lidar timestamp in data header is POSIX
+                       # as we expect external sensor timestamps to be POSIX, we can directly
+                       # use header timestamp to synchronize data.
+                       # If not, we use message reception time as reference.
   # Optional GPS position use (if 'gps/use_gps'=true), subscribing to Odometry msg on 'gps_odom' topic.
   # It allows to estimate calibration between GPS and SLAM trajectories,
   # or post-optimize SLAM trajectory with pose graph optimization (PGO).

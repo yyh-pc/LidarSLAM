@@ -186,18 +186,21 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
     return;
   }
 
-  // Compute time offset
-  // Get ROS frame reception time
-  double TimeFrameReceptionPOSIX = ros::Time::now().toSec();
-  // Get last acquired point timestamp
-  double TimeLastPoint = LidarSlam::Utils::PclStampToSec(cloudS_ptr->header.stamp) + cloudS_ptr->back().time;
-  // Compute offset
-  double potentialOffset = TimeLastPoint - TimeFrameReceptionPOSIX;
-  // Get current offset
-  double absCurrentOffset = std::abs(this->LidarSlam.GetSensorTimeOffset());
-  // If the current computed offset is more accurate, replace it
-  if (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset)
-    this->LidarSlam.SetSensorTimeOffset(potentialOffset);
+  if (!this->LidarTimePosix)
+  {
+    // Compute time offset
+    // Get ROS frame reception time
+    double TimeFrameReceptionPOSIX = ros::Time::now().toSec();
+    // Get last acquired point timestamp
+    double TimeLastPoint = LidarSlam::Utils::PclStampToSec(cloudS_ptr->header.stamp) + cloudS_ptr->back().time;
+    // Compute offset
+    double potentialOffset = TimeLastPoint - TimeFrameReceptionPOSIX;
+    // Get current offset
+    double absCurrentOffset = std::abs(this->LidarSlam.GetSensorTimeOffset());
+    // If the current computed offset is more accurate, replace it
+    if (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset)
+      this->LidarSlam.SetSensorTimeOffset(potentialOffset);
+  }
 
   // Update TF from BASE to LiDAR
   if (!this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id))
@@ -943,7 +946,8 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(float,  "external_sensors/landmark_detector/weight", LandmarkWeight)
   SetSlamParam(float,  "external_sensors/landmark_detector/saturation_distance", LandmarkSaturationDistance)
   SetSlamParam(bool,   "external_sensors/landmark_detector/position_only", LandmarkPositionOnly)
-  this->PrivNh.getParam("external_sensors/landmark_detector/publish_tags", this->PublishTags);
+  this->PublishTags    = this->PrivNh.param("external_sensors/landmark_detector/publish_tags", false);
+  this->LidarTimePosix = this->PrivNh.param("external_sensors/landmark_detector/lidar_is_posix", true);
 
   // Graph parameters
   SetSlamParam(std::string, "graph/g2o_file_name", G2oFileName)

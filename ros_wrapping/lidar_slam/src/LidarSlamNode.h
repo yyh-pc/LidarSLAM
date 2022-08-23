@@ -212,6 +212,12 @@ protected:
   // Multithreaded reception of sensor data
   std::shared_ptr<ros::AsyncSpinner> ExternalSpinnerPtr;
   ros::CallbackQueue ExternalQueue;
+
+  // If lidar time contained in the header is not POSIX
+  // The offset between network reception time
+  // and Lidar time is computed
+  bool LidarTimePosix = true;
+
   // Landmarks
   bool UseTags = false;
   ros::Subscriber LandmarksSub;
