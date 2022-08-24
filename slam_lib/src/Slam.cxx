@@ -1156,6 +1156,7 @@ void Slam::ComputeEgoMotion()
 //-----------------------------------------------------------------------------
 void Slam::Localization()
 {
+  this->LocalizationUncertainty = LocalOptimizer::RegistrationError();
   this->Valid = true;
   PRINT_VERBOSE(2, "========== Localization ==========");
 

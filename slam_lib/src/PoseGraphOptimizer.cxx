@@ -103,7 +103,7 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
 
   // Initialize local values
   int prevIdx = 0;
-  Eigen::Isometry3d prevState;
+  Eigen::Isometry3d prevState = Eigen::Isometry3d::Identity();
   int nStates = 0;
   // Loop over all states
   for (const auto& state : states)
