@@ -557,7 +557,7 @@ bool Slam::OptimizeGraph()
       lm.SetVerbose(false);
       for (auto& s : this->LogStates)
       {
-        ExternalSensors::LandmarkMeasurement lmSynchMeasure;
+        ExternalSensors::LandmarkMeasurement lmSynchMeasure; // Virtual landmark measure with synchronized timestamp and no calibration applied
         if (!lm.ComputeSynchronizedMeasure(s.Time, lmSynchMeasure))
           continue;
         // Add synchronized landmark observations to the graph
@@ -577,15 +577,9 @@ bool Slam::OptimizeGraph()
     graphManager.AddExternalSensor(this->GpsManager->GetCalibration(), int(ExternalSensor::GPS));
     for (auto& s : this->LogStates)
     {
-      ExternalSensors::GpsMeasurement gpsSynchMeasure;
-      if (!this->GpsManager->ComputeSynchronizedMeasure(s.Time, gpsSynchMeasure))
+      ExternalSensors::GpsMeasurement gpsSynchMeasure; // Virtual GPS measure in SLAM reference frame with synchronized timestamp
+      if (!this->GpsManager->ComputeSynchronizedMeasureOffset(s.Time, gpsSynchMeasure))
         continue;
-
-      // Express synchronized measure in Lidar odom frame
-      // Offset must have been calibrated using CalibrateWithGps
-      gpsSynchMeasure.Position = this->GpsManager->GetOffset() * gpsSynchMeasure.Position;
-      // If the sensor covariance is used, it must be rotated to reflect the frame offset
-      gpsSynchMeasure.Covariance = this->GpsManager->GetOffset().linear() * gpsSynchMeasure.Covariance;
 
       // Add synchronized gps measurement to the graph
       graphManager.AddGpsConstraint(s.Index, gpsSynchMeasure);
@@ -937,14 +931,14 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
     PRINT_WARNING("No external pose manager : pose not initialized")
     return false;
   }
-  ExternalSensors::PoseMeasurement firstSynchPoseMeas;
-  if (!this->PoseManager->ComputeSynchronizedMeasure(time, firstSynchPoseMeas))
+  ExternalSensors::PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
+  if (!this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas))
   {
     PRINT_WARNING("Cannot find synchronized pose measurement : Lidar pose not initialized")
     return false;
   }
 
-  Eigen::Isometry3d external2Odom = firstSynchPoseMeas.Pose * this->PoseManager->GetCalibration().inverse() * this->Tworld.inverse();
+  Eigen::Isometry3d odom2Ext = this->Tworld.inverse() * synchMeas.Pose;
   // Update trajectory
   if (!this->LogStates.empty())
   {
@@ -952,17 +946,17 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
     {
       // Rotate covariance
       Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(s.Isometry);
-      CeresTools::RotateCovariance(initPose, s.Covariance, external2Odom, true); // new = external2Odom * init
+      CeresTools::RotateCovariance(initPose, s.Covariance, odom2Ext); // new = init * odom2Ext
       // Transform pose
-      s.Isometry = external2Odom * s.Isometry;
+      s.Isometry = s.Isometry * odom2Ext;
     }
     // Update maps
     this->UpdateMaps();
   }
   else
-    this->TworldInit = external2Odom * this->Tworld;
+    this->TworldInit = this->Tworld * odom2Ext;
 
-  this->Tworld = external2Odom * this->Tworld;
+  this->Tworld = this->Tworld * odom2Ext;
 
   PRINT_VERBOSE(1, "Pose initialized with external pose measurement");
   return true;
@@ -984,15 +978,13 @@ void Slam::ComputeEgoMotion()
   {
     if (this->PoseHasData())
     {
-      ExternalSensors::PoseMeasurement synchPoseMeas;
-      if (this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime, synchPoseMeas))
+      ExternalSensors::PoseMeasurement synchPreviousPoseMeas; // Virtual measure with synchronized timestamp and calibration applied
+      if (this->PoseManager->ComputeSynchronizedMeasureBase(this->LogStates.back().Time, synchPreviousPoseMeas))
       {
-        ExternalSensors::PoseMeasurement synchPreviousPoseMeas;
-        if (this->PoseManager->ComputeSynchronizedMeasure(this->LogStates.back().Time, synchPreviousPoseMeas))
+        ExternalSensors::PoseMeasurement synchPoseMeas; // Virtual measure with synchronized timestamp and calibration applied
+        if (this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime, synchPoseMeas))
         {
-          Eigen::Isometry3d synchBasePose = synchPoseMeas.Pose * this->PoseManager->GetCalibration().inverse();
-          Eigen::Isometry3d synchPreviousBasePoseMeas = synchPreviousPoseMeas.Pose * this->PoseManager->GetCalibration().inverse();
-          this->Trelative = synchPreviousBasePoseMeas.inverse() * synchBasePose;
+          this->Trelative = synchPreviousPoseMeas.Pose.inverse() * synchPoseMeas.Pose;
           externalAvailable = true;
           PRINT_VERBOSE(3, "Prior pose computed using external poses supplied");
         }
@@ -1556,25 +1548,22 @@ void Slam::UndistortWithPoseMeasurement()
   if (this->PoseHasData())
   {
     // Get synchronized point pose relatively to frame
-    ExternalSensors::PoseMeasurement synchPointPoseMeas;
-    ExternalSensors::PoseMeasurement synchFramePoseMeas;
-    Eigen::Isometry3d invCalib = this->PoseManager->GetCalibration().inverse();
-    if (this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime, synchFramePoseMeas))
+    ExternalSensors::PoseMeasurement synchPoseMeasCurrent; // Virtual measure with synchronized timestamp and calibration applied
+    if (this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime, synchPoseMeasCurrent))
     {
-      synchFramePoseMeas.Pose = synchFramePoseMeas.Pose * invCalib;
-      Eigen::Isometry3d invSynchFrame = synchFramePoseMeas.Pose.inverse();
+      Eigen::Isometry3d invSynchPoseMeasCurrent = synchPoseMeasCurrent.Pose.inverse();
       // Undistort keypoints
       for (auto k : this->UsableKeypoints)
       {
         // Compute synchronized measures (not parallelizable)
         int nbPoints = this->CurrentUndistortedKeypoints[k]->size();
-        std::vector<ExternalSensors::PoseMeasurement> synchMeas (nbPoints);
+        std::vector<ExternalSensors::PoseMeasurement> synchMeas (nbPoints); // Virtual measures with synchronized timestamp and calibration applied
         // Sort points by time to speed up synchronization search
         std::sort(this->CurrentUndistortedKeypoints[k]->points.begin(), this->CurrentUndistortedKeypoints[k]->points.end(), [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
         int idxPt = 0;
         for (auto& point : *this->CurrentUndistortedKeypoints[k])
         {
-          this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime + point.time, synchMeas[idxPt]);
+          this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime + point.time, synchMeas[idxPt]);
           ++idxPt;
         }
 
@@ -1583,7 +1572,7 @@ void Slam::UndistortWithPoseMeasurement()
         for (int i = 0; i < nbPoints; ++i)
         {
           auto& point = this->CurrentUndistortedKeypoints[k]->at(i);
-          Utils::TransformPoint(point, invSynchFrame * (synchMeas[i].Pose * invCalib));
+          Utils::TransformPoint(point, invSynchPoseMeasCurrent * synchMeas[i].Pose);
         }
       }
     }
@@ -2039,7 +2028,7 @@ bool Slam::CalibrateWithGps()
   Eigen::Isometry3d offset = Eigen::Isometry3d::Identity();
   for (auto& s : this->LogStates)
   {
-    ExternalSensors::GpsMeasurement gpsSynchMeasure;
+    ExternalSensors::GpsMeasurement gpsSynchMeasure; // Virtual measure with synchronized timestamp and no offset applied
     if (this->GpsManager->ComputeSynchronizedMeasure(s.Time, gpsSynchMeasure))
     {
       offset.translation() = (s.Isometry * this->GpsManager->GetCalibration()).translation() - gpsSynchMeasure.Position;

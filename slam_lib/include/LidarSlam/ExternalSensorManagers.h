@@ -327,6 +327,9 @@ public:
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
   bool ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas) override;
 
+  // Compute the interpolated measure to be synchronized with SLAM output (at lidarTime) in base frame
+  bool ComputeSynchronizedMeasureBase(double lidarTime, GravityMeasurement& synchMeas);
+
   // IMU constraint (gravity)
   bool ComputeConstraint(double lidarTime) override;
   // Compute Reference gravity vector from IMU measurements
@@ -369,6 +372,10 @@ public:
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
   bool ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas) override;
+
+  // Compute the interpolated measure (landmark pose)
+  // to be synchronized with SLAM output at lidarTimenfrom base frame
+  bool ComputeSynchronizedMeasureBase(double lidarTime, LandmarkMeasurement& synchMeas);
 
   // Landmark constraint
   bool ComputeConstraint(double lidarTime) override;
@@ -428,12 +435,17 @@ public:
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
   bool ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas) override;
 
+  // Compute the interpolated measure (GPS position in SLAM referential) to be synchronized with SLAM output at lidarTime
+  // The measures data track GPS sensor frame (not base frame) but are represented in the same referential
+  bool ComputeSynchronizedMeasureOffset(double lidarTime, GpsMeasurement& synchMeas);
+
   bool ComputeConstraint(double lidarTime) override;
 
   bool CanBeUsedLocally(){return false;}
 
 private:
   // Offset transform to link GPS global frame and Lidar SLAM global frame
+  // GPS referential to base referential
   Eigen::Isometry3d Offset = Eigen::Isometry3d::Identity();
 };
 
@@ -459,6 +471,10 @@ public:
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
   bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas) override;
+
+  // Compute the interpolated measure (base pose)
+  // to be synchronized with SLAM output at lidarTime : calibration is applied
+  bool ComputeSynchronizedMeasureBase(double lidarTime, PoseMeasurement& synchMeas);
 
   bool ComputeConstraint(double lidarTime) override;
 

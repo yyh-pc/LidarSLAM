@@ -53,7 +53,8 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime)
 {
   this->ResetResidual();
 
-  WheelOdomMeasurement synchMeas;
+  // Compute synchronized measures
+  WheelOdomMeasurement synchMeas; // Virtual measure with synchronized timestamp
   if (!ComputeSynchronizedMeasure(lidarTime, synchMeas))
     return false;
 
@@ -115,6 +116,18 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime)
 }
 
 // ---------------------------------------------------------------------------
+bool ImuGravityManager::ComputeSynchronizedMeasureBase(double lidarTime, GravityMeasurement& synchMeas)
+{
+  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas))
+    return false;
+
+  // Represent gravity in base frame
+  synchMeas.Acceleration = this->Calibration * synchMeas.Acceleration;
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 bool ImuGravityManager::ComputeConstraint(double lidarTime)
 {
   this->ResetResidual();
@@ -123,8 +136,9 @@ bool ImuGravityManager::ComputeConstraint(double lidarTime)
   if (this->GravityRef.norm() < 1e-6)
     this->ComputeGravityRef(Utils::Deg2Rad(5.f));
 
-  GravityMeasurement synchMeas;
-  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas))
+  // Compute synchronized measures in base frame
+  GravityMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
+  if (!ComputeSynchronizedMeasureBase(lidarTime, synchMeas))
     return false;
 
   // Build gravity constraint
@@ -301,6 +315,25 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
 }
 
 // ---------------------------------------------------------------------------
+bool LandmarkManager::ComputeSynchronizedMeasureBase(double lidarTime, LandmarkMeasurement& synchMeas)
+{
+  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas))
+    return false;
+
+  // Rotate covariance with calibration if covariance rotation required
+  if (this->CovarianceRotation)
+  {
+    Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(synchMeas.TransfoRelative);
+    synchMeas.Covariance = CeresTools::RotateCovariance(xyzrpy, synchMeas.Covariance, this->Calibration, true); // new = calib * init
+  }
+
+  // Represent relative pose from base frame
+  synchMeas.TransfoRelative = this->Calibration * synchMeas.TransfoRelative;
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 bool LandmarkManager::ComputeConstraint(double lidarTime)
 {
   this->ResetResidual();
@@ -308,9 +341,9 @@ bool LandmarkManager::ComputeConstraint(double lidarTime)
   if (!this->CanBeUsedLocally())
     return false;
 
-  // Virtual measure with synchronized timestamp (no calibration applied)
-  LandmarkMeasurement synchMeas;
-  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas))
+  // Compute synchronized measures from base frame
+  LandmarkMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
+  if (!this->ComputeSynchronizedMeasureBase(lidarTime, synchMeas))
     return false;
 
   // Last times the tag was used
@@ -332,9 +365,9 @@ bool LandmarkManager::ComputeConstraint(double lidarTime)
   // NOTE : the covariances are not used because the uncertainty is not comparable with common keypoint constraints
   // The user must play with the weight parameter to get the best result depending on the tag detection accuracy.
   if (this->PositionOnly)
-    this->Residual.Cost = CeresCostFunctions::LandmarkPositionResidual::Create(this->Calibration * synchMeas.TransfoRelative, this->AbsolutePose);
+    this->Residual.Cost = CeresCostFunctions::LandmarkPositionResidual::Create(synchMeas.TransfoRelative, this->AbsolutePose);
   else
-    this->Residual.Cost = CeresCostFunctions::LandmarkResidual::Create(this->Calibration * synchMeas.TransfoRelative, this->AbsolutePose);
+    this->Residual.Cost = CeresCostFunctions::LandmarkResidual::Create(synchMeas.TransfoRelative, this->AbsolutePose);
 
   // Use a robustifier to limit the contribution of an outlier tag detection (the tag may have been moved)
   // Tukey loss applied on residual square:
@@ -406,6 +439,20 @@ void GpsManager::operator=(const GpsManager& gpsManager)
 }
 
 // ---------------------------------------------------------------------------
+ bool GpsManager::ComputeSynchronizedMeasureOffset(double lidarTime, GpsMeasurement& synchMeas)
+{
+  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas))
+    return false;
+
+  // Apply offset to represent the GPS measurement in SLAM reference frame
+  synchMeas.Position = this->Offset * synchMeas.Position;
+  // Rotate covariance
+  synchMeas.Covariance = this->GetOffset().linear() * synchMeas.Covariance;
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 bool GpsManager::ComputeConstraint(double lidarTime)
 {
   static_cast<void>(lidarTime);
@@ -438,6 +485,20 @@ bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& 
 }
 
 // ---------------------------------------------------------------------------
+bool PoseManager::ComputeSynchronizedMeasureBase(double lidarTime, PoseMeasurement& synchMeas)
+{
+  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas))
+    return false;
+
+  // Apply calibration
+  synchMeas.Pose = synchMeas.Pose * this->Calibration.inverse();
+  // No covariance is attached to pose measurement for now
+  // if one is added, it should be rotated here if one uses it in an external pose graph
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 bool PoseManager::ComputeConstraint(double lidarTime)
 {
   this->ResetResidual();
@@ -445,19 +506,18 @@ bool PoseManager::ComputeConstraint(double lidarTime)
   if (!this->CanBeUsedLocally())
     return false;
 
-  // Compute synchronized measures
-
-  PoseMeasurement synchPrevMeas;
-  if (!this->ComputeSynchronizedMeasure(this->PrevLidarTime, synchPrevMeas))
+  // Compute synchronized measures representing base frame
+  PoseMeasurement synchPrevMeas; // Virtual measure with synchronized timestamp and calibration applied
+  // NOTE : If PrevLidarTime has not been set (initialization), no synchronized measure should be found
+  if (!this->ComputeSynchronizedMeasureBase(this->PrevLidarTime, synchPrevMeas))
     return false;
 
-  PoseMeasurement synchMeas;
-  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas))
+  PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
+  if (!this->ComputeSynchronizedMeasureBase(lidarTime, synchMeas))
     return false;
 
   // Deduce measured relative transform
-  Eigen::Vector6d TrelMeas = Utils::IsometryToXYZRPY((synchPrevMeas.Pose* this->Calibration.inverse()).inverse()
-                                                     * synchMeas.Pose * this->Calibration.inverse());
+  Eigen::Vector6d TrelMeas = Utils::IsometryToXYZRPY(synchPrevMeas.Pose.inverse() * synchMeas.Pose);
 
   this->Residual.Cost = CeresCostFunctions::ExternalPoseResidual::Create(TrelMeas, this->PrevPoseTransform);
 
