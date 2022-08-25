@@ -444,17 +444,17 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 void Slam::ComputeSensorConstraints()
 {
   if (this->WheelOdomManager && this->WheelOdomManager->CanBeUsedLocally() &&
-      this->WheelOdomManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+      this->WheelOdomManager->ComputeConstraint(this->CurrentTime))
     PRINT_VERBOSE(3, "Wheel odometry constraint added")
   if (this->GravityManager && this->GravityManager->CanBeUsedLocally() &&
-      this->GravityManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+      this->GravityManager->ComputeConstraint(this->CurrentTime))
     PRINT_VERBOSE(3, "IMU gravity constraint added")
   if (this->LmCanBeUsedLocally())
   {
     for (auto& idLm : this->LandmarksManagers)
     {
       PRINT_VERBOSE(3, "Checking state of tag #" << idLm.first)
-      if (idLm.second.ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+      if (idLm.second.ComputeConstraint(this->CurrentTime))
         PRINT_VERBOSE(3, "\t Adding constraint for tag #" << idLm.first)
     }
   }
@@ -466,7 +466,7 @@ void Slam::ComputeSensorConstraints()
       // The last pose logged corresponds to last lidar frame
       this->PoseManager->SetPrevLidarTime(this->LogStates.back().Time);
       this->PoseManager->SetPrevPoseTransform(this->LogStates.back().Isometry);
-      if (this->PoseManager->ComputeConstraint(this->CurrentTime, this->Verbosity >= 3))
+      if (this->PoseManager->ComputeConstraint(this->CurrentTime))
         PRINT_VERBOSE(3, "External pose constraint added")
     }
   }
@@ -554,6 +554,7 @@ bool Slam::OptimizeGraph()
       graphManager.AddLandmark(lmTransfo, idLm.first, lm.GetPositionOnly());
 
       // Add landmarks constraint to the graph
+      lm.SetVerbose(false);
       for (auto& s : this->LogStates)
       {
         ExternalSensors::LandmarkMeasurement lmSynchMeasure;
@@ -563,6 +564,7 @@ bool Slam::OptimizeGraph()
         graphManager.AddLandmarkConstraint(s.Index, idLm.first, lmSynchMeasure, lm.GetPositionOnly());
         externalConstraint = true;
       }
+      lm.SetVerbose(this->Verbosity >= 3);
     }
     // Reset the rotate covariance member to not rotate covariances
     // in future local constraints building
@@ -936,7 +938,7 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
     return false;
   }
   ExternalSensors::PoseMeasurement firstSynchPoseMeas;
-  if (!this->PoseManager->ComputeSynchronizedMeasure(time, firstSynchPoseMeas, this->Verbosity >= 3))
+  if (!this->PoseManager->ComputeSynchronizedMeasure(time, firstSynchPoseMeas))
   {
     PRINT_WARNING("Cannot find synchronized pose measurement : Lidar pose not initialized")
     return false;
@@ -983,10 +985,10 @@ void Slam::ComputeEgoMotion()
     if (this->PoseHasData())
     {
       ExternalSensors::PoseMeasurement synchPoseMeas;
-      if (this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime, synchPoseMeas, this->Verbosity >= 3))
+      if (this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime, synchPoseMeas))
       {
         ExternalSensors::PoseMeasurement synchPreviousPoseMeas;
-        if (this->PoseManager->ComputeSynchronizedMeasure(this->LogStates.back().Time, synchPreviousPoseMeas, this->Verbosity >= 3))
+        if (this->PoseManager->ComputeSynchronizedMeasure(this->LogStates.back().Time, synchPreviousPoseMeas))
         {
           Eigen::Isometry3d synchBasePose = synchPoseMeas.Pose * this->PoseManager->GetCalibration().inverse();
           Eigen::Isometry3d synchPreviousBasePoseMeas = synchPreviousPoseMeas.Pose * this->PoseManager->GetCalibration().inverse();
@@ -1557,7 +1559,7 @@ void Slam::UndistortWithPoseMeasurement()
     ExternalSensors::PoseMeasurement synchPointPoseMeas;
     ExternalSensors::PoseMeasurement synchFramePoseMeas;
     Eigen::Isometry3d invCalib = this->PoseManager->GetCalibration().inverse();
-    if (this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime, synchFramePoseMeas, this->Verbosity >= 3))
+    if (this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime, synchFramePoseMeas))
     {
       synchFramePoseMeas.Pose = synchFramePoseMeas.Pose * invCalib;
       Eigen::Isometry3d invSynchFrame = synchFramePoseMeas.Pose.inverse();
@@ -1572,7 +1574,7 @@ void Slam::UndistortWithPoseMeasurement()
         int idxPt = 0;
         for (auto& point : *this->CurrentUndistortedKeypoints[k])
         {
-          this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime + point.time, synchMeas[idxPt], this->Verbosity >= 3);
+          this->PoseManager->ComputeSynchronizedMeasure(this->CurrentTime + point.time, synchMeas[idxPt]);
           ++idxPt;
         }
 
@@ -1861,7 +1863,8 @@ void Slam::InitWheelOdom()
   this->WheelOdomManager = std::make_shared<ExternalSensors::WheelOdometryManager>(0.,
                                                                                    this->SensorTimeOffset,
                                                                                    this->SensorTimeThreshold,
-                                                                                   this->SensorMaxMeasures);
+                                                                                   this->SensorMaxMeasures,
+                                                                                   this->Verbosity >= 3);
 }
 
 //-----------------------------------------------------------------------------
@@ -1870,7 +1873,8 @@ void Slam::InitGravity()
   this->GravityManager = std::make_shared<ExternalSensors::ImuGravityManager>(0.,
                                                                               this->SensorTimeOffset,
                                                                               this->SensorTimeThreshold,
-                                                                              this->SensorMaxMeasures);
+                                                                              this->SensorMaxMeasures,
+                                                                              this->Verbosity >= 3);
 }
 
 //-----------------------------------------------------------------------------
@@ -1879,7 +1883,8 @@ void Slam::InitLandmarkManager(int id)
   this->LandmarksManagers[id] = ExternalSensors::LandmarkManager(this->SensorTimeOffset,
                                                                  this->SensorTimeThreshold,
                                                                  this->SensorMaxMeasures,
-                                                                 this->LandmarkPositionOnly);
+                                                                 this->LandmarkPositionOnly,
+                                                                 this->Verbosity >= 3);
   this->LandmarksManagers[id].SetWeight(this->LandmarkWeight);
   this->LandmarksManagers[id].SetSaturationDistance(this->LandmarkSaturationDistance);
   // The calibration can be modified afterwards
@@ -1891,7 +1896,8 @@ void Slam::InitGps()
 {
   this->GpsManager = std::make_shared<ExternalSensors::GpsManager>(this->SensorTimeOffset,
                                                                    this->SensorTimeThreshold,
-                                                                   this->SensorMaxMeasures);
+                                                                   this->SensorMaxMeasures,
+                                                                   this->Verbosity >= 3);
 }
 
 //-----------------------------------------------------------------------------
@@ -1900,7 +1906,8 @@ void Slam::InitPoseSensor()
   this->PoseManager = std::make_shared<ExternalSensors::PoseManager>(0.,
                                                                      this->SensorTimeOffset,
                                                                      this->SensorTimeThreshold,
-                                                                     this->SensorMaxMeasures);
+                                                                     this->SensorMaxMeasures,
+                                                                     this->Verbosity >= 3);
 }
 
 // Sensor data

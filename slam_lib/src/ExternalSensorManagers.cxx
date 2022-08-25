@@ -28,7 +28,7 @@ namespace ExternalSensors
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
- bool WheelOdometryManager::ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose)
+ bool WheelOdometryManager::ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas)
 {
   if (!this->CanBeUsedLocally())
     return false;
@@ -37,7 +37,7 @@ namespace ExternalSensors
 
   // Compute the two closest measures to current Lidar frame
   lidarTime -= this->TimeOffset;
-  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  auto bounds = this->GetMeasureBounds(lidarTime);
   if (bounds.first == bounds.second)
     return false;
   // Interpolate odometry measurement at LiDAR timestamp
@@ -49,12 +49,12 @@ namespace ExternalSensors
 }
 
 // ---------------------------------------------------------------------------
-bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
+bool WheelOdometryManager::ComputeConstraint(double lidarTime)
 {
   this->ResetResidual();
 
   WheelOdomMeasurement synchMeas;
-  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas))
     return false;
 
   // Build odometry residual
@@ -62,7 +62,7 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
   // The current measure is taken as reference
   if (this->RefDistance > 1e9)
   {
-    if (verbose)
+    if (this->Verbose)
       PRINT_INFO("No previous wheel odometry measure : no constraint added to optimization")
     // Update reference distance for next frames
     this->RefDistance = synchMeas.Distance;
@@ -73,9 +73,9 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
   double distDiff = std::abs(synchMeas.Distance - this->RefDistance);
   this->Residual.Cost = CeresCostFunctions::OdometerDistanceResidual::Create(this->PreviousPose.translation(), distDiff);
   this->Residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
-  if(verbose && !this->Relative)
+  if(this->Verbose && !this->Relative)
     PRINT_INFO("Adding absolute wheel odometry residual : " << distDiff << " m travelled since first frame.")
-  if (verbose && this->Relative)
+  if (this->Verbose && this->Relative)
     PRINT_INFO("Adding relative wheel odometry residual : " << distDiff << " m travelled since last frame.")
 
   // Update reference distance if relative mode enabled
@@ -90,7 +90,7 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
- bool ImuGravityManager::ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose)
+ bool ImuGravityManager::ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas)
 {
   if (!this->CanBeUsedLocally())
     return false;
@@ -98,7 +98,7 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
   std::lock_guard<std::mutex> lock(this->Mtx);
   // Compute the two closest measures to current Lidar frame
   lidarTime -= this->TimeOffset;
-  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  auto bounds = this->GetMeasureBounds(lidarTime);
   if (bounds.first == bounds.second)
     return false;
   // Interpolate gravity measurement at LiDAR timestamp
@@ -115,7 +115,7 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
 }
 
 // ---------------------------------------------------------------------------
-bool ImuGravityManager::ComputeConstraint(double lidarTime, bool verbose)
+bool ImuGravityManager::ComputeConstraint(double lidarTime)
 {
   this->ResetResidual();
 
@@ -124,13 +124,14 @@ bool ImuGravityManager::ComputeConstraint(double lidarTime, bool verbose)
     this->ComputeGravityRef(Utils::Deg2Rad(5.f));
 
   GravityMeasurement synchMeas;
-  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+  if (!ComputeSynchronizedMeasure(lidarTime, synchMeas))
     return false;
 
   // Build gravity constraint
   this->Residual.Cost = CeresCostFunctions::ImuGravityAlignmentResidual::Create(this->GravityRef, synchMeas.Acceleration);
   this->Residual.Robustifier.reset(new ceres::ScaledLoss(NULL, this->Weight, ceres::TAKE_OWNERSHIP));
-  PRINT_INFO("\t Adding gravity residual with gravity reference : " << this->GravityRef.transpose())
+  if (this->Verbose)
+    PRINT_INFO("\t Adding gravity residual with gravity reference : " << this->GravityRef.transpose())
   return true;
 }
 
@@ -179,8 +180,8 @@ void ImuGravityManager::ComputeGravityRef(double deltaAngle)
 
 // ---------------------------------------------------------------------------
 LandmarkManager::LandmarkManager(double timeOffset, double timeThresh, unsigned int maxMeas,
-                                 bool positionOnly, const std::string& name)
-                : SensorManager(timeOffset, timeThresh, maxMeas, name),
+                                 bool positionOnly, bool verbose, const std::string& name)
+                : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name),
                   PositionOnly(positionOnly),
                   CovarianceRotation(false)
 {}
@@ -191,29 +192,31 @@ LandmarkManager::LandmarkManager(const LandmarkManager& lmManager)
                                   lmManager.GetTimeThreshold(),
                                   lmManager.GetMaxMeasures(),
                                   lmManager.GetPositionOnly(),
+                                  lmManager.GetVerbose(),
                                   lmManager.GetSensorName())
 {
   this->CovarianceRotation = lmManager.GetCovarianceRotation();
-  this->Measures = lmManager.GetMeasures();
-  this->PreviousIt = this->Measures.begin();
+  this->Measures           = lmManager.GetMeasures();
+  this->PreviousIt         = this->Measures.begin();
   // Parameters only useful in local optimization
-  this->Weight = lmManager.GetWeight();
+  this->Weight             = lmManager.GetWeight();
   this->SaturationDistance = lmManager.GetSaturationDistance();
 }
 
 // ---------------------------------------------------------------------------
 void LandmarkManager::operator=(const LandmarkManager& lmManager)
 {
-  this->SensorName = lmManager.GetSensorName();
-  this->TimeOffset = lmManager.GetTimeOffset();
-  this->TimeThreshold = lmManager.GetTimeThreshold();
-  this->MaxMeasures = lmManager.GetMaxMeasures();
-  this->PositionOnly = lmManager.GetPositionOnly();
+  this->SensorName         = lmManager.GetSensorName();
+  this->TimeOffset         = lmManager.GetTimeOffset();
+  this->TimeThreshold      = lmManager.GetTimeThreshold();
+  this->Verbose            = lmManager.GetVerbose();
+  this->MaxMeasures        = lmManager.GetMaxMeasures();
+  this->PositionOnly       = lmManager.GetPositionOnly();
   this->CovarianceRotation = lmManager.GetCovarianceRotation();
-  this->Measures = lmManager.GetMeasures();
-  this->PreviousIt = this->Measures.begin();
+  this->Measures           = lmManager.GetMeasures();
+  this->PreviousIt         = this->Measures.begin();
   // Parameters only useful in local optimization
-  this->Weight = lmManager.GetWeight();
+  this->Weight             = lmManager.GetWeight();
   this->SaturationDistance = lmManager.GetSaturationDistance();
 }
 
@@ -267,7 +270,7 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
 }
 
 // ---------------------------------------------------------------------------
- bool LandmarkManager::ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool verbose)
+ bool LandmarkManager::ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas)
 {
   if (!this->HasData())
     return false;
@@ -275,7 +278,7 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
   std::lock_guard<std::mutex> lock(this->Mtx);
   // Compute the two closest measures to current Lidar frame
   lidarTime -= this->TimeOffset;
-  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  auto bounds = this->GetMeasureBounds(lidarTime);
   if (bounds.first == bounds.second)
     return false;
   // Fill measure
@@ -298,7 +301,7 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
 }
 
 // ---------------------------------------------------------------------------
-bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
+bool LandmarkManager::ComputeConstraint(double lidarTime)
 {
   this->ResetResidual();
 
@@ -307,7 +310,7 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
 
   // Virtual measure with synchronized timestamp (no calibration applied)
   LandmarkMeasurement synchMeas;
-  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas))
     return false;
 
   // Last times the tag was used
@@ -320,7 +323,8 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
   // If not, the next tag detection is waited
   if (!this->HasAbsolutePose)
   {
-    PRINT_WARNING("\t No absolute pose, waiting for next detection")
+    if (this->Verbose)
+      PRINT_WARNING("\t No absolute pose, waiting for next detection")
     return false;
   }
 
@@ -359,16 +363,11 @@ bool LandmarkManager::ComputeConstraint(double lidarTime, bool verbose)
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-GpsManager::GpsManager(double timeOffset, double timeThresh,
-                       unsigned int maxMeas, const std::string& name)
-           : SensorManager(timeOffset, timeThresh, maxMeas, name)
-{}
-
-// ---------------------------------------------------------------------------
 GpsManager::GpsManager(const GpsManager& gpsManager)
            : GpsManager(gpsManager.GetTimeOffset(),
                         gpsManager.GetTimeThreshold(),
                         gpsManager.GetMaxMeasures(),
+                        gpsManager.GetVerbose(),
                         gpsManager.GetSensorName())
 {
   this->Measures = gpsManager.GetMeasures();
@@ -380,6 +379,7 @@ void GpsManager::operator=(const GpsManager& gpsManager)
 {
   this->SensorName = gpsManager.GetSensorName();
   this->TimeOffset = gpsManager.GetTimeOffset();
+  this->Verbose = gpsManager.GetVerbose();
   this->TimeThreshold = gpsManager.GetTimeThreshold();
   this->MaxMeasures = gpsManager.GetMaxMeasures();
   this->Measures = gpsManager.GetMeasures();
@@ -387,7 +387,7 @@ void GpsManager::operator=(const GpsManager& gpsManager)
 }
 
 // ---------------------------------------------------------------------------
- bool GpsManager::ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas, bool verbose)
+ bool GpsManager::ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas)
 {
   if (!this->HasData())
     return false;
@@ -395,7 +395,7 @@ void GpsManager::operator=(const GpsManager& gpsManager)
   std::lock_guard<std::mutex> lock(this->Mtx);
   // Compute the two closest measures to current Lidar frame
   lidarTime -= this->TimeOffset;
-  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  auto bounds = this->GetMeasureBounds(lidarTime);
   if (bounds.first == bounds.second)
     return false;
   // Interpolate landmark relative pose at LiDAR timestamp
@@ -406,10 +406,9 @@ void GpsManager::operator=(const GpsManager& gpsManager)
 }
 
 // ---------------------------------------------------------------------------
-bool GpsManager::ComputeConstraint(double lidarTime, bool verbose)
+bool GpsManager::ComputeConstraint(double lidarTime)
 {
   static_cast<void>(lidarTime);
-  static_cast<void>(verbose);
   PRINT_WARNING("No local constraint can/should be added from GPS as they are absolute measurements");
   return false;
 }
@@ -419,7 +418,7 @@ bool GpsManager::ComputeConstraint(double lidarTime, bool verbose)
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool verbose)
+bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas)
 {
   if (this->Measures.size() <= 1)
     return false;
@@ -427,7 +426,7 @@ bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& 
   std::lock_guard<std::mutex> lock(this->Mtx);
   // Compute the two closest measures to current Lidar frame
   lidarTime -= this->TimeOffset;
-  auto bounds = this->GetMeasureBounds(lidarTime, verbose);
+  auto bounds = this->GetMeasureBounds(lidarTime);
   if (bounds.first == bounds.second)
     return false;
 
@@ -439,7 +438,7 @@ bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& 
 }
 
 // ---------------------------------------------------------------------------
-bool PoseManager::ComputeConstraint(double lidarTime, bool verbose)
+bool PoseManager::ComputeConstraint(double lidarTime)
 {
   this->ResetResidual();
 
@@ -449,11 +448,11 @@ bool PoseManager::ComputeConstraint(double lidarTime, bool verbose)
   // Compute synchronized measures
 
   PoseMeasurement synchPrevMeas;
-  if (!this->ComputeSynchronizedMeasure(this->PrevLidarTime, synchPrevMeas, verbose))
+  if (!this->ComputeSynchronizedMeasure(this->PrevLidarTime, synchPrevMeas))
     return false;
 
   PoseMeasurement synchMeas;
-  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas, verbose))
+  if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas))
     return false;
 
   // Deduce measured relative transform

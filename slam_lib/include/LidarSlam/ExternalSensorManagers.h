@@ -79,11 +79,12 @@ public:
   SensorManager(const std::string& name = "BaseSensor")
   : SensorName(name), PreviousIt(Measures.begin()) {}
 
-  SensorManager(double timeOffset, double timeThreshold,
-                unsigned int maxMeas, const std::string& name = "BaseSensor")
+  SensorManager(double timeOffset, double timeThreshold, unsigned int maxMeas,
+                bool verbose = false, const std::string& name = "BaseSensor")
   : TimeOffset(timeOffset),
     TimeThreshold(timeThreshold),
     MaxMeasures(maxMeas),
+    Verbose(verbose),
     SensorName(name),
     PreviousIt(Measures.begin())
   {}
@@ -103,6 +104,9 @@ public:
 
   GetSensorMacro(TimeThreshold, double)
   SetSensorMacro(TimeThreshold, double)
+
+  GetSensorMacro(Verbose, bool)
+  SetSensorMacro(Verbose, bool)
 
   GetSensorMacro(MaxMeasures, unsigned int)
   void SetMaxMeasures(unsigned int maxMeas)
@@ -171,9 +175,9 @@ public:
   }
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  virtual bool ComputeSynchronizedMeasure(double lidarTime, T& synchMeas, bool verbose = false) = 0;
+  virtual bool ComputeSynchronizedMeasure(double lidarTime, T& synchMeas) = 0;
   // Compute the constraint associated to the measurement
-  virtual bool ComputeConstraint(double lidarTime, bool verbose = false) = 0;
+  virtual bool ComputeConstraint(double lidarTime) = 0;
 
 protected:
   // ------------------
@@ -185,12 +189,12 @@ protected:
   }
 
   // ------------------
-  std::pair<typename std::list<T>::iterator, typename std::list<T>::iterator> GetMeasureBounds(double lidarTime, bool verbose = false)
+  std::pair<typename std::list<T>::iterator, typename std::list<T>::iterator> GetMeasureBounds(double lidarTime)
   {
     // Check if the measurements can be interpolated (or slightly extrapolated)
     if (lidarTime < this->Measures.front().Time || lidarTime > this->Measures.back().Time + this->TimeThreshold)
     {
-      if (verbose)
+      if (this->Verbose)
         PRINT_INFO(std::fixed << std::setprecision(9)
                    << "\t Measures contained in : [" << this->Measures.front().Time << ","
                    << this->Measures.back().Time <<"]\n"
@@ -236,7 +240,7 @@ protected:
     // Do not use the current measures
     if (postIt->Time - preIt->Time > this->TimeThreshold)
     {
-      if (verbose)
+      if (this->Verbose)
         PRINT_INFO("\t The two last " << this->SensorName << " measures can not be interpolated (too much time difference)"
                    << "-> " << this->SensorName << " not used")
       return std::make_pair(this->Measures.begin(), this->Measures.begin());
@@ -258,6 +262,8 @@ protected:
   // Measures length limit
   // The oldest measures are forgotten
   unsigned int MaxMeasures = 1e6;
+  // Verbose boolean to enable/disable debug info
+  bool Verbose = false;
   // Sensor name for output
   std::string SensorName;
   // Iterator pointing to the last measure used
@@ -274,9 +280,9 @@ class WheelOdometryManager : public SensorManager<WheelOdomMeasurement>
 {
 public:
   WheelOdometryManager(const std::string& name = "Wheel odometer"): SensorManager(name){}
-  WheelOdometryManager(double w, double timeOffset, double timeThresh,
-                       unsigned int maxMeas, const std::string& name = "Wheel odometer")
-  : SensorManager(timeOffset, timeThresh, maxMeas, name) {this->Weight = w;}
+  WheelOdometryManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+                       bool verbose = false, const std::string& name = "Wheel odometer")
+  : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name) {this->Weight = w;}
 
   //Setters/Getters
   GetSensorMacro(PreviousPose, Eigen::Isometry3d)
@@ -289,10 +295,10 @@ public:
   SetSensorMacro(RefDistance, double)
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas, bool verbose = false) override;
+  bool ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas) override;
   // Wheel odometry constraint (unoriented)
   // Can be relative since last frame or absolute since first pose
-  bool ComputeConstraint(double lidarTime, bool verbose = false) override;
+  bool ComputeConstraint(double lidarTime) override;
   // odometer drifts too much too be used globally
   bool CanBeUsedGlobally() {return false;}
 
@@ -310,19 +316,19 @@ class ImuGravityManager : public SensorManager<GravityMeasurement>
 {
 public:
   ImuGravityManager(const std::string& name = "IMU"): SensorManager(name){}
-  ImuGravityManager(double w, double timeOffset, double timeThresh,
-             unsigned int maxMeas, const std::string& name = "IMU")
-  : SensorManager(timeOffset, timeThresh, maxMeas, name) {this->Weight = w;}
+  ImuGravityManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+                    bool verbose = false, const std::string& name = "IMU")
+  : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name) {this->Weight = w;}
 
   //Setters/Getters
   GetSensorMacro(GravityRef, Eigen::Vector3d)
   SetSensorMacro(GravityRef, const Eigen::Vector3d&)
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose = false) override;
+  bool ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas) override;
 
   // IMU constraint (gravity)
-  bool ComputeConstraint(double lidarTime, bool verbose = false) override;
+  bool ComputeConstraint(double lidarTime) override;
   // Compute Reference gravity vector from IMU measurements
   void ComputeGravityRef(double deltaAngle);
   // IMU drifts too much too be used globally
@@ -338,8 +344,8 @@ class LandmarkManager: public SensorManager<LandmarkMeasurement>
 public:
   LandmarkManager(const std::string& name = "Tag detector") : SensorManager(name){}
   LandmarkManager(const LandmarkManager& lmManager);
-  LandmarkManager(double timeOffset, double timeThresh, unsigned int maxMeas,
-                  bool positionOnly = true, const std::string& name = "Tag detector");
+  LandmarkManager(double timeOffset, double timeThresh, unsigned int maxMeas, bool positionOnly = true,
+                  bool verbose = false, const std::string& name = "Tag detector");
 
   void operator=(const LandmarkManager& lmManager);
 
@@ -362,10 +368,10 @@ public:
   void SetAbsolutePose(const Eigen::Vector6d& pose, const Eigen::Matrix6d& cov);
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool verbose = false) override;
+  bool ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas) override;
 
   // Landmark constraint
-  bool ComputeConstraint(double lidarTime, bool verbose = false) override;
+  bool ComputeConstraint(double lidarTime) override;
 
   // Update the absolute pose in case the tags are used as relative constraints
   // (i.e, no absolute poses of the tags are supplied)
@@ -409,8 +415,9 @@ class GpsManager: public SensorManager<GpsMeasurement>
 public:
   GpsManager(const std::string& name = "GPS") : SensorManager(name){}
   GpsManager(const GpsManager& gpsManager);
-  GpsManager(double timeOffset, double timeThresh,
-             unsigned int maxMeas, const std::string& name = "GPS");
+  GpsManager(double timeOffset, double timeThresh, unsigned int maxMeas,
+             bool verbose = false, const std::string& name = "GPS")
+  : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name) {}
 
   void operator=(const GpsManager& gpsManager);
 
@@ -419,9 +426,9 @@ public:
   SetSensorMacro(Offset, const Eigen::Isometry3d&)
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas, bool verbose = false) override;
+  bool ComputeSynchronizedMeasure(double lidarTime, GpsMeasurement& synchMeas) override;
 
-  bool ComputeConstraint(double lidarTime, bool verbose) override;
+  bool ComputeConstraint(double lidarTime) override;
 
   bool CanBeUsedLocally(){return false;}
 
@@ -437,8 +444,8 @@ public:
   PoseManager(const std::string& name = "Pose sensor") : SensorManager(name){}
 
   PoseManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
-              const std::string& name = "Pose sensor")
-  : SensorManager(timeOffset, timeThresh, maxMeas, name){this->Weight = w;}
+              bool verbose = false, const std::string& name = "Pose sensor")
+  : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name) {this->Weight = w;}
 
   // Setters/Getters
   GetSensorMacro(PrevLidarTime, double)
@@ -451,9 +458,9 @@ public:
   SetSensorMacro(SaturationDistance, float)
 
   // Compute the interpolated measure to be synchronised with SLAM output (at lidarTime)
-  bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool verbose = false) override;
+  bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas) override;
 
-  bool ComputeConstraint(double lidarTime, bool verbose = false) override;
+  bool ComputeConstraint(double lidarTime) override;
 
 private:
   // Threshold distance to not take into account the external pose constraint
