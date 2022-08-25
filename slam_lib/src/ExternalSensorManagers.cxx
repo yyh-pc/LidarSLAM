@@ -90,7 +90,7 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
- bool ImuManager::ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose)
+ bool ImuGravityManager::ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas, bool verbose)
 {
   if (!this->CanBeUsedLocally())
     return false;
@@ -115,7 +115,7 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime, bool verbose)
 }
 
 // ---------------------------------------------------------------------------
-bool ImuManager::ComputeConstraint(double lidarTime, bool verbose)
+bool ImuGravityManager::ComputeConstraint(double lidarTime, bool verbose)
 {
   this->ResetResidual();
 
@@ -135,7 +135,7 @@ bool ImuManager::ComputeConstraint(double lidarTime, bool verbose)
 }
 
 // ---------------------------------------------------------------------------
-void ImuManager::ComputeGravityRef(double deltaAngle)
+void ImuGravityManager::ComputeGravityRef(double deltaAngle)
 {
   std::lock_guard<std::mutex> lock(this->Mtx);
   // Init histogram 2D (phi and theta)

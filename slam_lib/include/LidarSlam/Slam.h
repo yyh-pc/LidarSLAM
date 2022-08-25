@@ -378,13 +378,13 @@ public:
 
   bool WheelOdomHasData() {return this->WheelOdomManager && this->WheelOdomManager->HasData();}
 
-  // IMU
+  // Gravity from IMU
   double GetGravityWeight() const;
   void SetGravityWeight(double weight);
 
   void AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm);
 
-  bool ImuHasData() {return this->ImuManager && this->ImuManager->HasData();}
+  bool GravityHasData() {return this->GravityManager && this->GravityManager->HasData();}
 
   // Landmark detector
   GetMacro(LandmarkWeight, double)
@@ -682,7 +682,7 @@ private:
   // taking account of the acquisition time correspondance
   // The IMU measurements must be filled and cleared from outside this lib
   // using External Sensors interface
-  std::shared_ptr<ExternalSensors::ImuManager> ImuManager;
+  std::shared_ptr<ExternalSensors::ImuGravityManager> GravityManager;
 
   // Landmarks manager
   // Each landmark has its own manager and is identified by its ID.
@@ -956,7 +956,7 @@ private:
   // All external sensors are shared ptr.
   // The init function creates the objects with known parameters
   void InitWheelOdom();
-  void InitImu();
+  void InitGravity();
   // WARNING : If the calibration has not been set for the landmarks detector (cf SetLmDetectorCalibration),
   // default identity calibration is set to the current landmark.
   // This way, data can be stored before receiving the calibration.

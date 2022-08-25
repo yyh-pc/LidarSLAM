@@ -261,9 +261,9 @@ public:
   vtkCustomGetMacroExternalSensor(WheelOdom, WheelOdomRelative, bool)
   vtkCustomSetMacroExternalSensor(WheelOdom, WheelOdomRelative, bool)
 
-  vtkCustomGetMacroExternalSensor(Imu, GravityWeight, double)
-  vtkCustomSetMacroExternalSensor(Imu, GravityWeight, double)
-  
+  vtkCustomGetMacroExternalSensor(Gravity, GravityWeight, double)
+  vtkCustomSetMacroExternalSensor(Gravity, GravityWeight, double)
+
   vtkCustomGetMacroExternalSensor(Pose, PoseWeight, double)
   vtkCustomSetMacroExternalSensor(Pose, PoseWeight, double)
 

@@ -306,11 +306,11 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-class ImuManager : public SensorManager<GravityMeasurement>
+class ImuGravityManager : public SensorManager<GravityMeasurement>
 {
 public:
-  ImuManager(const std::string& name = "IMU"): SensorManager(name){}
-  ImuManager(double w, double timeOffset, double timeThresh,
+  ImuGravityManager(const std::string& name = "IMU"): SensorManager(name){}
+  ImuGravityManager(double w, double timeOffset, double timeThresh,
              unsigned int maxMeas, const std::string& name = "IMU")
   : SensorManager(timeOffset, timeThresh, maxMeas, name) {this->Weight = w;}
 
