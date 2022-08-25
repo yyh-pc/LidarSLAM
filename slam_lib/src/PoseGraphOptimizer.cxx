@@ -24,6 +24,8 @@
 #include <g2o/solvers/eigen/linear_solver_eigen.h>
 #include <g2o/types/slam3d/types_slam3d.h>
 #include <g2o/types/slam3d_addons/edge_se3_euler.h>
+#include "g2o/core/robust_kernel.h"
+#include "g2o/core/robust_kernel_impl.h"
 
 namespace LidarSlam
 {
@@ -160,6 +162,10 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
         measureInfo << information(i, j) << " ";
     }
     newEdge->read(measureInfo);
+    // Add robustifier
+    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+    newEdge->setRobustKernel(rk);
+    newEdge->robustKernel()->setDelta(this->SaturationDistance);
     // Add edge
     this->Optimizer.addEdge(newEdge);
     // Update local values
@@ -182,6 +188,10 @@ void PoseGraphOptimizer::AddLandmarkConstraint(int lidarIdx, int lmIdx, const Ex
 
     externalEdge->setMeasurement(lm.TransfoRelative.translation());
     externalEdge->setInformation(lm.Covariance.block(0, 0, 3, 3).inverse());
+    // Add robustifier
+    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+    externalEdge->setRobustKernel(rk);
+    externalEdge->robustKernel()->setDelta(this->SaturationDistance);
     // Add offset transformation reference Id
     if (!externalEdge->setParameterId(0, int(ExternalSensor::LANDMARK_DETECTOR)))
       PRINT_ERROR("No calibration found for " << ExternalSensorNames.at(ExternalSensor::LANDMARK_DETECTOR))
@@ -210,6 +220,10 @@ void PoseGraphOptimizer::AddLandmarkConstraint(int lidarIdx, int lmIdx, const Ex
         measureInfo << information(i, j);
     }
     externalEdge->read(measureInfo);
+    // Add robustifier
+    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+    externalEdge->setRobustKernel(rk);
+    externalEdge->robustKernel()->setDelta(this->SaturationDistance);
     // Add offset transformation reference Id
     if (!externalEdge->setParameterId(0, int(ExternalSensor::LANDMARK_DETECTOR)))
       PRINT_ERROR("No calibration found for " << ExternalSensorNames.at(ExternalSensor::LANDMARK_DETECTOR))
