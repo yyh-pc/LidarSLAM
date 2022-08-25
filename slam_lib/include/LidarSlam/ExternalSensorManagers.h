@@ -34,12 +34,17 @@ namespace ExternalSensors
 {
 
 // ---------------------------------------------------------------------------
+// MEASUREMENTS
+// ---------------------------------------------------------------------------
+
 struct LandmarkMeasurement
 {
   double Time = 0.;
   // Relative transform between the detector and the tag
   Eigen::Isometry3d TransfoRelative = Eigen::Isometry3d::Identity();
   Eigen::Matrix6d Covariance = Eigen::Matrix6d::Identity();
+  // No covariance is attached to pose measurement for now
+  // Constant one can be used for pose graph optimizations
 };
 
 // ---------------------------------------------------------------------------
@@ -69,9 +74,17 @@ struct PoseMeasurement
 {
   double Time = 0.;
   Eigen::Isometry3d Pose = Eigen::Isometry3d::Identity();
+  // No covariance is attached to pose measurement for now
+  // Constant one can be used for pose graph optimizations
 };
 
 // ---------------------------------------------------------------------------
+// SENSOR MANAGERS
+// ---------------------------------------------------------------------------
+
+// Base class to derive all external sensors
+// Contains some tools for time synchronization
+// data management and general parameters
 template <typename T>
 class SensorManager
 {
@@ -276,6 +289,11 @@ protected:
 };
 
 // ---------------------------------------------------------------------------
+// A wheel odometer allows to get a translation information
+// For now, this manager is designed for cases where there is no rotation
+// in the whole trajectory (e.g. Lidar following a cable)
+// It builds a constraint comparing translation of base between
+// two successive poses or from a reference pose
 class WheelOdometryManager : public SensorManager<WheelOdomMeasurement>
 {
 public:
@@ -312,6 +330,9 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// An IMU can supply the gravity direction when measuring the whole acceleration
+// when velocity is constant.
+// This manager allows to create a local constraint to align gravity vectors between SLAM poses
 class ImuGravityManager : public SensorManager<GravityMeasurement>
 {
 public:
@@ -342,6 +363,9 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// Landmarks can be detected by an external sensor (e.g. camera)
+// This manager allows to create a local constraint with a reference absolute pose for the landmark
+// or with previous observed poses of the landmark (like a usual keypoint)
 class LandmarkManager: public SensorManager<LandmarkMeasurement>
 {
 public:
@@ -417,6 +441,11 @@ private:
 };
 
 // ---------------------------------------------------------------------------
+// GPS manager contains GPS sensor positions
+// This manager can be used to build a pose graph
+// GPS measurements are represented in a specific world referential frame (e.g. ENU)
+// An offset transform links the GPS referential and the Lidar SLAM referential frame (e.g. first pose)
+// This offset must be set from outside this library and can be computed using the GPS data and some lidar SLAM poses
 class GpsManager: public SensorManager<GpsMeasurement>
 {
 public:

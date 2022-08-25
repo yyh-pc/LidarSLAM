@@ -1911,7 +1911,7 @@ void Slam::AddWheelOdomMeasurement(const ExternalSensors::WheelOdomMeasurement& 
   this->WheelOdomManager->AddMeasurement(om);
 }
 
-// IMU
+// IMU gravity
 //-----------------------------------------------------------------------------
 void Slam::AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm)
 {
@@ -2182,7 +2182,7 @@ void Slam::SetWheelOdomRelative(bool isRelative)
   this->WheelOdomManager->SetRelative(isRelative);
 }
 
-// IMU
+// IMU gravity
 //-----------------------------------------------------------------------------
 double Slam::GetGravityWeight() const
 {
