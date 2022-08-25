@@ -365,7 +365,7 @@ public:
   GetMacro(SensorMaxMeasures, unsigned int)
   void SetSensorMaxMeasures(unsigned int max);
 
-  void ClearSensorMeasurements();
+  void ResetSensors(bool emptyMeasurements = false);
 
   // Odometer
   double GetWheelOdomWeight() const;

@@ -209,10 +209,10 @@ void Slam::Reset(bool resetLog)
   }
 
   // Reset external sensor managers
-  if (this->WheelOdomManager)
-    this->WheelOdomManager->SetRefDistance(FLT_MAX);
-  if (this->GravityManager)
-    this->GravityManager->SetGravityRef(Eigen::Vector3d::Zero());
+  // WARNING : if offline process, measurements should be reloaded from
+  // outside this lib. Moreover, landmark managers lost their absolute poses,
+  // they would need to be reloaded too.
+  this->ResetSensors(true);
 
   // Reset log history
   if (resetLog)
@@ -2082,18 +2082,18 @@ void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
 
 // Sensors' parameters
 //-----------------------------------------------------------------------------
-void Slam::ClearSensorMeasurements()
+void Slam::ResetSensors(bool emptyMeasurements)
 {
   if (this->WheelOdomManager)
-    this->WheelOdomManager->Reset();
+    this->WheelOdomManager->Reset(emptyMeasurements);
   if (this->GravityManager)
-    this->GravityManager->Reset();
+    this->GravityManager->Reset(emptyMeasurements);
   for (auto& idLm : this->LandmarksManagers)
-    idLm.second.Reset();
+    idLm.second.Reset(emptyMeasurements);
   if (this->GpsManager)
-    this->GpsManager->Reset();
+    this->GpsManager->Reset(emptyMeasurements);
   if (this->PoseManager)
-    this->PoseManager->Reset();
+    this->PoseManager->Reset(emptyMeasurements);
 }
 
 //-----------------------------------------------------------------------------

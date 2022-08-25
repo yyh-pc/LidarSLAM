@@ -27,6 +27,13 @@ namespace ExternalSensors
 // Wheel odometer
 // ---------------------------------------------------------------------------
 
+void WheelOdometryManager::Reset(bool resetMeas)
+{
+  this->SensorManager::Reset(resetMeas);
+  this->SetRefDistance(FLT_MAX);
+  this->PreviousPose = Eigen::Isometry3d::Identity();
+}
+
 // ---------------------------------------------------------------------------
  bool WheelOdometryManager::ComputeSynchronizedMeasure(double lidarTime, WheelOdomMeasurement& synchMeas)
 {
@@ -89,6 +96,12 @@ bool WheelOdometryManager::ComputeConstraint(double lidarTime)
 // ---------------------------------------------------------------------------
 // IMU
 // ---------------------------------------------------------------------------
+
+void ImuGravityManager::Reset(bool resetMeas)
+{
+  this->SensorManager::Reset(resetMeas);
+  this->SetGravityRef(Eigen::Vector3d::Zero());
+}
 
 // ---------------------------------------------------------------------------
  bool ImuGravityManager::ComputeSynchronizedMeasure(double lidarTime, GravityMeasurement& synchMeas)
@@ -191,6 +204,17 @@ void ImuGravityManager::ComputeGravityRef(double deltaAngle)
 // ---------------------------------------------------------------------------
 // Landmark manager
 // ---------------------------------------------------------------------------
+
+void LandmarkManager::Reset(bool resetMeas)
+{
+  this->SensorManager::Reset(resetMeas);
+  this->AbsolutePose = Eigen::Vector6d::Zero();
+  this->AbsolutePoseCovariance = Eigen::Matrix6d::Zero();
+  this->RelativeTransform = Eigen::Isometry3d::Identity();
+  this->HasAbsolutePose = false;
+  this->LastUpdateTimes = {FLT_MAX, FLT_MAX};
+  this->Count = 0;
+}
 
 // ---------------------------------------------------------------------------
 LandmarkManager::LandmarkManager(double timeOffset, double timeThresh, unsigned int maxMeas,
@@ -463,6 +487,13 @@ bool GpsManager::ComputeConstraint(double lidarTime)
 // ---------------------------------------------------------------------------
 // 3D POSE
 // ---------------------------------------------------------------------------
+
+void PoseManager::Reset(bool resetMeas)
+{
+  this->SensorManager::Reset(resetMeas);
+  this->PrevLidarTime = 0.;
+  this->PrevPoseTransform = Eigen::Isometry3d::Identity();
+}
 
 // ---------------------------------------------------------------------------
 bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas)

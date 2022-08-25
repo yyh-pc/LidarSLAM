@@ -137,6 +137,9 @@ void vtkSlam::Reset()
   // Log the necessary poses if advanced return mode is activated
   this->SlamAlgo->SetLoggingTimeout(this->AdvancedReturnMode ? 1.1 * this->TimeWindowDuration : 0.);
 
+  // Refill sensor managers
+  this->SetSensorData(this->ExtSensorFileName);
+
   // Refresh view
   this->Modified();
 }
@@ -428,7 +431,9 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 //-----------------------------------------------------------------------------
 void vtkSlam::SetSensorData(const std::string& fileName)
 {
-  this->SlamAlgo->ClearSensorMeasurements();
+  this->ExtSensorFileName = fileName;
+  // Empty current measurements and reset local sensor params
+  this->SlamAlgo->ResetSensors(true);
 
   if (fileName.empty())
     return;

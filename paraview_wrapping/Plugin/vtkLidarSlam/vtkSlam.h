@@ -447,6 +447,10 @@ private:
   // Choose whether to synchronize on network packet
   // reception time or on Lidar frame header time
   bool SynchronizeOnPacket = false;
+
+  // Sensor file name stored to reload the external sensor data after reset
+  std::string ExtSensorFileName;
+
 };
 
 #endif // VTK_SLAM_H

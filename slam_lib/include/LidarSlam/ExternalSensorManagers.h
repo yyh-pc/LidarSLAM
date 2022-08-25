@@ -159,13 +159,13 @@ public:
   }
 
   // ------------------
-  void Reset()
+  void Reset(bool resetMeas = false)
   {
     this->ResetResidual();
     std::lock_guard<std::mutex> lock(this->Mtx);
-    this->Measures.clear();
+    if (resetMeas)
+      this->Measures.clear();
     this->PreviousIt = this->Measures.begin();
-    this->TimeOffset = 0.;
   }
 
   // ------------------
@@ -302,6 +302,8 @@ public:
                        bool verbose = false, const std::string& name = "Wheel odometer")
   : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name) {this->Weight = w;}
 
+  void Reset(bool resetMeas = false);
+
   //Setters/Getters
   GetSensorMacro(PreviousPose, Eigen::Isometry3d)
   SetSensorMacro(PreviousPose, const Eigen::Isometry3d&)
@@ -341,6 +343,8 @@ public:
                     bool verbose = false, const std::string& name = "IMU")
   : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name) {this->Weight = w;}
 
+  void Reset(bool resetMeas = false);
+
   //Setters/Getters
   GetSensorMacro(GravityRef, Eigen::Vector3d)
   SetSensorMacro(GravityRef, const Eigen::Vector3d&)
@@ -375,6 +379,8 @@ public:
                   bool verbose = false, const std::string& name = "Tag detector");
 
   void operator=(const LandmarkManager& lmManager);
+
+  void Reset(bool resetMeas = false);
 
   // Setters/Getters
   // The absolute pose can be set from outside the lib
@@ -487,6 +493,8 @@ public:
   PoseManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
               bool verbose = false, const std::string& name = "Pose sensor")
   : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name) {this->Weight = w;}
+
+  void Reset(bool resetMeas = false);
 
   // Setters/Getters
   GetSensorMacro(PrevLidarTime, double)
