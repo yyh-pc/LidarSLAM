@@ -2094,68 +2094,45 @@ void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
 
 // Sensors' parameters
 //-----------------------------------------------------------------------------
+
+#define ExtSensorMacro(inFuncProto) \
+{ \
+  if (this->WheelOdomManager) \
+    this->WheelOdomManager->inFuncProto; \
+  if (this->GravityManager) \
+    this->GravityManager->inFuncProto; \
+  for (auto& idLm : this->LandmarksManagers) \
+    idLm.second.inFuncProto; \
+  if (this->GpsManager) \
+    this->GpsManager->inFuncProto; \
+  if (this->PoseManager) \
+    this->PoseManager->inFuncProto; \
+}
+
+//-----------------------------------------------------------------------------
 void Slam::ResetSensors(bool emptyMeasurements)
 {
-  if (this->WheelOdomManager)
-    this->WheelOdomManager->Reset(emptyMeasurements);
-  if (this->GravityManager)
-    this->GravityManager->Reset(emptyMeasurements);
-  for (auto& idLm : this->LandmarksManagers)
-    idLm.second.Reset(emptyMeasurements);
-  if (this->GpsManager)
-    this->GpsManager->Reset(emptyMeasurements);
-  if (this->PoseManager)
-    this->PoseManager->Reset(emptyMeasurements);
+  ExtSensorMacro(Reset(emptyMeasurements))
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetSensorTimeOffset(double timeOffset)
 {
-  if (this->WheelOdomManager)
-    this->WheelOdomManager->SetTimeOffset(timeOffset);
-  if (this->GravityManager)
-    this->GravityManager->SetTimeOffset(timeOffset);
-  for (auto& idLm : this->LandmarksManagers)
-    idLm.second.SetTimeOffset(timeOffset);
-  if (this->GpsManager)
-    this->GpsManager->SetTimeOffset(timeOffset);
-  if (this->PoseManager)
-    this->PoseManager->SetTimeOffset(timeOffset);
-
+  ExtSensorMacro(SetTimeOffset(timeOffset))
   this->SensorTimeOffset = timeOffset;
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetSensorTimeThreshold(double thresh)
 {
-  if (this->WheelOdomManager)
-    this->WheelOdomManager->SetTimeThreshold(thresh);
-  if (this->GravityManager)
-    this->GravityManager->SetTimeThreshold(thresh);
-  for (auto& idLm : this->LandmarksManagers)
-    idLm.second.SetTimeThreshold(thresh);
-  if (this->GpsManager)
-    this->GpsManager->SetTimeThreshold(thresh);
-  if (this->PoseManager)
-    this->PoseManager->SetTimeThreshold(thresh);
-
+  ExtSensorMacro(SetTimeThreshold(thresh))
   this->SensorTimeThreshold = thresh;
 }
 
 //-----------------------------------------------------------------------------
 void Slam::SetSensorMaxMeasures(unsigned int max)
 {
-  if (this->WheelOdomManager)
-    this->WheelOdomManager->SetMaxMeasures(max);
-  if (this->GravityManager)
-    this->GravityManager->SetMaxMeasures(max);
-  for (auto& idLm : this->LandmarksManagers)
-    idLm.second.SetMaxMeasures(max);
-  if (this->GpsManager)
-    this->GpsManager->SetMaxMeasures(max);
-  if (this->PoseManager)
-    this->PoseManager->SetMaxMeasures(max);
-
+  ExtSensorMacro(SetMaxMeasures(max))
   this->SensorMaxMeasures = max;
 }
 
