@@ -77,7 +77,18 @@ add_executable(lidar_slam_node
   src/LidarSlamNode.cxx
   src/LidarSlamNode_main.cxx
 )
+
 target_link_libraries(lidar_slam_node
+  LidarSlam
+  ${catkin_LIBRARIES}
+)
+
+# Add aggregation node
+add_executable(aggregation_node
+  src/AggregationNode.cxx
+)
+
+target_link_libraries(aggregation_node
   LidarSlam
   ${catkin_LIBRARIES}
 )
@@ -86,7 +97,7 @@ target_link_libraries(lidar_slam_node
 ## Install ##
 #############
 
-install(TARGETS lidar_slam_node
+install(TARGETS lidar_slam_node aggregation_node
         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 install(DIRECTORY launch
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
