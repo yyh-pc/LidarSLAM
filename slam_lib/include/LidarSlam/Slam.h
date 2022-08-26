@@ -242,6 +242,12 @@ public:
   GetMacro(FixLastVertex, bool)
   SetMacro(FixLastVertex, bool)
 
+  GetMacro(CovarianceScale, float)
+  SetMacro(CovarianceScale, float)
+
+  GetMacro(NbGraphIterations, int)
+  SetMacro(NbGraphIterations, int)
+
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
   // ---------------------------------------------------------------------------
@@ -365,7 +371,7 @@ public:
   GetMacro(SensorMaxMeasures, unsigned int)
   void SetSensorMaxMeasures(unsigned int max);
 
-  void ClearSensorMeasurements();
+  void ResetSensors(bool emptyMeasurements = false);
 
   // Odometer
   double GetWheelOdomWeight() const;
@@ -378,13 +384,13 @@ public:
 
   bool WheelOdomHasData() {return this->WheelOdomManager && this->WheelOdomManager->HasData();}
 
-  // IMU
+  // Gravity from IMU
   double GetGravityWeight() const;
   void SetGravityWeight(double weight);
 
   void AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm);
 
-  bool ImuHasData() {return this->ImuManager && this->ImuManager->HasData();}
+  bool GravityHasData() {return this->GravityManager && this->GravityManager->HasData();}
 
   // Landmark detector
   GetMacro(LandmarkWeight, double)
@@ -676,19 +682,13 @@ private:
   // The odometry measurements must be filled and cleared from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::WheelOdometryManager> WheelOdomManager;
-  // Weight
-  double WheelOdomWeight = 0.;
-  // relative mode for wheel odometer
-  bool WheelOdomRelative = false;
 
   // IMU manager
   // Compute the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
   // The IMU measurements must be filled and cleared from outside this lib
   // using External Sensors interface
-  std::shared_ptr<ExternalSensors::ImuManager> ImuManager;
-  // Weight
-  double ImuWeight = 0.;
+  std::shared_ptr<ExternalSensors::ImuGravityManager> GravityManager;
 
   // Landmarks manager
   // Each landmark has its own manager and is identified by its ID.
@@ -731,8 +731,6 @@ private:
   // The Pose measurements must be filled and cleared from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::PoseManager> PoseManager;
-  // Weight
-  double PoseWeight = 0.;
 
   // Time difference between Lidar's measurements and external sensors'
   // not null if they are not expressed relatively to the same time reference
@@ -821,6 +819,9 @@ private:
   // Boolean to decide if we want to some vertices of the graph
   bool FixFirstVertex = false;
   bool FixLastVertex = false;
+  // Scale to increase or decrease SLAM pose covariances
+  float CovarianceScale = 1.f;
+  int NbGraphIterations = 100;
 
   // ---------------------------------------------------------------------------
   //   Confidence estimation
@@ -964,7 +965,7 @@ private:
   // All external sensors are shared ptr.
   // The init function creates the objects with known parameters
   void InitWheelOdom();
-  void InitImu();
+  void InitGravity();
   // WARNING : If the calibration has not been set for the landmarks detector (cf SetLmDetectorCalibration),
   // default identity calibration is set to the current landmark.
   // This way, data can be stored before receiving the calibration.

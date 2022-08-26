@@ -24,6 +24,8 @@
 #include <g2o/solvers/eigen/linear_solver_eigen.h>
 #include <g2o/types/slam3d/types_slam3d.h>
 #include <g2o/types/slam3d_addons/edge_se3_euler.h>
+#include "g2o/core/robust_kernel.h"
+#include "g2o/core/robust_kernel_impl.h"
 
 namespace LidarSlam
 {
@@ -103,7 +105,7 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
 
   // Initialize local values
   int prevIdx = 0;
-  Eigen::Isometry3d prevState;
+  Eigen::Isometry3d prevState = Eigen::Isometry3d::Identity();
   int nStates = 0;
   // Loop over all states
   for (const auto& state : states)
@@ -143,7 +145,7 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
     // Lidar Slam gives the covariance expressed in the map frame
     // We want the covariance expressed in the last frame to be consistent with supplied relative transform
     Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(state.Isometry);
-    Eigen::Matrix6d covariance = CeresTools::RotateCovariance(xyzrpy, state.Covariance, lastFrameInv, true); // new = prevState^-1 * state
+    Eigen::Matrix6d covariance = CeresTools::RotateCovariance(xyzrpy, state.Covariance, lastFrameInv, true); // new = prevState^-1 * init
     // Use g2o read function to transform Euler covariance into quaternion covariance
     // This function takes an istream as input
     // It needs the measurement vector as 6D euler pose in addition to the covariance
@@ -152,6 +154,7 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
     Eigen::Vector6d poseRelative = Utils::IsometryToXYZRPY(Trelative);
     measureInfo << poseRelative(0) << " " << poseRelative(1) << " " << poseRelative(2) << " "
                 << poseRelative(3) << " " << poseRelative(4) << " " << poseRelative(5) << " ";
+
     Eigen::Matrix6d information = covariance.inverse();
     for (int i = 0; i < 6; ++i)
     {
@@ -159,6 +162,10 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
         measureInfo << information(i, j) << " ";
     }
     newEdge->read(measureInfo);
+    // Add robustifier
+    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+    newEdge->setRobustKernel(rk);
+    newEdge->robustKernel()->setDelta(this->SaturationDistance);
     // Add edge
     this->Optimizer.addEdge(newEdge);
     // Update local values
@@ -181,6 +188,10 @@ void PoseGraphOptimizer::AddLandmarkConstraint(int lidarIdx, int lmIdx, const Ex
 
     externalEdge->setMeasurement(lm.TransfoRelative.translation());
     externalEdge->setInformation(lm.Covariance.block(0, 0, 3, 3).inverse());
+    // Add robustifier
+    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+    externalEdge->setRobustKernel(rk);
+    externalEdge->robustKernel()->setDelta(this->SaturationDistance);
     // Add offset transformation reference Id
     if (!externalEdge->setParameterId(0, int(ExternalSensor::LANDMARK_DETECTOR)))
       PRINT_ERROR("No calibration found for " << ExternalSensorNames.at(ExternalSensor::LANDMARK_DETECTOR))
@@ -209,6 +220,10 @@ void PoseGraphOptimizer::AddLandmarkConstraint(int lidarIdx, int lmIdx, const Ex
         measureInfo << information(i, j);
     }
     externalEdge->read(measureInfo);
+    // Add robustifier
+    g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+    externalEdge->setRobustKernel(rk);
+    externalEdge->robustKernel()->setDelta(this->SaturationDistance);
     // Add offset transformation reference Id
     if (!externalEdge->setParameterId(0, int(ExternalSensor::LANDMARK_DETECTOR)))
       PRINT_ERROR("No calibration found for " << ExternalSensorNames.at(ExternalSensor::LANDMARK_DETECTOR))

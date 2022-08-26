@@ -271,6 +271,28 @@ void ComputeMeanAndPCA(const pcl::PointCloud<PointT>& cloud,
 }
 
 //==============================================================================
+//   Covariance helpers
+//==========================================================================
+
+//------------------------------------------------------------------------------
+// Check if covariance matrix is valid
+template<typename Matrix>
+inline bool isCovarianceValid(const Matrix& cov, double thresh = 1e-12)
+{
+  return cov.array().abs().maxCoeff() > thresh;
+}
+
+//------------------------------------------------------------------------------
+// Create spherical covariance with position and angle error estimations
+inline Eigen::Matrix6d CreateDefaultCovariance(float positionErr = 1e-2, float angleErr = 1e-2)
+{
+  Eigen::Matrix6d covariance = Eigen::Matrix6d::Identity();
+  covariance.block(0,0,3,3) = std::pow(positionErr, 2) * Eigen::Matrix3d::Identity();
+  covariance.block(3,3,3,3) = std::pow(angleErr, 2) * Eigen::Matrix3d::Identity();
+  return covariance;
+}
+
+//==============================================================================
 //   PCL helpers
 //==============================================================================
 

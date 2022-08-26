@@ -99,6 +99,8 @@ private:
   bool FixFirst = false;
   // Boolean to decide whether to fix the last pose or not
   bool FixLast = false;
+  // Saturation distance to remove outliers (used in robustifier)
+  float SaturationDistance = 5.f;
 
   // Linking between external sensor supplied indices and graph indices
   std::unordered_map<int, int> LMIndicesLinking;

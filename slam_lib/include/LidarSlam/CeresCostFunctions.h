@@ -563,29 +563,19 @@ struct Transform {
   template <typename T>
   bool operator()(const T* const poseEuler, T* residual) const
   {
-    using Matrix3T = Eigen::Matrix<T, 3, 3>;
-    using Vector3T = Eigen::Matrix<T, 3, 1>;
+    using Vector6T = Eigen::Matrix<T, 6, 1>;
     using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
 
     // Compute transform matrix of current pose from Euler angles (RPY convention) and position
-    Isometry3T transform;
-    transform.linear() = Utils::RotationMatrixFromRPY(poseEuler[3], poseEuler[4], poseEuler[5]);
-    transform.translation() = Vector3T({poseEuler[0], poseEuler[1], poseEuler[2]});
+    Isometry3T transform = Utils::XYZRPYtoIsometry(poseEuler[0], poseEuler[1], poseEuler[2],
+                                                   poseEuler[3], poseEuler[4], poseEuler[5]);
 
     // Transform pose
     Isometry3T newTransform = transform * this->Transformation.cast<T>();
-    Matrix3T rotation = newTransform.linear();
-    Vector3T translation = newTransform.translation();
 
     // Reconvert to 6D pose
-    // Compute position
-    residual[0] = translation[0];
-    residual[1] = translation[1];
-    residual[2] = translation[2];
-    // Compute Euler angles of new rotated pose
-    residual[3] = ceres::atan2(rotation(2, 1), rotation(2, 2));
-    residual[4] = -ceres::asin(rotation(2, 0));
-    residual[5] = ceres::atan2(rotation(1, 0), rotation(0, 0));
+    Eigen::Map<Vector6T> residualVec(residual);
+    residualVec = Utils::IsometryToXYZRPY(newTransform);
 
     return true;
   }
@@ -615,29 +605,19 @@ struct ChangeRefFrame {
   template <typename T>
   bool operator()(const T* const poseEuler, T* residual) const
   {
-    using Matrix3T = Eigen::Matrix<T, 3, 3>;
-    using Vector3T = Eigen::Matrix<T, 3, 1>;
+    using Vector6T = Eigen::Matrix<T, 6, 1>;
     using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
 
     // Compute transform matrix of current pose from Euler angles (RPY convention) and position
-    Isometry3T transform;
-    transform.linear() = Utils::RotationMatrixFromRPY(poseEuler[3], poseEuler[4], poseEuler[5]);
-    transform.translation() = Vector3T({poseEuler[0], poseEuler[1], poseEuler[2]});
-
+    Isometry3T transform = Utils::XYZRPYtoIsometry(poseEuler[0], poseEuler[1], poseEuler[2],
+                                                   poseEuler[3], poseEuler[4], poseEuler[5]);
     // Transform pose
-    Isometry3T newTransform = this->Transformation.cast<T>() * transform;
-    Matrix3T rotation = newTransform.linear();
-    Vector3T translation = newTransform.translation();
+    Isometry3T ref = this->Transformation.cast<T>();
+    Isometry3T newTransform = ref * transform;
 
     // Reconvert to 6D pose
-    // Compute position
-    residual[0] = translation[0];
-    residual[1] = translation[1];
-    residual[2] = translation[2];
-    // Compute Euler angles of new rotated pose
-    residual[3] = ceres::atan2(rotation(2, 1), rotation(2, 2));
-    residual[4] = -ceres::asin(rotation(2, 0));
-    residual[5] = ceres::atan2(rotation(1, 0), rotation(0, 0));
+    Eigen::Map<Vector6T> residualVec(residual);
+    residualVec = Utils::IsometryToXYZRPY(newTransform);
 
     return true;
   }
@@ -668,21 +648,29 @@ namespace CeresTools
  * @param[in] transformation : 3d isometry to apply (containing a 4x4 matrix)
  * @param[in] changeFrame : bool to decide in which order to perform the matrix multiplication
  */
-inline Eigen::Matrix<double, 6, 6> RotateCovariance(Eigen::Matrix<double, 6, 1>& pose, const Eigen::Matrix<double, 6, 6>& covariance, const Eigen::Isometry3d& transformation, bool changeFrame = false)
+inline Eigen::Matrix<double, 6, 6> RotateCovariance(Eigen::Matrix<double, 6, 1>& pose,
+                                                    const Eigen::Matrix<double, 6, 6>& covariance,
+                                                    const Eigen::Isometry3d& transformation,
+                                                    bool changeFrame = false)
 {
+  // Get Jacobian of F function at pose
+  // 1_ Apply function F to input pose
+  // 1_1 Create F
   ceres::CostFunction* F;
   // Choose whether we want to transform current pose or to change its referential frame (multiplication order)
   if (changeFrame)
-    F = new ceres::AutoDiffCostFunction<CeresCostFunctions::Transform, 6, 6>(new CeresCostFunctions::Transform(transformation));
-  else
     F = new ceres::AutoDiffCostFunction<CeresCostFunctions::ChangeRefFrame, 6, 6>(new CeresCostFunctions::ChangeRefFrame(transformation));
+  else
+    F = new ceres::AutoDiffCostFunction<CeresCostFunctions::Transform, 6, 6>(new CeresCostFunctions::Transform(transformation));
+  // 1_2 Apply F
   ceres::Problem problem;
   problem.AddResidualBlock(F, nullptr, pose.data());
-
   double cost = 0.0;
   ceres::CRSMatrix jacobian;
   problem.Evaluate(ceres::Problem::EvaluateOptions(), &cost, nullptr, nullptr, &jacobian);
-  Eigen::Matrix<double, 6, 6> J;
+
+  // 2_ Get Jacobian from F evaluation at pose
+  Eigen::Matrix<double, 6, 6> J = Eigen::Matrix<double, 6, 6>::Zero();
   // convert CRSMatrix to Eigen matrix
   std::vector<double> values = jacobian.values;
   std::vector<int> rows = jacobian.rows;
@@ -693,7 +681,8 @@ inline Eigen::Matrix<double, 6, 6> RotateCovariance(Eigen::Matrix<double, 6, 1>&
     for (int j = rows[i]; j < rows[i+1]; ++j)
       J(i, cols[j]) = values[j];
   }
-  return J * covariance * J.inverse();
+  // Apply Jacobian to covariance
+  return J * covariance * J.transpose();
 }
 } // end of namespace CeresTools
 

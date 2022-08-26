@@ -69,6 +69,10 @@ external_sensors:
                       # and between two measures to interpolate
                       # /!\ For landmarks this parameter is also used to define a maximum time without seeing a tag
                       # to reset the absolute pose with new observation (only in the case no poses were initially needed).
+  lidar_is_posix: true # lidar timestamp in data header is POSIX
+                       # as we expect external sensor timestamps to be POSIX, we can directly
+                       # use header timestamp to synchronize data.
+                       # If not, we use message reception time as reference.
   # Optional GPS position use (if 'gps/use_gps'=true), subscribing to Odometry msg on 'gps_odom' topic.
   # It allows to estimate calibration between GPS and SLAM trajectories,
   # or post-optimize SLAM trajectory with pose graph optimization (PGO).
@@ -109,6 +113,8 @@ graph:
   fix_last: false      # Fix the last pose of the graph. Can be done if one wants to ensure
                        # the continuity of the motion
   publish_path: false  # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic
+  covariance_scale: 1. # Scale to apply to SLAM pose covariances in pose graph optimization
+  iterations_nb: 100   # Number of iterations to perform to optimize the graph
 
 # SLAM parameters (see Slam.h for description). Comment parameter to get default value.
 slam:
@@ -166,7 +172,7 @@ slam:
     # Optional logging of computed pose, localization covariance and keypoints of each processed frame.
     #  - A value of 0. will disable logging.
     #  - A negative value will log all incoming data, without any timeout.
-    #  - A positive value will keep only most recent data, forgetting all previous data older than LoggingTimeout seconds.
+    #  - A positive value will keep only most recent data, forgetting all previous data older than timeout seconds.
     # Logged data will be used for pose graph optimization, GPS antenna/LiDAR sensor calibration using GPS data
     # and velocity/acceleration estimations.
     # WARNING : the time window duration must be set lower than this value.
