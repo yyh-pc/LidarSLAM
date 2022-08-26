@@ -19,6 +19,7 @@
   <!-- /!\ rpm and timestamp_first_packet are also used to generate approximate point-wise timestamps as 'time' field is not usable. -->
   <arg name="rpm" default="600." doc="Ouster sensor spinning speed."/>
   <arg name="timestamp_first_packet" default="false" doc="If Ouster timestamping is based on the first or last packet of each scan."/>
+  <arg name="aggregate" default="false" doc="run aggregation node"/>
 
   <!-- Sim Time, used when replaying rosbag files (with mandatory option 'clock') -->
   <param name="/use_sim_time" value="$(arg replay)"/>
@@ -77,6 +78,13 @@
   <!-- Launch GPS/UTM conversions nodes -->
   <group if="$(arg gps)">
     <include file="$(find lidar_slam)/launch/gps_conversions.launch"/>
+  </group>
+
+  <group if="$(arg aggregate)">
+	  <!-- Aggregate points -->
+	  <node name="aggregation" pkg="lidar_slam" type="aggregation_node" output="screen">
+		<rosparam file="$(find lidar_slam)/params/aggregation_config.yaml" command="load"/>
+	  </node>
   </group>
 
   <!-- Moving base coordinates systems description            tf_FROM_to_TO           X  Y  Z  rZ rY rX  FROM     TO -->

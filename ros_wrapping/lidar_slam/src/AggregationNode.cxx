@@ -43,11 +43,17 @@ AggregationNode::AggregationNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   // Init rolling grid with parameters
   this->DenseMap = std::make_shared<LidarSlam::RollingGrid>();
-  // Set maps parameters
-  this->DenseMap->SetVoxelResolution(5.);
-  this->DenseMap->SetGridSize(500);
-  this->DenseMap->SetLeafSize(0.1);
-
+  // Voxel size
+  float leafSize = this->PrivNh.param("leaf_size", 0.1);
+  this->DenseMap->SetLeafSize(leafSize);
+  // Maximum size in voxels -> The second dimension of
+  // the rolling grid is not needed in this context
+  this->DenseMap->SetGridSize(3);
+  float maxSize = this->PrivNh.param("max_size", 200.) / 3.;
+  this->DenseMap->SetVoxelResolution(maxSize);
+  // Min number of frames seeing a voxel to extract it
+  int minNbPointsPerVoxel = this->PrivNh.param("min_points_per_voxel", 2);
+  this->DenseMap->SetMinFramesPerVoxel(minNbPointsPerVoxel);
 
   ROS_INFO_STREAM("Aggregation node is ready !");
 }
