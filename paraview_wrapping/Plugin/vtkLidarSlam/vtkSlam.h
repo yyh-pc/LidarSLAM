@@ -173,6 +173,94 @@ public:
   virtual void SetSensorData(const std::string& fileName);
 
   // ---------------------------------------------------------------------------
+  //   Graph parameters
+  // ---------------------------------------------------------------------------
+  void OptimizeGraph();
+
+  vtkCustomGetMacro(G2oFileName, std::string)
+  vtkCustomSetMacro(G2oFileName, std::string)
+
+  vtkCustomGetMacro(FixFirstVertex, bool)
+  vtkCustomSetMacro(FixFirstVertex, bool)
+
+  vtkCustomGetMacro(FixLastVertex, bool)
+  vtkCustomSetMacro(FixLastVertex, bool)
+
+  vtkCustomGetMacro(CovarianceScale, float)
+  vtkCustomSetMacro(CovarianceScale, float)
+
+  vtkCustomGetMacro(NbGraphIterations, int)
+  vtkCustomSetMacro(NbGraphIterations, int)
+
+  // ---------------------------------------------------------------------------
+  //   Loop closure parameters
+  // ---------------------------------------------------------------------------
+
+  vtkCustomGetMacro(ExtDetectLoopClosure, bool)
+  vtkCustomSetMacro(ExtDetectLoopClosure, bool)
+
+  vtkCustomGetMacro(LoopClosureQueryIdx, unsigned int)
+  virtual void SetLoopClosureQueryIdx(unsigned int loopClosureQueryIdx);
+
+  vtkCustomGetMacro(LoopClosureRevisitedIdx, unsigned int)
+  virtual void SetLoopClosureRevisitedIdx(unsigned int loopClosureRevisitedIdx);
+
+  vtkCustomGetMacro(LCQueryWindowStartRange, int)
+  vtkCustomSetMacro(LCQueryWindowStartRange, int)
+
+  vtkCustomGetMacro(LCQueryWindowEndRange, int)
+  vtkCustomSetMacro(LCQueryWindowEndRange, int)
+
+  vtkCustomGetMacro(LCRevisitedWindowStartRange, int)
+  vtkCustomSetMacro(LCRevisitedWindowStartRange, int)
+
+  vtkCustomGetMacro(LCRevisitedWindowEndRange, int)
+  vtkCustomSetMacro(LCRevisitedWindowEndRange, int)
+
+  // Get/Set Loop closure registration parameters
+  vtkCustomGetMacro(EnableLoopClosureOffset, bool)
+  vtkCustomSetMacro(EnableLoopClosureOffset, bool)
+
+  vtkCustomGetMacro(LoopClosureICPWithSubmap, bool)
+  vtkCustomSetMacro(LoopClosureICPWithSubmap, bool)
+
+  vtkCustomGetMacro(LoopClosureLMMaxIter, unsigned int)
+  vtkCustomSetMacro(LoopClosureLMMaxIter, unsigned int)
+
+  vtkCustomGetMacro(LoopClosureICPMaxIter, unsigned int)
+  vtkCustomSetMacro(LoopClosureICPMaxIter, unsigned int)
+
+  vtkCustomGetMacro(LoopClosureMaxNeighborsDistance, double)
+  vtkCustomSetMacro(LoopClosureMaxNeighborsDistance, double)
+
+  vtkCustomGetMacro(LoopClosureEdgeNbNeighbors, unsigned int)
+  vtkCustomSetMacro(LoopClosureEdgeNbNeighbors, unsigned int)
+
+  vtkCustomGetMacro(LoopClosureEdgeMinNbNeighbors, unsigned int)
+  vtkCustomSetMacro(LoopClosureEdgeMinNbNeighbors, unsigned int)
+
+  vtkCustomGetMacro(LoopClosureEdgeMaxModelError, double)
+  vtkCustomSetMacro(LoopClosureEdgeMaxModelError, double)
+
+  vtkCustomGetMacro(LoopClosurePlaneNbNeighbors, unsigned int)
+  vtkCustomSetMacro(LoopClosurePlaneNbNeighbors, unsigned int)
+
+  vtkCustomGetMacro(LoopClosurePlanarityThreshold, double)
+  vtkCustomSetMacro(LoopClosurePlanarityThreshold, double)
+
+  vtkCustomGetMacro(LoopClosurePlaneMaxModelError, double)
+  vtkCustomSetMacro(LoopClosurePlaneMaxModelError, double)
+
+  vtkCustomGetMacro(LoopClosureBlobNbNeighbors, unsigned int)
+  vtkCustomSetMacro(LoopClosureBlobNbNeighbors, unsigned int)
+
+  vtkCustomGetMacro(LoopClosureInitSaturationDistance, double)
+  vtkCustomSetMacro(LoopClosureInitSaturationDistance, double)
+
+  vtkCustomGetMacro(LoopClosureFinalSaturationDistance, double)
+  vtkCustomSetMacro(LoopClosureFinalSaturationDistance, double)
+
+  // ---------------------------------------------------------------------------
   //   BASE to LIDAR transform
   // ---------------------------------------------------------------------------
 

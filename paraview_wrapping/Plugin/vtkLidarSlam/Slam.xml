@@ -502,6 +502,16 @@
         </Documentation>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Use pose graph"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, display the pose graph optimization category.
+        </Documentation>
+      </IntVectorProperty>
+
       <PropertyGroup label="General Parameters">
         <Property name="2d mode" />
         <Property name="Use edges" />
@@ -512,6 +522,7 @@
         <Property name="Ego-Motion mode" />
         <Property name="Undistortion mode" />
         <Property name="Number of threads" />
+        <Property name="Use pose graph" />
       </PropertyGroup>
 
       <!-- ============================ Initialization ============================ -->
@@ -1508,6 +1519,435 @@
         <Property name="Velocity limits" />
         <Property name="Acceleration limits" />
         <Property name="Time window duration" />
+      </PropertyGroup>
+
+      <!-- ============================ Pose Graph Optimization ============================ -->
+      <Property name="Optimize Graph"
+                command="OptimizeGraph">
+        <Documentation>
+          Launch pose graph optimization with options below. The Logging timeout needs to be set appropriately.
+        </Documentation>
+      </Property>
+
+      <StringVectorProperty name="Save g2o file"
+                            command="SetG2oFileName"
+                            number_of_elements="1"
+                            animateable="0"
+                            panel_visibility="advanced">
+        <FileListDomain name="files"/>
+        <Documentation>
+          Define the name of the g2o file and save the pose graph.
+        </Documentation>
+      </StringVectorProperty>
+
+      <DoubleVectorProperty name="Logging timeout"
+                            command="SetLoggingTimeout"
+                            number_of_elements="1"
+                            default_values="1000. "
+                            panel_visibility="advanced">
+        <Documentation>
+          Maximum duration in seconds on which to keep states in memory.
+          This duration must be increased if a pose graph optimization is planned.
+          The minimum number of logged states is 2, to be able to handle ego-motion and undistortion, independently of this timeout value.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Covariance scale"
+                            command="SetCovarianceScale"
+                            number_of_elements="1"
+                            default_values="1. "
+                            panel_visibility="advanced">
+        <Documentation>
+          Scale to increase or decrease SLAM pose covariances.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty name="Graph iterations"
+                         command="SetNbGraphIterations"
+                         number_of_elements="1"
+                         default_values="100"
+                         panel_visibility="advanced">
+        <Documentation>
+          Number of graph optimization iterations.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Fix first vertex"
+                         command="SetFixFirstVertex"
+                         number_of_elements="1"
+                         default_values="1"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          Fix first vertex in pose graph.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Fix last vertex"
+                         command="SetFixLastVertex"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          Fix last vertex in pose graph.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Enable loop closure"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, display the loop closure parameters.
+        </Documentation>
+      </IntVectorProperty>
+
+      <PropertyGroup label="Pose Graph Optimization">
+        <Property name="Optimize Graph" />
+        <Property name="Save g2o file" />
+        <Property name="Logging timeout" />
+        <Property name="Fix first vertex" />
+        <Property name="Fix last vertex" />
+        <Property name="Covariance scale" />
+        <Property name="Graph iterations" />
+        <Property name="Enable loop closure" />
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use pose graph" value="1" />
+        </Hints>
+      </PropertyGroup>
+
+      <!-- ============================ Loop Closure ============================ -->
+
+      <IntVectorProperty name="External detect loop closure frame"
+                         command="SetExtDetectLoopClosure"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, users need to indicate the frame index of the loop closure.
+          Otherwise, SLAM filter will try to auto-detect the loop closure frame.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Query frame index"
+                         command="SetLoopClosureQueryIdx"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <Documentation>
+          Enter manually the query frame index of the loop closure.
+          The query frame index represents a recent frame who meets a loop.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="External detect loop closure frame" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Query map window start interval LC"
+                         command="SetLCQueryWindowStartRange"
+                         number_of_elements="1"
+                         default_values="-50">
+        <Documentation>
+          The parameter for query sub map interval. Sub maps is built with frames:
+          [frame index + start interval, frame index + end interval]
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Query map window end interval LC"
+                         command="SetLCQueryWindowEndRange"
+                         number_of_elements="1"
+                         default_values="50">
+        <Documentation>
+          The parameter for query sub map interval. Sub maps is built with frames:
+          [frame index + start interval, frame index + end interval]
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Revisited frame index"
+                         command="SetLoopClosureRevisitedIdx"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <Documentation>
+          Enter manually the revisited frame index of the loop closure.
+          The revisited frame index represents a previous frame which a recent frame considers that there is a loop closure.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="External detect loop closure frame" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Revisited map window start interval LC"
+                         command="SetLCRevisitedWindowStartRange"
+                         number_of_elements="1"
+                         default_values="-50">
+        <Documentation>
+          The parameter for revisited sub map interval. Sub maps is built with frames:
+          [frame index + start interval, frame index + end interval]
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Revisited map window end interval LC"
+                         command="SetLCRevisitedWindowEndRange"
+                         number_of_elements="1"
+                         default_values="50">
+        <Documentation>
+          The parameter for revisited sub map interval. Sub maps is built with frames:
+          [frame index + start interval, frame index + end interval]
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Advanced settings"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, display the loop closure localization ICP matching and optimization parameters.
+        </Documentation>
+      </IntVectorProperty>
+
+      <PropertyGroup label="Loop closure parameters">
+        <Property name="External detect loop closure frame" />
+        <Property name="Query frame index" />
+        <Property name="Query map window start interval LC" />
+        <Property name="Query map window end interval LC" />
+        <Property name="Revisited frame index" />
+        <Property name="Revisited map window start interval LC" />
+        <Property name="Revisited map window end interval LC" />
+        <Property name="Advanced settings" />
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable loop closure" value="1" />
+        </Hints>
+      </PropertyGroup>
+
+        <!-- ==================== Loop Closure Localization Parameters ==================== -->
+      <IntVectorProperty name="Add offset"
+                         command="SetEnableLoopClosureOffset"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          Enable adding an offset to pose prior when two frames of loop closure are too far.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Use sub maps"
+                         command="SetLoopClosureICPWithSubmap"
+                         number_of_elements="1"
+                         default_values="1"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          Enable the registration between two sub maps instead of registering a single frame to a sub map.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="ICP-Optimization iterations LC"
+                         command="SetLoopClosureICPMaxIter"
+                         number_of_elements="1"
+                         default_values="100"
+                         panel_visibility="advanced">
+        <Documentation>
+          The registration of the current frame on the map is performed iteratively,
+          building point-to-model Mahalanobis distance functions during an ICP step,
+          followed by a non-linear optimization of these residuals.
+
+          This parameter is the number of ICP-optimization iterations to perform.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="LM optimization iterations LC"
+                         command="SetLoopClosureLMMaxIter"
+                         number_of_elements="1"
+                         default_values="100"
+                         panel_visibility="advanced">
+        <Documentation>
+          Max number of iterations of the Levenberg-Marquardt optimizer to solve
+          the ICP problem
+        </Documentation>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Max neighbors distance LC"
+                            command="SetLoopClosureMaxNeighborsDistance"
+                            number_of_elements="1"
+                            default_values="5."
+                            panel_visibility="advanced">
+        <Documentation>
+          Max distance (in meters) allowed between a keypoint and its neighbors from the map
+          to build an ICP match
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty name="Edge nb of neighbors LC"
+                         command="SetLoopClosureEdgeNbNeighbors"
+                         number_of_elements="1"
+                         default_values="9"
+                         panel_visibility="advanced">
+        <Documentation>
+          Initial number of edge neighbors to extract, that will be filtered out
+          to keep best candidates.
+
+          At least 2 points are needed to build a valid line model.
+          If below, line models won't be usable and will be ignored.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Edge nb min filtered neighbors LC"
+                         command="SetLoopClosureEdgeMinNbNeighbors"
+                         number_of_elements="1"
+                         default_values="5"
+                         panel_visibility="advanced">
+        <Documentation>
+          Min number of resulting filtered edge neighbors (close to best line
+          candidate) to approximate the corresponding line model.
+
+          At least 2 points are needed to build a valid line model.
+          If below, line models won't be usable and will be ignored.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Edge max model error LC"
+                            command="SetLoopClosureEdgeMaxModelError"
+                            number_of_elements="1"
+                            default_values="0.2"
+                            panel_visibility="advanced">
+        <Documentation>
+          Max RMSE (in meters) allowed between neighborhood and its fitted line model to
+          keep only accurate models
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use edges" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty name="Plane nb of neighbors LC"
+                         command="SetLoopClosurePlaneNbNeighbors"
+                         number_of_elements="1"
+                         default_values="7"
+                         panel_visibility="advanced">
+        <Documentation>
+          Number of plane neighbors to extract to approximate the corresponding
+          plane model.
+
+          At least 3 points are needed to build a valid plane model.
+          If below, plane models won't be usable and will be ignored.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Planarity threshold LC"
+                            command="SetLoopClosurePlanarityThreshold"
+                            number_of_elements="1"
+                            default_values="0.04"
+                            panel_visibility="advanced">
+        <Documentation>
+          To check the plane neighborhood shape, the PCA eigenvalues must respect:
+
+          *EigenValue1 / EigenValue2 >= planarityThreshold*
+
+          with *EigenValue2 >= EigenValue1 >= EigenValue0*
+
+          The thickness of the plane can be checked with the max model error.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Plane max model error LC"
+                            command="SetLoopClosurePlaneMaxModelError"
+                            number_of_elements="1"
+                            default_values="0.1"
+                            panel_visibility="advanced">
+        <Documentation>
+          Max RMSE (in meters) allowed between neighborhood and its fitted plane model to
+          keep only accurate models
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use planes" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty name="Blob nb of neighbors LC"
+                         command="SetLoopClosureBlobNbNeighbors"
+                         number_of_elements="1"
+                         default_values="10"
+                         panel_visibility="advanced">
+        <Documentation>
+          Number of blob neighbors to extract to approximate the corresponding
+          ellipsoid model.
+
+          At least 4 points are needed to build a valid blob model.
+          If below, blob models won't be usable and will be ignored.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use blobs" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Init saturation distance LC"
+                            command="SetLoopClosureInitSaturationDistance"
+                            number_of_elements="1"
+                            default_values="2."
+                            panel_visibility="advanced">
+        <Documentation>
+          Maximum distance (in meters) beyond which the residual errors are
+          saturated to robustify the optimization against outlier constraints.
+          The residuals will be robustified by Tukey loss (50% of saturation at
+          *SaturationDistance/2*, fully saturated at *SaturationDistance*).
+
+          The saturation distance at each iteration is linearly interpolated
+          between *Init* and *Final* saturation distance parameters.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Final saturation distance LC"
+                            command="SetLoopClosureFinalSaturationDistance"
+                            number_of_elements="1"
+                            default_values="0.5"
+                            panel_visibility="advanced">
+        <Documentation>
+          Maximum distance (in meters) beyond which the residual errors are
+          saturated to robustify the optimization against outlier constraints.
+          The residuals will be robustified by Tukey loss (50% of saturation at
+          *SaturationDistance/2*, fully saturated at *SaturationDistance*).
+
+          The saturation distance at each iteration is linearly interpolated
+          between *Init* and *Final* saturation distance parameters.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <PropertyGroup label="Loop closure localization ICP matching and optimization parameters">
+        <Property name="Add offset" />
+        <Property name="Use sub maps" />
+        <Property name="ICP-Optimization iterations LC" />
+        <Property name="LM optimization iterations LC" />
+        <Property name="Max neighbors distance LC" />
+        <Property name="Edge nb of neighbors LC" />
+        <Property name="Edge nb min filtered neighbors LC" />
+        <Property name="Edge max model error LC" />
+        <Property name="Plane nb of neighbors LC" />
+        <Property name="Planarity threshold LC" />
+        <Property name="Plane max model error LC" />
+        <Property name="Blob nb of neighbors LC" />
+        <Property name="Init saturation distance LC" />
+        <Property name="Final saturation distance LC" />
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced settings" value="1" />
+        </Hints>
       </PropertyGroup>
 
     </SourceProxy>
