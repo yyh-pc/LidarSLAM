@@ -11,6 +11,7 @@
       - [Setting SLAM pose from GPS pose guess](#setting-slam-pose-from-gps-pose-guess)
       - [Running SLAM on same zone](#running-slam-on-same-zone)
   - [About the published TF tree](#about-the-published-tf-tree)
+  - [Points aggregation](#points-aggregation)
 
 Wrapping for Kitware LiDAR-only SLAM. It can also use GPS data to publish SLAM output pose as GPS coordinates, or to correct SLAM trajectory and map.
 
@@ -258,3 +259,27 @@ utm
 - **lidar**: pose of the LiDAR sensor on the moving base. The TF `base_link -> lidar` should be published by a `tf2_ros/static_transform_publisher` node.
 - **landmark_detector**: pose of the landmark detector on the moving base. The TF `base_link -> landmark_detector` must be published by a `tf2_ros/static_transform_publisher` node.
 - **gps**: pose of the GPS sensor on the moving base. The TF `base_link -> gps` should be published by a `tf2_ros/static_transform_publisher` node.
+
+# Points aggregation
+
+Another node called **aggregation_node** is included in the **lidar_slam** package and allows to aggregate all points from all frames into a unique pointcloud with a defined resolution : the points are stored in a voxel grid to supply a downsampled output cloud. It also allows to reject moving objects. The output pointcloud is published on the topic *aggregated_cloud*. It requires the output *registered_points* of the node **lidar_slam_node** to be enabled.
+
+**aggregation_node** has 3 parameters :
+
+- *leaf_size* : corresponds to the size of a voxel in meters in which to store one unique point. It is equivalent to the required mean distance between nearest neighbors. The maximum distance between nearest distance to downsample the cloud would be 2 * leaf_size
+- *max_size* : corresponds to the maximum size of the voxel grid and so the maximum width of the output cloud to tackle possible memory issues.
+- *min_points_per_voxel* : corresponds to the minimum number of frames which should have a point in a voxel to consider this voxel is not a moving object. It has been seen more than *min_points_per_voxel*, so it is considered "enough" to be a static object. All voxels that have been seen less than *min_points_per_voxel* times are not included to the output cloud.
+
+This node can answer to a service called **save_pc** to save the pointcloud on disk as a PCD file. The command should be :
+
+```bash
+rosservice call lidar_slam/save_pc "prefix/path/where/to/save/the/cloud" 0
+```
+
+To save the pointcloud as a PCD ASCII file at *prefix/path/where/to/save/the/cloud_CurrentTime.pcd*.
+All possible formats are :
+- **ASCII** : 0
+- **Binary** : 1
+- **Binary compressed** : 2
+
+**NOTE** : **aggregation_node** can be directly run from the launch files, adding the argument *aggregation:=true* to the launch command.

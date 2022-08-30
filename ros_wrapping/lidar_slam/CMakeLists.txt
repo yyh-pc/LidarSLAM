@@ -41,6 +41,12 @@ add_message_files(
   Confidence.msg
 )
 
+# Generate service in the 'srv' folder
+add_service_files(
+  FILES
+  save_pc.srv
+)
+
 # Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
@@ -77,7 +83,18 @@ add_executable(lidar_slam_node
   src/LidarSlamNode.cxx
   src/LidarSlamNode_main.cxx
 )
+
 target_link_libraries(lidar_slam_node
+  LidarSlam
+  ${catkin_LIBRARIES}
+)
+
+# Add aggregation node
+add_executable(aggregation_node
+  src/AggregationNode.cxx
+)
+
+target_link_libraries(aggregation_node
   LidarSlam
   ${catkin_LIBRARIES}
 )
@@ -86,7 +103,7 @@ target_link_libraries(lidar_slam_node
 ## Install ##
 #############
 
-install(TARGETS lidar_slam_node
+install(TARGETS lidar_slam_node aggregation_node
         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 install(DIRECTORY launch
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

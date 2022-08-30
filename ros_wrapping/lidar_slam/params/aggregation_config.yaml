@@ -1,0 +1,8 @@
+########################################################
+# Parameters for points aggregation in mapping context #
+########################################################
+
+leaf_size: 0.1 # Voxel size (eq approx space between points after downsampling)
+max_size: 200. # Maximum size of the scene (from the last lidar slam position)
+               # Warning : should be at least as large as one frame
+min_points_per_voxel: 2 # Minimum number of points in a voxel to extract it as non moving object
