@@ -24,6 +24,7 @@ RUN apt-get update \
     libeigen3-dev \
     libpcl-dev \
     # ROS wrapping
+    ros-noetic-rviz \
     ros-noetic-velodyne-pcl \
     ros-noetic-velodyne-pointcloud \
     ros-noetic-geodesy \
