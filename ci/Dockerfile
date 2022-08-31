@@ -32,7 +32,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Install nanoflann
-RUN git clone --branch v1.3.2 https://github.com/jlblancoc/nanoflann.git nanoflann
+RUN git clone --depth 1 --branch v1.3.2 https://github.com/jlblancoc/nanoflann.git nanoflann
 RUN mkdir nanoflann_build
 RUN cd nanoflann_build && cmake \
   -DBUILD_TESTS:BOOL=OFF \
@@ -43,7 +43,7 @@ RUN cd nanoflann_build && make install -j 16
 RUN rm -rf nanoflann nanoflann_build
 
 #Install Ceres
-RUN git clone https://github.com/ceres-solver/ceres-solver.git ceres
+RUN git clone --depth 1 https://github.com/ceres-solver/ceres-solver.git ceres
 RUN mkdir ceres_build
 RUN cd ceres_build && cmake \
   -DCMAKE_INSTALL_PREFIX:FILEPATH=/usr/local \
@@ -54,7 +54,7 @@ RUN cd ceres_build && make install -j 16
 RUN rm -rf ceres ceres_build
 
 # Install g2o
-RUN git clone https://github.com/RainerKuemmerle/g2o.git g2o
+RUN git clone --depth 1 https://github.com/RainerKuemmerle/g2o.git g2o
 RUN mkdir g2o_build
 RUN cd g2o_build && cmake \
   -DG2O_USE_OPENGL:BOOL=OFF \
