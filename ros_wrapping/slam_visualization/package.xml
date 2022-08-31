@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>slam_visualization</name>
+  <version>0.1.0</version>
+  <description>The slam_visualization package</description>
+
+  <maintainer email="julia.sanchez@kitware.com">Julia Sanchez</maintainer>
+  <author email="hla@lescompanions.com">Hugo Laloge</author>
+
+  <license>Apache License Version 2.0</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>lidar_slam</depend>
+  <depend>rviz</depend>
+
+  <!-- The export tag contains other, unspecified, tags -->
+  <export>
+      <rviz plugin="${prefix}/rviz_plugin.xml"/>
+  </export>
+</package>
