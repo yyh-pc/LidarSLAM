@@ -43,7 +43,7 @@ RUN cd nanoflann_build && make install -j 16
 RUN rm -rf nanoflann nanoflann_build
 
 #Install Ceres
-RUN git clone --depth 1 https://github.com/ceres-solver/ceres-solver.git ceres
+RUN git clone --depth 1 --branch 2.1.0 https://github.com/ceres-solver/ceres-solver.git ceres
 RUN mkdir ceres_build
 RUN cd ceres_build && cmake \
   -DCMAKE_INSTALL_PREFIX:FILEPATH=/usr/local \
