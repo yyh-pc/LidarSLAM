@@ -43,7 +43,7 @@ catkin_package(
 ###########
 
 add_library(${PROJECT_NAME}
-    src/SlamControlPanel.cpp
+    src/SlamControlPanel.cxx
     src/SlamControlPanel.h)
 target_include_directories(${PROJECT_NAME} SYSTEM
     PUBLIC
