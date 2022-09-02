@@ -120,7 +120,7 @@ graph:
 slam:
 
   # General parameters
-  n_threads: 4      # Max number of threads to use for parallel processing (default: 1)
+  n_threads: 1      # Max number of threads to use for parallel processing (default: 1)
   2d_mode: false    # Optimize only 2D pose (X, Y, rZ) of tracking_frame relatively to odometry_frame.
 
   # How to estimate Ego-Motion (approximate relative motion since last frame).
