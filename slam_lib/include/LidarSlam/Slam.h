@@ -488,6 +488,60 @@ public:
   GetMacro(LoopClosureRevisitedIdx, unsigned int)
   SetMacro(LoopClosureRevisitedIdx, unsigned int)
 
+  GetMacro(LCQueryWindowStartRange, int)
+  SetMacro(LCQueryWindowStartRange, int)
+
+  GetMacro(LCQueryWindowEndRange, int)
+  SetMacro(LCQueryWindowEndRange, int)
+
+  GetMacro(LCRevisitedWindowStartRange, int)
+  SetMacro(LCRevisitedWindowStartRange, int)
+
+  GetMacro(LCRevisitedWindowEndRange, int)
+  SetMacro(LCRevisitedWindowEndRange, int)
+
+  // Get/Set Loop Closure registration parameters
+  GetMacro(EnableLoopClosureOffset, bool)
+  SetMacro(EnableLoopClosureOffset, bool)
+
+  GetMacro(LoopClosureICPWithSubmap, bool)
+  SetMacro(LoopClosureICPWithSubmap, bool)
+
+  GetMacro(LoopClosureLMMaxIter, unsigned int)
+  SetMacro(LoopClosureLMMaxIter, unsigned int)
+
+  GetMacro(LoopClosureICPMaxIter, unsigned int)
+  SetMacro(LoopClosureICPMaxIter, unsigned int)
+
+  GetMacro(LoopClosureMaxNeighborsDistance, double)
+  SetMacro(LoopClosureMaxNeighborsDistance, double)
+
+  GetMacro(LoopClosureEdgeNbNeighbors, unsigned int)
+  SetMacro(LoopClosureEdgeNbNeighbors, unsigned int)
+
+  GetMacro(LoopClosureEdgeMinNbNeighbors, unsigned int)
+  SetMacro(LoopClosureEdgeMinNbNeighbors, unsigned int)
+
+  GetMacro(LoopClosurePlaneNbNeighbors, unsigned int)
+  SetMacro(LoopClosurePlaneNbNeighbors, unsigned int)
+
+  GetMacro(LoopClosurePlanarityThreshold, double)
+  SetMacro(LoopClosurePlanarityThreshold, double)
+
+  GetMacro(LoopClosureEdgeMaxModelError, double)
+  SetMacro(LoopClosureEdgeMaxModelError, double)
+
+  GetMacro(LoopClosurePlaneMaxModelError, double)
+  SetMacro(LoopClosurePlaneMaxModelError, double)
+
+  GetMacro(LoopClosureBlobNbNeighbors, unsigned int)
+  SetMacro(LoopClosureBlobNbNeighbors, unsigned int)
+
+  GetMacro(LoopClosureInitSaturationDistance, double)
+  SetMacro(LoopClosureInitSaturationDistance, double)
+
+  GetMacro(LoopClosureFinalSaturationDistance, double)
+  SetMacro(LoopClosureFinalSaturationDistance, double)
   // ---------------------------------------------------------------------------
   //   Confidence estimation
   // ---------------------------------------------------------------------------
@@ -713,6 +767,20 @@ private:
   unsigned int LoopClosureQueryIdx = 0;
   unsigned int LoopClosureRevisitedIdx = 0;
 
+  // Number of frames used to build the submaps around the query frame or the revisited frame for loop closure.
+  // To build sub maps around query frame, use frames [LoopClosureQueryIdx + LCQueryWindowStartRange, LoopClosureQueryIdx + LCQueryWindowEndRange].
+  // To build sub maps around the revisited frame, use frames [LoopClosureRevisitedIdx + LCRevisitedWindowStartRange, LoopClosureRevisitedIdx + LCRevisitedWindowEndRnage].
+  int LCQueryWindowStartRange = -50;
+  int LCQueryWindowEndRange = 50;
+  int LCRevisitedWindowStartRange = -50;
+  int LCRevisitedWindowEndRange = 50;
+
+  // Boolean to add an offset to loop closure pose prior when the frames are too far from each other.
+  bool EnableLoopClosureOffset = false;
+
+  // Boolean to enable the registration between two sub maps instead of registering a single frame on a sub map.
+  bool LoopClosureICPWithSubmap = false;
+
   // ---------------------------------------------------------------------------
   //   Optimization data
   // ---------------------------------------------------------------------------
@@ -720,6 +788,7 @@ private:
   //! Matching results
   std::map<Keypoint, KeypointsMatcher::MatchingResults> EgoMotionMatchingResults;
   std::map<Keypoint, KeypointsMatcher::MatchingResults> LocalizationMatchingResults;
+  std::map<Keypoint, KeypointsMatcher::MatchingResults> LoopClosureMatchingResults;
 
   // Optimization results
   // Variance-Covariance matrix that estimates the localization error about the
@@ -808,11 +877,13 @@ private:
   // Each iteration will consist of building ICP matches, then optimizing them.
   unsigned int EgoMotionICPMaxIter = 4;
   unsigned int LocalizationICPMaxIter = 3;
+  unsigned int LoopClosureICPMaxIter = 3;
 
   // Maximum number of iterations of the Levenberg-Marquardt optimizer to solve
   // the ICP problem composed of the built point-to-neighborhood residuals
   unsigned int EgoMotionLMMaxIter = 15;
   unsigned int LocalizationLMMaxIter = 15;
+  unsigned int LoopClosureLMMaxIter = 15;
 
   // Point-to-neighborhood matching parameters.
   // The goal will be to loop over all keypoints, and to build the corresponding
@@ -831,6 +902,7 @@ private:
   // If one of the neighbors is farther, the neighborhood will be rejected.
   double EgoMotionMaxNeighborsDistance = 5.;
   double LocalizationMaxNeighborsDistance = 5.;
+  double LoopClosureMaxNeighborsDistance = 5.;
 
   // Edge keypoints matching: point-to-line distance
   unsigned int EgoMotionEdgeNbNeighbors = 8;
@@ -839,6 +911,9 @@ private:
   unsigned int LocalizationEdgeNbNeighbors = 10;
   unsigned int LocalizationEdgeMinNbNeighbors = 4;
   double LocalizationEdgeMaxModelError = 0.2;
+  unsigned int LoopClosureEdgeNbNeighbors = 10;
+  unsigned int LoopClosureEdgeMinNbNeighbors = 4;
+  double LoopClosureEdgeMaxModelError = 0.2;
 
   // Plane keypoints matching: point-to-plane distance
   unsigned int EgoMotionPlaneNbNeighbors = 5;
@@ -847,9 +922,13 @@ private:
   unsigned int LocalizationPlaneNbNeighbors = 5;
   double LocalizationPlanarityThreshold = 0.04;
   double LocalizationPlaneMaxModelError = 0.2;
+  unsigned int LoopClosurePlaneNbNeighbors = 5;
+  double LoopClosurePlanarityThreshold = 0.04;
+  double LoopClosurePlaneMaxModelError = 0.2;
 
   // Blob keypoints matching: point-to-ellipsoid distance
   unsigned int LocalizationBlobNbNeighbors = 10;
+  unsigned int LoopClosureBlobNbNeighbors = 10;
 
   // Maximum distance (in meters) beyond which the residual errors are
   // saturated to robustify the optimization against outlier constraints.
@@ -859,6 +938,8 @@ private:
   double EgoMotionFinalSaturationDistance = 1. ;
   double LocalizationInitSaturationDistance = 2.;
   double LocalizationFinalSaturationDistance = 0.5;
+  double LoopClosureInitSaturationDistance = 2.;
+  double LoopClosureFinalSaturationDistance = 0.5;
 
   // ---------------------------------------------------------------------------
   //   Graph parameters
@@ -965,6 +1046,14 @@ private:
   // If external detection is enabled, check whether the inputs of loop closure frame indices are stored in the LogStates
   // if not, detect automatically a revisited frame idx for the current frame (TBA)
   bool DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState);
+
+  // Compute the transform between a query frame and the revisited frame
+  // by registering query frame keypoints onto keypoints of the submap around the revisited frame.
+  // revisitedFrameIdx is the frame index where the query frame meets a loop.
+  bool LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState,
+                               std::list<LidarState>::iterator& itRevisitedState,
+                               Eigen::Isometry3d& loopClosureTransform,
+                               Eigen::Matrix6d& loopClosureCovariance);
 
   // ---------------------------------------------------------------------------
   //   Map helpers

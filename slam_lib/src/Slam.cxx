@@ -252,6 +252,7 @@ void Slam::EnableKeypointType(Keypoint k, bool enabled)
       this->CurrentWorldKeypoints[k].reset(new PointCloud);
     this->EgoMotionMatchingResults[k] = KeypointsMatcher::MatchingResults();
     this->LocalizationMatchingResults[k] = KeypointsMatcher::MatchingResults();
+    this->LoopClosureMatchingResults[k] = KeypointsMatcher::MatchingResults();
   }
 }
 
@@ -1446,6 +1447,168 @@ bool Slam::DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryStat
     itRevisitedState = this->LogStates.begin();
     return false;
   }
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState,
+                                   std::list<LidarState>::iterator& itRevisitedState,
+                                   Eigen::Isometry3d& loopClosureTransform,
+                                   Eigen::Matrix6d& loopClosureCovariance)
+{
+  // Optimization results of loop closure localization
+  LocalOptimizer::RegistrationError loopClosureUncertainty = LocalOptimizer::RegistrationError();
+  PRINT_VERBOSE(2, "========== Loop closure : Registration ==========");
+
+  // Create a submap around revisited frame where a loop is detected
+  Maps loopClosureRevisitedSubMaps;
+  this->InitSubMaps(loopClosureRevisitedSubMaps);
+  this->BuildMaps(loopClosureRevisitedSubMaps,
+                  itRevisitedState->Index + this->LCRevisitedWindowStartRange,
+                  itRevisitedState->Index + this->LCRevisitedWindowEndRange);
+  PRINT_VERBOSE(3, "Sub maps are created around revisited frame #" << itRevisitedState->Index << ".");
+
+  // Pose prior for optimization
+  Eigen::Isometry3d loopClosureTworld = itQueryState->Isometry;
+  // Enable to add an offset to the pose prior when two poses are too far from each other.
+  if (this->EnableLoopClosureOffset)
+  {
+    PointCloud::Ptr revisitedPlaneKeypoints(new PointCloud);
+    pcl::transformPointCloud(*(itRevisitedState->Keypoints[PLANE]->GetCloud()),
+                             *revisitedPlaneKeypoints,
+                             itRevisitedState->Isometry.matrix().cast<float>());
+    Eigen::Vector4f minPoint, maxPoint, midPoint;
+    pcl::getMinMax3D(*revisitedPlaneKeypoints, minPoint, maxPoint);
+    midPoint = 0.5 * (minPoint + maxPoint);
+    loopClosureTworld.translation() = midPoint.head<3>().cast<double>();
+    PRINT_VERBOSE(3, "An offset is added onto the query submaps.");
+  }
+
+  // If LoopClosureICPWithSubmap is enabled, create a sub map of keypoints around the query frame
+  // Otherwise, use only keypoints of query frame as query keypoints
+  // loopClosureQueryKeypoints are in BASE coordinates of query frame
+  std::map<Keypoint, PointCloud::Ptr> loopClosureQueryKeypoints;
+  for (auto k : this->UsableKeypoints)
+    loopClosureQueryKeypoints[k].reset(new PointCloud);
+  if (this->LoopClosureICPWithSubmap)
+  {
+    Maps loopClosureQuerySubMaps;
+    this->InitSubMaps(loopClosureQuerySubMaps);
+    this->BuildMaps(loopClosureQuerySubMaps,
+                    itQueryState->Index + this->LCQueryWindowStartRange,
+                    itQueryState->Index + this->LCQueryWindowEndRange,
+                    itQueryState->Index);
+    PRINT_VERBOSE(3, "Sub maps are created around query frame #" << itQueryState->Index << ".");
+    for (auto k : this->UsableKeypoints)
+      loopClosureQueryKeypoints[k] = loopClosureQuerySubMaps[k]->Get();
+  }
+  else
+  {
+    for (auto k : this->UsableKeypoints)
+      loopClosureQueryKeypoints[k] = itQueryState->Keypoints[k]->GetCloud();
+  }
+
+  IF_VERBOSE(3, Utils::Timer::Init("Loop closure Registration : submap keypoints extraction"));
+  // Build kd-trees for fast nearest neighbors search from keypoints of loop closure sub map
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
+  {
+    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
+    if (!loopClosureRevisitedSubMaps[k]->IsSubMapKdTreeValid())
+      loopClosureRevisitedSubMaps[k]->BuildSubMapKdTree();
+  }
+
+  if (this->Verbosity >= 2)
+  {
+    std::cout << "Keypoints extracted from loop closure sub map : ";
+    for (auto k : this->UsableKeypoints)
+      std::cout << loopClosureRevisitedSubMaps[k]->GetSubMapKdTree().GetInputCloud()->size()
+                << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+    std::cout << std::endl;
+  }
+
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Loop closure Registration : map keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::Init("Loop closure Registration : whole ICP-LM loop"));
+
+  // Reset ICP results
+  this->TotalMatchedKeypoints = 0;
+
+  // Init optimization parameters for optimization of loop closure
+  OptimizationParameters loopClosureParams;
+  loopClosureParams.MatchingParams.NbThreads = this->NbThreads;
+  loopClosureParams.MatchingParams.SingleEdgePerRing = false;
+  loopClosureParams.MatchingParams.MaxNeighborsDistance = this->LoopClosureMaxNeighborsDistance;
+  loopClosureParams.MatchingParams.EdgeNbNeighbors = this->LoopClosureEdgeNbNeighbors;
+  loopClosureParams.MatchingParams.EdgeMinNbNeighbors = this->LoopClosureEdgeMinNbNeighbors;
+  loopClosureParams.MatchingParams.EdgeMaxModelError = this->LoopClosureEdgeMaxModelError;
+  loopClosureParams.MatchingParams.PlaneNbNeighbors = this->LoopClosurePlaneNbNeighbors;
+  loopClosureParams.MatchingParams.PlanarityThreshold = this->LoopClosurePlanarityThreshold;
+  loopClosureParams.MatchingParams.PlaneMaxModelError = this->LoopClosurePlaneMaxModelError;
+  loopClosureParams.MatchingParams.BlobNbNeighbors = this->LoopClosureBlobNbNeighbors;
+
+  loopClosureParams.ICPMaxIter = this->LoopClosureICPMaxIter;
+  loopClosureParams.LMMaxIter = this->LoopClosureLMMaxIter;
+  loopClosureParams.InitSaturationDistance = this->LoopClosureInitSaturationDistance;
+  loopClosureParams.FinalSaturationDistance = this->LoopClosureFinalSaturationDistance;
+
+  // ICP - Levenberg-Marquardt loop to estimate the pose of the current frame relatively to the close loop frame
+  loopClosureUncertainty = this->EstimatePose(loopClosureQueryKeypoints, loopClosureRevisitedSubMaps,
+                                              loopClosureParams, loopClosureTworld,
+                                              this->LoopClosureMatchingResults);
+
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Loop closure Registration : whole ICP-LM loop"));
+
+  if (!loopClosureParams.optimizationValid)
+  {
+    PRINT_ERROR("Loop closure registration failed.")
+    return loopClosureParams.optimizationValid;
+  }
+
+  // Get covariance
+  Eigen::Matrix6d covariance = std::pow(this->CovarianceScale, 2) * loopClosureUncertainty.Covariance;
+  float defaultPositionError = 1e-2; // 1cm
+  float defaultAngleError = Utils::Deg2Rad(1.f); // 1°
+  if (!Utils::isCovarianceValid(covariance))
+    covariance = Utils::CreateDefaultCovariance(defaultPositionError, defaultAngleError);
+  // If 2D mode enabled, supply constant covariance for unevaluated variables
+  if (this->TwoDMode)
+  {
+    covariance(2, 2) = std::pow(defaultPositionError, 2);
+    covariance(3, 3) = std::pow(defaultAngleError,    2);
+    covariance(4, 4) = std::pow(defaultAngleError,    2);
+  }
+  // Compute the relative transform between revisited frame and query frame
+  Eigen::Isometry3d revisitedStateInv = itRevisitedState->Isometry.inverse();
+  loopClosureTransform = revisitedStateInv * loopClosureTworld;
+  // Rotate covariance
+  // Lidar Slam gives the covariance expressed in the map frame
+  // We want the covariance expressed in the query frame to be consistent with supplied relative transform
+  Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(loopClosureTworld);
+  loopClosureCovariance = CeresTools::RotateCovariance(xyzrpy, covariance, revisitedStateInv, true); // new = revisitedState^-1 * loopClosureTworld
+
+  // Optionally print loop closure registration optimization summary
+  if (this->Verbosity >= 2)
+  {
+    SET_COUT_FIXED_PRECISION(3);
+    std::cout << "Loop closure matched keypoints: " << this->TotalMatchedKeypoints << " (";
+    for (auto k : this->UsableKeypoints)
+      std::cout << this->LoopClosureMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+
+    std::cout << ")"
+              << "\nLoop closure position uncertainty    = " << loopClosureUncertainty.PositionError    << " m"
+              << " (along [" << loopClosureUncertainty.PositionErrorDirection.transpose()    << "])"
+              << "\nLoop closure orientation uncertainty = " << loopClosureUncertainty.OrientationError << " °"
+              << " (along [" << loopClosureUncertainty.OrientationErrorDirection.transpose() << "])"
+              << std::endl;
+    std::cout << "Loop closure Transform:\n"
+                 " position    = [" << loopClosureTworld.translation().transpose()                                        << "] m\n"
+                 " orientation = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(loopClosureTworld.linear())).transpose() << "] °" << std::endl;
+
+    RESET_COUT_FIXED_PRECISION;
+  }
+  return loopClosureParams.optimizationValid;
 }
 
 //==============================================================================
