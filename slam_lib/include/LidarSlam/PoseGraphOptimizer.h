@@ -53,6 +53,10 @@ public:
   //! Add a landmark as a new node in the graph
   void AddLandmark(const Eigen::Isometry3d& lmPose, unsigned int index, bool onlyPosition = false);
 
+  //! Add a constraint from a loop closure detection
+  void AddLoopClosureConstraint(const unsigned int queryFrameIdx, const unsigned int revisitedFrameIdx,
+                                const Eigen::Isometry3d& loopClosureTransform, const Eigen::Matrix6d& loopClosureCovariance);
+
   //! Add a constraint from a landmark detection
   void AddLandmarkConstraint(int lidarIdx, int lmIdx, const ExternalSensors::LandmarkMeasurement& lm, bool onlyPosition = false);
 
