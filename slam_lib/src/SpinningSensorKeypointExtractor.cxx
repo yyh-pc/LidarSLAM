@@ -37,11 +37,8 @@ namespace
 bool LineFitting::FitLineAndCheckConsistency(const SpinningSensorKeypointExtractor::PointCloud& cloud,
                                             const std::vector<int>& indices)
 {
-  // Check potential line length
+  // Check line width
   float lineLength = (cloud[indices.front()].getVector3fMap() - cloud[indices.back()].getVector3fMap()).norm();
-  if (lineLength < this->MinLineLength)
-    return false;
-
   float widthTheshold = std::max(this->MaxLineWidth, lineLength / this->LengthWidthRatio);
 
   float maxDist = widthTheshold;
@@ -307,13 +304,30 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
           continue;
       }
 
-      // Fill left and right neighborhoods
-      std::vector<int> leftNeighbors(this->NeighborWidth);
-      std::vector<int> rightNeighbors(this->NeighborWidth);
-      for (int i = 1; i <= this->NeighborWidth; ++i)
+      // Fill left and right neighbors
+      // Those points must be more numerous than MinNeighNb and occupy more space than MinNeighRadius
+      std::vector<int> leftNeighbors;
+      int idxNeigh = 1;
+      float lineLength = 0.f;
+      while ((int(leftNeighbors.size()) < this->MinNeighNb
+              || lineLength < this->MinNeighRadius)
+              && int(leftNeighbors.size()) < Npts)
       {
-        leftNeighbors[i - 1] = (index - i + Npts) % Npts;
-        rightNeighbors[i - 1] = (index + i) % Npts;
+        leftNeighbors.push_back((index - idxNeigh + Npts) % Npts);
+        lineLength = (scanLineCloud[leftNeighbors.back()].getVector3fMap() - scanLineCloud[leftNeighbors.front()].getVector3fMap()).norm();
+        ++idxNeigh;
+      }
+
+      std::vector<int> rightNeighbors;
+      idxNeigh = 1;
+      lineLength = 0.f;
+      while ((int(rightNeighbors.size()) < this->MinNeighNb
+             || lineLength < this->MinNeighRadius)
+            && int(rightNeighbors.size()) < Npts)
+      {
+        rightNeighbors.push_back((index + idxNeigh) % Npts);
+        lineLength = (scanLineCloud[rightNeighbors.back()].getVector3fMap() - scanLineCloud[rightNeighbors.front()].getVector3fMap()).norm();
+        ++idxNeigh;
       }
 
       const auto& rightPt = scanLineCloud[rightNeighbors.front()].getVector3fMap();
@@ -334,11 +348,14 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
       float cosBeamLineAngleLeft = std::abs(diffVecLeft.dot(centralPoint) / (diffLeftNorm * centralDepth) );
       float cosBeamLineAngleRight = std::abs(diffVecRight.dot(centralPoint) / (diffRightNorm * centralDepth));
 
-      float distRight = -1.f;
-      float distLeft = -1.f;
-
       if (this->Enabled[EDGE])
       {
+        // Compute space gap
+
+        // Init variables
+        float distRight = -1.f;
+        float distLeft = -1.f;
+
         // Compute space gap (if some neighbors were missed)
         if (cosBeamLineAngleRight < cosMinBeamSurfaceAngle && cosAngleRight < cosSpaceGapAngle)
           distRight = diffRightNorm;
@@ -348,9 +365,9 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
 
         this->SpaceGap[scanLine][index] = std::max(distLeft, distRight);
 
-        // Stop search for first and last points of the line
+        // Stop search for first and last points of the scan line
         // because the discontinuity may alter the other criteria detection
-        if (index < this->NeighborWidth || index >= Npts - this->NeighborWidth)
+        if (index < int(leftNeighbors.size()) || index >= Npts - int(rightNeighbors.size()))
           continue;
 
         // Compute depth gap
@@ -414,12 +431,12 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
           float meanIntensityLeft = 0;
           for (int indexLeft : leftNeighbors)
             meanIntensityLeft += scanLineCloud[indexLeft].intensity;
-          meanIntensityLeft /= this->NeighborWidth;
+          meanIntensityLeft /= leftNeighbors.size();
           // Compute mean intensity on the right
           float meanIntensityRight = 0;
           for (int indexRight : rightNeighbors)
             meanIntensityRight += scanLineCloud[indexRight].intensity;
-          meanIntensityRight /= this->NeighborWidth;
+          meanIntensityRight /= rightNeighbors.size();
           this->IntensityGap[scanLine][index] = std::abs(meanIntensityLeft - meanIntensityRight);
 
           // Remove neighbor points to get the best intensity discontinuity locally
