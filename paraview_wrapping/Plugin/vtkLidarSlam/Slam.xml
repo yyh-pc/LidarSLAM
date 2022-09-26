@@ -1550,17 +1550,27 @@
         Extract edges, planes and blobs keypoints from a spinning LiDAR sensor pointcloud.
       </Documentation>
 
-      <IntVectorProperty name="Neighborhood width"
-                         command="SetNeighborWidth"
+      <IntVectorProperty name="Min neighbors nb"
+                         command="SetMinNeighNb"
                          number_of_elements="1"
                          default_values="4"
                          panel_visibility="advanced">
         <Documentation>
-          Number of neighbors to use on each side of current point to estimate
-          the keypoints scores (curvature, planarity, depth gap, ...) in each
-          scan line.
+          Minimum number of neighbors to use on each side of current point to estimate
+          the points curvature score.
         </Documentation>
       </IntVectorProperty>
+
+      <DoubleVectorProperty name="Min neighborhood radius"
+                            command="SetMinNeighRadius"
+                            number_of_elements="1"
+                            default_values="0.05"
+                            panel_visibility="advanced">
+        <Documentation>
+          Minimum distance of the farthest neighbor to use on each side of current point to estimate
+          the points curvature score.
+        </Documentation>
+      </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Min distance to sensor"
                             command="SetMinDistanceToSensor"
@@ -1706,7 +1716,8 @@
       </DoubleVectorProperty>
 
       <PropertyGroup label="Spinning Sensor Keypoints Extractor parameters">
-        <Property name="Neighborhood width" />
+        <Property name="Min neighbors nb" />
+        <Property name="Min neighborhood radius" />
         <Property name="Min distance to sensor" />
         <Property name="Min azimuth angle" />
         <Property name="Max azimuth angle" />

@@ -56,7 +56,9 @@ public:
 
   vtkCustomSetMacro(InputSamplingRatio, float)
 
-  vtkCustomSetMacro(NeighborWidth, int)
+  vtkCustomSetMacro(MinNeighNb, int)
+
+  vtkCustomSetMacro(MinNeighRadius, float)
 
   vtkCustomSetMacro(MinDistanceToSensor, float)
 

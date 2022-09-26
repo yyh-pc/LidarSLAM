@@ -696,7 +696,7 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
       this->TimeToSecondsFactor = 1e-9;
       CheckAndSetCalibArray("Ouster", "Altitude Angles");
       CheckKEParameter("Ouster", EdgeIntensityGapThreshold, >= 100);
-      CheckKEParameter("Ouster", NeighborWidth, > 4);
+      CheckKEParameter("Ouster", MinNeighNb, > 4);
     }
 
     // Test if LiDAR data is Hesai
@@ -704,7 +704,7 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
     {
       this->TimeToSecondsFactor = 1.;
       CheckKEParameter("Hesai", EdgeIntensityGapThreshold, > 1e6);
-      CheckKEParameter("Hesai", NeighborWidth, > 4);
+      CheckKEParameter("Hesai", MinNeighNb, > 4);
       CheckKEParameter("Hesai", MinDistanceToSensor, < 1);
     }
 
