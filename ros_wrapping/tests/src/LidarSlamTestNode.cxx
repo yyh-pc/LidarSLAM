@@ -143,17 +143,10 @@ LidarSlamTestNode::LidarSlamTestNode(ros::NodeHandle& nh, ros::NodeHandle& priv_
   std::remove((this->ResPath + "/Evaluators.csv").c_str());
 
   // Loading parameters
-  float val;
-  if (this->PrivNh.getParam("time_threshold", val))
-    this->TimeThreshold = val;
-  if (this->PrivNh.getParam("position_threshold", val))
-    this->PositionThreshold = val;
-  if (this->PrivNh.getParam("angle_threshold", val))
-    this->AngleThreshold = val;
-
-  bool verbose;
-  if (this->PrivNh.getParam("verbose", verbose))
-    this->Verbose = verbose;
+  this->PrivNh.getParam("time_threshold",     this->TimeThreshold);
+  this->PrivNh.getParam("position_threshold", this->PositionThreshold);
+  this->PrivNh.getParam("angle_threshold",    this->AngleThreshold);
+  this->PrivNh.getParam("verbose",            this->Verbose);
 
   // Init ROS subscriber
   this->PoseListener = nh.subscribe("slam_odom", 1, &LidarSlamTestNode::PoseCallback, this);
