@@ -1194,8 +1194,11 @@ void Slam::Localization()
   #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
-    // If the map has been updated, the KD-tree needs to be updated
     Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
+    // Check the current frame contains not null number of k type keypoints
+    if (this->CurrentUndistortedKeypoints[k] && this->CurrentUndistortedKeypoints[k]->empty())
+      continue;
+    // If the map has been updated, the KD-tree needs to be updated
     if (!this->LocalMaps[k]->IsSubMapKdTreeValid())
     {
       // If maps are fixed, we can build a single KD-tree
