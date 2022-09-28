@@ -89,20 +89,27 @@ VoxelGrid::PointCloud::Ptr VoxelGrid::GetCloud(int maxNbPoints) const
   pc->resize(maxNbPoints);
   int ptIdx = 0;
   unsigned int loop = 1;
+
+  // Shuffle voxel indices to be sure not to get a specific spatial area
+  // when browsing through the voxel grid
+  std::vector<int> voxelIndices(this->Voxels.size());
+  int idx = 0;
+  for (const auto& vox2Pts : this->Voxels)
+  {
+    voxelIndices[idx] = vox2Pts.first;
+    ++idx;
+  }
+
+  // Seed generator for deterministic processes
+  struct RNG {
+  int operator() (int n) {return 0; static_cast<void>(n);}
+  };
+  std::random_shuffle(voxelIndices.begin(), voxelIndices.end(), RNG());
+
+
   // Loop over all voxels while there are not enough points;
   while (ptIdx < maxNbPoints)
   {
-    // Shuffle voxel indices to be sure not to get a specific spatial area
-    // when browsing through the voxel grid
-    std::vector<int> voxelIndices(this->Voxels.size());
-    int idx = 0;
-    for (const auto& vox2Pts : this->Voxels)
-    {
-      voxelIndices[idx] = vox2Pts.first;
-      ++idx;
-    }
-    auto rng = std::default_random_engine{};
-    std::shuffle(voxelIndices.begin(), voxelIndices.end(), rng);
     // For each voxel, take the point with the next biggest value
     for (int idx : voxelIndices)
     {
