@@ -120,7 +120,7 @@ graph:
 slam:
 
   # General parameters
-  n_threads: 1      # Max number of threads to use for parallel processing (default: 1)
+  n_threads: 4      # Max number of threads to use for parallel processing (default: 1)
   2d_mode: false    # Optimize only 2D pose (X, Y, rZ) of tracking_frame relatively to odometry_frame.
 
   # How to estimate Ego-Motion (approximate relative motion since last frame).
@@ -299,7 +299,7 @@ slam:
       plane: true
       blob: false
     max_points: 1000                   # Maximum number of keypoints of each type to extract
-    voxel_grid_resolution: 0.5         # [m/voxel] Size of a voxel to downsample the extracted keypoints
+    voxel_grid_resolution: 1           # [m/voxel] Size of a voxel to downsample the extracted keypoints
     input_sampling_ratio: 1.           # Ratio of points from which to extract the keypoints (for computation time issues)
     min_distance_to_sensor: 1.         # [m] Minimal point to sensor distance to consider a point as valid.
     min_azimuth: 0.                    # [°] Minimal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.

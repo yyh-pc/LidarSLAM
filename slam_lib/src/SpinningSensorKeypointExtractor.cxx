@@ -106,21 +106,6 @@ inline float LineFitting::DistanceToPoint(Eigen::Vector3f const& point) const
 } // end of anonymous namespace
 
 //-----------------------------------------------------------------------------
-float SpinningSensorKeypointExtractor::GetVoxelResolution() const
-{
-  if (this->Keypoints.empty())
-    return -1.;
-  return this->Keypoints.begin()->second.GetVoxelResolution();
-}
-
-//-----------------------------------------------------------------------------
-void SpinningSensorKeypointExtractor::SetVoxelResolution(float res)
-{
-  for (auto& kptsVG : this->Keypoints)
-    kptsVG.second.SetVoxelResolution(res);
-}
-
-//-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::Enable(const std::vector<Keypoint>& kptTypes)
 {
   for (auto& en : this->Enabled)
@@ -236,7 +221,7 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
     if (this->Keypoints.count(k))
       this->Keypoints[k].Clear();
     if (this->Enabled[k])
-      this->Keypoints[k].Init(minPt.getVector3fMap(), maxPt.getVector3fMap(), this->Scan->size());
+      this->Keypoints[k].Init(minPt.getVector3fMap(), maxPt.getVector3fMap(), this->VoxelResolution, this->Scan->size());
   }
 }
 
@@ -483,7 +468,6 @@ void SpinningSensorKeypointExtractor::AddKptsUsingCriterion (Keypoint k,
                                                              double weightBasis)
 {
   // Loop over the scan lines
-  #pragma omp parallel for num_threads(this->NbThreads) schedule(guided)
   for (int scanlineIdx = 0; scanlineIdx < static_cast<int>(this->NbLaserRings); ++scanlineIdx)
   {
     const int Npts = this->ScanLines[scanlineIdx]->size();
@@ -512,13 +496,10 @@ void SpinningSensorKeypointExtractor::AddKptsUsingCriterion (Keypoint k,
       // The points with the lowest weight have priority for extraction
       float weight = threshIsMax? weightBasis + values[scanlineIdx][index] / threshold : weightBasis - values[scanlineIdx][index] / values[scanlineIdx][0];
 
-      #pragma omp critical
-      {
-        // Indicate the type of the keypoint to debug and to exclude double edges
-        this->Label[scanlineIdx][index].set(k);
-        // Add keypoint
-        this->Keypoints[k].AddPoint(this->ScanLines[scanlineIdx]->at(index), weight);
-      }
+      // Indicate the type of the keypoint to debug and to exclude double edges
+      this->Label[scanlineIdx][index].set(k);
+      // Add keypoint
+      this->Keypoints[k].AddPoint(this->ScanLines[scanlineIdx]->at(index), weight);
     }
   }
 }
