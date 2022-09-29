@@ -116,8 +116,8 @@ public:
   GetMacro(EdgeNbGapPoints, int)
   SetMacro(EdgeNbGapPoints, int)
 
-  float GetVoxelResolution() const;
-  void SetVoxelResolution(float res);
+  GetMacro(VoxelResolution, float)
+  SetMacro(VoxelResolution, float)
 
   GetMacro(NbLaserRings, int)
 
@@ -227,6 +227,10 @@ private:
 
   // Nb of points missed to define a space gap
   int EdgeNbGapPoints = 5; // [nb]
+
+  // Size of a voxel used to downsample the keypoints
+  // It corresponds approx to the mean distance between closest neighbors in the output keypoints cloud.
+  float VoxelResolution = 0.1; // [m]
 
   // ---------------------------------------------------------------------------
   //   Internal variables

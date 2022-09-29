@@ -38,7 +38,7 @@ public:
 
   //============================================================================
   //! Initialize the grid to contain pointMin and pointMax
-  void Init(const Eigen::Vector3f& ptMin, const Eigen::Vector3f& ptMax, int maxPoints = 0);
+  void Init(const Eigen::Vector3f& ptMin, const Eigen::Vector3f& ptMax, float res, int maxPoints = 0);
   //! Remove all points from all voxels
   void Clear();
 
@@ -68,7 +68,7 @@ private:
   // Dimensions of the grid
   std::vector<Eigen::Array3i> Dimensions {{-100, -100, -5}, {100, 100, 5}};
   //! [m/voxel] Resolution of a voxel
-  float VoxelResolution = 0.05;
+  float VoxelResolution = 0.1;
   //! Map containing one voxel index and the points contained in this voxel
   std::unordered_map<int, std::map<double, LidarPoint>> Voxels;
   //! Total number of points stored in voxel grid

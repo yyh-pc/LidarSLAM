@@ -106,21 +106,6 @@ inline float LineFitting::DistanceToPoint(Eigen::Vector3f const& point) const
 } // end of anonymous namespace
 
 //-----------------------------------------------------------------------------
-float SpinningSensorKeypointExtractor::GetVoxelResolution() const
-{
-  if (this->Keypoints.empty())
-    return -1.;
-  return this->Keypoints.begin()->second.GetVoxelResolution();
-}
-
-//-----------------------------------------------------------------------------
-void SpinningSensorKeypointExtractor::SetVoxelResolution(float res)
-{
-  for (auto& kptsVG : this->Keypoints)
-    kptsVG.second.SetVoxelResolution(res);
-}
-
-//-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::Enable(const std::vector<Keypoint>& kptTypes)
 {
   for (auto& en : this->Enabled)
@@ -236,7 +221,7 @@ void SpinningSensorKeypointExtractor::PrepareDataForNextFrame()
     if (this->Keypoints.count(k))
       this->Keypoints[k].Clear();
     if (this->Enabled[k])
-      this->Keypoints[k].Init(minPt.getVector3fMap(), maxPt.getVector3fMap(), this->Scan->size());
+      this->Keypoints[k].Init(minPt.getVector3fMap(), maxPt.getVector3fMap(), this->VoxelResolution, this->Scan->size());
   }
 }
 
