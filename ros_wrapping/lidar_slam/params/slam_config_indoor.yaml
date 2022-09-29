@@ -305,7 +305,8 @@ slam:
     min_azimuth: 0.                    # [°] Minimal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
     max_azimuth: 360.                  # [°] Maximal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
     min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
-    neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
+    neighbors_side_nb: 4               # [>1] Minimum number of neighbors used on each side to estimate curvature and detect edges and planes.
+    neighbors_radius: 0.05             # [m] Minimum radius to define a neighborhood on each side of the studied point.
     plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
     edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
     edge_depth_gap_threshold: 0.5      # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
@@ -330,7 +331,8 @@ slam:
     #   min_azimuth: -90                   # [°] Minimal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
     #   max_azimuth: 90                    # [°] Maximal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
-    #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
+    #   neighbors_side_nb: 4               # [>1] Minimum number of neighbors used on each side to estimate curvature and detect edges and planes.
+    #   neighbors_radius: 0.05             # [m] Minimum radius to define a neighborhood on each side of the studied point.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
     #   edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
     #   edge_depth_gap_threshold: 0.5      # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.
@@ -349,7 +351,8 @@ slam:
     #   min_azimuth: -45                   # [°] Minimal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
     #   max_azimuth: 45                    # [°] Maximal azimuth angle to consider the point as keypoint. Right thumb rule between min/max azimuth angles.
     #   min_beam_surface_angle: 10.        # [°] Minimal angle between the point surface and the laser beam to consider a point as valid.
-    #   neighbor_width: 4                  # [>1] Width of the neighborhood used to compute discrete differential operators.
+    #   neighbors_side_nb: 4               # [>1] Minimum number of neighbors used on each side to estimate curvature and detect edges and planes.
+    #   neighbors_radius: 0.05             # [m] Minimum radius to define a neighborhood on each side of the studied point.
     #   plane_sin_angle_threshold: 0.5     # [0-1] Sharpness threshold to select a planar keypoint (selected if sin angle is less than threshold).
     #   edge_sin_angle_threshold: 0.86     # [0-1] Sharpness threshold to select an edge keypoint (selected if sin angle is more than threshold).
     #   edge_depth_gap_threshold: 0.5      # [m] Threshold upon depth gap in neighborhood to select an edge keypoint.

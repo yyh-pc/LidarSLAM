@@ -57,9 +57,6 @@ struct LineFitting
   Eigen::Vector3f Direction;
   Eigen::Vector3f Position;
 
-  //! Min line length to be trustworthy
-  float MinLineLength = 0.05;  // [m]
-
   //! Max line width to be trustworthy for lines < 20cm
   float MaxLineWidth = 0.02;  // [m]
 
@@ -83,8 +80,11 @@ public:
   GetMacro(InputSamplingRatio, float)
   SetMacro(InputSamplingRatio, float)
 
-  GetMacro(NeighborWidth, int)
-  SetMacro(NeighborWidth, int)
+  GetMacro(MinNeighNb, int)
+  SetMacro(MinNeighNb, int)
+
+  GetMacro(MinNeighRadius, float)
+  SetMacro(MinNeighRadius, float)
 
   GetMacro(MinDistanceToSensor, float)
   SetMacro(MinDistanceToSensor, float)
@@ -170,7 +170,7 @@ private:
   void EstimateAzimuthalResolution();
 
   // Check if scanLine is almost empty
-  inline bool IsScanLineAlmostEmpty(int nScanLinePts) const { return nScanLinePts < 2 * this->NeighborWidth + 1; }
+  inline bool IsScanLineAlmostEmpty(int nScanLinePts) const { return nScanLinePts < 2 * this->MinNeighNb + 1; }
 
   // Add all keypoints of the type k that comply with the threshold criteria for these values
   // The threshold can be a minimum or maximum value (threshIsMax)
@@ -197,8 +197,11 @@ private:
   // Sampling ratio to perform for real time issues
   float InputSamplingRatio = 1.;
 
-  // Width of the neighborhood used to compute discrete differential operators
-  int NeighborWidth = 4;
+  // Minimum number of points used on each side of the studied point to compute its curvature
+  int MinNeighNb = 4;
+
+  // Minimum radius to define the neighborhood to compute curvature of a studied point
+  int MinNeighRadius = 0.05f;
 
   // Minimal point/sensor sensor to consider a point as valid
   float MinDistanceToSensor = 1.5;  // [m]
