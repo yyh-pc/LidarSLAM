@@ -68,7 +68,7 @@ AggregationNode::AggregationNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 void AggregationNode::Callback(const CloudS::Ptr registeredCloud)
 {
   // Aggregated points from all frames
-  this->DenseMap->Add(registeredCloud, true);
+  this->DenseMap->Add(registeredCloud, false);
   this->Pointcloud = this->DenseMap->Get(true);
   this->Pointcloud->header = registeredCloud->header;
   // Publish them
