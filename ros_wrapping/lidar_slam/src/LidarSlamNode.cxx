@@ -887,7 +887,7 @@ void LidarSlamNode::SetSlamParameters()
     #define SetKeypointsExtractorParam(type, rosParam, keParam) {type val; if (this->PrivNh.getParam(rosParam, val)) ke->Set##keParam(val);}
     SetKeypointsExtractorParam(int,   "slam/n_threads", NbThreads)
     SetKeypointsExtractorParam(int,   prefix + "neighbors_side_nb", MinNeighNb)
-    SetKeypointsExtractorParam(int,   prefix + "neighbors_radius", MinNeighRadius)
+    SetKeypointsExtractorParam(float, prefix + "neighbors_radius", MinNeighRadius)
     SetKeypointsExtractorParam(float, prefix + "min_distance_to_sensor", MinDistanceToSensor)
     SetKeypointsExtractorParam(float, prefix + "min_beam_surface_angle", MinBeamSurfaceAngle)
     SetKeypointsExtractorParam(float, prefix + "min_azimuth", AzimuthMin)
