@@ -676,6 +676,8 @@ void Slam::SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess)
     this->LogStates.back().Isometry = this->Tworld;
   for (auto k : this->UsableKeypoints)
     this->CurrentRawKeypoints[k].reset(new PointCloud);
+  if (this->ImuManager)
+    this->ImuManager->SetInitBasePose(this->Tworld);
 }
 
 //-----------------------------------------------------------------------------
@@ -2293,6 +2295,7 @@ void Slam::InitImu()
                                                                    this->SensorTimeOffset,
                                                                    this->SensorTimeThreshold,
                                                                    this->SensorMaxMeasures,
+                                                                   this->Tworld,
                                                                    this->Verbosity >= 3);
 }
 

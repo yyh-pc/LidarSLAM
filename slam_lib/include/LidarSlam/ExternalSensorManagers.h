@@ -594,8 +594,13 @@ public:
   : PoseManager(name){this->Reset();}
 
   ImuManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+             Eigen::Isometry3d initBasePose = Eigen::Isometry3d::Identity(),
              bool verbose = false, const std::string& name = "IMU")
-  : PoseManager(w, timeOffset, timeThresh, maxMeas, verbose, name) {this->Reset();}
+  : PoseManager(w, timeOffset, timeThresh, maxMeas, verbose, name)
+  {
+    this->InitBasePose = initBasePose;
+    this->Reset();
+  }
 
   // ---------------------------------------------------------------------------
 
@@ -605,6 +610,13 @@ public:
 
   GetSensorMacro(Frequency, float)
   SetSensorMacro(Frequency, float)
+
+  GetSensorMacro(InitBasePose, Eigen::Isometry3d)
+  void SetInitBasePose(const Eigen::Isometry3d& initPose)
+  {
+    this->InitBasePose = initPose;
+    this->Reset();
+  }
 
   GetSensorMacro(ResetThreshold, unsigned int)
   SetSensorMacro(ResetThreshold, unsigned int)
@@ -636,8 +648,8 @@ public:
     p->gyroscopeCovariance     = this->GyrCovariance;
     // Set integration noise (from velocities to positions)
     p->integrationCovariance = std::pow(1e-4, 2) * Eigen::Matrix3d::Identity();
-    // Initialize identity pose isometry and 0 velocity
-    this->OptimizedSlamStates[0] = gtsam::NavState(gtsam::Pose3(Eigen::Matrix4d::Identity()), Eigen::Vector3d::Zero());
+    // Initialize pose isometry with 0 velocity
+    this->OptimizedSlamStates[0] = gtsam::NavState(gtsam::Pose3((this->InitBasePose * this->Calibration).matrix()), Eigen::Vector3d::Zero());
     this->PrevLidarTime = -1.;
     // Initialize a null bias
     this->Bias = gtsam::imuBias::ConstantBias(Eigen::Vector6d::Zero());
@@ -1021,6 +1033,8 @@ private:
   Eigen::Vector3d Gravity = {0., 0., -9.80511}; // default : z upward
   // Frequency of the IMU
   float Frequency = 100.f; // Used when dt is not available
+  // Initial pose of BASE
+  Eigen::Isometry3d InitBasePose = Eigen::Isometry3d::Identity();
   #ifdef USE_GTSAM
   // SLAM poses optimized using IMU preintegration constraint
   std::vector<gtsam::NavState> OptimizedSlamStates;
