@@ -473,36 +473,18 @@ void Slam::ComputeSensorConstraints()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::UpdateMaps()
+void Slam::UpdateMaps(bool resetMaps)
 {
-  // The iteration is not directly on Keypoint types
-  // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
-  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
-  for (int i = 0; i < nbKeypointTypes; ++i)
+  if(resetMaps)
+    this->ClearMaps(this->LocalMaps);
+  else
   {
-    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
-    this->LocalMaps[k]->Clear();
-    PointCloud::Ptr keypoints(new PointCloud);
-    for (auto& state : this->LogStates)
-    {
-      if (!state.IsKeyFrame)
-        continue;
-
-      // Keypoints are stored undistorted : because of the keyframes mechanism,
-      // undistortion cannot be refined during pose graph
-      // We rely on a good first estimation of the in-frame motion
-      keypoints.reset(new PointCloud);
-      PointCloud::Ptr undistortedKeypoints = state.Keypoints[k]->GetCloud();
-      pcl::transformPointCloud(*undistortedKeypoints, *keypoints, state.Isometry.matrix().cast<float>());
-
-      this->LocalMaps[k]->Add(keypoints, false);
-    }
-    // Roll to center onto last pose
-    Eigen::Vector4f minPoint, maxPoint;
-    pcl::getMinMax3D(*keypoints, minPoint, maxPoint);
-    this->LocalMaps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
+    // Remove points older than the first logged state
+    for (auto k : this->UsableKeypoints)
+      this->LocalMaps[k]->ClearPoints(this->LogStates.front().Time, false);
   }
+  // Update LocalMaps with the keypoints stored in the LogStates
+  this->BuildMaps(this->LocalMaps);
 }
 
 //-----------------------------------------------------------------------------
@@ -619,7 +601,7 @@ bool Slam::OptimizeGraph()
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
-  // Update the maps
+  // Update the maps from the beginning using the new trajectory
   IF_VERBOSE(3, Utils::Timer::Init("PGO : maps update"));
   this->UpdateMaps();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : maps update"));
@@ -1005,7 +987,7 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
       // Transform pose
       s.Isometry = s.Isometry * odom2Ext;
     }
-    // Update maps
+    // Update maps from the beginning using the new trajectory
     this->UpdateMaps();
   }
   else
@@ -1552,6 +1534,64 @@ void Slam::LogCurrentFrameState()
 LidarState& Slam::GetLastState()
 {
   return this->LogStates.back();
+}
+
+//==============================================================================
+//   Map helpers
+//==============================================================================
+
+//-----------------------------------------------------------------------------
+void Slam::BuildMaps(Maps& maps, int windowStartIdx, int windowEndIdx, int idxFrame)
+{
+  // If default values of windowStartIdx and windowEndIdx are used, build maps with all frames stored in LogStates.
+  // Otherwise, create a sub map with frames [windowStartIdx, windowEndIdx].
+  unsigned int idxMin = static_cast<unsigned int>(std::max(0, windowStartIdx));
+  unsigned int idxMax = windowEndIdx < 0 ? this->LogStates.back().Index : std::min(this->LogStates.back().Index, static_cast<unsigned int>(windowEndIdx));
+
+  // Keypoints are aggregated in base coordinates of frame #idxFrame
+  Eigen::Isometry3d currentBaseInv = Eigen::Isometry3d::Identity();
+  if (idxFrame >= 0)
+  {
+    for (auto& state : this->LogStates)
+    {
+      if (state.Index == static_cast<unsigned int>(idxFrame))
+      {
+        currentBaseInv = state.Isometry.inverse();
+        break;
+      }
+    }
+  }
+
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
+  {
+    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
+    PointCloud::Ptr keypoints(new PointCloud);
+
+    // Roll to center onto last pose to make sure slam can follow the trajectory after the maps have been updated
+    Eigen::Vector4f minPoint, maxPoint;
+    pcl::getMinMax3D(*this->LogStates.back().Keypoints[k]->GetCloud(), minPoint, maxPoint);
+    maps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
+
+    for (auto& state : this->LogStates)
+    {
+      if (!state.IsKeyFrame || state.Index < idxMin)
+        continue;
+      if (state.Index > idxMax)
+        break;
+      // Keypoints are stored undistorted : because of the keyframes mechanism,
+      // undistortion cannot be refined during pose graph
+      // We rely on a good first estimation of the in-frame motion
+      keypoints.reset(new PointCloud);
+      PointCloud::Ptr undistortedKeypoints = state.Keypoints[k]->GetCloud();
+      auto transform = idxFrame >= 0 ? currentBaseInv.matrix() * state.Isometry.matrix() : state.Isometry.matrix();
+      pcl::transformPointCloud(*undistortedKeypoints, *keypoints, transform.cast<float>());
+      maps[k]->Add(keypoints, false);
+    }
+  }
 }
 
 //==============================================================================
@@ -2123,7 +2163,7 @@ bool Slam::CalibrateWithGps()
     s.Isometry = firstInverse * s.Isometry;
   }
 
-  // Update the maps and the pose with new trajectory
+  // Update the maps and the pose with the new trajectory
   this->UpdateMaps();
   this->SetWorldTransformFromGuess(this->LogStates.back().Isometry);
 

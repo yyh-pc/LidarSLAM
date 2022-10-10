@@ -177,8 +177,11 @@ public:
   // Get information for each keypoint of the current frame (used/rejected keypoints, ...)
   std::unordered_map<std::string, std::vector<double>> GetDebugArray() const;
 
-  // Update maps from beginning using new trajectory (after PGO)
-  void UpdateMaps();
+  // Update LocalMaps from the beginning of the LogStates
+  // By default, clear points in maps after the first timestamp in the LogStates
+  // and replace them by the keypoints stored in the LogStates
+  // If enable resetMaps, reset LocalMaps and rebuild it by the keypoints stored in the LogStates
+  void UpdateMaps(bool resetMaps = false);
 
   // Optimize graph containing lidar states with
   // landmarks' constraints as a postprocess
@@ -911,6 +914,18 @@ private:
 
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState();
+
+  // ---------------------------------------------------------------------------
+  //   Map helpers
+  // ---------------------------------------------------------------------------
+
+  // Aggregate logged keypoints of frames between # [windowStartIdx, windowStartEndIdx]
+  // Default arguments lead to the aggregation of all available logged keypoints of keyframes.
+  // It is used to recompute the current SLAM maps from the beginning using the new trajectory (after PGO)
+  // and to build sub maps in the loop closure context
+  // Keypoints are aggregated in world coordinates by default
+  // or in base coordinates of frame #idxFrame when idxFrame is not negative
+  void BuildMaps(Maps& maps, int windowStartIdx = -1, int windowEndIdx = -1, int idxFrame = -1);
 
   // ---------------------------------------------------------------------------
   //   Undistortion helpers
