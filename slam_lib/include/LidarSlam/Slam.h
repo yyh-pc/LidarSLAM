@@ -465,7 +465,7 @@ public:
   void SetVoxelGridSamplingMode(Keypoint k, SamplingMode sm);
 
   // Set RollingGrid Parameters
-  void ClearMaps();
+  void ClearMaps(Maps& maps);
   double GetVoxelGridLeafSize(Keypoint k) const;
   void SetVoxelGridLeafSize(Keypoint k, double size);
   void SetVoxelGridSize(int size);
