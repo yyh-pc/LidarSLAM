@@ -842,7 +842,41 @@ public:
       this->OptimizedSlamStates[0] = gtsam::NavState(gtsam::Pose3((state.Isometry * this->Calibration).matrix()), Eigen::Vector3d::Zero());
       this->PrevLidarTime = state.Time;
       this->RestartGraph(this->InitPoseNoise, this->InitVelNoise, this->InitBiasNoise);
+      this->Idx2Time[this->TimeIdx] = lidarTimeSynch;
+      this->Idx2Bias[this->TimeIdx] = this->Bias;
+
+      // Lock mutex to handle RawMeasures and Measures lists
+      std::lock_guard<std::mutex> lock(this->Mtx);
+
+      // If some measures were already stored, crop them from the current timestamp to speed up searches
+      // Get IMU measure iterators corresponding to the measurement received just before the current timestamp
+      auto itRawCurrent = this->RawMeasures.end();
+      auto itCurrent = this->Measures.end();
+      --itRawCurrent;
+      --itCurrent;
+      while (itRawCurrent->Time > lidarTimeSynch)
+      {
+        --itRawCurrent;
+        --itCurrent;
+      }
+
+      int initMeasuresSize = this->Measures.size();
+      this->Measures = std::list<PoseMeasurement>(itCurrent, this->Measures.end());
+      // Update previous measure iterator for searches
+      this->PreviousIt = this->Measures.begin();
+      this->RawMeasures = std::list<ImuMeasurement>(itRawCurrent, this->RawMeasures.end());
+
+      if (this->Verbose)
+        PRINT_INFO("IMU measures cropped to " << std::fixed << std::setprecision(12) << lidarTimeSynch << std::scientific << "   "
+                   << initMeasuresSize - this->Measures.size() << "   measures forgotten");
+
+      // Update measures from first SLAM pose
+      auto startIts = std::make_pair(this->RawMeasures.begin(), this->Measures.begin());
+      this->UpdateMeasures(startIts, 0);
+
+      // Update time index
       this->TimeIdx = 1;
+
       return true;
     }
 
