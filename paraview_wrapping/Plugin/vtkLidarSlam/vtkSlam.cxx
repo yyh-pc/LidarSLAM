@@ -700,9 +700,7 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
     else if (CheckAndSetScanArrays("Timestamp", "Intensity", "LaserID"))
     {
       this->TimeToSecondsFactor = 1.;
-      CheckKEParameter("Hesai", EdgeIntensityGapThreshold, > 1e6);
       CheckKEParameter("Hesai", MinNeighNb, > 4);
-      CheckKEParameter("Hesai", MinDistanceToSensor, < 1);
     }
 
     // Failed to recognize LiDAR vendor
