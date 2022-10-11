@@ -489,6 +489,9 @@ public:
   Eigen::Vector3d GetImuGravity() const;
   void SetImuGravity(const Eigen::Vector3d& gravity);
 
+  float GetImuFrequency() const;
+  void SetImuFrequency(float freq);
+
   unsigned int GetImuResetThreshold() const;
   void SetImuResetThreshold(unsigned int);
 

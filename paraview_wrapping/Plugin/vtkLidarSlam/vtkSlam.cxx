@@ -566,6 +566,22 @@ void vtkSlam::SetSensorData(const std::string& fileName)
    && csvTable->GetRowData()->HasArray("w_y")
    && csvTable->GetRowData()->HasArray("w_z"))
   {
+    // Deduce frequency using time array
+    // Build a frequency histogram and extract max bin
+    // (in case of cuts in the data or missing measures)
+    std::map<int,int> freqHistogram;
+    for (vtkIdType i = 1; i < arrayTime->GetNumberOfTuples(); ++i)
+    {
+      int freq = std::round(1. / (arrayTime->GetTuple1(i) - arrayTime->GetTuple1(i - 1)));
+      ++freqHistogram[freq];
+    }
+    int frequency = std::max_element(freqHistogram.begin(), freqHistogram.end(),
+                                     [](const auto &x, const auto &y)
+                                     {return x.second < y.second;})->first;
+
+    vtkDebugMacro(<< "IMU frequency detected is " << frequency << " Hz");
+    this->SlamAlgo->SetImuFrequency(frequency);
+
     this->SlamAlgo->SetImuCalibration(base2Sensor);
     auto arrayAccX = csvTable->GetRowData()->GetArray("acc_x");
     auto arrayAccY = csvTable->GetRowData()->GetArray("acc_y");

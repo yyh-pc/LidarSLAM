@@ -2708,6 +2708,23 @@ void Slam::SetImuGravity(const Eigen::Vector3d& gravity)
 }
 
 //-----------------------------------------------------------------------------
+float Slam::GetImuFrequency() const
+{
+  if(this->ImuManager)
+    return this->ImuManager->GetFrequency();
+  PRINT_ERROR("IMU has not been set : can't get IMU frequency")
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetImuFrequency(float frequency)
+{
+  if(!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->SetFrequency(frequency);
+}
+
+//-----------------------------------------------------------------------------
 unsigned int Slam::GetImuResetThreshold() const
 {
   if(this->ImuManager)
