@@ -832,9 +832,44 @@ public:
   bool Update(const LidarState& state)
   {
     #ifdef USE_GTSAM
+    // Check time
+    if (this->TimeIdx != 0 &&
+        (state.Time - this->PrevLidarTime < 0 ||
+         state.Time - this->PrevLidarTime > this->TimeThreshold))
+    {
+      PRINT_WARNING("There was a time cut in Lidar info at "
+                    << std::fixed << std::setprecision(12) << this->PrevLidarTime << std::scientific
+                    << " : resetting IMU")
+      this->TimeIdx = 0;
+      return false;
+    }
+
+    if (state.Time - this->PrevLidarTime < 1e-6)
+    {
+      if (this->Verbose)
+        PRINT_INFO("SLAM time has not changed : not updating IMU")
+      return true;
+    }
+
     // Synchronize lidar times to IMU times if needed
     double prevLidarTimeSynch = this->PrevLidarTime - this->TimeOffset;
     double lidarTimeSynch = state.Time - this->TimeOffset;
+
+    // Lock mutex to handle RawMeasures and Measures lists
+    std::lock_guard<std::mutex> lock(this->Mtx);
+
+    // First raw measure must be older than previous lidar time
+    // and last measure must be newer than current lidar time
+    if (this->RawMeasures.empty() ||
+        this->RawMeasures.front().Time > lidarTimeSynch + 1e-6 ||
+        (this->TimeIdx != 0 && this->RawMeasures.front().Time > prevLidarTimeSynch + 1e-6) ||
+        this->RawMeasures.back().Time  < lidarTimeSynch - 1e-6)
+    {
+      PRINT_WARNING("Could not find IMU synchronized measures between " << std::fixed << std::setprecision(16) << prevLidarTimeSynch
+                     << " and " << lidarTimeSynch << " -> IMU data not updated, it may drift" << std::scientific)
+      this->TimeIdx = 0;
+      return false;
+    }
 
     // Init graph with first lidar slam state received
     if (this->TimeIdx == 0)
@@ -844,9 +879,6 @@ public:
       this->RestartGraph(this->InitPoseNoise, this->InitVelNoise, this->InitBiasNoise);
       this->Idx2Time[this->TimeIdx] = lidarTimeSynch;
       this->Idx2Bias[this->TimeIdx] = this->Bias;
-
-      // Lock mutex to handle RawMeasures and Measures lists
-      std::lock_guard<std::mutex> lock(this->Mtx);
 
       // If some measures were already stored, crop them from the current timestamp to speed up searches
       // Get IMU measure iterators corresponding to the measurement received just before the current timestamp
@@ -898,17 +930,6 @@ public:
       this->RestartGraph(lastPoseNoise, lastVelNoise, lastBiasNoise);
       this->TimeIdx = 1;
       return true;
-    }
-    // Lock mutex to handle RawMeasures and Measures lists
-    std::lock_guard<std::mutex> lock(this->Mtx);
-    // First raw measure must be older than previous lidar time
-    if (this->RawMeasures.empty() ||
-        this->RawMeasures.front().Time > this->PrevLidarTime + 1e-6 ||
-        this->RawMeasures.back().Time < lidarTimeSynch - 1e-6)
-    {
-      PRINT_WARNING("Could not find IMU synchronized measures between " << std::setprecision(11) << prevLidarTimeSynch
-                     << " and " << lidarTimeSynch << " -> IMU data not updated, it may drift" << std::scientific)
-      return false;
     }
     // 0_ Add new IMU measurements to preintegrator until lidarState time
 

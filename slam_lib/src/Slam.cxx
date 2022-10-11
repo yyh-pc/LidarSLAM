@@ -390,8 +390,10 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     {
       // Update IMU graph with new slam pose to refine the biases
       IF_VERBOSE(3, Utils::Timer::Init("IMU biases refinement"));
-      this->ImuManager->Update(this->LogStates.back());
-      ++this->ImuHasBeenUpdated;
+      if (this->ImuManager->Update(this->LogStates.back()))
+        ++this->ImuHasBeenUpdated;
+      else
+        this->ImuHasBeenUpdated = 0;
       IF_VERBOSE(3, Utils::Timer::StopAndDisplay("IMU biases refinement"));
     }
   }
