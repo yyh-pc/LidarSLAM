@@ -29,7 +29,7 @@ Follow [LidarView's Developer Guide](https://gitlab.kitware.com/LidarView/lidarv
 -DENABLE_ceres=True
 -DENABLE_nanoflann=True
 -DENABLE_pcl=True
--DLIDARVIEW_BUILD_SLAM=True 
+-DLIDARVIEW_BUILD_SLAM=True
 ```
 
 `LidarSlamPlugin` should be automatically loaded at LidarView's startup. If not, ensure **Advanced features** are enabled (in **Help** or  **Tools** > **Debugging**), then select **Advance** > **Tools** > **Manage Plugins** > **Load New**. Browse to your LidarView install directory and select the `libLidarSlamPlugin.so` / `LidarSlamPlugin.dll` (this file can normally be found under `<lv_build>/install/lib/plugins/` on Linux or `<lv_build>/install/bin/plugins/` on Windows).
@@ -49,25 +49,25 @@ Please note that your default LidarView application may not include all the vend
 
     ![Enable advance feature](enable_advance_feature.png)
 
-2. Under **Views** tab, enable **Pipeline Browser** and **Properties**. 
+2. Under **Views** tab, enable **Pipeline Browser** and **Properties**.
 
     ![Enable views panels](enable_views_panels.png)
 
 3. Open a previously recorded `.pcap` file (or set up a stream source) associated with its LiDAR calibration file.
 
 4. In **Pipeline browser**, select **Frame** (the pointcloud source). Then click on **Filters** tab > **Alphabetical** > **SLAM**. Select a SLAM filter: pick **SLAM (online)** to perform a real-time test with live display, or **SLAM (offline)** for a full process, displaying only final trajectory and maps.
-   
+
    *__Tip__ : After having selected __Frame__ , you can also hit `Ctrl+space` and then type `slam` in filter search bar.*
 
     ![Create SLAM filter](create_slam_filter.png)
 
 5. Depending on the SLAM version being used, a new input dialog may appear:
-   - Click on the **Point Cloud** input port, select the **Frame** entry. 
-   - Click on the **Calibration** input port, select the **Calibration** entry. 
+   - Click on the **Point Cloud** input port, select the **Frame** entry.
+   - Click on the **Calibration** input port, select the **Calibration** entry.
    - Hit **OK** when done.
 
     *__Note__: In some SLAM versions, this calibration is optional, and is not asked by this dialog.*
- 
+
     ![Select SLAM filter inputs](select_slam_filter_inputs.png)
 
 6. Under **Properties** panel, modify the parameters if needed (see section [SLAM parameters tuning](#slam-parameters-tuning)), then hit **Apply**.
@@ -188,3 +188,40 @@ To increase the processing speed, consider also tweaking these parameters:
 - **Keypoints maps update step**: If you don't need the map display to be refreshed at each new frame, you should consider increasing this value. Setting it to 10 will only update maps every 10th frame (1 second at 600 rpm), which is far enough for a nice visualization. This will save some output conversion time.
 
 - **LidarView play speed**: This is not specific to the SLAM filter, but LidarView is controlling the playback speed of the LiDAR recording. It can be set from the VCR toolbar. For example, *Speed = x1* will play at real speed, *Speed = x3* will play 3 times faster. If the SLAM algorithm isn't fast enough to process all incoming frames, it will drop some of them. If your LiDAR is slowly moving or with smooth motion, this not a problem. However, if it skips too many frames compared to the LiDAR motion, consider choosing the *Speed = All Frames*, which will play as fast as possible but ensuring that all frames are processed.
+
+## External sensors use
+
+External sensor information (wheel odometer OR IMU OR external poses) can be used in the SLAM process.
+They must be provided in a CSV file and come with a calibration matrix file (see below).
+The possible fields of the CSV file are :
+
+- *time*: Posix time, in seconds, synchronized with the Lidar frame timestamps or at least to the packets reception time -> mandatory
+
+- *odom*: Wheel odometry, in meters -> optional
+
+- *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second^2 -> optional
+
+- *x/y/z/roll/pitch/yaw*: Absolute pose measurements in meters and radians (YXZ order) -> optional
+
+The calibration file must lay in the same directory as the CSV file and must be named *calibration_external_sensor.mat*. This calibration file must contain the 4x4 calibration matrix representing the transform from external poses sensor to Base frame (i.e. the tracked frame).
+If the calibration file is not provided, the information is supposed to be represented in **BASE** frame.
+
+**Example** :
+```
+1 0 0 0.5
+0 -1 0 2
+0 0 -1 0.2
+0 0 0 1
+```
+
+Then, the data can be used to add a constraint to the local SLAM optimization. The user must enter a weight corresponding to the external sensor used. This weight must be set experimentally knowing that it will be the confidence factor of the external sensor constraint relatively to all the keypoint matches. If the weight is null, the constraint is not added to the optimization. The constraints are :
+
+- For the odometer a translation constraint between two successive SLAM poses or an absolute translation constraint which can be used in specific contexts such as mine exploration.
+- For the IMU, a gravity constraint between all frames. To do so, the acceleration of the base frame is considered as null, the acceleration measured by the IMU should only represent the gravity.
+- For the external poses, a relative transform constraint between frames.
+
+External poses can also be used to :
+- Estimate a prior pose : the user must choose the *External* or *External OR motion extrapolation* modes in the Ego-motion selector.
+- De-skew the pointcloud : the user must choose the External mode in the undistortion selector.
+
+Finally, the user can choose which synchronization to perform (timestamps supplied by the sensor or packet reception timestamps). The time reference chosen must be the same as the one provided in the CSV file. If the packet reception is chosen, the user must be sure that their is no lag between the external sensor acquisition and the packet reception (no post-process of the data).
