@@ -66,30 +66,38 @@ Dependencies are listed in the table below along with the version used during de
 
 The *LidarSlam* lib has been tested on Linux, Windows and OS X.
 
+First, got to your workspace directory and clone the SLAM repository.
+```bash
+git clone https://gitlab.kitware.com/keu-computervision/slam.git src
+```
+
 #### With system dependencies
 
-To build only *LidarSlam* lib, just `cd` to this repo root dir and run :
+To build only *LidarSlam* lib using your system dependencies, run :
 
 ```bash
 mkdir build
 cd build
-cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake ../src -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
 ```
+
 #### With local dependencies
 
-You can link the local libraries you are using adding cmake flags. Notably with Ceres and G2O:
+You can link to the local libraries you have installed adding cmake flags. Notably with Ceres and G2O:
 ```bash
-cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
+cmake ../src -DCMAKE_BUILD_TYPE=Release -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
 ```
 #### With Superbuild
 
 1. Install the superbuild:
 
+In your workspace, run :
+
 ```bash
 mkdir SB-build
 cd SB-build
-cmake ../Superbuild
+cmake ../src/Superbuild -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
 ```
 
@@ -97,16 +105,17 @@ cmake --build . -j
 
 **NOTE**: you can decide which dependencies to build with the superbuild using the options **WITH_XX**. For example, to not compile PCL :
 ```bash
-cmake ../Superbuild -DWITH_PCL=OFF
+cmake ../src/Superbuild -DWITH_PCL=OFF -DCMAKE_BUILD_TYPE=Release
 ```
 
 2. Build the slam library linking to the superbuild dependencies
 
+In your workspace, run :
+
 ```bash
-cd ..
 mkdir build
 cd build
-cmake .. -DSUPERBUILD_INSTALL_DIR=../SB-build/install
+cmake ../src -DSUPERBUILD_INSTALL_DIR=absolute/path/to/workspace/SB-build/install -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
 ```
 
