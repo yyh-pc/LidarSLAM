@@ -100,6 +100,13 @@ vtkSlam::vtkSlam()
   this->SetInputArrayToProcess(2, LIDAR_FRAME_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_POINTS, vtkDataSetAttributes::SCALARS);
   this->SetInputArrayToProcess(3, CALIBRATION_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_ROWS,   vtkDataSetAttributes::SCALARS);
   this->Reset();
+
+  // Enable overlap computation only if advanced return mode is activated
+  this->SlamAlgo->SetOverlapSamplingRatio(this->AdvancedReturnMode ? this->OverlapSamplingRatio : 0.);
+  // Enable motion limitation checks if advanced return mode is activated
+  this->SlamAlgo->SetTimeWindowDuration(this->AdvancedReturnMode ? this->TimeWindowDuration : 0.);
+  // Log the necessary poses if advanced return mode is activated
+  this->SlamAlgo->SetLoggingTimeout(this->AdvancedReturnMode ? 1.1 * this->TimeWindowDuration : 0.);
 }
 
 //-----------------------------------------------------------------------------
@@ -130,12 +137,6 @@ void vtkSlam::Reset()
     for (const auto& it : debugInfo)
       this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>(it.first));
   }
-  // Enable overlap computation only if advanced return mode is activated
-  this->SlamAlgo->SetOverlapSamplingRatio(this->AdvancedReturnMode ? this->OverlapSamplingRatio : 0.);
-  // Enable motion limitation checks if advanced return mode is activated
-  this->SlamAlgo->SetTimeWindowDuration(this->AdvancedReturnMode ? this->TimeWindowDuration : 0.);
-  // Log the necessary poses if advanced return mode is activated
-  this->SlamAlgo->SetLoggingTimeout(this->AdvancedReturnMode ? 1.1 * this->TimeWindowDuration : 0.);
 
   // Refill sensor managers
   this->SetSensorData(this->ExtSensorFileName);
