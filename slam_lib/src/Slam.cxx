@@ -686,7 +686,7 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
       // If mapping mode is NONE or ADD_DECAYING_KPTS, the first map points are fixed,
       // else, the initial map points can be updated
       bool fixedMap = this->MapUpdate == MappingMode::NONE || this->MapUpdate == MappingMode::ADD_KPTS_TO_FIXED_MAP;
-      this->LocalMaps[k]->Add(keypoints, fixedMap, std::time(nullptr));
+      this->LocalMaps[k]->Add(keypoints, fixedMap);
     }
   }
   // TODO : load/use map origin (in which coordinates?) in title or VIEWPOINT field
@@ -1441,7 +1441,7 @@ void Slam::UpdateMapsUsingTworld()
   {
     Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
     // Add not fixed points
-    this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k], false, this->CurrentTime);
+    this->LocalMaps[k]->Add(this->CurrentWorldKeypoints[k], false);
   }
 }
 

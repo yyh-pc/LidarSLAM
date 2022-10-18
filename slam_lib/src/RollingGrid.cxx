@@ -175,7 +175,7 @@ void RollingGrid::Roll(const Eigen::Array3f& minPoint, const Eigen::Array3f& max
 }
 
 //------------------------------------------------------------------------------
-void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, double currentTime, bool roll)
+void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, bool roll)
 {
   if (pointcloud->empty())
   {
@@ -319,7 +319,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, double curr
 
       // Shortcut to voxel
       auto& voxel = this->Voxels[idxOut][idxIn];
-      voxel.point.time = currentTime;
+      voxel.point.time = Utils::PclStampToSec(pointcloud->header.stamp) + point.time;
       // Point added is not fixed
       if (fixed)
         voxel.point.label = 1;
