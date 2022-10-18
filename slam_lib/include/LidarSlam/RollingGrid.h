@@ -130,10 +130,9 @@ public:
 
   //! Add some points to the grid.
   //! If fixed is true, the points added will not be modified afterwards.
-  //! currentTime is the timestamp that will be associated to the added point.
   //! If roll is true, the map is rolled first so that all new points to add can fit in rolled map.
   //! If points are added, the sub-map KD-tree is cleared.
-  void Add(const PointCloud::Ptr& pointcloud, bool fixed = false, double currentTime = -1., bool roll = true);
+  void Add(const PointCloud::Ptr& pointcloud, bool fixed = false, bool roll = true);
 
   //============================================================================
   //   Sub map use
