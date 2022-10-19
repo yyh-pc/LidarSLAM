@@ -493,7 +493,7 @@ bool Slam::OptimizeGraph()
 {
   #ifdef USE_G2O
   // Check if graph can be optimized
-  if (!this->LmHasData() && !this->GpsHasData())
+  if (!this->LmHasData() && !this->GpsHasData() && !UsePGOConstraints[LOOP_CLOSURE])
   {
     PRINT_WARNING("No external constraint found, graph cannot be optimized");
     return false;
@@ -517,6 +517,31 @@ bool Slam::OptimizeGraph()
 
   // Boolean to store the info "there is at least one external constraint in the graph"
   bool externalConstraint = false;
+
+  // Look for loop closure constraints
+  if (UsePGOConstraints[LOOP_CLOSURE])
+  {
+    // Detect loop closure
+    auto itRevisitedState = this->LogStates.begin();
+    auto itQueryState = itRevisitedState;
+    if (DetectLoopClosureIndices(itQueryState, itRevisitedState))
+    {
+      // Compute a loopClosureTransform from the revisited frame to the query frame
+      // by registering the keypoints of the query frame onto the keypoints of the revisited frame
+      Eigen::Isometry3d loopClosureTransform;
+      Eigen::Matrix6d loopClosureCovariance;
+      if (this->LoopClosureRegistration(itQueryState, itRevisitedState,
+                                        loopClosureTransform, loopClosureCovariance))
+      {
+        // Add loop closure constraint into pose graph
+        graphManager.AddLoopClosureConstraint(this->LoopClosureQueryIdx, this->LoopClosureRevisitedIdx,
+                                              loopClosureTransform, loopClosureCovariance);
+        externalConstraint = true;
+      }
+    }
+    else
+      PRINT_WARNING("No loop closure is detected for pose graph optimization.")
+  }
 
   // Look for landmark constraints
   if (UsePGOConstraints[LANDMARK] && this->LmHasData())
@@ -572,7 +597,7 @@ bool Slam::OptimizeGraph()
 
   if (!externalConstraint)
   {
-    PRINT_ERROR("No external constraints exist. Pose graph can not be optimized");
+    PRINT_ERROR("No external constraints nor loop closure constraint exist. Pose graph can not be optimized");
     return false;
   }
 
