@@ -501,6 +501,24 @@ public:
 
   GetMacro(ComplyMotionLimits, bool)
 
+  // Parameters for pose estimation by ICP-LM optimization
+  // Useful for EgoMotion, Localization and LoopClosureLocalization
+  struct OptimizationParameters
+  {
+    // Matching parameters
+    KeypointsMatcher::Parameters MatchingParams;
+
+    // ICP-LM optimization parameters
+    unsigned int ICPMaxIter;
+    unsigned int LMMaxIter;
+    double InitSaturationDistance;
+    double FinalSaturationDistance;
+
+    UndistortionMode Undistortion = UndistortionMode::NONE;
+    bool enableExternalConstraints = false;
+    bool optimizationValid = true;
+  };
+
 private:
 
   // ---------------------------------------------------------------------------
@@ -930,6 +948,15 @@ private:
   // Keypoints are aggregated in world coordinates by default
   // or in base coordinates of frame #idxFrame when idxFrame is not negative
   void BuildMaps(Maps& maps, int windowStartIdx = -1, int windowEndIdx = -1, int idxFrame = -1);
+
+  // ICP-LM Optimization process to estimate pose
+  // Compute the pose of the sourceKeypoints by registering
+  // sourcekeypoints on targetkeypoints
+  LocalOptimizer::RegistrationError EstimatePose(const std::map<Keypoint, PointCloud::Ptr>& sourceKeypoints,
+                                                 const Maps& targetKeypoints,
+                                                 Slam::OptimizationParameters& params,
+                                                 Eigen::Isometry3d& posePrior,
+                                                 std::map<Keypoint, KeypointsMatcher::MatchingResults>& matchingResults);
 
   // ---------------------------------------------------------------------------
   //   Undistortion helpers
