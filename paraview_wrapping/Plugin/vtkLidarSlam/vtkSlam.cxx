@@ -253,7 +253,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : basic output conversions"));
 
   // Update Trajectory with new SLAM pose
-  this->AddPoseToTrajectory(this->SlamAlgo->GetLastState());
+  this->AddLastPosesToTrajectory();
 
   // ===== SLAM frame and pose =====
   // Output : Current undistorted LiDAR frame in world coordinates
@@ -1092,6 +1092,16 @@ void vtkSlam::AddPoseToTrajectory(const LidarSlam::LidarState& state)
     line->GetPointIds()->SetId(1, nPoints - 1);
     this->Trajectory->GetLines()->InsertNextCell(line);
   }
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::AddLastPosesToTrajectory()
+{
+  // Get current SLAM pose in WORLD coordinates
+  std::vector<LidarSlam::LidarState> lastStates = this->SlamAlgo->GetLastStates(this->TrajFrequency);
+
+  for (const auto& state : lastStates)
+    this->AddPoseToTrajectory(state);
 }
 
 //-----------------------------------------------------------------------------

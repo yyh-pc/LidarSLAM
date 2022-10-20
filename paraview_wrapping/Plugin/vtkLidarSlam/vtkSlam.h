@@ -177,6 +177,9 @@ public:
   // Set measurements to Slam algo
   virtual void SetSensorData(const std::string& fileName);
 
+  vtkGetMacro(TrajFrequency, double)
+  vtkSetMacro(TrajFrequency, double)
+
   // ---------------------------------------------------------------------------
   //   Graph parameters
   // ---------------------------------------------------------------------------
@@ -498,6 +501,9 @@ private:
   // Add a SLAM pose and covariance in WORLD coordinates to Trajectory.
   void AddPoseToTrajectory(const LidarSlam::LidarState& state);
 
+  // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
+  void AddLastPosesToTrajectory();
+
   // Convert VTK PolyData to PCL pointcloud
   // Returns true if all input points are valid (null coordinates), false otherwise
   bool PolyDataToPointCloud(vtkPolyData* poly,
@@ -588,6 +594,8 @@ private:
   // Sensor file name stored to reload the external sensor data after reset
   std::string ExtSensorFileName;
 
+  // Output trajectory require frequency (Hz)
+  double TrajFrequency = -1;
 };
 
 #endif // VTK_SLAM_H

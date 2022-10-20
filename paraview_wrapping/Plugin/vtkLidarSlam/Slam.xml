@@ -321,6 +321,18 @@
         </Hints>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Trajectory frequency"
+                         command="SetTrajFrequency"
+                         number_of_elements="1"
+                         default_values="-1"
+                         panel_visibility="advanced">
+        <Documentation>
+          Output frequency for the trajectory poses. The poses in between two frames are computed using interpolation.
+          If an higher frequency external sensor is used (poses or IMU),
+          it is used to do the interpolation.
+        </Documentation>
+      </IntVectorProperty>
+
       <IntVectorProperty name="Output current keypoints"
                          command="SetOutputCurrentKeypoints"
                          number_of_elements="1"
@@ -365,6 +377,7 @@
         <Property name="Advanced return mode" />
         <Property name="Keypoint maps output mode" />
         <Property name="Keypoints maps update step" />
+        <Property name="Trajectory frequency" />
         <Property name="Output current keypoints" />
         <Property name="Output keypoints in WORLD coordinates" />
       </PropertyGroup>
