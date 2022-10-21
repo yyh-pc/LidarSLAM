@@ -1476,6 +1476,17 @@
         </Documentation>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Imu update"
+                         command="SetImuUpdate"
+                         number_of_elements="1"
+                         default_values="1">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, the poses deduced preintegrated from IMU measurements are updated at each new SLAM output
+          If disabled, the last preintegration is used without update
+        </Documentation>
+      </IntVectorProperty>
+
       <DoubleVectorProperty name="Time threshold"
                             command="SetSensorTimeThreshold"
                             number_of_elements="1"
@@ -1510,6 +1521,7 @@
         <Property name="IMU gravity weight" />
         <Property name="Pose weight" />
         <Property name="Imu reset threshold" />
+        <Property name="Imu update" />
         <Property name="Time threshold" />
         <Property name="Time synchronization" />
         <Property name="IMU weight" />

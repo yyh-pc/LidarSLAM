@@ -495,6 +495,9 @@ public:
   unsigned int GetImuResetThreshold() const;
   void SetImuResetThreshold(unsigned int);
 
+  GetMacro(ImuUpdate, bool)
+  SetMacro(ImuUpdate, bool)
+
   void AddImuMeasurement(const ExternalSensors::ImuMeasurement& gm);
 
   bool ImuHasData() const {return this->ImuManager && this->ImuManager->HasData();}
@@ -967,6 +970,9 @@ private:
   // Maximum number of sensor measurements stored
   // Above this number, the oldest measurements are forgotten
   unsigned int SensorMaxMeasures = 1e6;
+
+  // To update the IMU bias or not depending on the accuracy
+  bool ImuUpdate = true;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters

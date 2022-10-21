@@ -386,6 +386,9 @@ public:
   vtkCustomGetMacro(ImuResetThreshold, unsigned int)
   vtkCustomSetMacro(ImuResetThreshold, unsigned int)
 
+  vtkCustomGetMacro(ImuUpdate, bool)
+  vtkCustomSetMacro(ImuUpdate, bool)
+
   vtkCustomGetMacroExternalSensor(Pose, PoseWeight, double)
   vtkCustomSetMacroExternalSensor(Pose, PoseWeight, double)
 
