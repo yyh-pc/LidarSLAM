@@ -1,5 +1,54 @@
 # SLAM changes history
 
+## *v1.6 (2022/10/21)*
+
+This release mainly brings 3 new features : landmarks handling, pose graph optimization (big refactoring from old GPS pose graph optimization), external poses use. It also contains some refactoring, notably in the external sensor structures and in the keypoints extraction. A superbuild is added. The CI is updated with new gitlab version and new dependencies versions.
+
+The changes are summarized below.
+
+### Core lib
+
+**Major new features:**
+
+* Handle landmarks and use them in local SLAM optimization (!150)
+* Add pose graph as postprocess (!162, !178)
+* Restore GPS use to update a pose graph (!172)
+* Use external pose in a tight optimization (!173)
+* Add radius to define neighborhood (!200)
+
+**Refactoring and code architecture changes:**
+
+* Important keypoints refactoring and improve interface (!169)
+* Important external sensors refactoring (!188, !195, !198)
+* Clean rolling grid function (!203)
+
+**Performance improvements:**
+
+* Add keypoints sampling and input frame sampling (!169)
+
+**Bug fixes:**
+
+* Fix rolling maps structure (!171)
+* Stop spinner before destruction (!182)
+* Fix windows file loading (!182)
+* Allow to load a config file for Ouster (!182)
+
+**Compilation / CMake related changes / CI:**
+
+* Fix Ceres compilation (!168)
+* Create superbuild (!170, !174, !186)
+* Fix CI (!170, !191)
+
+### ROS wrapping
+
+* Add interface for Ouster sensors (!182)
+* Add Reset command (!184)
+* Add aggregation node with service to aggregate and downsample all frames (!189, !199)
+* Add Rviz panel plugin to give an interface for ROS user (!177)
+* Clean code (!197)
+
+### ParaView wrapping
+
 ## *v1.5 (2021/12/13)*
 
 This release mainly brings new features (keyframes structure, integration of IMU/wheel odometry constraints, moving objects rejection, confidence estimators integration, CI implementation) and contains some refactoring, notably in the map structure and in the keypoint types management.

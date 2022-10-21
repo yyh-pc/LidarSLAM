@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>apriltag_ros</name>
-  <version>1.4.0</version>
+  <version>1.6.0</version>
   <description>Messages of external april tag node</description>
 
   <maintainer email="julia.sanchez@kitware.com">Julia Sanchez</maintainer>
