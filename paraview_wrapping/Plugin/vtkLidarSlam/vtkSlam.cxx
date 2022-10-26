@@ -275,55 +275,51 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : output keypoints maps"));
 
   // Get the previous outputs
-  auto* edgeMap = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
-  auto* planarMap = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
+  auto* edgeMap          = vtkPolyData::GetData(outputVector, EDGE_MAP_OUTPUT_PORT);
+  auto* planarMap        = vtkPolyData::GetData(outputVector, PLANE_MAP_OUTPUT_PORT);
   auto* intensityEdgeMap = vtkPolyData::GetData(outputVector, INTENSITY_EDGE_MAP_OUTPUT_PORT);
 
-  // Cache maps to update them only every MapsUpdateStep frames
-  std::map<LidarSlam::Keypoint, vtkSmartPointer<vtkPolyData>> cacheMaps;
-  for (auto k : LidarSlam::KeypointTypes)
-    cacheMaps[k] = vtkSmartPointer<vtkPolyData>::New();
+  if ((this->SlamAlgo->GetNbrFrameProcessed() - 1) % this->MapsUpdateStep == 0)
+  {
+    // Cache maps to update them only every MapsUpdateStep frames
+    for (auto k : LidarSlam::KeypointTypes)
+      this->CacheMaps[k] = vtkSmartPointer<vtkPolyData>::New();
 
-  // Update the output maps if required or if the mode was changed
-  bool updateMaps = this->OutputKeypointsMaps != this->PreviousMapOutputMode ||
-                    (this->SlamAlgo->GetNbrFrameProcessed() - 1) % this->MapsUpdateStep == 0;
+    // The expected maps can be the whole maps or the submaps
+    // If the maps is fixed by the user, the whole map and the submap are equal but the submap is outputed (faster)
+    switch (this->OutputKeypointsMaps)
+    {
+      // Output the whole maps that are available
+      case OutputKeypointsMapsMode::FULL_MAPS :
+        for (auto k : LidarSlam::KeypointTypes)
+        {
+          if (this->SlamAlgo->KeypointTypeEnabled(k))
+            this->PointCloudToPolyData(this->SlamAlgo->GetMap(k), this->CacheMaps[k]);
+        }
+        break;
 
-  // The expected maps can be the whole maps or the submaps
-  // If the maps is fixed by the user, the whole map and the submap are equal but the submap is outputed (faster)
-  if (updateMaps && (this->OutputKeypointsMaps == OutputKeypointsMapsMode::FULL_MAPS && this->SlamAlgo->GetMapUpdate() != LidarSlam::MappingMode::NONE))
-  {
-    for (auto k : LidarSlam::KeypointTypes)
-    {
-      if (this->SlamAlgo->KeypointTypeEnabled(k))
-        this->PointCloudToPolyData(this->SlamAlgo->GetMap(k), cacheMaps[k]);
-      else
-        this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[k]);
+      // Output the submaps that are available
+      case OutputKeypointsMapsMode::SUB_MAPS :
+        for (auto k : LidarSlam::KeypointTypes)
+        {
+          if (this->SlamAlgo->KeypointTypeEnabled(k))
+            this->PointCloudToPolyData(this->SlamAlgo->GetTargetSubMap(k), this->CacheMaps[k]);
+        }
+        break;
+
+      // If no map should be outputed, let the maps empty
+      case OutputKeypointsMapsMode::NONE :
+        break;
+
+      default:
+        break;
     }
-    this->PreviousMapOutputMode = this->OutputKeypointsMaps;
-  }
-  else if (updateMaps && (this->OutputKeypointsMaps == OutputKeypointsMapsMode::SUB_MAPS || this->SlamAlgo->GetMapUpdate() == LidarSlam::MappingMode::NONE))
-  {
-    for (auto k : LidarSlam::KeypointTypes)
-    {
-      if (this->SlamAlgo->KeypointTypeEnabled(k))
-        this->PointCloudToPolyData(this->SlamAlgo->GetTargetSubMap(k), cacheMaps[k]);
-      else
-        this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[k]);
-    }
-    this->PreviousMapOutputMode = this->OutputKeypointsMaps;
-  }
-  // If the output is disabled, reset it.
-  else if (this->OutputKeypointsMaps != this->PreviousMapOutputMode && this->OutputKeypointsMaps == OutputKeypointsMapsMode::NONE)
-  {
-    for (auto k : LidarSlam::KeypointTypes)
-      this->PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr(new LidarSlam::Slam::PointCloud), cacheMaps[k]);
-    this->PreviousMapOutputMode = this->OutputKeypointsMaps;
   }
 
   // Fill outputs from cache
-  edgeMap->ShallowCopy(cacheMaps[LidarSlam::EDGE]);
-  planarMap->ShallowCopy(cacheMaps[LidarSlam::PLANE]);
-  intensityEdgeMap->ShallowCopy(cacheMaps[LidarSlam::INTENSITY_EDGE]);
+  edgeMap->ShallowCopy(this->CacheMaps[LidarSlam::EDGE]);
+  planarMap->ShallowCopy(this->CacheMaps[LidarSlam::PLANE]);
+  intensityEdgeMap->ShallowCopy(this->CacheMaps[LidarSlam::INTENSITY_EDGE]);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : output keypoints maps"));
 
