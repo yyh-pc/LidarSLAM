@@ -398,7 +398,8 @@ protected:
 
 private:
 
-  OutputKeypointsMapsMode PreviousMapOutputMode = OutputKeypointsMapsMode::FULL_MAPS;
+  std::map<LidarSlam::Keypoint, vtkSmartPointer<vtkPolyData>> CacheMaps;
+
   // Polydata which represents the computed trajectory
   vtkSmartPointer<vtkPolyData> Trajectory;
 
