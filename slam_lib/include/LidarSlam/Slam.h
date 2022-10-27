@@ -920,6 +920,9 @@ private:
   //   Map helpers
   // ---------------------------------------------------------------------------
 
+  // Init sub maps with same parameters of LocalMaps
+  void InitSubMaps(Maps& maps);
+
   // Aggregate logged keypoints of frames between # [windowStartIdx, windowStartEndIdx]
   // Default arguments lead to the aggregation of all available logged keypoints of keyframes.
   // It is used to recompute the current SLAM maps from the beginning using the new trajectory (after PGO)

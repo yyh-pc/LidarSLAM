@@ -1547,6 +1547,22 @@ LidarState& Slam::GetLastState()
 //==============================================================================
 
 //-----------------------------------------------------------------------------
+void Slam::InitSubMaps(Maps& maps)
+{
+  // Reset previous sub maps
+  this->ClearMaps(maps);
+
+  // Init SubMaps for each keypoint type with the same resolution as the one used in LocalMaps
+  for (auto k : this->UsableKeypoints)
+  {
+    maps[k] = std::make_shared<RollingGrid>();
+    maps[k]->SetVoxelResolution(this->LocalMaps[k]->GetVoxelResolution());
+    maps[k]->SetGridSize(this->LocalMaps[k]->GetGridSize());
+    maps[k]->SetLeafSize(this->LocalMaps[k]->GetLeafSize());
+  }
+}
+
+//-----------------------------------------------------------------------------
 void Slam::BuildMaps(Maps& maps, int windowStartIdx, int windowEndIdx, int idxFrame)
 {
   // If default values of windowStartIdx and windowEndIdx are used, build maps with all frames stored in LogStates.
