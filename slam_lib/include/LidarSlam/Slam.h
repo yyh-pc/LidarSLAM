@@ -111,6 +111,7 @@ public:
   using PointCloud = pcl::PointCloud<Point>;
   using KeypointExtractorPtr = std::shared_ptr<SpinningSensorKeypointExtractor>;
   using PCStorage = PointCloudStorage<LidarPoint>;
+  using Maps = std::map<Keypoint, std::shared_ptr<RollingGrid>>;
 
   // Initialization
   Slam();
@@ -664,7 +665,7 @@ private:
   SamplingMode DownSampling = SamplingMode::MAX_INTENSITY;
 
   // Keypoints local map
-  std::map<Keypoint, std::shared_ptr<RollingGrid>> LocalMaps;
+  Maps LocalMaps;
 
   // ---------------------------------------------------------------------------
   //   Optimization data

@@ -1703,7 +1703,7 @@ void Slam::EstimateOverlap()
   PointCloud::Ptr aggregatedPoints = this->GetRegisteredFrame();
 
   // Keep only the maps to use
-  std::map<Keypoint, std::shared_ptr<RollingGrid>> mapsToUse;
+  Maps mapsToUse;
   for (auto k : this->UsableKeypoints)
   {
     if (this->LocalMaps[k]->IsSubMapKdTreeValid())
