@@ -198,7 +198,8 @@ public:
   bool InitTworldWithPoseMeasurement(double time);
 
   // Save keypoints maps to disk for later use
-  void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::BINARY_COMPRESSED, bool submap = true) const;
+  // Keypoints maps are rebuilt to recover removed points if the time threshold (DecayingThreshold) is set
+  void SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat = PCDFormat::BINARY_COMPRESSED, bool submap = true);
 
   // Load keypoints maps from disk (and reset SLAM maps)
   void LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps = true);

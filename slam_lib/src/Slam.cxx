@@ -637,9 +637,15 @@ void Slam::SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat, bool filtered) const
+void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat, bool filtered)
 {
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
+
+  // Rebuild LocalMaps when the time threshold is set to remove old points
+  // so that the removed points are recovered in LocalMaps.
+  // Check LoggingTimeout is greater than DecayingThreshold to make sure there are enough keyframes stored in Logstates
+  if ( this->LoggingTimeout > this->GetVoxelGridDecayingThreshold() && this->GetVoxelGridDecayingThreshold() > 0)
+    this->UpdateMaps(true);
 
   // Save keypoint maps
   for (auto k : this->UsableKeypoints)
