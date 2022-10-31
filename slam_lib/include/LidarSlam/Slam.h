@@ -96,8 +96,64 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
+// The following macros are used to get/set optimization parameters which include
+// matching parameters for keypoints match and parameters for ICP-LM optimization
+// See more details in struct Parameters
+// Macro to set MatchingParameters in struct Parameters
+#define OptMatchingParamsSetMacro(name, param, type)                             \
+void Set##name##param (type _arg) { name##Params.MatchingParams.param = _arg; }
+// Macro to get a parameter value in MatchingParameters
+#define  OptMatchingParamsGetMacro(name, param, type)                            \
+type Get##name##param () const { return name##Params.MatchingParams.param; }
+// Macro to set parameters (except matching parameters) in struct Parameters
+#define OptimizationParamsSetMacro(name, param, type)                            \
+void Set##name##param (type _arg) { name##Params.param = _arg; }
+// Macro to get a parameter value (except matching parameters) in struct Parameters
+#define  OptimizationParamsGetMacro(name, param, type)                           \
+type Get##name##param () const { return name##Params.param; }
+
 namespace LidarSlam
 {
+// Parameters for pose estimation by ICP-LM optimization
+// Useful for EgoMotion, Localization and LoopClosureRegistration
+namespace Optimization
+{
+struct Parameters
+{
+  // Point-to-neighborhood matching parameters.
+  // The goal will be to loop over all keypoints, and to build the corresponding
+  // point-to-neighborhood residuals that will be optimized later.
+  // For each source keypoint, the steps will be:
+  // - To extract the N nearest neighbors from the target cloud.
+  //   These neighbors should not be too far from the source keypoint.
+  // - Assess the neighborhood shape by checking its PCA eigenvalues.
+  // - Fit a line/plane/blob model on the neighborhood using PCA.
+  // - Assess the model quality by checking its error relatively to the neighborhood.
+  // - Build the corresponding point-to-model distance operator
+  // If any of this step fails, the matching procedure of the current keypoint aborts.
+  // See KeypointsMatcher::Parameters for more details on each parameter.
+  KeypointsMatcher::Parameters MatchingParams;
+
+  // ICP-LM optimization parameters
+  // Number of outer ICP-optim loop iterations to perform.
+  // Each iteration will consist of building ICP matches, then optimizing them.
+  unsigned int ICPMaxIter = 3;
+
+  // Maximum number of iterations of the Levenberg-Marquardt optimizer to solve
+  // the ICP problem composed of the built point-to-neighborhood residuals
+  unsigned int LMMaxIter = 15;
+
+  // Maximum distance (in meters) beyond which the residual errors are
+  // saturated to robustify the optimization against outlier constraints.
+  // The residuals will be robustified by Tukey loss at scale sqrt(SatDist),
+  // leading to ~90% of saturation at SatDist/2, fully saturated at SatDist.
+  double InitSaturationDistance = 2.;
+  double FinalSaturationDistance = 0.5;
+
+  UndistortionMode Undistortion = UndistortionMode::NONE;
+  bool EnableExternalConstraints = false;
+};
+} // end of Optimization namespace
 
 class Slam
 {
@@ -220,7 +276,7 @@ public:
   SetMacro(EgoMotion, EgoMotionMode)
   GetMacro(EgoMotion, EgoMotionMode)
 
-  SetMacro(Undistortion, UndistortionMode)
+  void SetUndistortion(UndistortionMode undistMode);
   GetMacro(Undistortion, UndistortionMode)
 
   void SetLoggingTimeout(double lMax);
@@ -297,75 +353,75 @@ public:
   SetMacro(TwoDMode, bool)
 
   // Get/Set EgoMotion
-  GetMacro(EgoMotionLMMaxIter, unsigned int)
-  SetMacro(EgoMotionLMMaxIter, unsigned int)
+  OptimizationParamsGetMacro(EgoMotion, LMMaxIter, unsigned int)
+  OptimizationParamsSetMacro(EgoMotion, LMMaxIter, unsigned int)
 
-  GetMacro(EgoMotionICPMaxIter, unsigned int)
-  SetMacro(EgoMotionICPMaxIter, unsigned int)
+  OptimizationParamsGetMacro(EgoMotion, ICPMaxIter, unsigned int)
+  OptimizationParamsSetMacro(EgoMotion, ICPMaxIter, unsigned int)
 
-  GetMacro(EgoMotionMaxNeighborsDistance, double)
-  SetMacro(EgoMotionMaxNeighborsDistance, double)
+  OptMatchingParamsGetMacro(EgoMotion, MaxNeighborsDistance, double)
+  OptMatchingParamsSetMacro(EgoMotion, MaxNeighborsDistance, double)
 
-  GetMacro(EgoMotionEdgeNbNeighbors, unsigned int)
-  SetMacro(EgoMotionEdgeNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(EgoMotion, EdgeNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(EgoMotion, EdgeNbNeighbors, unsigned int)
 
-  GetMacro(EgoMotionEdgeMinNbNeighbors, unsigned int)
-  SetMacro(EgoMotionEdgeMinNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(EgoMotion, EdgeMinNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(EgoMotion, EdgeMinNbNeighbors, unsigned int)
 
-  GetMacro(EgoMotionPlaneNbNeighbors, unsigned int)
-  SetMacro(EgoMotionPlaneNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(EgoMotion, PlaneNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(EgoMotion, PlaneNbNeighbors, unsigned int)
 
-  GetMacro(EgoMotionPlanarityThreshold, double)
-  SetMacro(EgoMotionPlanarityThreshold, double)
+  OptMatchingParamsGetMacro(EgoMotion, PlanarityThreshold, double)
+  OptMatchingParamsSetMacro(EgoMotion, PlanarityThreshold, double)
 
-  GetMacro(EgoMotionEdgeMaxModelError, double)
-  SetMacro(EgoMotionEdgeMaxModelError, double)
+  OptMatchingParamsGetMacro(EgoMotion, EdgeMaxModelError, double)
+  OptMatchingParamsSetMacro(EgoMotion, EdgeMaxModelError, double)
 
-  GetMacro(EgoMotionPlaneMaxModelError, double)
-  SetMacro(EgoMotionPlaneMaxModelError, double)
+  OptMatchingParamsGetMacro(EgoMotion, PlaneMaxModelError, double)
+  OptMatchingParamsSetMacro(EgoMotion, PlaneMaxModelError, double)
 
-  GetMacro(EgoMotionInitSaturationDistance, double)
-  SetMacro(EgoMotionInitSaturationDistance, double)
+  OptimizationParamsGetMacro(EgoMotion, InitSaturationDistance, double)
+  OptimizationParamsSetMacro(EgoMotion, InitSaturationDistance, double)
 
-  GetMacro(EgoMotionFinalSaturationDistance, double)
-  SetMacro(EgoMotionFinalSaturationDistance, double)
+  OptimizationParamsGetMacro(EgoMotion, FinalSaturationDistance, double)
+  OptimizationParamsSetMacro(EgoMotion, FinalSaturationDistance, double)
 
   // Get/Set Localization
-  GetMacro(LocalizationLMMaxIter, unsigned int)
-  SetMacro(LocalizationLMMaxIter, unsigned int)
+  OptimizationParamsGetMacro(Localization, LMMaxIter, unsigned int)
+  OptimizationParamsSetMacro(Localization, LMMaxIter, unsigned int)
 
-  GetMacro(LocalizationICPMaxIter, unsigned int)
-  SetMacro(LocalizationICPMaxIter, unsigned int)
+  OptimizationParamsGetMacro(Localization, ICPMaxIter, unsigned int)
+  OptimizationParamsSetMacro(Localization, ICPMaxIter, unsigned int)
 
-  GetMacro(LocalizationMaxNeighborsDistance, double)
-  SetMacro(LocalizationMaxNeighborsDistance, double)
+  OptMatchingParamsGetMacro(Localization, MaxNeighborsDistance, double)
+  OptMatchingParamsSetMacro(Localization, MaxNeighborsDistance, double)
 
-  GetMacro(LocalizationEdgeNbNeighbors, unsigned int)
-  SetMacro(LocalizationEdgeNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(Localization, EdgeNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(Localization, EdgeNbNeighbors, unsigned int)
 
-  GetMacro(LocalizationEdgeMinNbNeighbors, unsigned int)
-  SetMacro(LocalizationEdgeMinNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(Localization, EdgeMinNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(Localization, EdgeMinNbNeighbors, unsigned int)
 
-  GetMacro(LocalizationPlaneNbNeighbors, unsigned int)
-  SetMacro(LocalizationPlaneNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(Localization, PlaneNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(Localization, PlaneNbNeighbors, unsigned int)
 
-  GetMacro(LocalizationPlanarityThreshold, double)
-  SetMacro(LocalizationPlanarityThreshold, double)
+  OptMatchingParamsGetMacro(Localization, PlanarityThreshold, double)
+  OptMatchingParamsSetMacro(Localization, PlanarityThreshold, double)
 
-  GetMacro(LocalizationEdgeMaxModelError, double)
-  SetMacro(LocalizationEdgeMaxModelError, double)
+  OptMatchingParamsGetMacro(Localization, EdgeMaxModelError, double)
+  OptMatchingParamsSetMacro(Localization, EdgeMaxModelError, double)
 
-  GetMacro(LocalizationPlaneMaxModelError, double)
-  SetMacro(LocalizationPlaneMaxModelError, double)
+  OptMatchingParamsGetMacro(Localization, PlaneMaxModelError, double)
+  OptMatchingParamsSetMacro(Localization, PlaneMaxModelError, double)
 
-  GetMacro(LocalizationBlobNbNeighbors, unsigned int)
-  SetMacro(LocalizationBlobNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(Localization, BlobNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(Localization, BlobNbNeighbors, unsigned int)
 
-  GetMacro(LocalizationInitSaturationDistance, double)
-  SetMacro(LocalizationInitSaturationDistance, double)
+  OptimizationParamsGetMacro(Localization, InitSaturationDistance, double)
+  OptimizationParamsSetMacro(Localization, InitSaturationDistance, double)
 
-  GetMacro(LocalizationFinalSaturationDistance, double)
-  SetMacro(LocalizationFinalSaturationDistance, double)
+  OptimizationParamsGetMacro(Localization, FinalSaturationDistance, double)
+  OptimizationParamsSetMacro(Localization, FinalSaturationDistance, double)
 
   // External Sensor parameters
 
@@ -507,41 +563,41 @@ public:
   GetMacro(LoopClosureICPWithSubmap, bool)
   SetMacro(LoopClosureICPWithSubmap, bool)
 
-  GetMacro(LoopClosureLMMaxIter, unsigned int)
-  SetMacro(LoopClosureLMMaxIter, unsigned int)
+  OptimizationParamsGetMacro(LoopClosure, LMMaxIter, unsigned int)
+  OptimizationParamsSetMacro(LoopClosure, LMMaxIter, unsigned int)
 
-  GetMacro(LoopClosureICPMaxIter, unsigned int)
-  SetMacro(LoopClosureICPMaxIter, unsigned int)
+  OptimizationParamsGetMacro(LoopClosure, ICPMaxIter, unsigned int)
+  OptimizationParamsSetMacro(LoopClosure, ICPMaxIter, unsigned int)
 
-  GetMacro(LoopClosureMaxNeighborsDistance, double)
-  SetMacro(LoopClosureMaxNeighborsDistance, double)
+  OptMatchingParamsGetMacro(LoopClosure, MaxNeighborsDistance, double)
+  OptMatchingParamsSetMacro(LoopClosure, MaxNeighborsDistance, double)
 
-  GetMacro(LoopClosureEdgeNbNeighbors, unsigned int)
-  SetMacro(LoopClosureEdgeNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(LoopClosure, EdgeNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(LoopClosure, EdgeNbNeighbors, unsigned int)
 
-  GetMacro(LoopClosureEdgeMinNbNeighbors, unsigned int)
-  SetMacro(LoopClosureEdgeMinNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(LoopClosure, EdgeMinNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(LoopClosure, EdgeMinNbNeighbors, unsigned int)
 
-  GetMacro(LoopClosurePlaneNbNeighbors, unsigned int)
-  SetMacro(LoopClosurePlaneNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(LoopClosure, PlaneNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(LoopClosure, PlaneNbNeighbors, unsigned int)
 
-  GetMacro(LoopClosurePlanarityThreshold, double)
-  SetMacro(LoopClosurePlanarityThreshold, double)
+  OptMatchingParamsGetMacro(LoopClosure, PlanarityThreshold, double)
+  OptMatchingParamsSetMacro(LoopClosure, PlanarityThreshold, double)
 
-  GetMacro(LoopClosureEdgeMaxModelError, double)
-  SetMacro(LoopClosureEdgeMaxModelError, double)
+  OptMatchingParamsGetMacro(LoopClosure, EdgeMaxModelError, double)
+  OptMatchingParamsSetMacro(LoopClosure, EdgeMaxModelError, double)
 
-  GetMacro(LoopClosurePlaneMaxModelError, double)
-  SetMacro(LoopClosurePlaneMaxModelError, double)
+  OptMatchingParamsGetMacro(LoopClosure, PlaneMaxModelError, double)
+  OptMatchingParamsSetMacro(LoopClosure, PlaneMaxModelError, double)
 
-  GetMacro(LoopClosureBlobNbNeighbors, unsigned int)
-  SetMacro(LoopClosureBlobNbNeighbors, unsigned int)
+  OptMatchingParamsGetMacro(LoopClosure, BlobNbNeighbors, unsigned int)
+  OptMatchingParamsSetMacro(LoopClosure, BlobNbNeighbors, unsigned int)
 
-  GetMacro(LoopClosureInitSaturationDistance, double)
-  SetMacro(LoopClosureInitSaturationDistance, double)
+  OptimizationParamsGetMacro(LoopClosure, InitSaturationDistance, double)
+  OptimizationParamsSetMacro(LoopClosure, InitSaturationDistance, double)
 
-  GetMacro(LoopClosureFinalSaturationDistance, double)
-  SetMacro(LoopClosureFinalSaturationDistance, double)
+  OptimizationParamsGetMacro(LoopClosure, FinalSaturationDistance, double)
+  OptimizationParamsSetMacro(LoopClosure, FinalSaturationDistance, double)
   // ---------------------------------------------------------------------------
   //   Confidence estimation
   // ---------------------------------------------------------------------------
@@ -566,24 +622,6 @@ public:
   SetMacro(TimeWindowDuration, float)
 
   GetMacro(ComplyMotionLimits, bool)
-
-  // Parameters for pose estimation by ICP-LM optimization
-  // Useful for EgoMotion, Localization and LoopClosureLocalization
-  struct OptimizationParameters
-  {
-    // Matching parameters
-    KeypointsMatcher::Parameters MatchingParams;
-
-    // ICP-LM optimization parameters
-    unsigned int ICPMaxIter;
-    unsigned int LMMaxIter;
-    double InitSaturationDistance;
-    double FinalSaturationDistance;
-
-    UndistortionMode Undistortion = UndistortionMode::NONE;
-    bool enableExternalConstraints = false;
-    bool optimizationValid = true;
-  };
 
 private:
 
@@ -873,73 +911,62 @@ private:
   // This will hold Z (elevation), rX (roll) and rY (pitch) constant.
   bool TwoDMode = false;
 
-  // Number of outer ICP-optim loop iterations to perform.
-  // Each iteration will consist of building ICP matches, then optimizing them.
-  unsigned int EgoMotionICPMaxIter = 4;
-  unsigned int LocalizationICPMaxIter = 3;
-  unsigned int LoopClosureICPMaxIter = 3;
+  Optimization::Parameters EgoMotionParams
+  {
+    // KeypointsMatcher::Parameters MatchingParams
+    {
+      // unsigned int NbThreads, bool SingleEdgePerRing, double MaxNeighborsDistance,
+      1, true, 5.,
+      // unsigned int EdgeNbNeighbors, unsigned int EdgeMinNbNeighbors, double EdgeMaxModelError,
+      8, 3, 0.2,
+      // unsigned int PlaneNbNeighbors, double PlanarityThreshold, double PlaneMaxModelError
+      5, 0.04, 0.2,
+      // unsigned int BlobNbNeighbors, double SaturationDistance
+      10, 1.
+    },
+    // unsigned int ICPMaxIter, unsigned int LMMaxIter, double InitSaturationDistance, double FinalSaturationDistance
+    4, 15, 2, 0.5,
+    // UndistortionMode Undistortion, bool enableExternalConstraints
+    UndistortionMode::NONE, false
+  };
 
-  // Maximum number of iterations of the Levenberg-Marquardt optimizer to solve
-  // the ICP problem composed of the built point-to-neighborhood residuals
-  unsigned int EgoMotionLMMaxIter = 15;
-  unsigned int LocalizationLMMaxIter = 15;
-  unsigned int LoopClosureLMMaxIter = 15;
+  Optimization::Parameters LocalizationParams
+  {
+    // KeypointsMatcher::Parameters MatchingParams
+    {
+      // unsigned int NbThreads, bool SingleEdgePerRing, double MaxNeighborsDistance,
+      1, false, 5.,
+      // unsigned int EdgeNbNeighbors, unsigned int EdgeMinNbNeighbors, double EdgeMaxModelError,
+      10, 4, 0.2,
+      // unsigned int PlaneNbNeighbors, double PlanarityThreshold, double PlaneMaxModelError
+      5, 0.04, 0.2,
+      // unsigned int BlobNbNeighbors, double SaturationDistance
+      10, 1.
+    },
+    // unsigned int ICPMaxIter, unsigned int LMMaxIter, double InitSaturationDistance, double FinalSaturationDistance
+    3, 15, 2, 0.5,
+    // UndistortionMode Undistortion, bool enableExternalConstraints
+    this->Undistortion, true
+  };
 
-  // Point-to-neighborhood matching parameters.
-  // The goal will be to loop over all keypoints, and to build the corresponding
-  // point-to-neighborhood residuals that will be optimized later.
-  // For each source keypoint, the steps will be:
-  // - To extract the N nearest neighbors from the target cloud.
-  //   These neighbors should not be too far from the source keypoint.
-  // - Assess the neighborhood shape by checking its PCA eigenvalues.
-  // - Fit a line/plane/blob model on the neighborhood using PCA.
-  // - Assess the model quality by checking its error relatively to the neighborhood.
-  // - Build the corresponding point-to-model distance operator
-  // If any of this step fails, the matching procedure of the current keypoint aborts.
-  // See KeypointsMatcher::Parameters for more details on each parameter.
-
-  // Max distance allowed between a source keypoint and its neighbors in target map.
-  // If one of the neighbors is farther, the neighborhood will be rejected.
-  double EgoMotionMaxNeighborsDistance = 5.;
-  double LocalizationMaxNeighborsDistance = 5.;
-  double LoopClosureMaxNeighborsDistance = 5.;
-
-  // Edge keypoints matching: point-to-line distance
-  unsigned int EgoMotionEdgeNbNeighbors = 8;
-  unsigned int EgoMotionEdgeMinNbNeighbors = 3;
-  double EgoMotionEdgeMaxModelError = 0.2;
-  unsigned int LocalizationEdgeNbNeighbors = 10;
-  unsigned int LocalizationEdgeMinNbNeighbors = 4;
-  double LocalizationEdgeMaxModelError = 0.2;
-  unsigned int LoopClosureEdgeNbNeighbors = 10;
-  unsigned int LoopClosureEdgeMinNbNeighbors = 4;
-  double LoopClosureEdgeMaxModelError = 0.2;
-
-  // Plane keypoints matching: point-to-plane distance
-  unsigned int EgoMotionPlaneNbNeighbors = 5;
-  double EgoMotionPlanarityThreshold = 0.04;
-  double EgoMotionPlaneMaxModelError = 0.2;
-  unsigned int LocalizationPlaneNbNeighbors = 5;
-  double LocalizationPlanarityThreshold = 0.04;
-  double LocalizationPlaneMaxModelError = 0.2;
-  unsigned int LoopClosurePlaneNbNeighbors = 5;
-  double LoopClosurePlanarityThreshold = 0.04;
-  double LoopClosurePlaneMaxModelError = 0.2;
-
-  // Blob keypoints matching: point-to-ellipsoid distance
-  unsigned int LocalizationBlobNbNeighbors = 10;
-  unsigned int LoopClosureBlobNbNeighbors = 10;
-
-  // Maximum distance (in meters) beyond which the residual errors are
-  // saturated to robustify the optimization against outlier constraints.
-  // The residuals will be robustified by Tukey loss at scale sqrt(SatDist),
-  // leading to ~90% of saturation at SatDist/2, fully saturated at SatDist.
-  double EgoMotionInitSaturationDistance = 5. ;
-  double EgoMotionFinalSaturationDistance = 1. ;
-  double LocalizationInitSaturationDistance = 2.;
-  double LocalizationFinalSaturationDistance = 0.5;
-  double LoopClosureInitSaturationDistance = 2.;
-  double LoopClosureFinalSaturationDistance = 0.5;
+  Optimization::Parameters LoopClosureParams
+  {
+    // KeypointsMatcher::Parameters MatchingParams
+    {
+      // unsigned int NbThreads, bool SingleEdgePerRing, double MaxNeighborsDistance,
+      1, false, 5.,
+      // unsigned int EdgeNbNeighbors, unsigned int EdgeMinNbNeighbors, double EdgeMaxModelError,
+      10, 4, 0.2,
+      // unsigned int PlaneNbNeighbors, double PlanarityThreshold, double PlaneMaxModelError
+      5, 0.04, 0.2,
+      // unsigned int BlobNbNeighbors, double SaturationDistance
+      10, 1.
+    },
+    // unsigned int ICPMaxIter, unsigned int LMMaxIter, double InitSaturationDistance, double FinalSaturationDistance
+    3, 15, 2, 0.5,
+    // UndistortionMode Undistortion, bool enableExternalConstraints
+    UndistortionMode::NONE, false
+  };
 
   // ---------------------------------------------------------------------------
   //   Graph parameters
@@ -1075,7 +1102,7 @@ private:
   // sourcekeypoints on targetkeypoints
   LocalOptimizer::RegistrationError EstimatePose(const std::map<Keypoint, PointCloud::Ptr>& sourceKeypoints,
                                                  const Maps& targetKeypoints,
-                                                 Slam::OptimizationParameters& params,
+                                                 Optimization::Parameters& params,
                                                  Eigen::Isometry3d& posePrior,
                                                  std::map<Keypoint, KeypointsMatcher::MatchingResults>& matchingResults);
 

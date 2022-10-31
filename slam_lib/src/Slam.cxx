@@ -1101,26 +1101,12 @@ void Slam::ComputeEgoMotion()
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("EgoMotion : build KD tree"));
     IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
 
-    // Init Optimization parameters
-    OptimizationParameters egoMotionParams;
-    egoMotionParams.MatchingParams.NbThreads = this->NbThreads;
-    egoMotionParams.MatchingParams.SingleEdgePerRing = true;
-    egoMotionParams.MatchingParams.MaxNeighborsDistance = this->EgoMotionMaxNeighborsDistance;
-    egoMotionParams.MatchingParams.EdgeNbNeighbors = this->EgoMotionEdgeNbNeighbors;
-    egoMotionParams.MatchingParams.EdgeMinNbNeighbors = this->EgoMotionEdgeMinNbNeighbors;
-    egoMotionParams.MatchingParams.EdgeMaxModelError = this->EgoMotionEdgeMaxModelError;
-    egoMotionParams.MatchingParams.PlaneNbNeighbors = this->EgoMotionPlaneNbNeighbors;
-    egoMotionParams.MatchingParams.PlanarityThreshold = this->EgoMotionPlanarityThreshold;
-    egoMotionParams.MatchingParams.PlaneMaxModelError = this->EgoMotionPlaneMaxModelError;
-
-    egoMotionParams.ICPMaxIter = this->EgoMotionICPMaxIter;
-    egoMotionParams.LMMaxIter = this->EgoMotionLMMaxIter;
-    egoMotionParams.InitSaturationDistance = this->EgoMotionInitSaturationDistance;
-    egoMotionParams.FinalSaturationDistance = this->EgoMotionFinalSaturationDistance;
-
+    // Set localization parameters which do not have a setter
+    this->EgoMotionParams.MatchingParams.NbThreads = static_cast<unsigned int>(this->NbThreads);
+    this->EgoMotionParams.MatchingParams.SingleEdgePerRing = true;
     // ICP - Levenberg-Marquardt loop to update Trelative
     this->EstimatePose(this->CurrentRawKeypoints, previousKeypoints,
-                       egoMotionParams, this->Trelative,
+                       this->EgoMotionParams, this->Trelative,
                        this->EgoMotionMatchingResults);
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion : whole ICP-LM loop"));
@@ -1232,33 +1218,16 @@ void Slam::Localization()
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : map keypoints extraction"));
   IF_VERBOSE(3, Utils::Timer::Init("Localization : whole ICP-LM loop"));
 
-  // Init optimization parameters
-  OptimizationParameters localizationParams;
-  localizationParams.MatchingParams.NbThreads = this->NbThreads;
-  localizationParams.MatchingParams.SingleEdgePerRing = false;
-  localizationParams.MatchingParams.MaxNeighborsDistance = this->LocalizationMaxNeighborsDistance;
-  localizationParams.MatchingParams.EdgeNbNeighbors = this->LocalizationEdgeNbNeighbors;
-  localizationParams.MatchingParams.EdgeMinNbNeighbors = this->LocalizationEdgeMinNbNeighbors;
-  localizationParams.MatchingParams.EdgeMaxModelError = this->LocalizationEdgeMaxModelError;
-  localizationParams.MatchingParams.PlaneNbNeighbors = this->LocalizationPlaneNbNeighbors;
-  localizationParams.MatchingParams.PlanarityThreshold = this->LocalizationPlanarityThreshold;
-  localizationParams.MatchingParams.PlaneMaxModelError = this->LocalizationPlaneMaxModelError;
-  localizationParams.MatchingParams.BlobNbNeighbors = this->LocalizationBlobNbNeighbors;
-  localizationParams.ICPMaxIter = this->LocalizationICPMaxIter;
-  localizationParams.LMMaxIter = this->LocalizationLMMaxIter;
-  localizationParams.InitSaturationDistance = this->LocalizationInitSaturationDistance;
-  localizationParams.FinalSaturationDistance = this->LocalizationFinalSaturationDistance;
-  localizationParams.enableExternalConstraints = true;
-  localizationParams.Undistortion = this->Undistortion;
-  localizationParams.optimizationValid = this->Valid;
-
+  // Set localization parameters which do not have a setter
+  this->LocalizationParams.MatchingParams.NbThreads = static_cast<unsigned int>(this->NbThreads);
+  this->LocalizationParams.MatchingParams.SingleEdgePerRing = false;
   // ICP - Levenberg-Marquardt loop to update Tworld
   this->LocalizationUncertainty = this->EstimatePose(this->CurrentUndistortedKeypoints,
                                                      this->LocalMaps,
-                                                     localizationParams,
+                                                     this->LocalizationParams,
                                                      this->Tworld,
                                                      this->LocalizationMatchingResults);
-  this->Valid = localizationParams.optimizationValid;
+  this->Valid = this->LocalizationUncertainty.Valid;
 
   if (!this->Valid)
   {
@@ -1394,6 +1363,13 @@ void Slam::LogCurrentFrameState()
     ++itSt;
     this->LogStates.pop_front();
   }
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetUndistortion(UndistortionMode undistMode)
+{
+  this->Undistortion = undistMode;
+  this->LocalizationParams.Undistortion = undistMode;
 }
 
 //-----------------------------------------------------------------------------
@@ -1535,35 +1511,20 @@ bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState
   // Reset ICP results
   this->TotalMatchedKeypoints = 0;
 
-  // Init optimization parameters for optimization of loop closure
-  OptimizationParameters loopClosureParams;
-  loopClosureParams.MatchingParams.NbThreads = this->NbThreads;
-  loopClosureParams.MatchingParams.SingleEdgePerRing = false;
-  loopClosureParams.MatchingParams.MaxNeighborsDistance = this->LoopClosureMaxNeighborsDistance;
-  loopClosureParams.MatchingParams.EdgeNbNeighbors = this->LoopClosureEdgeNbNeighbors;
-  loopClosureParams.MatchingParams.EdgeMinNbNeighbors = this->LoopClosureEdgeMinNbNeighbors;
-  loopClosureParams.MatchingParams.EdgeMaxModelError = this->LoopClosureEdgeMaxModelError;
-  loopClosureParams.MatchingParams.PlaneNbNeighbors = this->LoopClosurePlaneNbNeighbors;
-  loopClosureParams.MatchingParams.PlanarityThreshold = this->LoopClosurePlanarityThreshold;
-  loopClosureParams.MatchingParams.PlaneMaxModelError = this->LoopClosurePlaneMaxModelError;
-  loopClosureParams.MatchingParams.BlobNbNeighbors = this->LoopClosureBlobNbNeighbors;
-
-  loopClosureParams.ICPMaxIter = this->LoopClosureICPMaxIter;
-  loopClosureParams.LMMaxIter = this->LoopClosureLMMaxIter;
-  loopClosureParams.InitSaturationDistance = this->LoopClosureInitSaturationDistance;
-  loopClosureParams.FinalSaturationDistance = this->LoopClosureFinalSaturationDistance;
-
+  // Set loop closure parameters which do not have a setter
+  this->LoopClosureParams.MatchingParams.NbThreads = static_cast<unsigned int>(this->NbThreads);
+  this->LoopClosureParams.MatchingParams.SingleEdgePerRing = false;
   // ICP - Levenberg-Marquardt loop to estimate the pose of the current frame relatively to the close loop frame
   loopClosureUncertainty = this->EstimatePose(loopClosureQueryKeypoints, loopClosureRevisitedSubMaps,
-                                              loopClosureParams, loopClosureTworld,
+                                              this->LoopClosureParams, loopClosureTworld,
                                               this->LoopClosureMatchingResults);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Loop closure Registration : whole ICP-LM loop"));
 
-  if (!loopClosureParams.optimizationValid)
+  if (!loopClosureUncertainty.Valid)
   {
     PRINT_ERROR("Loop closure registration failed.")
-    return loopClosureParams.optimizationValid;
+    return loopClosureUncertainty.Valid;
   }
 
   // Get covariance
@@ -1608,7 +1569,7 @@ bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState
 
     RESET_COUT_FIXED_PRECISION;
   }
-  return loopClosureParams.optimizationValid;
+  return loopClosureUncertainty.Valid;
 }
 
 //==============================================================================
@@ -1688,7 +1649,7 @@ void Slam::BuildMaps(Maps& maps, int windowStartIdx, int windowEndIdx, int idxFr
 //-----------------------------------------------------------------------------
 LocalOptimizer::RegistrationError Slam::EstimatePose(const std::map<Keypoint, PointCloud::Ptr>& sourceKeypoints,
                                                      const Maps& targetKeypoints,
-                                                     Slam::OptimizationParameters& params,
+                                                     Optimization::Parameters& params,
                                                      Eigen::Isometry3d& posePrior,
                                                      std::map<Keypoint, KeypointsMatcher::MatchingResults>& matchingResults)
 {
@@ -1696,7 +1657,6 @@ LocalOptimizer::RegistrationError Slam::EstimatePose(const std::map<Keypoint, Po
 
   // Reset ICP results
   this->TotalMatchedKeypoints = 0;
-  KeypointsMatcher::Parameters matchingParams = params.MatchingParams;
 
   // ICP - Levenberg-Marquardt loop
   // At each step of this loop an ICP matching is performed. Once the keypoints
@@ -1716,8 +1676,8 @@ LocalOptimizer::RegistrationError Slam::EstimatePose(const std::map<Keypoint, Po
     // Create a keypoints matcher
     // At each ICP iteration, the outliers removal is refined to be stricter
     double iterRatio = icpIter / static_cast<double>(params.ICPMaxIter - 1);
-    matchingParams.SaturationDistance = (1 - iterRatio) * params.InitSaturationDistance + iterRatio * params.FinalSaturationDistance;
-    KeypointsMatcher matcher(matchingParams, posePrior);
+    params.MatchingParams.SaturationDistance = (1 - iterRatio) * params.InitSaturationDistance + iterRatio * params.FinalSaturationDistance;
+    KeypointsMatcher matcher(params.MatchingParams, posePrior);
 
     // Loop over keypoints to build the point to line residuals
     this->TotalMatchedKeypoints = 0;
@@ -1731,7 +1691,7 @@ LocalOptimizer::RegistrationError Slam::EstimatePose(const std::map<Keypoint, Po
     if (this->TotalMatchedKeypoints < this->MinNbMatchedKeypoints)
     {
       PRINT_ERROR("Not enough keypoints matched, Pose estimation skipped for this frame.");
-      params.optimizationValid = false;
+      optimizationUncertainty.Valid = false;
       break;
     }
 
@@ -1749,7 +1709,7 @@ LocalOptimizer::RegistrationError Slam::EstimatePose(const std::map<Keypoint, Po
     for (auto k : this->UsableKeypoints)
       optimizer.AddResiduals(matchingResults[k].Residuals);
 
-    if (params.enableExternalConstraints)
+    if (params.EnableExternalConstraints)
     {
       // Add odometry constraint
       // if constraint has been successfully created
