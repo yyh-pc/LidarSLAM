@@ -2,7 +2,7 @@
 if (g2o_FOUND)
   set(SLAM_g2o_sources src/PoseGraphOptimizer.cxx)
   set(g2o_targets g2o::core g2o::types_slam3d g2o::types_slam3d_addons)
-  add_definitions(-DUSE_G2O=1)
+  message("Lidar SLAM : G2O was found, pose graph API compiled")
 endif()
 
 # Generate export symbols on Windows to use this lib
@@ -32,6 +32,11 @@ target_link_libraries(LidarSlam
     ${Eigen3_target}
     ${OpenMP_target}
 )
+
+# If G2O is available, set a precompilation variable
+if (g2o_FOUND)
+  target_compile_definitions(LidarSlam PUBLIC USE_G2O=1)
+endif()
 
 target_include_directories(LidarSlam PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
