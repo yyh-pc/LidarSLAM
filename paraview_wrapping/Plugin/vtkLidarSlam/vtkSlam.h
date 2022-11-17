@@ -349,6 +349,9 @@ public:
   virtual void SetTimeWindowDuration(float time);
   vtkCustomGetMacro(TimeWindowDuration, float)
 
+  virtual void SetLoggingTimeout(double loggingTimeout);
+  vtkCustomGetMacro(LoggingTimeout, double)
+
 protected:
   vtkSlam();
 
@@ -444,6 +447,8 @@ private:
   float OverlapSamplingRatio = 0.25;
   // Internal variable to store window time to estimate local velocity when advanced return mode is disabled.
   float TimeWindowDuration = 0.5;
+  // Internal variable to store LoggingTimeout to control states kept in memory for pose graph or estimation of local velocity
+  double LoggingTimeout = 0;
 
   // Choose whether to synchronize on network packet
   // reception time or on Lidar frame header time
