@@ -971,7 +971,7 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
       // Enable overlap computation
       this->SlamAlgo->SetOverlapSamplingRatio(this->OverlapSamplingRatio);
       this->SlamAlgo->SetTimeWindowDuration(this->TimeWindowDuration);
-      this->SlamAlgo->SetLoggingTimeout(1.1 * this->TimeWindowDuration);
+      this->SlamAlgo->SetLoggingTimeout(std::max(this->LoggingTimeout, 1.1 * this->TimeWindowDuration));
     }
 
     // If AdvancedReturnMode is being disabled
@@ -983,7 +983,7 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
       // Disable overlap computation
       this->SlamAlgo->SetOverlapSamplingRatio(0.);
       this->SlamAlgo->SetTimeWindowDuration(0.);
-      this->SlamAlgo->SetLoggingTimeout(0.);
+      this->SlamAlgo->SetLoggingTimeout(this->LoggingTimeout);
     }
 
     this->AdvancedReturnMode = _arg;
@@ -1248,6 +1248,25 @@ void vtkSlam::SetTimeWindowDuration(float time)
   if (this->AdvancedReturnMode)
   {
     this->SlamAlgo->SetTimeWindowDuration(this->TimeWindowDuration);
-    this->SlamAlgo->SetLoggingTimeout(1.1 * this->TimeWindowDuration);
+    this->SlamAlgo->SetLoggingTimeout(std::max(this->LoggingTimeout, 1.1 * this->TimeWindowDuration));
   }
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetLoggingTimeout(double loggingTimeout)
+{
+  // Change parameter value if it is modified
+  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting LoggingTimeout to " << loggingTimeout);
+  if (this->LoggingTimeout != loggingTimeout)
+  {
+    this->LoggingTimeout = loggingTimeout;
+    this->ParametersModificationTime.Modified();
+  }
+
+  // Forward this parameter change to SLAM
+  // If Advanced Return mode is enabled, use the max value
+  if (this->AdvancedReturnMode)
+    this->SlamAlgo->SetLoggingTimeout(std::max(this->LoggingTimeout, 1.1 * this->TimeWindowDuration));
+  else
+    this->SlamAlgo->SetLoggingTimeout(this->LoggingTimeout);
 }
