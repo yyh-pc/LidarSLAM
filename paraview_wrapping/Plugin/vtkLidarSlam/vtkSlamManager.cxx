@@ -72,20 +72,24 @@ int vtkSlamManager::RequestData(vtkInformation* request,
     vtkErrorMacro("StepSize must be greater than zero!");
     return 0;
   }
-  if (this->LastFrame < 0 || this->FirstFrame < 0)
+  // Check validity of FirstFrame and LastFrame if AllFrames is disabled 
+  if(!this->AllFrames)
   {
-    vtkErrorMacro("FirstFrame and LastFrame must be positive integers!");
-    return 0;
-  }
-  if (this->FirstFrame > nbTimeSteps - 1 || this->LastFrame > nbTimeSteps - 1)
-  {
-    vtkErrorMacro("The dataset only has " << nbTimeSteps << " frames!");
-    return 0;
-  }
-  if (this->LastFrame < this->FirstFrame)
-  {
-    vtkErrorMacro(<< "The last frame must come after the first frame!");
-    return 0;
+    if (this->LastFrame < 0 || this->FirstFrame < 0)
+    {
+      vtkErrorMacro("FirstFrame and LastFrame must be positive integers!");
+      return 0;
+    }
+    if (this->FirstFrame > nbTimeSteps - 1 || this->LastFrame > nbTimeSteps - 1)
+    {
+      vtkErrorMacro("The dataset only has " << nbTimeSteps << " frames!");
+      return 0;
+    }
+    if (this->LastFrame < this->FirstFrame )
+    {
+      vtkErrorMacro(<< "The last frame must come after the first frame!");
+      return 0;
+    }
   }
 
   // First Iteration
