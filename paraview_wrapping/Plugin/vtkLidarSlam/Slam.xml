@@ -1491,7 +1491,7 @@
       <IntVectorProperty name="First frame"
                          command="SetFirstFrame"
                          number_of_elements="1"
-                         default_values="1">
+                         default_values="0">
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="All frames" value="0" />
         </Hints>
@@ -1503,7 +1503,7 @@
       <IntVectorProperty name="Last frame"
                          command="SetLastFrame"
                          number_of_elements="1"
-                         default_values="0">
+                         default_values="1">
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="enabled_state" property="All frames" value="0" />
         </Hints>
