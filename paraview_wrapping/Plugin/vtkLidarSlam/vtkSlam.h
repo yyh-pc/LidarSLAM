@@ -187,6 +187,11 @@ public:
   // Check LoggingTimeout is set correctly to ensure the use of pose graph optimization
   void SetUsePoseGraph(bool usePoseGraph);
 
+  // Use the optimized poses from the IMU/SLAM graph to
+  // update the trajectory and rebuild the maps (needs GTSAM not G2O)
+  void OptimizeGraphWithIMU();
+
+  // Optimize the graph with available information (needs G2O not GTSAM)
   void OptimizeGraph();
 
   vtkCustomGetMacro(G2oFileName, std::string)

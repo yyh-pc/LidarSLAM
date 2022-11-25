@@ -148,6 +148,23 @@ void vtkSlam::RebuildMaps()
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::OptimizeGraphWithIMU()
+{
+  const std::list<LidarSlam::LidarState>& initLidarStates = this->SlamAlgo->GetLogStates();
+  if (initLidarStates.size() < 2)
+    return;
+  this->SlamAlgo->UpdateTrajectoryAndMapsWithIMU();
+  // Update trajectory from beginning with new poses after PGO.
+  this->ResetTrajectory();
+  const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
+  for (auto const& state: lidarStates)
+    this->AddPoseToTrajectory(state);
+
+  // Refresh view
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::OptimizeGraph()
 {
   const std::list<LidarSlam::LidarState>& initLidarStates = this->SlamAlgo->GetLogStates();

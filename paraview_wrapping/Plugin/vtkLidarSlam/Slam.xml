@@ -1609,6 +1609,16 @@
       </PropertyGroup>
 
       <!-- ============================ Pose Graph Optimization ============================ -->
+
+      <Property name="Optimize Graph With IMU"
+                command="OptimizeGraphWithIMU"
+                panel_visibility="advanced">
+        <Documentation>
+          Use the optimized poses from the IMU/SLAM graph to update the trajectory and the maps.
+          IMU data must be available, GTSAM must be found and the logging timeOut must be set appropriately.
+        </Documentation>
+      </Property>
+
       <Property name="Optimize Graph"
                 command="OptimizeGraph">
         <Documentation>
@@ -1715,6 +1725,7 @@
       </IntVectorProperty>
 
       <PropertyGroup label="Pose Graph Optimization">
+        <Property name="Optimize Graph With IMU" />
         <Property name="Optimize Graph" />
         <Property name="Save g2o file" />
         <Property name="Logging timeout" />
