@@ -1125,6 +1125,34 @@ void Slam::ComputeEgoMotion()
         ExternalSensors::PoseMeasurement synchPoseMeas; // Virtual measure with synchronized timestamp and calibration applied
         if (this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime, synchPoseMeas))
         {
+          std::ofstream fout1("XX/t1.csv", std::ofstream::trunc);
+          fout1 << "x,y,z,x1,y1,z1\n";
+          Eigen::Isometry3d basePose = synchPoseMeas.Pose;
+          fout1 << basePose.translation()[0] << "," << basePose.translation()[1] << "," << basePose.translation()[2] << ","
+                << basePose.linear()(0,0) << "," << basePose.linear()(1,0)<< "," << basePose.linear()(2,0) <<"\n";
+          fout1.close();
+
+          std::ofstream fout("XX/t0.csv", std::ofstream::trunc);
+          fout << "x,y,z,x1,y1,z1\n";
+          basePose = synchPreviousPoseMeas.Pose;
+          fout << basePose.translation()[0] << "," << basePose.translation()[1] << "," << basePose.translation()[2] << ","
+                << basePose.linear()(0,0) << "," << basePose.linear()(1,0)<< "," << basePose.linear()(2,0) <<"\n";
+          fout.close();
+
+
+          std::ofstream fout2("XX/t2.csv", std::ofstream::trunc);
+          fout2 << "x,y,z,x1,y1,z1\n";
+          basePose = this->Tworld * synchPreviousPoseMeas.Pose.inverse() * synchPoseMeas.Pose;
+          fout2 << basePose.translation()[0] << "," << basePose.translation()[1] << "," << basePose.translation()[2] << ","
+                << basePose.linear()(0,0) << "," << basePose.linear()(1,0)<< "," << basePose.linear()(2,0) <<"\n";
+          fout2.close();
+
+          std::ofstream fout3("XX/tworld.csv", std::ofstream::trunc);
+          fout3 << "x,y,z,x1,y1,z1\n";
+          basePose = this->Tworld;
+          fout3 << this->Tworld.translation()[0] << "," << this->Tworld.translation()[1] << "," << this->Tworld.translation()[2] << ","
+                << this->Tworld.linear()(0,0) << "," << this->Tworld.linear()(1,0)<< "," << this->Tworld.linear()(2,0) <<"\n";
+          fout3.close();
           this->Trelative = synchPreviousPoseMeas.Pose.inverse() * synchPoseMeas.Pose;
           externalAvailable = true;
           PRINT_VERBOSE(3, "Prior pose computed using external poses supplied");
@@ -2018,6 +2046,50 @@ void Slam::UndistortWithPoseMeasurement(PointCloud::Ptr pc, double refTime,
   for (int idxPt = startIdx; idxPt < endIdx; ++idxPt)
     this->PoseManager->ComputeSynchronizedMeasureBase(refTime + pc->at(idxPt).time + timeOffset, synchMeas[idxPt]);
 
+  // Compute synchronized poses for each point
+  Eigen::Isometry3d inv = synchPoseMeasCurrent.Pose.inverse();
+  std::ofstream fout("XX/optimized_poses.csv");
+  fout << "x,y,z,x1,y1,z1,x2,y2,z2,x3,y3,z3\n";
+
+  std::ofstream fout1("XX/optimized_poses_rebased.csv");
+  fout1 << "x,y,z,x1,y1,z1,x2,y2,z2,x3,y3,z3\n";
+  for (unsigned int idxPt = 0; idxPt < pc->size(); ++idxPt)
+  {
+    fout  << synchMeas[idxPt].Pose.translation().x() << ","
+          << synchMeas[idxPt].Pose.translation().y() << ","
+          << synchMeas[idxPt].Pose.translation().z() << ","
+          << synchMeas[idxPt].Pose.linear()(0,0) << ","
+          << synchMeas[idxPt].Pose.linear()(1,0) << ","
+          << synchMeas[idxPt].Pose.linear()(2,0) << ","
+          << synchMeas[idxPt].Pose.linear()(0,1) << ","
+          << synchMeas[idxPt].Pose.linear()(1,1) << ","
+          << synchMeas[idxPt].Pose.linear()(2,1) << ","
+          << synchMeas[idxPt].Pose.linear()(0,2) << ","
+          << synchMeas[idxPt].Pose.linear()(1,2) << ","
+          << synchMeas[idxPt].Pose.linear()(2,2) << "\n";
+
+    Eigen::Isometry3d rebasedSynchMeas = inv * synchMeas[idxPt].Pose;
+    fout1  << rebasedSynchMeas.translation().x() << ","
+           << rebasedSynchMeas.translation().y() << ","
+           << rebasedSynchMeas.translation().z() << ","
+           << rebasedSynchMeas.linear()(0,0) << ","
+           << rebasedSynchMeas.linear()(1,0) << ","
+           << rebasedSynchMeas.linear()(2,0) << ","
+           << rebasedSynchMeas.linear()(0,1) << ","
+           << rebasedSynchMeas.linear()(1,1) << ","
+           << rebasedSynchMeas.linear()(2,1) << ","
+           << rebasedSynchMeas.linear()(0,2) << ","
+           << rebasedSynchMeas.linear()(1,2) << ","
+           << rebasedSynchMeas.linear()(2,2) << "\n";
+  }
+  fout.close();
+  fout1.close();
+
+  std::ofstream fpc("XX/kpts_before.csv");
+  fpc << "x,y,z\n";
+  for (int idxPt = 0; idxPt < int(pc->size()); ++idxPt)
+    fpc << pc->at(idxPt).x << "," << pc->at(idxPt).y << "," << pc->at(idxPt).z << "\n";
+  fpc.close();
 
   Eigen::Isometry3d invSynchPoseMeasCurrent = synchPoseMeasCurrent.Pose.inverse();
 
@@ -2029,6 +2101,12 @@ void Slam::UndistortWithPoseMeasurement(PointCloud::Ptr pc, double refTime,
     Eigen::Isometry3d update = invSynchPoseMeasCurrent * synchMeas[idxPt].Pose * baseToPointsRef;
     Utils::TransformPoint(pc->at(idxPt), update);
   }
+
+  std::ofstream fpc1("XX/kpts_after.csv");
+  fpc1 << "x,y,z\n";
+  for (int idxPt = 0; idxPt < int(pc->size()); ++idxPt)
+    fpc1 << pc->at(idxPt).x << "," << pc->at(idxPt).y << "," << pc->at(idxPt).z << "\n";
+  fpc1.close();
 
   PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
 }

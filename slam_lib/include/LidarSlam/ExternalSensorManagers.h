@@ -909,6 +909,16 @@ public:
       // Update time index
       this->TimeIdx = 1;
 
+      std::ofstream fout("XX/update_0.csv", std::ofstream::trunc);
+      fout << "x,y,z,x1,y1,z1\n";
+      for (const auto& meas : this->Measures)
+      {
+        Eigen::Isometry3d basePose = meas.Pose * this->Calibration.inverse();
+        fout << basePose.translation()[0] << "," << basePose.translation()[1] << "," << basePose.translation()[2] << ","
+             << basePose.linear()(0,0) << "," << basePose.linear()(1,0)<< "," << basePose.linear()(2,0) << "\n";
+      }
+      fout.close();
+
       return true;
     }
 
@@ -1029,6 +1039,31 @@ public:
     this->Graph.update(graphFactors, initValues);
     this->Graph.update(); // CHECK : useful?
     gtsam::Values graphValues = this->Graph.calculateEstimate();
+
+    // debug
+    std::ofstream fout0("XX/optimized_poses_" + std::to_string(this->TimeIdx) + ".csv", std::ofstream::trunc);
+    fout0 << "x,y,z,x1,y1,z1,x2,y2,z2,i\n";
+
+    // Update optimized poses
+    for (unsigned int i = 0; i <= this->TimeIdx; ++i)
+    {
+      // debug
+      Eigen::Isometry3d pose;
+      pose.matrix() = graphValues.at<gtsam::Pose3>(X(i)).matrix();
+      fout0 << pose.translation().x() << ","
+            << pose.translation().y() << ","
+            << pose.translation().z() << ","
+            << pose.linear()(0,0) << ","
+            << pose.linear()(1,0) << ","
+            << pose.linear()(2,0) << ","
+            << pose.linear()(0,1) << ","
+            << pose.linear()(1,1) << ","
+            << pose.linear()(2,1) << ","
+            << i << "\n";
+    }
+    fout0.close();
+
+
     // Update optimized poses
     for (unsigned int i = 0; i <= this->TimeIdx; ++i)
       this->OptimizedSlamStates[i] = gtsam::NavState(graphValues.at<gtsam::Pose3>(X(i)),
@@ -1044,6 +1079,32 @@ public:
       startIts = this->UpdateMeasures(startIts, i, i + 1);
 
     this->UpdateMeasures(startIts, lastIdx);
+
+    // DEBUG
+    int i = 0;
+    while (i < 200 && startIts.first != this->RawMeasures.begin())
+    {
+      --(startIts.first);
+      --(startIts.second);
+      ++i;
+    }
+    std::ofstream fout1("XX/update_" + std::to_string(this->TimeIdx) + ".csv", std::ofstream::trunc);
+    fout1 << "x,y,z,x1,y1,z1,x2,y2,z2,x3,y3,z3,time\n";
+    int n = 0;
+    for (auto itMeasure = startIts.second; itMeasure != this->Measures.end(); ++itMeasure)
+    {
+      if (n > 2000)
+        break;
+
+      Eigen::Isometry3d basePose = itMeasure->Pose * this->Calibration.inverse();
+      fout1 << basePose.translation()[0] << "," << basePose.translation()[1] << "," << basePose.translation()[2] << ","
+            << basePose.linear()(0,0) << "," << basePose.linear()(1,0)<< "," << basePose.linear()(2,0) <<","
+            << basePose.linear()(0,1) << "," << basePose.linear()(1,1)<< "," << basePose.linear()(2,1) << ","
+            << basePose.linear()(0,2) << "," << basePose.linear()(1,2)<< "," << basePose.linear()(2,2) << ","
+            << std::setprecision(16) << itMeasure->Time << "\n";
+      ++n;
+    }
+    fout1.close();
 
     // 5_ Update time index and last slam state time for next input
     this->Idx2Time[this->TimeIdx] = lidarTimeSynch;
