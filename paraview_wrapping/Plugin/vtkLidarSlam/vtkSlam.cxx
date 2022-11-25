@@ -575,6 +575,154 @@ void vtkSlam::SetSensorData(const std::string& fileName)
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::SetTrajectory(const std::string& fileName)
+{
+  if (fileName.empty())
+    return;
+  PRINT_INFO("Set trajectory from file.");
+  vtkNew<vtkDelimitedTextReader> reader;
+  reader->SetFileName(fileName.c_str());
+  reader->DetectNumericColumnsOn();
+  reader->SetHaveHeaders(true);
+  reader->SetFieldDelimiterCharacters(" ;,");
+  reader->Update();
+
+  // Extract the table.
+  vtkTable* csvTable = reader->GetOutput();
+
+  // Check if time exists and extract it
+  if (!csvTable->GetRowData()->HasArray("Time"))
+  {
+    vtkWarningMacro(<<"No time information in the trajectory file. Load trajectory failed.");
+    return;
+  }
+  auto arrayTime = csvTable->GetRowData()->GetArray("Time");
+  vtkIdType numPose = arrayTime->GetNumberOfTuples();
+  if (numPose == 0)
+  {
+    vtkWarningMacro(<<"No valid data in the trajectory file. Load trajectory failed.");
+    return;
+  }
+  
+  // Initialize a pose manager to store the external trajectory
+  // Enable Verbose is useful to know whether the new trajectory is loaded correctly.
+  // Set DistanceThreshold and AngleThreshold by the same values used in slam for checking keyframes.
+  LidarSlam::ExternalSensors::PoseManager trajectoryManager("new trajectory");
+  trajectoryManager.SetVerbose(true);
+  trajectoryManager.SetDistanceThreshold(std::max(2., 2*this->GetKfDistanceThreshold()));
+
+  // Set default covariance
+  float defaultPositionError = 1e-2; // 1cm
+  float defaultAngleError = Utils::Deg2Rad(1.f); // 1°
+  Eigen::Matrix6d defaultCovariance = Utils::CreateDefaultCovariance(defaultPositionError, defaultAngleError); //1cm, 1°
+  // If 2D mode enabled, supply constant covariance for unevaluated variables
+  if (this->GetTwoDMode())
+  {
+    defaultCovariance(2, 2) = std::pow(defaultPositionError, 2);
+    defaultCovariance(3, 3) = std::pow(defaultAngleError,    2);
+    defaultCovariance(4, 4) = std::pow(defaultAngleError,    2);
+  }
+  // Process Covariance data
+  std::vector<Eigen::Matrix6d> newCovariances(numPose, defaultCovariance);
+  bool hasCovariance = true;
+  for (int nCov = 0; nCov < 36; ++nCov)
+  {
+    hasCovariance = hasCovariance && csvTable->GetRowData()->HasArray(("Covariance:" + std::to_string(nCov)).c_str());
+    if (!hasCovariance)
+      break;
+  }
+  if (hasCovariance)
+  { 
+    // If covariance exists, set CovarianceRotation true
+    trajectoryManager.SetCovarianceRotation(true);
+    // Load covariance matrix
+    for (int nCov = 0; nCov < 36; ++nCov)
+    {
+      auto arrayCovariance =  csvTable->GetRowData()->GetArray(("Covariance:"+std::to_string(nCov)).c_str());
+      for (vtkIdType poseIdx = 0; poseIdx < numPose; ++poseIdx)
+        newCovariances[poseIdx](nCov) =  arrayCovariance->GetTuple1(poseIdx);
+    } 
+  }
+
+  // Process Pose data
+  if (csvTable->GetRowData()->HasArray("x")
+   && csvTable->GetRowData()->HasArray("y")
+   && csvTable->GetRowData()->HasArray("z")
+   && csvTable->GetRowData()->HasArray("roll")
+   && csvTable->GetRowData()->HasArray("pitch")
+   && csvTable->GetRowData()->HasArray("yaw"))
+  {
+    auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
+    auto arrayY     = csvTable->GetRowData()->GetArray("y"    );
+    auto arrayZ     = csvTable->GetRowData()->GetArray("z"    );
+    auto arrayRoll  = csvTable->GetRowData()->GetArray("roll" );
+    auto arrayPitch = csvTable->GetRowData()->GetArray("pitch");
+    auto arrayYaw   = csvTable->GetRowData()->GetArray("yaw"  );
+
+    for (vtkIdType i = 0; i < numPose; ++i)
+    {
+      LidarSlam::ExternalSensors::PoseMeasurement meas;  
+      meas.Pose = Utils::XYZRPYtoIsometry(arrayX->GetTuple1(i), arrayY->GetTuple1(i), arrayZ->GetTuple1(i),
+                                          arrayRoll->GetTuple1(i), arrayPitch->GetTuple1(i), arrayYaw->GetTuple1(i));
+      meas.Time = arrayTime->GetTuple1(i);
+      // If covariance data is available, check the validity and add to measurement.
+      if(hasCovariance)
+      {
+        if (!Utils::isCovarianceValid(newCovariances[i]))
+          newCovariances[i] = defaultCovariance;
+        meas.Covariance = newCovariances[i];
+      }
+      trajectoryManager.AddMeasurement(meas);
+    }
+  }
+  else if (csvTable->GetRowData()->HasArray("Orientation(AxisAngle):0")
+        && csvTable->GetRowData()->HasArray("Orientation(AxisAngle):1")
+        && csvTable->GetRowData()->HasArray("Orientation(AxisAngle):2")
+        && csvTable->GetRowData()->HasArray("Orientation(AxisAngle):3")
+        && csvTable->GetRowData()->HasArray("Points:0"                )
+        && csvTable->GetRowData()->HasArray("Points:1"                )
+        && csvTable->GetRowData()->HasArray("Points:2"                ))
+  {
+    auto arrayAxisX = csvTable->GetRowData()->GetArray("Orientation(AxisAngle):0");
+    auto arrayAxisY = csvTable->GetRowData()->GetArray("Orientation(AxisAngle):1");
+    auto arrayAxisZ = csvTable->GetRowData()->GetArray("Orientation(AxisAngle):2");
+    auto arrayAngle = csvTable->GetRowData()->GetArray("Orientation(AxisAngle):3");
+    auto arrayX     = csvTable->GetRowData()->GetArray("Points:0"                );
+    auto arrayY     = csvTable->GetRowData()->GetArray("Points:1"                );
+    auto arrayZ     = csvTable->GetRowData()->GetArray("Points:2"                );
+    for (vtkIdType i = 0; i < numPose; ++i)
+    {  
+      LidarSlam::ExternalSensors::PoseMeasurement meas;  
+      meas.Pose = Utils::XYZAngleAxistoIsometry(arrayX->GetTuple1(i), arrayY->GetTuple1(i), arrayZ->GetTuple1(i),
+                                                arrayAngle->GetTuple1(i),
+                                                arrayAxisX->GetTuple1(i), arrayAxisY->GetTuple1(i), arrayAxisZ->GetTuple1(i));
+      meas.Time = arrayTime->GetTuple1(i);
+      // If covariance data is available, check the validity and add to measurement.
+      if(hasCovariance)
+      {
+        if (!Utils::isCovarianceValid(newCovariances[i]))
+          newCovariances[i] = defaultCovariance;
+        meas.Covariance = newCovariances[i];
+      }
+      trajectoryManager.AddMeasurement(meas);
+    }
+  }
+
+  // Reload LogStates in Slam with new trajectory
+  this->SlamAlgo->ResetStatePoses(trajectoryManager);
+  PRINT_INFO("Trajectory successfully loaded.");
+
+  // Update trajectory
+  this->ResetTrajectory();
+  const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates(); 
+  for (auto const& state: lidarStates)
+    this->AddPoseToTrajectory(state);
+
+  // Refresh view
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::SetSensorTimeSynchronization(int mode)
 {
   if (mode > 1)

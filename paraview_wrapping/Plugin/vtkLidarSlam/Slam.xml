@@ -127,6 +127,20 @@
         </Documentation>
       </StringVectorProperty>
 
+      <StringVectorProperty name="Reload trajectory"
+                            command="SetTrajectory"
+                            number_of_elements="1"
+                            animateable="0"
+                            panel_visibility="advanced">
+        <FileListDomain name="files"/>
+        <Hints>
+          <FileChooser extensions="csv" file_description="csv file format" />
+        </Hints>
+        <Documentation>
+          Reload trajectory with pose and covariance information from a LidarView trajectory file.
+        </Documentation>
+      </StringVectorProperty>
+
       <IntVectorProperty name="Auto detect input arrays"
                          command="SetAutoDetectInputArrays"
                          number_of_elements="1"
@@ -315,6 +329,7 @@
       <PropertyGroup label="Filter inputs/outputs options">
         <Property name="Reset state" />
         <Property name="SensorDataFile" />
+        <Property name="Reload trajectory" />
         <Property name="Auto detect input arrays" />
         <Property name="Time array" />
         <Property name="Intensity array" />

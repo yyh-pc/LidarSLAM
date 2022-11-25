@@ -165,6 +165,9 @@ public:
 
   virtual int GetUndistortion();
   virtual void SetUndistortion(int mode);
+  
+  // Load trajectory from a file and recompute maps
+  void SetTrajectory(const std::string& fileName);
 
   // Set measurements to Slam algo
   virtual void SetSensorData(const std::string& fileName);
