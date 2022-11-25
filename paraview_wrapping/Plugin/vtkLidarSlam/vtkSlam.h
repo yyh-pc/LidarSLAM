@@ -116,6 +116,9 @@ public:
   // ---------------------------------------------------------------------------
 
   void Reset();
+  // Clear the maps and the logged trajectory
+  // but keep all other parameters
+  void ClearMaps();
 
   void RebuildMaps();
 

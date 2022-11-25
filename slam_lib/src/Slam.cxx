@@ -175,7 +175,7 @@ void Slam::InitMap(Keypoint k)
 void Slam::Reset(bool resetLog)
 {
   // Reset keypoints maps
-  this->ClearMaps(this->LocalMaps);
+  this->ClearLocalMaps();
 
   // Reset keyframes
   this->KfLastPose = Eigen::Isometry3d::Identity();
@@ -495,7 +495,7 @@ void Slam::ComputeSensorConstraints()
 void Slam::UpdateMaps(bool resetMaps)
 {
   if(resetMaps)
-    this->ClearMaps(this->LocalMaps);
+    this->ClearLocalMaps();
   else
   {
     // Remove points older than the first logged state
@@ -515,7 +515,7 @@ bool Slam::UpdateTrajectoryAndMapsWithIMU()
     IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
     // Update LogStates and maps
     // Reset maps
-    this->ClearMaps(this->LocalMaps);
+    this->ClearLocalMaps();
 
     // Update LogStates and maps
     for (auto& state : this->LogStates)
@@ -760,7 +760,7 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
   // In most of the cases, we would like to reset SLAM internal maps before
   // loading new maps to avoid conflicts.
   if (resetMaps)
-    this->ClearMaps(this->LocalMaps);
+    this->ClearLocalMaps();
 
   for (auto k : this->UsableKeypoints)
   {

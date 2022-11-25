@@ -101,6 +101,13 @@
         </Documentation>
       </Property>
 
+      <Property name="Clear maps"
+                command="ClearMaps">
+        <Documentation>
+          Clear the actual maps and the logged keypoints
+        </Documentation>
+      </Property>
+
       <!--~~~~~~~~~~~~~~~~~~~~~~~~~ Inputs options ~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 
       <!-- Sensor data file must be csv.
@@ -366,6 +373,7 @@
         <Property name="Reset state" />
         <Property name="Empty first" />
         <Property name="Rebuild maps" />
+        <Property name="Clear maps" />
         <Property name="External sensors data file" />
         <Property name="Reload trajectory" />
         <Property name="Auto detect input arrays" />

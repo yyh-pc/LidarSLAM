@@ -182,6 +182,16 @@ void vtkSlam::OptimizeGraph()
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::ClearMaps()
+{
+  vtkDebugMacro(<< "Clearing the maps");
+  this->SlamAlgo->ClearLocalMaps();
+  this->SlamAlgo->ClearLog();
+  // Refresh view
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::SetInitialMap(const std::string& mapsPathPrefix)
 {
   this->InitMapPrefix = mapsPathPrefix;

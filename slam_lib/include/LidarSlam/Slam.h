@@ -583,6 +583,7 @@ public:
 
   // Set RollingGrid Parameters
   void ClearMaps(Maps& maps);
+  void ClearLocalMaps() {this->ClearMaps(this->LocalMaps);}
   void ClearLog();
   double GetVoxelGridLeafSize(Keypoint k) const;
   void SetVoxelGridLeafSize(Keypoint k, double size);
