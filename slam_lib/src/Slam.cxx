@@ -507,6 +507,58 @@ void Slam::UpdateMaps(bool resetMaps)
 }
 
 //-----------------------------------------------------------------------------
+bool Slam::UpdateTrajectoryAndMapsWithIMU()
+{
+  #ifdef USE_GTSAM
+  if (this->ImuHasData())
+  {
+    IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
+    // Update LogStates and maps
+    // Reset maps
+    this->ClearMaps(this->LocalMaps);
+
+    // Update LogStates and maps
+    for (auto& state : this->LogStates)
+    {
+      if (state.Index < 1 || !state.IsKeyFrame)
+        continue;
+      std::cout << "Updating state #" << state.Index << std::endl;
+      // Update Isometry
+      ExternalSensors::PoseMeasurement synchMeas;
+      this->PoseManager->ComputeSynchronizedMeasureBase(state.Time, synchMeas);
+      state.Isometry = synchMeas.Pose;
+      // Update keypoints and maps
+      for (auto k : this->UsableKeypoints)
+      {
+        // Get keypoints
+        PointCloud::Ptr rawKeypoints = state.RawKeypoints[k]->GetCloud();
+        PointCloud::Ptr undistortedKeypoints(new PointCloud);
+        *undistortedKeypoints = *rawKeypoints;
+
+        // Update undistorted keypoints
+        this->UndistortWithPoseMeasurement(undistortedKeypoints, state.Time);
+        state.Keypoints[k]->SetCloud(undistortedKeypoints, this->LoggingStorage);
+        // Update maps
+        PointCloud::Ptr keypoints(new PointCloud);
+        keypoints->header = Utils::BuildPclHeader(state.Time, this->BaseFrameId, state.Index);
+        pcl::transformPointCloud(*undistortedKeypoints, *keypoints, state.Isometry.matrix().cast<float>());
+        this->LocalMaps[k]->Add(keypoints, false);
+      }
+    }
+    this->Tworld = this->LogStates.back().Isometry;
+
+    IF_VERBOSE(1, Utils::Timer::StopAndDisplay("Pose graph optimization"));
+    return true;
+  }
+  PRINT_ERROR("No IMU data found, trajectory is not optimized")
+  return false;
+  #else
+  PRINT_ERROR("GTSAM was not found, IMU cannot be used, the trajectory is not optimized")
+  return false;
+  #endif
+}
+
+//-----------------------------------------------------------------------------
 bool Slam::OptimizeGraph()
 {
   #ifdef USE_G2O

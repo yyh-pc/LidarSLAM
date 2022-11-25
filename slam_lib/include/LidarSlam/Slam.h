@@ -249,6 +249,10 @@ public:
   // landmarks' constraints as a postprocess
   bool OptimizeGraph();
 
+  // Use IMU measurements and optimized poses (using IMU + Lidar SLAM)
+  // to update LogStates, maps and the current pose
+  bool UpdateTrajectoryAndMapsWithIMU();
+
   Eigen::Isometry3d GetTworld(double time = -1.);
   // Set world transform with an initial guess (usually from GPS after calibration).
   void SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess);
