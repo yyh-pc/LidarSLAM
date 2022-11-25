@@ -382,7 +382,7 @@ public:
 
   void AddWheelOdomMeasurement(const ExternalSensors::WheelOdomMeasurement& om);
 
-  bool WheelOdomHasData() {return this->WheelOdomManager && this->WheelOdomManager->HasData();}
+  bool WheelOdomHasData() const {return this->WheelOdomManager && this->WheelOdomManager->HasData();}
 
   // Gravity from IMU
   double GetGravityWeight() const;
@@ -390,7 +390,7 @@ public:
 
   void AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm);
 
-  bool GravityHasData() {return this->GravityManager && this->GravityManager->HasData();}
+  bool GravityHasData() const {return this->GravityManager && this->GravityManager->HasData();}
 
   // Landmark detector
   GetMacro(LandmarkWeight, double)
@@ -414,8 +414,8 @@ public:
 
   void AddLandmarkMeasurement(const ExternalSensors::LandmarkMeasurement& lm, int id);
 
-  bool LmCanBeUsedLocally();
-  bool LmHasData();
+  bool LmCanBeUsedLocally() const;
+  bool LmHasData() const;
 
   // GPS
   void AddGpsMeasurement(const ExternalSensors::GpsMeasurement& gpsMeas);
@@ -425,7 +425,7 @@ public:
 
   Eigen::Isometry3d GetGpsOffset();
 
-  bool GpsHasData() {return this->GpsManager && this->GpsManager->HasData();}
+  bool GpsHasData() const {return this->GpsManager && this->GpsManager->HasData();}
 
   // Transform the whole trajectory (including current pose) to GPS reference frame (e.g. UTM)
   // Warning : in trajectory, the position is remained odometric i.e. only the orientation
