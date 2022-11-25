@@ -1184,9 +1184,17 @@ void Slam::Localization()
   this->Tworld = this->Tworld * this->Trelative;
 
   // Init undistorted keypoints clouds from raw points
-  // Warning : pointer copy = points modification :
-  // do not use CurrentRawKeypoints after this step
-  this->CurrentUndistortedKeypoints = this->CurrentRawKeypoints;
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
+  {
+    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
+    this->CurrentUndistortedKeypoints[k].reset(new PointCloud);
+    *this->CurrentUndistortedKeypoints[k] = *this->CurrentRawKeypoints[k];
+  }
+
   // Init and run undistortion if required
   if (this->Undistortion)
   {
@@ -1214,7 +1222,7 @@ void Slam::Localization()
 
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+  nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
   #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
@@ -1403,7 +1411,10 @@ void Slam::LogCurrentFrameState()
   state.Index = this->NbrFrameProcessed;
   state.IsKeyFrame = this->IsKeyFrame;
   for (auto k : this->UsableKeypoints)
+  {
     state.Keypoints[k] = std::make_shared<PCStorage>(this->CurrentUndistortedKeypoints[k], this->LoggingStorage);
+    state.RawKeypoints[k] = std::make_shared<PCStorage>(this->CurrentRawKeypoints[k], this->LoggingStorage);
+  }
 
   this->LogStates.emplace_back(state);
   // Remove the oldest logged states
