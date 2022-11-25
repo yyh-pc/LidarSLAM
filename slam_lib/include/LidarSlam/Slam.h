@@ -526,7 +526,7 @@ private:
   // 5: 4 + logging/maps memory usage
   int Verbosity = 0;
 
-  // Maximum duration on which to keep states in memory.
+  // Maximum duration on which to keep states in memory in seconds
   // This duration must be increased if a pose graph optimization is planned
   // The minimum number of logged states is 2, to be able to handle ego-motion and undistortion,
   // independently of this timeout value
