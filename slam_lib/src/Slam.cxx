@@ -2892,6 +2892,20 @@ void Slam::ClearMaps(Maps& maps)
 }
 
 //-----------------------------------------------------------------------------
+void Slam::ClearLog()
+{
+  auto prevlastLogStateIt = LogStates.end();
+  --prevlastLogStateIt;
+  --prevlastLogStateIt;
+  std::list<LidarState> storeLog;
+  storeLog.push_back(*prevlastLogStateIt);
+  storeLog.push_back(*(++prevlastLogStateIt));
+
+  this->LogStates.clear();
+  this->LogStates = storeLog;
+}
+
+//-----------------------------------------------------------------------------
 double Slam::GetVoxelGridDecayingThreshold() const
 {
   return this->LocalMaps.begin()->second->GetDecayingThreshold();
