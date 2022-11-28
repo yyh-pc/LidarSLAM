@@ -226,7 +226,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : basic output conversions"));
 
   // Update Trajectory with new SLAM pose
-  this->AddCurrentPoseToTrajectory();
+  this->AddPoseToTrajectory(this->SlamAlgo->GetLastState());
 
   // ===== SLAM frame and pose =====
   // Output : Current undistorted LiDAR frame in world coordinates
@@ -778,29 +778,26 @@ void vtkSlam::ResetTrajectory()
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::AddCurrentPoseToTrajectory()
+void vtkSlam::AddPoseToTrajectory(const LidarSlam::LidarState& state)
 {
-  // Get current SLAM pose in WORLD coordinates
-  LidarSlam::LidarState& currentState = this->SlamAlgo->GetLastState();
-
   // Add position
-  Eigen::Vector3d translation = currentState.Isometry.translation();
+  Eigen::Vector3d translation = state.Isometry.translation();
   this->Trajectory->GetPoints()->InsertNextPoint(translation.x(), translation.y(), translation.z());
 
   // Add orientation as quaternion
-  Eigen::Quaterniond quaternion(currentState.Isometry.linear());
+  Eigen::Quaterniond quaternion(state.Isometry.linear());
   double wxyz[] = {quaternion.w(), quaternion.x(), quaternion.y(), quaternion.z()};
   this->Trajectory->GetPointData()->GetArray("Orientation(Quaternion)")->InsertNextTuple(wxyz);
 
   // Add orientation as axis angle
-  Eigen::AngleAxisd angleAxis(currentState.Isometry.linear());
+  Eigen::AngleAxisd angleAxis(state.Isometry.linear());
   Eigen::Vector3d axis = angleAxis.axis();
   double xyza[] = {axis.x(), axis.y(), axis.z(), angleAxis.angle()};
   this->Trajectory->GetPointData()->GetArray("Orientation(AxisAngle)")->InsertNextTuple(xyza);
 
   // Add pose time and covariance
-  this->Trajectory->GetPointData()->GetArray("Time")->InsertNextTuple(&currentState.Time);
-  this->Trajectory->GetPointData()->GetArray("Covariance")->InsertNextTuple(currentState.Covariance.data());
+  this->Trajectory->GetPointData()->GetArray("Time")->InsertNextTuple(&state.Time);
+  this->Trajectory->GetPointData()->GetArray("Covariance")->InsertNextTuple(state.Covariance.data());
 
   // Add line linking 2 successive points
   vtkIdType nPoints = this->Trajectory->GetNumberOfPoints();

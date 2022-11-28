@@ -377,8 +377,8 @@ private:
   // Init/reset the output SLAM trajectory
   void ResetTrajectory();
 
-  // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
-  void AddCurrentPoseToTrajectory();
+  // Add a SLAM pose and covariance in WORLD coordinates to Trajectory.
+  void AddPoseToTrajectory(const LidarSlam::LidarState& state);
 
   // Convert VTK PolyData to PCL pointcloud
   // Returns true if all input points are valid (null coordinates), false otherwise
