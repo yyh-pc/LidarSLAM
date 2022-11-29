@@ -374,6 +374,9 @@ private:
   // Convert LiDAR calibration to laser id mapping
   std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
 
+  // Init/reset the output SLAM trajectory
+  void ResetTrajectory();
+
   // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
   void AddCurrentPoseToTrajectory();
 

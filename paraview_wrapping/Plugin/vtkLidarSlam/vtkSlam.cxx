@@ -120,16 +120,8 @@ void vtkSlam::Reset()
   this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
 
   // Init the output SLAM trajectory
-  this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
-  auto pts = vtkSmartPointer<vtkPoints>::New();
-  this->Trajectory->SetPoints(pts);
-  auto cellArray = vtkSmartPointer<vtkCellArray>::New();
-  this->Trajectory->SetLines(cellArray);
-  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
-  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
-  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
-  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
-
+  this->ResetTrajectory();
+  
   // Add the optional arrays to the trajectory
   if (this->AdvancedReturnMode)
   {
@@ -768,6 +760,21 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
     laserIdMapping = Utils::SortIdx(sortedLaserIds);
   }
   return laserIdMapping;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::ResetTrajectory()
+{
+  // Init/reset the output SLAM trajectory
+  this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
+  auto pts = vtkSmartPointer<vtkPoints>::New();
+  this->Trajectory->SetPoints(pts);
+  auto cellArray = vtkSmartPointer<vtkCellArray>::New();
+  this->Trajectory->SetLines(cellArray);
+  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
+  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
+  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
+  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
 }
 
 //-----------------------------------------------------------------------------
