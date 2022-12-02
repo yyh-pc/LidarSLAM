@@ -218,6 +218,7 @@ if (WITH_GTSAM)
 
             GIT_REPOSITORY https://github.com/borglab/gtsam
             GIT_TAG develop
+            PATCH_COMMAND git apply "${CMAKE_CURRENT_SOURCE_DIR}/patches/gtsam-windows-compatibility.patch" || (exit 0)
             GIT_SHALLOW 1
 
             CMAKE_ARGS
