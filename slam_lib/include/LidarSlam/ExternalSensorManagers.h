@@ -74,8 +74,7 @@ struct PoseMeasurement
 {
   double Time = 0.;
   Eigen::Isometry3d Pose = Eigen::Isometry3d::Identity();
-  // No covariance is attached to pose measurement for now
-  // Constant one can be used for pose graph optimizations
+  Eigen::Matrix6d Covariance = 0.05 * Eigen::Matrix6d::Identity();
 };
 
 // ---------------------------------------------------------------------------
@@ -502,6 +501,9 @@ public:
   GetSensorMacro(PrevPoseTransform, Eigen::Isometry3d)
   SetSensorMacro(PrevPoseTransform, const Eigen::Isometry3d&)
 
+  GetSensorMacro(CovarianceRotation, bool)
+  SetSensorMacro(CovarianceRotation, bool)
+
   // Compute the interpolated measure (pose of the external pose sensor's)
   // to be synchronized with SLAM output at lidarTime
   bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool trackTime = true) override;
@@ -515,6 +517,9 @@ public:
 private:
   double PrevLidarTime = -1.;
   Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
+  // Allow to rotate the covariance
+  // Can be disabled if the covariance is fixed or not used (e.g. for local constraint)
+  bool CovarianceRotation = false;
 };
 
 

@@ -513,8 +513,15 @@ bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& 
   // Interpolate external pose at LiDAR timestamp
   synchMeas.Time = lidarTime;
   synchMeas.Pose = LinearInterpolation(bounds.first->Pose, bounds.second->Pose, lidarTime, bounds.first->Time, bounds.second->Time);
-  // No covariance is attached to pose measurement for now
-  // if one is added, it should be rotated here if one uses it in an external pose graph
+
+  // Rotated covariance if required
+  if (this->CovarianceRotation)
+  {
+    Eigen::Isometry3d Trel = bounds.second->Pose.inverse() * synchMeas.Pose;
+    Eigen::Vector6d pose = Utils::IsometryToXYZRPY(bounds.second->Pose);
+    synchMeas.Covariance = bounds.second->Covariance;
+    CeresTools::RotateCovariance(pose, synchMeas.Covariance, Trel);
+  }
 
   return true;
 }
@@ -525,10 +532,15 @@ bool PoseManager::ComputeSynchronizedMeasureBase(double lidarTime, PoseMeasureme
   if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas, trackTime))
     return false;
 
+  // Rotated covariance for calibration if required 
+  if (this->CovarianceRotation)
+  {
+    Eigen::Vector6d pose = Utils::IsometryToXYZRPY(synchMeas.Pose);
+    CeresTools::RotateCovariance(pose, synchMeas.Covariance, this->Calibration.inverse());
+  }
+
   // Apply calibration
   synchMeas.Pose = synchMeas.Pose * this->Calibration.inverse();
-  // No covariance is attached to pose measurement for now
-  // if one is added, it should be rotated here if one uses it in an external pose graph
 
   return true;
 }
