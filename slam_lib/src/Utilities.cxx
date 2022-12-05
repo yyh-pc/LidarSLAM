@@ -59,6 +59,15 @@ Eigen::Vector3d RotationMatrixToRPY(const Eigen::Matrix3d& rot)
 }
 
 //------------------------------------------------------------------------------
+Eigen::Isometry3d XYZAngleAxistoIsometry(double x, double y, double z, double angle, double axisX, double axisY, double axisZ)
+{
+  Eigen::Isometry3d transform = Eigen::Isometry3d::Identity();
+  transform = Eigen::AngleAxisd(angle, Eigen::Vector3d(axisX, axisY, axisZ));
+  transform.translation() = Eigen::Vector3d(x, y, z);
+  transform.makeAffine();
+  return transform;
+}
+//------------------------------------------------------------------------------
 Eigen::Isometry3d XYZRPYtoIsometry(double x, double y, double z, double roll, double pitch, double yaw)
 {
   Eigen::Isometry3d transform;
