@@ -1203,7 +1203,10 @@ private:
 
   // Undistort the points using external pose measurement information
   // the input points must be represented in base frame, each at their own timestamp
-  void UndistortWithPoseMeasurement(PointCloud::Ptr pc) const;
+  void UndistortWithPoseMeasurement(PointCloud::Ptr pc, double refTime,
+                                    int startIdx = 0, int endIdx = -1,
+                                    Eigen::Isometry3d baseToPointsRef = Eigen::Isometry3d::Identity(),
+                                    double timeOffset = 0) const;
 
   // ---------------------------------------------------------------------------
   //   Confidence estimator helpers
@@ -1231,6 +1234,7 @@ private:
   // The output aggregated points timestamps are corrected to be relative to the 1st frame timestamp.
   // NOTE: If transforming to WORLD coordinates, be sure that Tworld/WithinFrameMotion have been updated
   //       (updated during the Localization step).
+  // This function is parallelized internally, do not put it in a parallelized loop
   PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates, bool undistort = true) const;
 
   // ---------------------------------------------------------------------------

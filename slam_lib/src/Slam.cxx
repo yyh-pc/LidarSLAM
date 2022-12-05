@@ -1211,7 +1211,7 @@ void Slam::Localization()
       // Get synchronized point pose relatively to frame
       // CurrentUndistortedKeypoints are represented in base frame
       for (auto k : this->UsableKeypoints)
-        this->UndistortWithPoseMeasurement(this->CurrentUndistortedKeypoints[k]);
+        this->UndistortWithPoseMeasurement(this->CurrentUndistortedKeypoints[k], this->CurrentTime);
     }
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : initial undistortion"));
@@ -1935,7 +1935,10 @@ void Slam::InitUndistortion()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::UndistortWithPoseMeasurement(PointCloud::Ptr pc) const
+void Slam::UndistortWithPoseMeasurement(PointCloud::Ptr pc, double refTime,
+                                        int startIdx, int endIdx,
+                                        Eigen::Isometry3d baseToPointsRef,
+                                        double timeOffset) const
 {
   if (!this->PoseHasData())
   {
@@ -1945,30 +1948,33 @@ void Slam::UndistortWithPoseMeasurement(PointCloud::Ptr pc) const
 
   ExternalSensors::PoseMeasurement synchPoseMeasCurrent; // Virtual measure with synchronized timestamp and calibration applied
 
-  if (!this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime, synchPoseMeasCurrent))
+  if (!this->PoseManager->ComputeSynchronizedMeasureBase(refTime, synchPoseMeasCurrent))
   {
     PRINT_WARNING("Could not perform undistortion using external poses supplied")
     return;
   }
 
+  if (endIdx < 0)
+    endIdx = pc->size();
+
   // Compute synchronized measures (not parallelizable)
   std::vector<ExternalSensors::PoseMeasurement> synchMeas(pc->size()); // Virtual measures with synchronized timestamp and calibration applied
   // Sort points by time to speed up synchronization search
-  std::sort(pc->points.begin(), pc->points.end(), [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
+  std::sort(pc->points.begin() + startIdx, pc->points.begin() + endIdx, [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
 
   // Compute synchronized poses for each point
-  for (unsigned int idxPt = 0; idxPt < pc->size(); ++idxPt)
-    this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime + pc->at(idxPt).time, synchMeas[idxPt]);
+  for (int idxPt = startIdx; idxPt < endIdx; ++idxPt)
+    this->PoseManager->ComputeSynchronizedMeasureBase(refTime + pc->at(idxPt).time + timeOffset, synchMeas[idxPt]);
 
 
   Eigen::Isometry3d invSynchPoseMeasCurrent = synchPoseMeasCurrent.Pose.inverse();
 
   // Transform with computed measures (parallelized)
   #pragma omp parallel for num_threads(this->NbThreads)
-  for (int idxPt = 0; idxPt < int(pc->size()); ++idxPt)
+  for (int idxPt = startIdx; idxPt < endIdx; ++idxPt)
   {
     // Get transform from base at current time to base at point time
-    Eigen::Isometry3d update = invSynchPoseMeasCurrent * synchMeas[idxPt].Pose;
+    Eigen::Isometry3d update = invSynchPoseMeasCurrent * synchMeas[idxPt].Pose * baseToPointsRef;
     Utils::TransformPoint(pc->at(idxPt), update);
   }
 
@@ -2212,38 +2218,21 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
       }
       else
       {
-        ExternalSensors::PoseMeasurement synchPoseMeasCurrent; // Virtual measure with synchronized timestamp and calibration applied
+        // Undistort to represent all points from startIdx in base at current time
+        this->UndistortWithPoseMeasurement(aggregatedFrames, this->CurrentTime,
+                                           startIdx, aggregatedFrames->size(),
+                                           baseToLidar, timeOffset);
 
-        if (!this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime, synchPoseMeasCurrent))
-        {
-          PRINT_WARNING("Could not perform undistortion using external poses supplied")
-          continue;
-        }
-        // Compute synchronized measures (not parallelizable)
-        std::vector<ExternalSensors::PoseMeasurement> synchMeas (aggregatedFrames->size()); // Virtual measures with synchronized timestamp and calibration applied
-        // Sort points by time to speed up synchronization search
-        std::sort(aggregatedFrames->points.begin() + startIdx, aggregatedFrames->points.end(), [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
-        for (unsigned int idxPt = startIdx; idxPt < aggregatedFrames->size(); ++idxPt)
-          this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime + aggregatedFrames->at(idxPt).time + timeOffset, synchMeas[idxPt]);
-
-        // Get synchronized external pose at CurrentTime
-        // To get only the relative update for eachpoint since CurrentTime
-        Eigen::Isometry3d invSynchPoseMeasCurrent = synchPoseMeasCurrent.Pose.inverse();
-
-        // Transform with computed measures (parallelized)
+        // Update times
         #pragma omp parallel for num_threads(this->NbThreads)
         for (int idxPt = startIdx; idxPt < int(aggregatedFrames->size()); ++idxPt)
         {
-          auto& point = aggregatedFrames->at(idxPt);
-
-          // Transform from base at CurrentTime to base at point time
-          Eigen::Isometry3d update = invSynchPoseMeasCurrent * synchMeas[idxPt].Pose;
-          // Transform from base at CurrentTime to Lidar at point time
-          // OR from world to Lidar at point time
-          Eigen::Isometry3d ptTransform = worldCoordinates? this->Tworld * update * baseToLidar : update * baseToLidar;
-          point.time += timeOffset;
-          Utils::TransformPoint(point, ptTransform);
+          aggregatedFrames->at(idxPt).time += timeOffset;
+          // Transform point to world frame if requested
+          if (worldCoordinates)
+            Utils::TransformPoint(aggregatedFrames->at(idxPt), this->Tworld);
         }
+
         PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
       }
     }
@@ -2266,9 +2255,8 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
         #pragma omp parallel for num_threads(this->NbThreads)
         for (int i = startIdx; i < endIdx; ++i)
         {
-          auto& point = aggregatedFrames->at(i);
-          point.time += timeOffset;
-          Utils::TransformPoint(point, tf);
+          aggregatedFrames->at(i).time += timeOffset;
+          Utils::TransformPoint(aggregatedFrames->at(i), tf);
         }
       }
     }
