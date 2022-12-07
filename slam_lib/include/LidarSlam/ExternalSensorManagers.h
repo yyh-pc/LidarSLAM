@@ -329,8 +329,6 @@ public:
   // Wheel odometry constraint (unoriented)
   // Can be relative since last frame or absolute since first pose
   bool ComputeConstraint(double lidarTime) override;
-  // odometer drifts too much too be used globally
-  bool CanBeUsedGlobally() {return false;}
 
 private:
   // Members used when using the relative distance with last estimated pose
@@ -369,8 +367,6 @@ public:
   bool ComputeConstraint(double lidarTime) override;
   // Compute Reference gravity vector from IMU measurements
   void ComputeGravityRef(double deltaAngle);
-  // IMU drifts too much too be used globally
-  bool CanBeUsedGlobally() {return false;}
 
 private:
   Eigen::Vector3d GravityRef = Eigen::Vector3d::Zero();
