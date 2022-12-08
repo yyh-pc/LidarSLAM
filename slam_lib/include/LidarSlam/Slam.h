@@ -610,7 +610,7 @@ private:
   // Static transform to link BASE and LIDAR coordinates systems for each device.
   // It corresponds to the pose of each LIDAR device origin in BASE coordinates.
   // If the transform is not available for a given device, identity will be used.
-  std::map<uint8_t, Eigen::UnalignedIsometry3d> BaseToLidarOffsets;
+  std::map<uint8_t, Eigen::UnalignedIsometry3d> BaseToLidarOffsets = {{0, Eigen::UnalignedIsometry3d::Identity()}};
 
   // ---------------------------------------------------------------------------
   //   Keypoints from current frame
