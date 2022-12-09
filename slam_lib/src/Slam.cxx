@@ -1586,6 +1586,7 @@ void Slam::UndistortWithPoseMeasurement()
           Utils::TransformPoint(point, invSynchPoseMeasCurrent * synchMeas[i].Pose);
         }
       }
+      PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
     }
   }
   else
