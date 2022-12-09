@@ -117,7 +117,7 @@ void vtkSlam::Reset()
   // Init the SLAM state (map + pose)
   if (!this->InitMapPrefix.empty())
     this->SlamAlgo->LoadMapsFromPCD(this->InitMapPrefix);
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::PoseToIsometry(this->InitPose));
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
 
   // Init the output SLAM trajectory
   this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
@@ -142,7 +142,7 @@ void vtkSlam::Reset()
   this->SetSensorData(this->ExtSensorFileName);
 
   // Refresh view
-  this->Modified();
+  this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
@@ -155,25 +155,29 @@ void vtkSlam::SetInitialMap(const std::string& mapsPathPrefix)
     vtkErrorMacro(<< "Could not load the initial map : only the prefix path must be supplied (not the complete path)");
   this->SlamAlgo->LoadMapsFromPCD(this->InitMapPrefix);
   this->ParametersModificationTime.Modified();
+  // Refresh view
+  this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
 void vtkSlam::SetInitialPoseTranslation(double x, double y, double z)
 {
+  vtkDebugMacro(<< "Setting InitialPoseTranslation to " << x << " " << y << " " << z);
   this->InitPose.x() = x;
   this->InitPose.y() = y;
   this->InitPose.z() = z;
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::PoseToIsometry(this->InitPose));
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
   this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
 void vtkSlam::SetInitialPoseRotation(double roll, double pitch, double yaw)
 {
+  vtkDebugMacro(<< "Setting InitialPoseRotation to " << roll << " " << pitch << " " << yaw);
   this->InitPose(3) = roll;
   this->InitPose(4) = pitch;
   this->InitPose(5) = yaw;
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::PoseToIsometry(this->InitPose));
+  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
   this->ParametersModificationTime.Modified();
 }
 
@@ -426,8 +430,49 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 }
 
 //-----------------------------------------------------------------------------
+Eigen::Isometry3d vtkSlam::GetCalibrationMatrix(const std::string& fileName) const
+{
+  // Look for file
+  std::ifstream fin (fileName);
+  Eigen::Isometry3d base2Sensor = Eigen::Isometry3d::Identity();
+  if (fin.is_open())
+  {
+    // Parse elements
+    int i = 0;
+    while (fin.good() && i < 16)
+    {
+      std::string elementString;
+      fin >> elementString;
+      try
+      {
+        base2Sensor.matrix()(i) = std::stof(elementString);
+      }
+      catch (...)
+      {
+        vtkErrorMacro(<< "Calibration file not well formed"
+                      << " -> calibration is set to identity");
+        base2Sensor = Eigen::Isometry3d::Identity();
+        break;
+      }
+      ++i;
+    }
+    base2Sensor.matrix().transposeInPlace();
+  }
+  else
+  {
+    vtkErrorMacro(<< "Could not find calibration file : "
+                  << fileName
+                  << " -> calibration is set to identity");
+  }
+  vtkDebugMacro(<< "Calibration set to :\n"
+                << base2Sensor.matrix() << std::endl);
+  return base2Sensor;
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::SetSensorData(const std::string& fileName)
 {
+  vtkDebugMacro(<< "Setting sensor data from " << fileName);
   this->ExtSensorFileName = fileName;
   // Empty current measurements and reset local sensor params
   this->SlamAlgo->ResetSensors(true);
@@ -454,6 +499,14 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   // Set the maximum number of measurements stored in the SLAM filter
   this->SlamAlgo->SetSensorMaxMeasures(arrayTime->GetNumberOfTuples());
 
+  // Look for a calibration file next to first file
+  boost::filesystem::path path(fileName);
+  std::string calibFileName = (path.parent_path() / "calibration_external_sensor.mat").string();
+  // Set calibration
+  Eigen::Isometry3d base2Sensor = this->GetCalibrationMatrix(calibFileName);
+
+  bool extSensorFit = false;
+
   // Process wheel odometer data
   if (csvTable->GetRowData()->HasArray("odom"))
   {
@@ -465,7 +518,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       odomMeasurement.Distance = arrayOdom->GetTuple1(i);
       this->SlamAlgo->AddWheelOdomMeasurement(odomMeasurement);
     }
-    std::cout << "Odometry data successfully loaded " << std::endl;
+    PRINT_INFO("Odometry data successfully loaded")
   }
 
   // Process IMU data
@@ -485,7 +538,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       gravityMeasurement.Acceleration.z() = arrayAccZ->GetTuple1(i);
       this->SlamAlgo->AddGravityMeasurement(gravityMeasurement);
     }
-    std::cout << "IMU data successfully loaded " << std::endl;
+    PRINT_INFO("IMU data successfully loaded");
   }
 
   // Process Pose data
@@ -496,36 +549,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
    && csvTable->GetRowData()->HasArray("pitch")
    && csvTable->GetRowData()->HasArray("yaw"))
   {
-    // Set calibration
-    // Look for calib file next to first file
-    boost::filesystem::path path(fileName);
-    std::string calibFileName = (path.parent_path() / "calibration_external_sensor.txt").string();
-    std::ifstream fin (calibFileName);
-    Eigen::Isometry3d base2Sensor = Eigen::Isometry3d::Identity();
-    if (fin.is_open())
-    {
-      int i = 0;
-      while (fin.good())
-      {
-        std::string elementString;
-        fin >> elementString;
-        base2Sensor.matrix()(i) = stof(elementString);
-        ++i;
-      }
-      base2Sensor.matrix().transposeInPlace();
-    }
-    else
-    {
-      vtkErrorMacro("Could not find external poses calibration file : "
-                    <<calibFileName <<"\n"
-                    <<"\t-> calibration is set to identity, measurements must represent base_link motion");
-    }
-
     this->SlamAlgo->SetPoseCalibration(base2Sensor);
-    vtkDebugMacro("External poses sensor calibration found at "
-                    << calibFileName << " : \n"
-                    << base2Sensor.matrix() <<"\n" << std::endl);
-
     auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
     auto arrayY     = csvTable->GetRowData()->GetArray("y"    );
     auto arrayZ     = csvTable->GetRowData()->GetArray("z"    );
@@ -548,8 +572,14 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       this->SlamAlgo->AddPoseMeasurement(meas);
     }
 
-    vtkDebugMacro("Pose data successfully loaded");
+    PRINT_INFO("Pose data successfully loaded")
   }
+
+  if (!extSensorFit)
+    vtkWarningMacro(<< this->GetClassName() << " (" << this << "): No usable data found in the external sensor file");
+
+  // Refresh view
+  this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
@@ -557,10 +587,14 @@ void vtkSlam::SetSensorTimeSynchronization(int mode)
 {
   if (mode > 1)
   {
-    vtkErrorMacro("Invalid time synchronization mode (" << mode << "), ignoring setting.");
+    vtkErrorMacro(<< "Invalid time synchronization mode (" << mode << "), ignoring setting.");
     return;
   }
+  vtkDebugMacro(<< "Setting SensorTimeSynchronization to " << mode);
   this->SynchronizeOnPacket = (mode == 0);
+
+  // Refresh view
+  this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
@@ -700,9 +734,7 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
     else if (CheckAndSetScanArrays("Timestamp", "Intensity", "LaserID"))
     {
       this->TimeToSecondsFactor = 1.;
-      CheckKEParameter("Hesai", EdgeIntensityGapThreshold, > 1e6);
       CheckKEParameter("Hesai", MinNeighNb, > 4);
-      CheckKEParameter("Hesai", MinDistanceToSensor, < 1);
     }
 
     // Failed to recognize LiDAR vendor
@@ -856,9 +888,9 @@ bool vtkSlam::areEdgesEnabled()
 {
   bool enabled = this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::EDGE);
   if (enabled)
-    vtkDebugMacro("Edges are enabled");
+    vtkDebugMacro(<< "Edges are enabled");
   else
-    vtkDebugMacro("Edges are disabled");
+    vtkDebugMacro(<< "Edges are disabled");
   return enabled;
 }
 
@@ -866,9 +898,9 @@ bool vtkSlam::areIntensityEdgesEnabled()
 {
   bool enabled = this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::INTENSITY_EDGE);
   if (enabled)
-    vtkDebugMacro("Intensity edges are enabled");
+    vtkDebugMacro(<< "Intensity edges are enabled");
   else
-    vtkDebugMacro("Intensity edges are disabled");
+    vtkDebugMacro(<< "Intensity edges are disabled");
   return enabled;
 }
 
@@ -876,9 +908,9 @@ bool vtkSlam::arePlanesEnabled()
 {
   bool enabled = this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::PLANE);
   if (enabled)
-    vtkDebugMacro("Planes are enabled");
+    vtkDebugMacro(<< "Planes are enabled");
   else
-    vtkDebugMacro("Planes are disabled");
+    vtkDebugMacro(<< "Planes are disabled");
   return enabled;
 }
 
@@ -886,9 +918,9 @@ bool vtkSlam::areBlobsEnabled()
 {
   bool enabled = this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::BLOB);
   if (enabled)
-    vtkDebugMacro("Blobs are enabled");
+    vtkDebugMacro(<< "Blobs are enabled");
   else
-    vtkDebugMacro("Blobs are disabled");
+    vtkDebugMacro(<< "Blobs are disabled");
   return enabled;
 }
 
@@ -896,13 +928,13 @@ bool vtkSlam::areBlobsEnabled()
 void vtkSlam::EnableEdges(bool enabled)
 {
   if (enabled)
-    vtkDebugMacro("Enabling edges");
+    vtkDebugMacro(<< "Enabling edges");
   else
   {
-    vtkDebugMacro("Disabling edges");
+    vtkDebugMacro(<< "Disabling edges");
     if (!this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::PLANE) &&
         !this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::BLOB))
-      vtkWarningMacro("No keypoint selected !");
+      vtkWarningMacro(<< "No keypoint selected !");
   }
   this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::EDGE, enabled);
 }
@@ -910,13 +942,13 @@ void vtkSlam::EnableEdges(bool enabled)
 void vtkSlam::EnableIntensityEdges(bool enabled)
 {
   if (enabled)
-    vtkDebugMacro("Enabling intensity edges");
+    vtkDebugMacro(<< "Enabling intensity edges");
   else
   {
-    vtkDebugMacro("Disabling intensity edges");
+    vtkDebugMacro(<< "Disabling intensity edges");
     if (!this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::PLANE) &&
         !this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::BLOB))
-      vtkWarningMacro("No keypoint selected !");
+      vtkWarningMacro(<< "No keypoint selected !");
   }
   this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::INTENSITY_EDGE, enabled);
 }
@@ -924,13 +956,13 @@ void vtkSlam::EnableIntensityEdges(bool enabled)
 void vtkSlam::EnablePlanes(bool enabled)
 {
   if (enabled)
-    vtkDebugMacro("Enabling planes");
+    vtkDebugMacro(<< "Enabling planes");
   else
   {
-    vtkDebugMacro("Disabling planes");
+    vtkDebugMacro(<< "Disabling planes");
     if (!this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::EDGE) &&
         !this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::BLOB))
-      vtkWarningMacro("No keypoint selected !");
+      vtkWarningMacro(<< "No keypoint selected !");
   }
   this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::PLANE, enabled);
 }
@@ -938,13 +970,13 @@ void vtkSlam::EnablePlanes(bool enabled)
 void vtkSlam::EnableBlobs(bool enabled)
 {
   if (enabled)
-    vtkDebugMacro("Enabling blobs");
+    vtkDebugMacro(<< "Enabling blobs");
   else
   {
-    vtkDebugMacro("Disabling blobs");
+    vtkDebugMacro(<< "Disabling blobs");
     if (!this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::EDGE) &&
         !this->SlamAlgo->KeypointTypeEnabled(LidarSlam::Keypoint::PLANE))
-      vtkWarningMacro("No keypoint selected !");
+      vtkWarningMacro(<< "No keypoint selected !");
   }
   this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::BLOB, enabled);
 }
@@ -952,7 +984,7 @@ void vtkSlam::EnableBlobs(bool enabled)
 //-----------------------------------------------------------------------------
 void vtkSlam::SetAdvancedReturnMode(bool _arg)
 {
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting AdvancedReturnMode to " << _arg);
+  vtkDebugMacro(<< "Setting AdvancedReturnMode to " << _arg);
   if (this->AdvancedReturnMode != _arg)
   {
     auto debugInfo = this->SlamAlgo->GetDebugInformation();
@@ -995,7 +1027,7 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
 int vtkSlam::GetOutputKeypointsMaps()
 {
   int outputMaps = static_cast<int>(this->OutputKeypointsMaps);
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning output keypoints maps mode : " << outputMaps);
+  vtkDebugMacro(<< "Returning output keypoints maps mode : " << outputMaps);
   return outputMaps;
 }
 
@@ -1007,22 +1039,24 @@ void vtkSlam::SetOutputKeypointsMaps(int mode)
       outputMaps != OutputKeypointsMapsMode::FULL_MAPS &&
       outputMaps != OutputKeypointsMapsMode::SUB_MAPS)
   {
-    vtkErrorMacro("Invalid output keypoints maps mode (" << mode << "), ignoring setting.");
+    vtkErrorMacro(<< "Invalid output keypoints maps mode (" << mode << "), ignoring setting.");
     return;
   }
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting output keypoints maps mode to " << mode);
+  vtkDebugMacro(<< "Setting output keypoints maps mode to " << mode);
   if (this->OutputKeypointsMaps != outputMaps)
   {
     this->OutputKeypointsMaps = outputMaps;
     this->ParametersModificationTime.Modified();
   }
+  // Refresh view
+  this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
 int vtkSlam::GetEgoMotion()
 {
   int egoMotion = static_cast<int>(this->SlamAlgo->GetEgoMotion());
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning Ego-Motion of " << egoMotion);
+  vtkDebugMacro(<< "Returning Ego-Motion of " << egoMotion);
   return egoMotion;
 }
 
@@ -1037,10 +1071,10 @@ void vtkSlam::SetEgoMotion(int mode)
       egoMotion != LidarSlam::EgoMotionMode::EXTERNAL &&
       egoMotion != LidarSlam::EgoMotionMode::EXTERNAL_OR_MOTION_EXTRAPOLATION)
   {
-    vtkErrorMacro("Invalid ego-motion mode (" << mode << "), ignoring setting.");
+    vtkErrorMacro(<< "Invalid ego-motion mode (" << mode << "), ignoring setting.");
     return;
   }
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting Ego-Motion to " << mode);
+  vtkDebugMacro(<< "Setting Ego-Motion to " << mode);
   if (this->SlamAlgo->GetEgoMotion() != egoMotion)
   {
     this->SlamAlgo->SetEgoMotion(egoMotion);
@@ -1052,7 +1086,7 @@ void vtkSlam::SetEgoMotion(int mode)
 int vtkSlam::GetUndistortion()
 {
   int undistortion = static_cast<int>(this->SlamAlgo->GetUndistortion());
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning Undistortion of " << undistortion);
+  vtkDebugMacro(<< "Returning Undistortion of " << undistortion);
   return undistortion;
 }
 
@@ -1065,10 +1099,10 @@ void vtkSlam::SetUndistortion(int mode)
       undistortion != LidarSlam::UndistortionMode::REFINED &&
       undistortion != LidarSlam::UndistortionMode::EXTERNAL)
   {
-    vtkErrorMacro("Invalid undistortion mode (" << mode << "), ignoring setting.");
+    vtkErrorMacro(<< "Invalid undistortion mode (" << mode << "), ignoring setting.");
     return;
   }
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting Undistortion to " << mode);
+  vtkDebugMacro(<< "Setting Undistortion to " << mode);
   if (this->SlamAlgo->GetUndistortion() != undistortion)
   {
     this->SlamAlgo->SetUndistortion(undistortion);
@@ -1079,6 +1113,7 @@ void vtkSlam::SetUndistortion(int mode)
 //-----------------------------------------------------------------------------
 void vtkSlam::SetBaseToLidarTranslation(double x, double y, double z)
 {
+  vtkDebugMacro(<< "Setting BaseToLidarTranslation to " << x << " " << y << " " << z);
   Eigen::Isometry3d baseToLidar = this->SlamAlgo->GetBaseToLidarOffset();
   baseToLidar.translation() = Eigen::Vector3d(x, y, z);
   this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
@@ -1088,8 +1123,22 @@ void vtkSlam::SetBaseToLidarTranslation(double x, double y, double z)
 //-----------------------------------------------------------------------------
 void vtkSlam::SetBaseToLidarRotation(double rx, double ry, double rz)
 {
+  vtkDebugMacro(<< "Setting BaseToLidarRotation to " << rx << " " << ry << " " << rz);
   Eigen::Isometry3d baseToLidar = this->SlamAlgo->GetBaseToLidarOffset();
   baseToLidar.linear() = Utils::RPYtoRotationMatrix(Utils::Deg2Rad(rx), Utils::Deg2Rad(ry), Utils::Deg2Rad(rz));
+  this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetBaseToLidarTransform(std::string filename)
+{
+  Eigen::Isometry3d baseToLidar;
+  if (filename.empty())
+    baseToLidar = Eigen::Isometry3d::Identity();
+  else
+    baseToLidar = this->GetCalibrationMatrix(filename);
+  vtkDebugMacro(<< "Setting BaseToLidarTransform to \n" << baseToLidar.matrix() << "\n");
   this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
   this->ParametersModificationTime.Modified();
 }
@@ -1106,7 +1155,7 @@ void vtkSlam::SetKeyPointsExtractor(vtkSpinningSensorKeypointExtractor* _arg)
 unsigned int vtkSlam::GetMapUpdate()
 {
   unsigned int mapUpdate = static_cast<unsigned int>(this->SlamAlgo->GetMapUpdate());
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning mapping mode of " << mapUpdate);
+  vtkDebugMacro(<< "Returning mapping mode of " << mapUpdate);
   return mapUpdate;
 }
 
@@ -1118,10 +1167,10 @@ void vtkSlam::SetMapUpdate(unsigned int mode)
       mapUpdate != LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP &&
       mapUpdate != LidarSlam::MappingMode::UPDATE)
   {
-    vtkErrorMacro("Invalid mapping mode (" << mode << "), ignoring setting.");
+    vtkErrorMacro(<< "Invalid mapping mode (" << mode << "), ignoring setting.");
     return;
   }
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting mapping mode to " << mode);
+  vtkDebugMacro(<< "Setting mapping mode to " << mode);
   if (this->SlamAlgo->GetMapUpdate() != mapUpdate)
   {
     this->SlamAlgo->SetMapUpdate(mapUpdate);
@@ -1141,7 +1190,7 @@ void vtkSlam::SetVoxelGridLeafSize(LidarSlam::Keypoint k, double s)
   if (!this->SlamAlgo->KeypointTypeEnabled(k))
     return;
 
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting VoxelGridLeafSize to " << s);
+  vtkDebugMacro(<< "Setting VoxelGridLeafSize to " << s);
   this->SlamAlgo->SetVoxelGridLeafSize(k, s);
   this->ParametersModificationTime.Modified();
 }
@@ -1151,11 +1200,11 @@ double vtkSlam::GetVoxelGridLeafSize(LidarSlam::Keypoint k) const
 {
   if (!this->SlamAlgo->KeypointTypeEnabled(k))
   {
-    vtkErrorMacro("Cannot get leaf size, " << LidarSlam::KeypointTypeNames.at(k) << " keypoints are not enabled.");
+    vtkErrorMacro(<< "Cannot get leaf size, " << LidarSlam::KeypointTypeNames.at(k) << " keypoints are not enabled.");
     return -1.;
   }
   double leafSize = this->SlamAlgo->GetVoxelGridLeafSize(k);
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning sampling mode : " << leafSize);
+  vtkDebugMacro(<< "Returning sampling mode : " << leafSize);
   return leafSize;
 }
 
@@ -1164,12 +1213,12 @@ int vtkSlam::GetVoxelGridSamplingMode(LidarSlam::Keypoint k) const
 {
   if (!this->SlamAlgo->KeypointTypeEnabled(k))
   {
-    vtkErrorMacro("Cannot get sampling mode, " << LidarSlam::KeypointTypeNames.at(k) << " keypoints are not enabled.");
+    vtkErrorMacro(<< "Cannot get sampling mode, " << LidarSlam::KeypointTypeNames.at(k) << " keypoints are not enabled.");
     return -1;
   }
   LidarSlam::SamplingMode sampling = this->SlamAlgo->GetVoxelGridSamplingMode(k);
   int sm = static_cast<int>(sampling);
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): returning sampling mode : " << sm);
+  vtkDebugMacro(<< "Returning sampling mode : " << sm);
   return sm;
 }
 
@@ -1192,10 +1241,10 @@ void vtkSlam::SetVoxelGridSamplingMode(LidarSlam::Keypoint k, int mode)
       sampling != LidarSlam::SamplingMode::CENTER_POINT  &&
       sampling != LidarSlam::SamplingMode::CENTROID)
   {
-    vtkErrorMacro("Invalid sampling mode (" << mode << "), ignoring setting.");
+    vtkErrorMacro(<< "Invalid sampling mode (" << mode << "), ignoring setting.");
     return;
   }
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting sampling mode to " << mode);
+  vtkDebugMacro(<< "Setting sampling mode to " << mode);
   if (this->SlamAlgo->GetVoxelGridSamplingMode(k) != sampling)
   {
     this->SlamAlgo->SetVoxelGridSamplingMode(k, sampling);
@@ -1207,7 +1256,7 @@ void vtkSlam::SetVoxelGridSamplingMode(LidarSlam::Keypoint k, int mode)
 void vtkSlam::SetOverlapSamplingRatio(double ratio)
 {
   // Change parameter value if it is modified
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting OverlapSamplingRatio to " << ratio);
+  vtkDebugMacro(<< "Setting OverlapSamplingRatio to " << ratio);
   if (this->OverlapSamplingRatio != ratio)
   {
     this->OverlapSamplingRatio = ratio;
@@ -1216,12 +1265,16 @@ void vtkSlam::SetOverlapSamplingRatio(double ratio)
 
   // Forward this parameter change to SLAM if Advanced Return Mode is enabled
   if (this->AdvancedReturnMode)
+  {
     this->SlamAlgo->SetOverlapSamplingRatio(this->OverlapSamplingRatio);
+    this->ParametersModificationTime.Modified();
+  }
 }
 
 //-----------------------------------------------------------------------------
 void vtkSlam::SetAccelerationLimits(float linearAcc, float angularAcc)
 {
+  vtkDebugMacro(<< "Setting AccelerationLimits to " << linearAcc << " " << angularAcc);
   this->SlamAlgo->SetAccelerationLimits({linearAcc, angularAcc});
   this->ParametersModificationTime.Modified();
 }
@@ -1229,6 +1282,7 @@ void vtkSlam::SetAccelerationLimits(float linearAcc, float angularAcc)
 //-----------------------------------------------------------------------------
 void vtkSlam::SetVelocityLimits(float linearVel, float angularVel)
 {
+  vtkDebugMacro(<< "Setting VelocityLimits to " << linearVel << " " << angularVel);
   this->SlamAlgo->SetVelocityLimits({linearVel, angularVel});
   this->ParametersModificationTime.Modified();
 }
@@ -1237,7 +1291,7 @@ void vtkSlam::SetVelocityLimits(float linearVel, float angularVel)
 void vtkSlam::SetTimeWindowDuration(float time)
 {
   // Change parameter value if it is modified
-  vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting TimeWindowDuration to " << time);
+  vtkDebugMacro(<< "Setting TimeWindowDuration to " << time);
   if (this->TimeWindowDuration != time)
   {
     this->TimeWindowDuration = time;
@@ -1249,6 +1303,7 @@ void vtkSlam::SetTimeWindowDuration(float time)
   {
     this->SlamAlgo->SetTimeWindowDuration(this->TimeWindowDuration);
     this->SlamAlgo->SetLoggingTimeout(std::max(this->LoggingTimeout, 1.1 * this->TimeWindowDuration));
+    this->ParametersModificationTime.Modified();
   }
 }
 

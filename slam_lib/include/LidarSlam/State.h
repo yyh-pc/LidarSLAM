@@ -21,6 +21,7 @@
 #include <Eigen/Geometry>
 #include "LidarSlam/PointCloudStorage.h"
 #include "LidarSlam/LidarPoint.h"
+#include "LidarSlam/Enums.h"
 
 namespace LidarSlam
 {

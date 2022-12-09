@@ -382,7 +382,7 @@ public:
 
   void AddWheelOdomMeasurement(const ExternalSensors::WheelOdomMeasurement& om);
 
-  bool WheelOdomHasData() {return this->WheelOdomManager && this->WheelOdomManager->HasData();}
+  bool WheelOdomHasData() const {return this->WheelOdomManager && this->WheelOdomManager->HasData();}
 
   // Gravity from IMU
   double GetGravityWeight() const;
@@ -390,7 +390,7 @@ public:
 
   void AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm);
 
-  bool GravityHasData() {return this->GravityManager && this->GravityManager->HasData();}
+  bool GravityHasData() const {return this->GravityManager && this->GravityManager->HasData();}
 
   // Landmark detector
   GetMacro(LandmarkWeight, double)
@@ -414,8 +414,8 @@ public:
 
   void AddLandmarkMeasurement(const ExternalSensors::LandmarkMeasurement& lm, int id);
 
-  bool LmCanBeUsedLocally();
-  bool LmHasData();
+  bool LmCanBeUsedLocally() const;
+  bool LmHasData() const;
 
   // GPS
   void AddGpsMeasurement(const ExternalSensors::GpsMeasurement& gpsMeas);
@@ -425,7 +425,7 @@ public:
 
   Eigen::Isometry3d GetGpsOffset();
 
-  bool GpsHasData() {return this->GpsManager && this->GpsManager->HasData();}
+  bool GpsHasData() const {return this->GpsManager && this->GpsManager->HasData();}
 
   // Transform the whole trajectory (including current pose) to GPS reference frame (e.g. UTM)
   // Warning : in trajectory, the position is remained odometric i.e. only the orientation
@@ -526,7 +526,7 @@ private:
   // 5: 4 + logging/maps memory usage
   int Verbosity = 0;
 
-  // Maximum duration on which to keep states in memory.
+  // Maximum duration on which to keep states in memory in seconds
   // This duration must be increased if a pose graph optimization is planned
   // The minimum number of logged states is 2, to be able to handle ego-motion and undistortion,
   // independently of this timeout value
@@ -610,7 +610,7 @@ private:
   // Static transform to link BASE and LIDAR coordinates systems for each device.
   // It corresponds to the pose of each LIDAR device origin in BASE coordinates.
   // If the transform is not available for a given device, identity will be used.
-  std::map<uint8_t, Eigen::UnalignedIsometry3d> BaseToLidarOffsets;
+  std::map<uint8_t, Eigen::UnalignedIsometry3d> BaseToLidarOffsets = {{0, Eigen::UnalignedIsometry3d::Identity()}};
 
   // ---------------------------------------------------------------------------
   //   Keypoints from current frame

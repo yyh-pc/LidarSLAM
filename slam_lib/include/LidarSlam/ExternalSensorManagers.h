@@ -175,7 +175,7 @@ public:
   // Check if sensor can be used in tight SLAM optimization
   // The weight must be not null and the measures list must contain
   // at leat 2 elements to be able to interpolate
-  bool CanBeUsedLocally()
+  bool CanBeUsedLocally() const
   {
     std::lock_guard<std::mutex> lock(this->Mtx);
     return this->Weight > 1e-6 && this->Measures.size() > 1;
@@ -184,7 +184,7 @@ public:
   // ------------------
   // Check if sensor has enough data to be interpolated
   // (the measures list must contain at leat 2 elements)
-  bool HasData()
+  bool HasData() const
   {
     std::lock_guard<std::mutex> lock(this->Mtx);
     return this->Measures.size() > 1;
@@ -329,8 +329,6 @@ public:
   // Wheel odometry constraint (unoriented)
   // Can be relative since last frame or absolute since first pose
   bool ComputeConstraint(double lidarTime) override;
-  // odometer drifts too much too be used globally
-  bool CanBeUsedGlobally() {return false;}
 
 private:
   // Members used when using the relative distance with last estimated pose
@@ -369,8 +367,6 @@ public:
   bool ComputeConstraint(double lidarTime) override;
   // Compute Reference gravity vector from IMU measurements
   void ComputeGravityRef(double deltaAngle);
-  // IMU drifts too much too be used globally
-  bool CanBeUsedGlobally() {return false;}
 
 private:
   Eigen::Vector3d GravityRef = Eigen::Vector3d::Zero();
@@ -479,7 +475,7 @@ public:
 
   bool ComputeConstraint(double lidarTime) override;
 
-  bool CanBeUsedLocally(){return false;}
+  bool CanBeUsedLocally() const {return false;}
 
 private:
   // Offset transform to link GPS global frame and Lidar SLAM global frame

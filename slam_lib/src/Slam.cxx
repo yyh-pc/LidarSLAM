@@ -1586,6 +1586,7 @@ void Slam::UndistortWithPoseMeasurement()
           Utils::TransformPoint(point, invSynchPoseMeasCurrent * synchMeas[i].Pose);
         }
       }
+      PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
     }
   }
   else
@@ -1957,7 +1958,7 @@ void Slam::SetLmDetectorCalibration(const Eigen::Isometry3d& calib)
 }
 
 //-----------------------------------------------------------------------------
-bool Slam::LmCanBeUsedLocally()
+bool Slam::LmCanBeUsedLocally() const
 {
   bool lmCanBeUsed = false;
   for (auto& idLm : this->LandmarksManagers)
@@ -1972,7 +1973,7 @@ bool Slam::LmCanBeUsedLocally()
 }
 
 //-----------------------------------------------------------------------------
-bool Slam::LmHasData()
+bool Slam::LmHasData() const
 {
   bool lmHasData = false;
   for (auto& idLm : this->LandmarksManagers)

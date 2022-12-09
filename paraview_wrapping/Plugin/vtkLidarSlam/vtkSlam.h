@@ -177,6 +177,8 @@ public:
 
   virtual void SetBaseToLidarRotation(double rx, double ry, double rz);
 
+  virtual void SetBaseToLidarTransform(std::string filename);
+
   // ---------------------------------------------------------------------------
   //   Optimization parameters
   // ---------------------------------------------------------------------------
@@ -384,6 +386,8 @@ private:
   // Convert PCL pointcloud to VTK PolyData
   void PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr pc,
                             vtkPolyData* poly) const;
+
+  Eigen::Isometry3d GetCalibrationMatrix(const std::string& fileName) const;
 
   // ---------------------------------------------------------------------------
   //   Member attributes

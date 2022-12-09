@@ -198,14 +198,6 @@ Eigen::Isometry3d XYZRPYtoIsometry(double x, double y, double z, double roll, do
 
 //------------------------------------------------------------------------------
 /*!
- * @brief Convert pose as XYZRPY to full rigid transform
- * @param pose
- * @return The rigid transform (rotation + translation)
- */
-Eigen::Isometry3d PoseToIsometry(const Eigen::Vector6d& pose);
-
-//------------------------------------------------------------------------------
-/*!
  * @brief Convert translation and RPY to full rigid transform
  * @param xyzrpy Translation (X, Y, Z) and Rotation (rX, rY, rZ)
  * @return The rigid transform (rotation + translation)
