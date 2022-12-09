@@ -430,6 +430,46 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 }
 
 //-----------------------------------------------------------------------------
+Eigen::Isometry3d vtkSlam::GetCalibrationMatrix(const std::string& fileName) const
+{
+  // Look for file
+  std::ifstream fin (fileName);
+  Eigen::Isometry3d base2Sensor = Eigen::Isometry3d::Identity();
+  if (fin.is_open())
+  {
+    // Parse elements
+    int i = 0;
+    while (fin.good() && i < 16)
+    {
+      std::string elementString;
+      fin >> elementString;
+      try
+      {
+        base2Sensor.matrix()(i) = std::stof(elementString);
+      }
+      catch (...)
+      {
+        vtkErrorMacro(<< "Calibration file not well formed"
+                      << " -> calibration is set to identity");
+        base2Sensor = Eigen::Isometry3d::Identity();
+        break;
+      }
+      ++i;
+    }
+    base2Sensor.matrix().transposeInPlace();
+  }
+  else
+  {
+    vtkErrorMacro(<< "Could not find calibration file : "
+                  << fileName
+                  << " -> calibration is set to identity");
+  }
+  vtkDebugMacro(<< "Calibration set to :\n"
+                << base2Sensor.matrix() << std::endl);
+  return base2Sensor;
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::SetSensorData(const std::string& fileName)
 {
   vtkDebugMacro(<< "Setting sensor data from " << fileName);
@@ -458,6 +498,14 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     return;
   // Set the maximum number of measurements stored in the SLAM filter
   this->SlamAlgo->SetSensorMaxMeasures(arrayTime->GetNumberOfTuples());
+
+  // Look for a calibration file next to first file
+  boost::filesystem::path path(fileName);
+  std::string calibFileName = (path.parent_path() / "calibration_external_sensor.mat").string();
+  // Set calibration
+  Eigen::Isometry3d base2Sensor = this->GetCalibrationMatrix(calibFileName);
+
+  bool extSensorFit = false;
 
   // Process wheel odometer data
   if (csvTable->GetRowData()->HasArray("odom"))
@@ -501,36 +549,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
    && csvTable->GetRowData()->HasArray("pitch")
    && csvTable->GetRowData()->HasArray("yaw"))
   {
-    // Set calibration
-    // Look for calib file next to first file
-    boost::filesystem::path path(fileName);
-    std::string calibFileName = (path.parent_path() / "calibration_external_sensor.txt").string();
-    std::ifstream fin (calibFileName);
-    Eigen::Isometry3d base2Sensor = Eigen::Isometry3d::Identity();
-    if (fin.is_open())
-    {
-      int i = 0;
-      while (fin.good())
-      {
-        std::string elementString;
-        fin >> elementString;
-        base2Sensor.matrix()(i) = stof(elementString);
-        ++i;
-      }
-      base2Sensor.matrix().transposeInPlace();
-    }
-    else
-    {
-      vtkErrorMacro(<< "Could not find external poses calibration file : "
-                    << calibFileName <<"\n"
-                    << "\t-> calibration is set to identity, measurements must represent base_link motion");
-    }
-
     this->SlamAlgo->SetPoseCalibration(base2Sensor);
-    vtkDebugMacro(<< "External poses sensor calibration found at "
-                  << calibFileName << " : \n"
-                  << base2Sensor.matrix() <<"\n" << std::endl);
-
     auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
     auto arrayY     = csvTable->GetRowData()->GetArray("y"    );
     auto arrayZ     = csvTable->GetRowData()->GetArray("z"    );
@@ -1107,6 +1126,19 @@ void vtkSlam::SetBaseToLidarRotation(double rx, double ry, double rz)
   vtkDebugMacro(<< "Setting BaseToLidarRotation to " << rx << " " << ry << " " << rz);
   Eigen::Isometry3d baseToLidar = this->SlamAlgo->GetBaseToLidarOffset();
   baseToLidar.linear() = Utils::RPYtoRotationMatrix(Utils::Deg2Rad(rx), Utils::Deg2Rad(ry), Utils::Deg2Rad(rz));
+  this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetBaseToLidarTransform(std::string filename)
+{
+  Eigen::Isometry3d baseToLidar;
+  if (filename.empty())
+    baseToLidar = Eigen::Isometry3d::Identity();
+  else
+    baseToLidar = this->GetCalibrationMatrix(filename);
+  vtkDebugMacro(<< "Setting BaseToLidarTransform to \n" << baseToLidar.matrix() << "\n");
   this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
   this->ParametersModificationTime.Modified();
 }
