@@ -590,5 +590,36 @@ bool PoseManager::ComputeConstraint(double lidarTime)
   return true;
 }
 
+// ---------------------------------------------------------------------------
+bool PoseManager::CheckBounds(std::list<PoseMeasurement>::iterator& prevIt, std::list<PoseMeasurement>::iterator& postIt)
+{
+  // If the time between the 2 measurements is too long and the motion is too large
+  // Do not use the current measures
+  if (postIt->Time - prevIt->Time > this->TimeThreshold)
+  {
+    bool smallMotion = false;
+    // If DistanceThreshold is set, check also the motion diffrence
+    // If the motion is too large, do not use the current measures and return false.
+    // If the motion is smaller than the DistanceThreshold, the two measures can be interpolated. Return true.
+    if (this->DistanceThreshold > 0)
+    {
+      Eigen::Isometry3d motionTwoMeas = prevIt->Pose.inverse() * postIt->Pose;
+      double transTwoMeas = motionTwoMeas.translation().norm();
+      if (transTwoMeas < this->DistanceThreshold)
+        smallMotion = true;
+    }
+    if (!smallMotion)
+    {
+      if (this->Verbose)
+          PRINT_INFO(std::fixed << std::setprecision(9)
+                      << "\t Measures at time " << prevIt->Time << " and "
+                      << postIt->Time <<" can not be interpolated (too much time difference or too small motion difference)\n"
+                      << std::scientific)
+      return false;
+    }
+  }
+  return true;
+}
+
 } // end of ExternalSensors namespace
 } // end of LidarSlam namespace
