@@ -76,9 +76,9 @@
       <Property name="Reset state"
                 command="Reset">
         <Documentation>
-          Reset SLAM internal state : maps and trajectory are cleared, and
-          current pose is set back to origin.
-          This keeps parameters and sensor data unchanged.
+          Reset SLAM internal state : maps and trajectory are cleared,
+          current pose is set back to origin and clear and refill external sensor data.
+          This keeps parameters unchanged.
         </Documentation>
       </Property>
 
@@ -111,7 +111,7 @@
       <!--~~~~~~~~~~~~~~~~~~~~~~~~~ Inputs options ~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 
       <!-- Sensor data file must be csv.
-           A field time in POSIX format is necessary
+           A field time is necessary with same reference as Lidar data or TCP/UDP packets
            Possible sensor fields are :
            - odom for wheel odometry sensor
            - [acc_x, acc_y, acc_z] for IMU signal

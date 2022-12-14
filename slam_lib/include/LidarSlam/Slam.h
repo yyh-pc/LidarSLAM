@@ -177,9 +177,9 @@ public:
 
   // Initialization
   Slam();
-  // Reset internal state : maps and trajectory are cleared
-  // and current pose is set back to origin.
-  // This keeps parameters and sensor data unchanged.
+  // Reset internal state : maps and trajectory are cleared,
+  // current pose is set back to origin and the external sensor data are emptied.
+  // This keeps parameters unchanged.
   void Reset(bool resetLog = true);
 
   // Init map with default values
@@ -895,14 +895,15 @@ private:
   // Odometry manager
   // It computes the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
-  // The odometry measurements must be filled and cleared from outside this lib
+  // The odometry measurements must be filled from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::WheelOdometryManager> WheelOdomManager;
 
   // IMU managers
-  // Compute the residual with a weight, a measurements list and
+  // Gravity manager
+  // It computes the gravity residual with a weight, a measurements list,
   // taking account of the acquisition time correspondance
-  // The IMU measurements must be filled and cleared from outside this lib
+  // The IMU measurements must be filled from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::ImuGravityManager> GravityManager;
   // Raw IMU data manager
@@ -923,7 +924,7 @@ private:
   // If not, it will be filled at each new detection.
   // The managers compute the residuals with a weight, measurements lists and
   // taking account of the acquisition time correspondance
-  // The tag measurements must be filled and cleared from outside this lib
+  // The tag measurements must be filled from outside this lib
   // using External Sensors interface
   std::map<int, ExternalSensors::LandmarkManager> LandmarksManagers;
   // Calibration
@@ -945,7 +946,7 @@ private:
   bool LandmarkCovarianceRotation = true;
 
   // GPS manager
-  // The GPS measurements must be filled and cleared from outside this lib
+  // The GPS measurements must be filled from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::GpsManager> GpsManager;
   // Calibration
@@ -955,7 +956,7 @@ private:
   // Manager for the acquisition of pose measurements (e.g. from GNNS system, pre-integrated
   // IMU or any other device able to give absolute pose.)
   // It computes a residual with a weight taking into account the timing at which it is captured
-  // The Pose measurements must be filled and cleared from outside this lib
+  // The Pose measurements must be filled from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::PoseManager> PoseManager;
 
