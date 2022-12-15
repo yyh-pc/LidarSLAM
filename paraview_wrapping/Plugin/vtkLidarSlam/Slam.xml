@@ -82,6 +82,25 @@
         </Documentation>
       </Property>
 
+      <IntVectorProperty name="Empty first"
+                         command="SetResetMaps"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, reset maps before rebuilding them with keypoints available in LogStates.
+          Otherwise, only replace recent points with LogStates keypoints.
+        </Documentation>
+      </IntVectorProperty>
+
+      <Property name="Rebuild maps"
+                command="RebuildMaps">
+        <Documentation>
+          Rebuild maps and refresh the view.
+        </Documentation>
+      </Property>
+
       <!--~~~~~~~~~~~~~~~~~~~~~~~~~ Inputs options ~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 
       <!-- Sensor data file must be csv.
@@ -328,6 +347,8 @@
 
       <PropertyGroup label="Filter inputs/outputs options">
         <Property name="Reset state" />
+        <Property name="Empty first" />
+        <Property name="Rebuild maps" />
         <Property name="SensorDataFile" />
         <Property name="Reload trajectory" />
         <Property name="Auto detect input arrays" />

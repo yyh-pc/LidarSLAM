@@ -138,6 +138,16 @@ void vtkSlam::Reset()
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::RebuildMaps()
+{
+  this->SlamAlgo->UpdateMaps(this->ResetMaps);
+  PRINT_INFO("Rebuild maps finished.")
+
+  // Refresh view
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::OptimizeGraph()
 {
   this->SlamAlgo->OptimizeGraph();

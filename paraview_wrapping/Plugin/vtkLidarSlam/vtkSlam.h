@@ -117,6 +117,8 @@ public:
 
   void Reset();
 
+  void RebuildMaps();
+
   // Initialization
   void SetInitialMap(const std::string& mapsPathPrefix);
   void SetInitialPoseTranslation(double x, double y, double z);
@@ -143,6 +145,9 @@ public:
 
   vtkGetMacro(OutputKeypointsInWorldCoordinates, bool)
   vtkSetMacro(OutputKeypointsInWorldCoordinates, bool)
+
+  vtkGetMacro(ResetMaps, bool)
+  vtkSetMacro(ResetMaps, bool)
 
   void EnableEdges(bool enable);
   void EnableIntensityEdges(bool enable);
@@ -557,6 +562,9 @@ private:
   float TimeWindowDuration = 0.5;
   // Internal variable to store LoggingTimeout to control states kept in memory for pose graph or estimation of local velocity
   double LoggingTimeout = 0;
+
+  // Boolean to decide if reset the maps before rebuild the maps
+  bool ResetMaps = false;
 
   // Choose whether to synchronize on network packet
   // reception time or on Lidar frame header time
