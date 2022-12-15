@@ -344,7 +344,7 @@ void RollingGrid::Add(const PointCloud::Ptr& pointcloud, bool fixed, bool roll)
 //==============================================================================
 
 //------------------------------------------------------------------------------
-void RollingGrid::ClearOldPoints(double currentTime)
+void RollingGrid::ClearPoints(double currentTime, bool clearOldPoints)
 {
   // Loop on the outer voxels (rolling vg)
   auto itVoxelsOut = this->Voxels.begin();
@@ -356,8 +356,9 @@ void RollingGrid::ClearOldPoints(double currentTime)
     {
       // Shortcut to voxel
       Voxel& voxel = itVoxelsIn->second;
-      // If voxel is removable and too old, remove it
-      if (!voxel.point.label && currentTime - voxel.point.time > this->DecayingThreshold)
+      // If voxel is removable and too old (or too new), remove it
+      bool removePoint = clearOldPoints ? currentTime - voxel.point.time > this->DecayingThreshold : voxel.point.time > currentTime;
+      if (!voxel.point.label && removePoint)
         itVoxelsIn = itVoxelsOut->second.erase(itVoxelsIn);
       else
         ++itVoxelsIn;

@@ -1268,7 +1268,7 @@ void Slam::Localization()
         if (this->LocalMaps[k]->IsTimeThreshold())
         {
           IF_VERBOSE(3, Utils::Timer::Init("Localization : clearing old points"));
-          this->LocalMaps[k]->ClearOldPoints(this->CurrentTime);
+          this->LocalMaps[k]->ClearPoints(this->CurrentTime);
           IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : clearing old points"));
         }
         // Estimate current keypoints bounding box
