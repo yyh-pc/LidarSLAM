@@ -185,6 +185,20 @@ Eigen::Vector3d RotationMatrixToRPY(const Eigen::Matrix3d& rot);
 
 //------------------------------------------------------------------------------
 /*!
+ * @brief Convert translation and angle-axis rotation to full rigid transform
+ * @param x Translation along X axis
+ * @param y Translation along Y axis
+ * @param z Translation along Z axis
+ * @param angle Rotation angle in radian
+ * @param axisX Axis X of normalized rotation axis
+ * @param axisY Axis Y of normalized rotation axis
+ * @param axisZ Axis Z of normalized rotation axis
+ * @return The rigid transform (rotation + translation)
+ */
+Eigen::Isometry3d XYZAngleAxistoIsometry(double x, double y, double z, double angle, double axisX, double axisY, double axisZ);
+
+//------------------------------------------------------------------------------
+/*!
  * @brief Convert translation and RPY to full rigid transform
  * @param x Translation along X axis
  * @param y Translation along Y axis

@@ -199,6 +199,9 @@ public:
   // Load keypoints maps from disk (and reset SLAM maps)
   void LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps = true);
 
+  // Reset trajectory pose in LogStates
+  void ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager);
+
   // ---------------------------------------------------------------------------
   //   General parameters
   // ---------------------------------------------------------------------------

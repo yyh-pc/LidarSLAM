@@ -165,6 +165,9 @@ public:
 
   virtual int GetUndistortion();
   virtual void SetUndistortion(int mode);
+  
+  // Load trajectory from a file and recompute maps
+  void SetTrajectory(const std::string& fileName);
 
   // Set measurements to Slam algo
   virtual void SetSensorData(const std::string& fileName);
@@ -374,8 +377,12 @@ private:
   // Convert LiDAR calibration to laser id mapping
   std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
 
-  // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
-  void AddCurrentPoseToTrajectory();
+  // Init/reset the output SLAM trajectory
+  // If startTime is set, reset the trajectory from startTime 
+  void ResetTrajectory(double startTime = -1.);
+
+  // Add a SLAM pose and covariance in WORLD coordinates to Trajectory.
+  void AddPoseToTrajectory(const LidarSlam::LidarState& state);
 
   // Convert VTK PolyData to PCL pointcloud
   // Returns true if all input points are valid (null coordinates), false otherwise

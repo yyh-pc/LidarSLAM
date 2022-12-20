@@ -74,8 +74,7 @@ struct PoseMeasurement
 {
   double Time = 0.;
   Eigen::Isometry3d Pose = Eigen::Isometry3d::Identity();
-  // No covariance is attached to pose measurement for now
-  // Constant one can be used for pose graph optimizations
+  Eigen::Matrix6d Covariance = 0.05 * Eigen::Matrix6d::Identity();
 };
 
 // ---------------------------------------------------------------------------
@@ -255,7 +254,18 @@ protected:
     // Update the previous iterator for next call
     if (trackTime)
       this->PreviousIt = prevIt;
+    
+    // Check the time between the 2 measurements
+    // Do not interpolate if the time is too long
+    if (!this->CheckBounds(prevIt,postIt))
+      return std::make_pair(this->Measures.begin(), this->Measures.begin());
 
+    return std::make_pair(prevIt, postIt);
+  }
+
+  // ------------------
+  virtual bool CheckBounds(typename std::list<T>::iterator& prevIt, typename std::list<T>::iterator& postIt)
+  {
     // If the time between the 2 measurements is too long
     // Do not use the current measures
     if (postIt->Time - prevIt->Time > this->TimeThreshold)
@@ -263,9 +273,9 @@ protected:
       if (this->Verbose)
         PRINT_INFO("\t The two last " << this->SensorName << " measures can not be interpolated (too much time difference)"
                    << "-> " << this->SensorName << " not used")
-      return std::make_pair(this->Measures.begin(), this->Measures.begin());
+      return false;
     }
-    return std::make_pair(prevIt, postIt);
+    return true;
   }
 
 protected:
@@ -502,6 +512,12 @@ public:
   GetSensorMacro(PrevPoseTransform, Eigen::Isometry3d)
   SetSensorMacro(PrevPoseTransform, const Eigen::Isometry3d&)
 
+  GetSensorMacro(CovarianceRotation, bool)
+  SetSensorMacro(CovarianceRotation, bool)
+
+  GetSensorMacro(DistanceThreshold, double)
+  SetSensorMacro(DistanceThreshold, double)
+
   // Compute the interpolated measure (pose of the external pose sensor's)
   // to be synchronized with SLAM output at lidarTime
   bool ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& synchMeas, bool trackTime = true) override;
@@ -515,6 +531,16 @@ public:
 private:
   double PrevLidarTime = -1.;
   Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
+  // Allow to rotate the covariance
+  // Can be disabled if the covariance is fixed or not used (e.g. for local constraint)
+  bool CovarianceRotation = false;
+  // Distance threshold [m] between 2 measures to consider they can be interpolated
+  double DistanceThreshold = 0.;
+
+  // Check time and motion difference of bounds
+  // Do not use the 2 measures if time difference is too long and motion difference is too large and return false
+  // Otherwise return true
+  bool CheckBounds(std::list<PoseMeasurement>::iterator& prevIt, std::list<PoseMeasurement>::iterator& postIt) override;
 };
 
 

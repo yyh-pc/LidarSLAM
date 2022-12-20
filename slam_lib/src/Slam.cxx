@@ -693,6 +693,61 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints maps loading from PCD"));
 }
 
+//-----------------------------------------------------------------------------
+void Slam::ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager)
+{
+  double startTime = newTrajectoryManager.GetMeasures().front().Time;
+  double endTime   = newTrajectoryManager.GetMeasures().back().Time;
+  if (startTime > this->LogStates.back().Time || endTime < this->LogStates.front().Time)
+  { 
+    PRINT_WARNING("Unable to reset poses with new trajectory : timestamps are different from lidar time.");
+    return;
+  }
+
+  auto itState = this->LogStates.begin();
+  // Get iterator pointing to the first measurement after new trajectory time
+  while (itState->Time < startTime)
+    ++itState;
+  
+  // Save the state before endTime of new trajectory 
+  // when new trajectory is shorter than Logstates
+  Eigen::Isometry3d endTimeState = Eigen::Isometry3d::Identity();
+  auto itEndTimeState = itState;
+  if (endTime < this->LogStates.back().Time)
+  {
+    while (itEndTimeState->Time <= endTime)
+      ++itEndTimeState;
+    --itEndTimeState;
+    endTimeState = itEndTimeState->Isometry;
+  }
+
+  // Virtual measure with synchronized timestamp 
+  ExternalSensors::PoseMeasurement synchMeas;
+  while (itState->Time <= endTime && itState != this->LogStates.end())
+  {
+    newTrajectoryManager.ComputeSynchronizedMeasureBase(itState->Time, synchMeas);
+    itState->Isometry = synchMeas.Pose;
+    itState->Covariance = synchMeas.Covariance;
+    ++itState;
+  }
+
+  // If new trajectory is shorter than Logstates, update poses after endTime
+  if (endTime < this->LogStates.back().Time)
+  {
+    while (itState != this->LogStates.end())
+    {
+      Eigen::Isometry3d tRelative = endTimeState.inverse() * itState->Isometry;
+      endTimeState = itState->Isometry;
+      itState->Isometry = itEndTimeState->Isometry * tRelative;
+      ++itEndTimeState;
+      ++itState;
+    }
+  }
+
+  // Update LocalMaps with new poses
+  this->UpdateMaps();
+}
+
 //==============================================================================
 //   SLAM results getters
 //==============================================================================
