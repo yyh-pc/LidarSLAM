@@ -281,7 +281,7 @@ public:
   GetMacro(NbThreads, int)
   void SetNbThreads(int n);
 
-  SetMacro(Verbosity, int)
+  void SetVerbosity(int verbosity);
   GetMacro(Verbosity, int)
 
   SetMacro(EgoMotion, EgoMotionMode)

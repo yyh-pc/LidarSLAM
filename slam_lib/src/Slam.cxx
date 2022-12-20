@@ -237,6 +237,24 @@ void Slam::SetNbThreads(int n)
 }
 
 //-----------------------------------------------------------------------------
+void Slam::SetVerbosity(int verbosity)
+{
+  this->Verbosity = verbosity;
+  if (this->WheelOdomManager)
+    this->WheelOdomManager->SetVerbose(verbosity >= 3);
+  if (this->GravityManager)
+    this->GravityManager->SetVerbose(verbosity >= 3);
+  if (this->ImuManager)
+    this->ImuManager->SetVerbose(verbosity >= 3);
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.SetVerbose(verbosity >= 3);
+  if (this->GpsManager)
+    this->GpsManager->SetVerbose(verbosity >= 3);
+  if (this->PoseManager)
+    this->PoseManager->SetVerbose(verbosity >= 3);
+}
+
+//-----------------------------------------------------------------------------
 void Slam::EnableKeypointType(Keypoint k, bool enabled)
 {
   this->UseKeypoints[k] = enabled;
