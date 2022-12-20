@@ -712,9 +712,9 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
   this->SlamAlgo->ResetStatePoses(trajectoryManager);
   PRINT_INFO("Trajectory successfully loaded.");
 
-  // Update trajectory
-  this->ResetTrajectory();
+  // Update trajectory from first timestamp of lidarStates
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates(); 
+  this->ResetTrajectory(lidarStates.front().Time);
   for (auto const& state: lidarStates)
     this->AddPoseToTrajectory(state);
 
@@ -911,18 +911,72 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::ResetTrajectory()
+void vtkSlam::ResetTrajectory(double startTime)
 {
-  // Init/reset the output SLAM trajectory
-  this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
-  auto pts = vtkSmartPointer<vtkPoints>::New();
-  this->Trajectory->SetPoints(pts);
-  auto cellArray = vtkSmartPointer<vtkCellArray>::New();
-  this->Trajectory->SetLines(cellArray);
-  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
-  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
-  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
-  this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
+  // By default reset the output SLAM trajectory
+  // If startTime is set, reset the trajectory from the startTime
+  if (startTime < 0)
+  {
+    this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
+    auto pts = vtkSmartPointer<vtkPoints>::New();
+    this->Trajectory->SetPoints(pts);
+    auto cellArray = vtkSmartPointer<vtkCellArray>::New();
+    this->Trajectory->SetLines(cellArray);
+    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
+    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
+    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
+    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));    
+  }
+  else
+  {
+    // Create a temporary trajectory to save the trajectory before startTime
+    vtkNew<vtkPolyData> trajectoryTmp;
+    vtkNew<vtkPoints> pts;
+    trajectoryTmp->SetPoints(pts);
+    vtkNew<vtkCellArray> cellArray;
+    trajectoryTmp->SetLines(cellArray);
+    trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
+    trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
+    trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
+    trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));    
+
+    auto arrayTime = this->Trajectory->GetPointData()->GetArray("Time");
+    for (vtkIdType idx = 0; idx < arrayTime->GetNumberOfTuples(); ++idx)
+    {
+      if (*arrayTime->GetTuple(idx) < startTime)
+      {
+        double *translation = this->Trajectory->GetPoint(idx);
+        trajectoryTmp->GetPoints()->InsertNextPoint(translation);
+
+        double *quaternion = this->Trajectory->GetPointData()->GetArray("Orientation(Quaternion)")->GetTuple(idx);
+        trajectoryTmp->GetPointData()->GetArray("Orientation(Quaternion)")->InsertNextTuple(quaternion);
+
+        double *angleAxis = this->Trajectory->GetPointData()->GetArray("Orientation(AxisAngle)")->GetTuple(idx);
+        trajectoryTmp->GetPointData()->GetArray("Orientation(AxisAngle)")->InsertNextTuple(angleAxis);
+
+        double *time = this->Trajectory->GetPointData()->GetArray("Time")->GetTuple(idx);
+        trajectoryTmp->GetPointData()->GetArray("Time")->InsertNextTuple(time);
+
+        double *covariance = this->Trajectory->GetPointData()->GetArray("Covariance")->GetTuple(idx);
+        trajectoryTmp->GetPointData()->GetArray("Covariance")->InsertNextTuple(covariance);
+
+        // Add line linking 2 successive points
+        vtkIdType nPoints = trajectoryTmp->GetNumberOfPoints();
+        if (nPoints >= 2)
+        {
+          vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
+          line->GetPointIds()->SetId(0, nPoints - 2);
+          line->GetPointIds()->SetId(1, nPoints - 1);
+          trajectoryTmp->GetLines()->InsertNextCell(line);
+        }
+      }
+      else
+        break;
+    }
+
+    // Copy temporary trajectory to Trajectory
+    this->Trajectory->ShallowCopy(trajectoryTmp);
+  }
 }
 
 //-----------------------------------------------------------------------------

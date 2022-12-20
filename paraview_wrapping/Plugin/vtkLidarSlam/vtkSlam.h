@@ -378,7 +378,8 @@ private:
   std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
 
   // Init/reset the output SLAM trajectory
-  void ResetTrajectory();
+  // If startTime is set, reset the trajectory from startTime 
+  void ResetTrajectory(double startTime = -1.);
 
   // Add a SLAM pose and covariance in WORLD coordinates to Trajectory.
   void AddPoseToTrajectory(const LidarSlam::LidarState& state);
