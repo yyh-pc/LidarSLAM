@@ -699,7 +699,7 @@ void Slam::ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager)
   double startTime = newTrajectoryManager.GetMeasures().front().Time;
   double endTime   = newTrajectoryManager.GetMeasures().back().Time;
   if (startTime > this->LogStates.back().Time || endTime < this->LogStates.front().Time)
-  { 
+  {
     PRINT_WARNING("Unable to reset poses with new trajectory : timestamps are different from lidar time.");
     return;
   }
@@ -708,8 +708,8 @@ void Slam::ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager)
   // Get iterator pointing to the first measurement after new trajectory time
   while (itState->Time < startTime)
     ++itState;
-  
-  // Save the state before endTime of new trajectory 
+
+  // Save the state before endTime of new trajectory
   // when new trajectory is shorter than Logstates
   Eigen::Isometry3d endTimeState = Eigen::Isometry3d::Identity();
   auto itEndTimeState = itState;
@@ -721,7 +721,7 @@ void Slam::ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager)
     endTimeState = itEndTimeState->Isometry;
   }
 
-  // Virtual measure with synchronized timestamp 
+  // Virtual measure with synchronized timestamp
   ExternalSensors::PoseMeasurement synchMeas;
   while (itState->Time <= endTime && itState != this->LogStates.end())
   {

@@ -254,7 +254,7 @@ protected:
     // Update the previous iterator for next call
     if (trackTime)
       this->PreviousIt = prevIt;
-    
+
     // Check the time between the 2 measurements
     // Do not interpolate if the time is too long
     if (!this->CheckBounds(prevIt,postIt))

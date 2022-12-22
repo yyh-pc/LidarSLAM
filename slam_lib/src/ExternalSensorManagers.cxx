@@ -532,7 +532,7 @@ bool PoseManager::ComputeSynchronizedMeasureBase(double lidarTime, PoseMeasureme
   if (!this->ComputeSynchronizedMeasure(lidarTime, synchMeas, trackTime))
     return false;
 
-  // Rotated covariance for calibration if required 
+  // Rotated covariance for calibration if required
   if (this->CovarianceRotation)
   {
     Eigen::Vector6d pose = Utils::IsometryToXYZRPY(synchMeas.Pose);

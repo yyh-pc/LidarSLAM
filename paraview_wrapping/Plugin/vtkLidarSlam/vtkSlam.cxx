@@ -121,7 +121,7 @@ void vtkSlam::Reset()
 
   // Init the output SLAM trajectory
   this->ResetTrajectory();
-  
+
   // Add the optional arrays to the trajectory
   if (this->AdvancedReturnMode)
   {
@@ -606,7 +606,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
     vtkWarningMacro(<<"No valid data in the trajectory file. Load trajectory failed.");
     return;
   }
-  
+
   // Initialize a pose manager to store the external trajectory
   // Enable Verbose is useful to know whether the new trajectory is loaded correctly.
   // Set DistanceThreshold and AngleThreshold by the same values used in slam for checking keyframes.
@@ -635,7 +635,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
       break;
   }
   if (hasCovariance)
-  { 
+  {
     // If covariance exists, set CovarianceRotation true
     trajectoryManager.SetCovarianceRotation(true);
     // Load covariance matrix
@@ -644,7 +644,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
       auto arrayCovariance =  csvTable->GetRowData()->GetArray(("Covariance:"+std::to_string(nCov)).c_str());
       for (vtkIdType poseIdx = 0; poseIdx < numPose; ++poseIdx)
         newCovariances[poseIdx](nCov) =  arrayCovariance->GetTuple1(poseIdx);
-    } 
+    }
   }
 
   // Process Pose data
@@ -664,7 +664,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
 
     for (vtkIdType i = 0; i < numPose; ++i)
     {
-      LidarSlam::ExternalSensors::PoseMeasurement meas;  
+      LidarSlam::ExternalSensors::PoseMeasurement meas;
       meas.Pose = Utils::XYZRPYtoIsometry(arrayX->GetTuple1(i), arrayY->GetTuple1(i), arrayZ->GetTuple1(i),
                                           arrayRoll->GetTuple1(i), arrayPitch->GetTuple1(i), arrayYaw->GetTuple1(i));
       meas.Time = arrayTime->GetTuple1(i);
@@ -694,8 +694,8 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
     auto arrayY     = csvTable->GetRowData()->GetArray("Points:1"                );
     auto arrayZ     = csvTable->GetRowData()->GetArray("Points:2"                );
     for (vtkIdType i = 0; i < numPose; ++i)
-    {  
-      LidarSlam::ExternalSensors::PoseMeasurement meas;  
+    {
+      LidarSlam::ExternalSensors::PoseMeasurement meas;
       meas.Pose = Utils::XYZAngleAxistoIsometry(arrayX->GetTuple1(i), arrayY->GetTuple1(i), arrayZ->GetTuple1(i),
                                                 arrayAngle->GetTuple1(i),
                                                 arrayAxisX->GetTuple1(i), arrayAxisY->GetTuple1(i), arrayAxisZ->GetTuple1(i));
@@ -716,7 +716,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
   PRINT_INFO("Trajectory successfully loaded.");
 
   // Update trajectory from first timestamp of lidarStates
-  const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates(); 
+  const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
   this->ResetTrajectory(lidarStates.front().Time);
   for (auto const& state: lidarStates)
     this->AddPoseToTrajectory(state);
@@ -928,7 +928,7 @@ void vtkSlam::ResetTrajectory(double startTime)
     this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
     this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
     this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
-    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));    
+    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
   }
   else
   {
@@ -941,7 +941,7 @@ void vtkSlam::ResetTrajectory(double startTime)
     trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
     trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
     trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
-    trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));    
+    trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
 
     auto arrayTime = this->Trajectory->GetPointData()->GetArray("Time");
     for (vtkIdType idx = 0; idx < arrayTime->GetNumberOfTuples(); ++idx)

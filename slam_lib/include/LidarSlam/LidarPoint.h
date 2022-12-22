@@ -50,16 +50,16 @@ struct LidarPoint
   {
     data[3] = 1.0f;
   }
-  
+
   PCL_ADD_POINT4D // This adds the members x,y,z which can also be accessed using the point (which is float[4])
   double time;
   float intensity;
   std::uint16_t laser_id;
   std::uint8_t device_id;
   std::uint8_t label;
-  
+
   friend std::ostream& operator << (std::ostream& os, const LidarPoint& p);
-  
+
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 } EIGEN_ALIGN16;
 
