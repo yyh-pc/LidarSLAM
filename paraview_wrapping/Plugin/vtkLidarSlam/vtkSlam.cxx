@@ -150,6 +150,9 @@ void vtkSlam::RebuildMaps()
 //-----------------------------------------------------------------------------
 void vtkSlam::OptimizeGraph()
 {
+  const std::list<LidarSlam::LidarState>& initLidarStates = this->SlamAlgo->GetLogStates();
+  if (initLidarStates.size() < 2)
+    return;
   this->SlamAlgo->OptimizeGraph();
   // Update trajectory from the first timestamp of lidarStates with new poses after PGO.
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
@@ -1565,6 +1568,8 @@ void vtkSlam::SetLoopClosureQueryIdx(unsigned int loopClosureQueryIdx)
   // Check the input frame index can be found in Logstates
   // If the input query frame index is not in Logstates, replace it by the last frame index stored in Logstates
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
+  if (lidarStates.empty())
+    return;
   if (loopClosureQueryIdx < lidarStates.front().Index || loopClosureQueryIdx > lidarStates.back().Index )
   {
     vtkWarningMacro(<< "The input query frame index is not valid. Please enter a frame index between ["
@@ -1586,6 +1591,8 @@ void vtkSlam::SetLoopClosureRevisitedIdx(unsigned int loopClosureRevisitedIdx)
 {
   // Check the input frame index can be found in Logstates
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
+  if (lidarStates.empty())
+    return;
   if (loopClosureRevisitedIdx < lidarStates.front().Index || loopClosureRevisitedIdx > lidarStates.back().Index )
   {
     vtkWarningMacro(<< "The input query frame index is not valid. Please enter a frame index between ["

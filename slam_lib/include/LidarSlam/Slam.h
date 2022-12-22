@@ -294,6 +294,7 @@ public:
   SetMacro(LogOnlyKeyframes, bool)
   GetMacro(LogOnlyKeyframes, bool)
 
+  // Warning! Undefined behavior if LogStates is empty
   LidarState& GetLastState();
   GetMacro(LogStates, std::list<LidarState>)
 
