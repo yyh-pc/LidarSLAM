@@ -511,6 +511,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       this->SlamAlgo->AddWheelOdomMeasurement(odomMeasurement);
     }
     PRINT_INFO("Odometry data successfully loaded")
+    extSensorFit = true;
   }
 
   // Process IMU data
@@ -531,6 +532,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       this->SlamAlgo->AddGravityMeasurement(gravityMeasurement);
     }
     PRINT_INFO("IMU data successfully loaded");
+    extSensorFit = true;
   }
 
   // Process Pose data
@@ -565,6 +567,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     }
 
     PRINT_INFO("Pose data successfully loaded")
+    extSensorFit = true;
   }
 
   if (!extSensorFit)
