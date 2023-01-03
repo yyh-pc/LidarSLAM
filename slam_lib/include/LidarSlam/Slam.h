@@ -477,6 +477,18 @@ public:
   void SetVoxelGridMinFramesPerVoxel(unsigned int minFrames);
 
   // ---------------------------------------------------------------------------
+  //   Loop Closure parameters
+  // ---------------------------------------------------------------------------
+  GetMacro(ExtDetectLoopClosure, bool)
+  SetMacro(ExtDetectLoopClosure, bool)
+
+  GetMacro(LoopClosureQueryIdx, unsigned int)
+  SetMacro(LoopClosureQueryIdx, unsigned int)
+
+  GetMacro(LoopClosureRevisitedIdx, unsigned int)
+  SetMacro(LoopClosureRevisitedIdx, unsigned int)
+
+  // ---------------------------------------------------------------------------
   //   Confidence estimation
   // ---------------------------------------------------------------------------
 
@@ -688,6 +700,18 @@ private:
 
   // Keypoints local map
   Maps LocalMaps;
+
+  // ---------------------------------------------------------------------------
+  //   Loop closure
+  // ---------------------------------------------------------------------------
+
+  // Boolean to decide if the closure information can be provided externally by various sources (user or camera or landmark...)
+  // If true, users need to indicate the query frame index and the revisited frame index for loop closure.
+  bool ExtDetectLoopClosure = false;
+
+  // Frame indices to indicate where the loop closure is.
+  unsigned int LoopClosureQueryIdx = 0;
+  unsigned int LoopClosureRevisitedIdx = 0;
 
   // ---------------------------------------------------------------------------
   //   Optimization data
@@ -933,6 +957,14 @@ private:
 
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState();
+
+  // ---------------------------------------------------------------------------
+  //   Loop Closure usage
+  // ---------------------------------------------------------------------------
+
+  // If external detection is enabled, check whether the inputs of loop closure frame indices are stored in the LogStates
+  // if not, detect automatically a revisited frame idx for the current frame (TBA)
+  bool DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState);
 
   // ---------------------------------------------------------------------------
   //   Map helpers
