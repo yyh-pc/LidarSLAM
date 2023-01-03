@@ -54,11 +54,13 @@ Dependencies are listed in the table below along with the version used during de
 | nanoflann  | 1.3.0                  |
 | g2o*       | 1.0.0 (master)         |
 | OpenMP*    | 2.0                    |
+| OpenCV*    | 4.2                    |
 
 (*) optional dependencies :
 
 - If G2O is not available (or disabled), *LidarSlam* lib will still be compiled, but without pose graph optimization features.
 - If OpenMP is available, it is possible to use multi-threading to run some SLAM steps in parallel and achieve higher processing speed.
+- If OpenCV is not available (or disabled), *LidarSlam* lib will still be compiled, but without camera integration.
 
 **/!\ Warning** Make sure to compile/install G2O with the same Ceres version as the one used in the SLAM compilation. To do so, disable the feature [G2O_USE_VENDORED_CERES](https://github.com/RainerKuemmerle/g2o/blob/master/CMakeLists.txt) during G2O compilation and link against the right version of Ceres.
 

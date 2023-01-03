@@ -4,12 +4,17 @@
   - [LiDAR SLAM node](#lidar-slam-node)
     - [Description and basic usage](#description-and-basic-usage)
     - [More advanced usage](#more-advanced-usage)
-  - [Optional GPS use](#optional-gps-use)
-    - [Map (GPS) / Odom (SLAM) calibration](#map-gps--odom-slam-calibration)
-    - [SLAM pose graph optimization (PGO) with GPS prior](#slam-pose-graph-optimization-pgo-with-gps-prior)
-    - [Running SLAM on same zone at different times (e.g. refining/aggregating map or running localization only on fixed map)](#running-slam-on-same-zone-at-different-times-eg-refiningaggregating-map-or-running-localization-only-on-fixed-map)
-      - [Setting SLAM pose from GPS pose guess](#setting-slam-pose-from-gps-pose-guess)
-      - [Running SLAM on same zone](#running-slam-on-same-zone)
+  -[Optional external sensors use](#optional-external-sensors-use)
+    - [Optional GPS use](#optional-gps-use)
+      - [Map (GPS) / Odom (SLAM) calibration](#map-gps--odom-slam-calibration)
+      - [SLAM pose graph optimization (PGO) with GPS prior](#slam-pose-graph-optimization-pgo-with-gps-prior)
+      - [Running SLAM on same zone at different times (e.g. refining/aggregating map or running localization only on fixed map)](#running-slam-on-same-zone-at-different-times-eg-refiningaggregating-map-or-running-localization-only-on-fixed-map)
+        - [Setting SLAM pose from GPS pose guess](#setting-slam-pose-from-gps-pose-guess)
+        - [Running SLAM on same zone](#running-slam-on-same-zone)
+    - [Optional landmarks use](#optional-landmarks-use)
+      -[Local optimization](#local-optimization)
+      -[Pose graph optimization](#pose-graph-optimization)
+    - [Optional camera use](#optional-camera-use)
   - [About the published TF tree](#about-the-published-tf-tree)
   - [Points aggregation](#points-aggregation)
 
@@ -119,7 +124,23 @@ rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 17, string_arg: 
 ##### Set pose
 At any time, a pose message (`PoseWithCovarianceStamped`) can be sent through the topic `set_slam_pose` to reset the current pose
 
-## Optional GPS use
+## Optional external sensors use
+
+A GPS, a camera and/or a tag detector can be used along with the LiDAR SLAM. Wheel odometer, IMU and pose detector API are available in the slam_lib but their ROS interface has not been implemented for now.
+
+Some external sensors can be used locally (in the local SLAM optimization) or globally (in a pose graph).
+cameras, wheel odometers, IMU are usually used in the first case while GPS, as absolute poses sensor, is usually used in the second case. A tag detector can be used in both cases.
+
+To use them, a time synchronization must be possible. To do so, a parameter *lidar_is_posix* allows to synchronize using packet reception time (false) or lidar header time information (true).
+
+Moreover, the data should be stored, at least until the best time fit is found for lidar frame in case of local optimization and to select from when to update the trajectory along with the maps in case of pose graph optimization.
+
+Weights are parameterizable in case of local optimization to calibrate the impact of the sensor relatively to 3D matches built with lidar frames. This weight depends mostly on the sensors accuracy.
+
+Logging must be enabled in case of pose graph optimization.
+
+
+### Optional GPS use
 
 If GPS use is enabled, *LidarSlamNode* subscribes to the GPS odometry on topic '*gps_odom*', and records the most recent GPS positions. To use GPS data, we transform GPS WGS84 fix into cartesian space using UTM projection. This can be used to estimate calibration between GPS and SLAM trajectories, or post-optimize SLAM trajectory with pose graph optimization (PGO).
 
@@ -129,7 +150,7 @@ To use GPS data :
 
 **NOTE** : If GPS odometry expresses the pose of a *gps_frame* different from *tracking_frame*, please ensure a valid static TF is beeing broadcasted.
 
-### Map (GPS) / Odom (SLAM) calibration
+#### Map (GPS) / Odom (SLAM) calibration
 
 To be able to publish local SLAM odometry as GPS coordinates, it is necessary to link local SLAM odometry frame (often called `odom`) to world fixed frame (often called `map`).
 
@@ -149,7 +170,7 @@ roslaunch lidar_slam slam_velodyne.launch gps:=true  # Start SLAM node and enabl
 rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 0"  # Trigger GPS/SLAM calibration
 ```
 
-### SLAM pose graph optimization (PGO) with GPS prior
+#### SLAM pose graph optimization (PGO) with GPS prior
 
 Available GPS positions can also be used to optimize the SLAM trajectory by correcting drift error accumulated over time. The GPS positions and their associated covariances can be used as priors to optimize the SLAM pose graph with g2o framework. SLAM maps will also be corrected. The [map/odom calibration](#map-gps--odom-slam-calibration) will also be computed and published as a static TF (but should be more precise than the global ICP calibration process).
 
@@ -164,15 +185,15 @@ roslaunch lidar_slam slam_velodyne.launch gps:=true  # Start SLAM node and enabl
 rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 20"  # Trigger PGO
 ```
 
-### Running SLAM on same zone at different times (e.g. refining/aggregating map or running localization only on fixed map)
+#### Running SLAM on same zone at different times (e.g. refining/aggregating map or running localization only on fixed map)
 
-#### Setting SLAM pose from GPS pose guess
+##### Setting SLAM pose from GPS pose guess
 
 If you want to run another bag on the same zone to refine the SLAM map or to run localization only with the previously built map, you need to give an approximate new init pose to SLAM if trajectory is not continuous with end pose. You can send `lidar_slam/SlamCommand/SET_SLAM_POSE_FROM_GPS` command to '*slam_command*' topic to use the last received GPS position in a pose guess for SLAM.
 
 NOTE: To be able to use this command, SLAM and GPS coordinates must be precisely linked with a valid TF tree. Be sure you already called [pose graph optimization](#slam-pose-graph-optimization-pgo-with-gps-prior) or at least [map/odom calibration](#map-gps--odom-slam-calibration). Moreover, the orientation will be set as odometry frame.
 
-#### Running SLAM on same zone
+##### Running SLAM on same zone
 
 To sum up, if you want to run SLAM on same zone, use :
 ```bash
@@ -184,9 +205,9 @@ rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 2"    # If the st
 ...  # Run 2nd real test or bag file
 ```
 
-## Optional Landmarks use
+### Optional landmarks use
 
-### Local optimization
+#### Local optimization
 
 If tags use is enabled, *LidarSlamNode* subscribes to the tag odometry on topic '*tag_detections*', and records the most recent tag relative poses.
 
@@ -210,11 +231,13 @@ Various relative parameters are available :
 4. `publish_tags=true` : publish the tag as TF2 transform for visualization purposes mostly (parameter ).
 5. `landmarks_file_path` : name of a file to load, to initially set absolute poses of the tags. The tag constraints are built relatively to these absolute reference poses and they will never be modified along iterations. If no file is loaded, the reference poses in the constraints are computed using previous detections and are refined along iterations or reset if the tag is not seen in a while. Note that if a file is loaded in mapping mode and some drift appears, it can lead to some jumps and a map distortion. The file format must be csv with one header line : *id,x,y,z,roll,pitch,yaw,cov0,[...],cov35*.
 
-All these parameters are described in the supplied config files.
+All these parameters are described in the supplied [config files](params).
+
+***WARNING***: Remember to set max_measures, lidar_is_posix and time_threshold to convenient values to be able to use this feature.
 
 ***WARNING***: Make sure no error occured in the file loading step in the terminal output before supplying data.
 
-### Pose graph optimization
+#### Pose graph optimization
 
 If the tags were activated, one can run a post optimization, using the tags to close loops and to create a consistent map. The previous recommandations for landmarks integration in local optimizations hold. Moreover, the LiDAR states logging must be enabled : `slam/logging_timeout > t`, t being the duration on which LiDAR measurements can be stored. The oldest measurements are forgotten. Only the remaining poses are used to build and optimize the graph and to rebuild the map.
 
@@ -235,6 +258,20 @@ rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 16, string_arg: 
 rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 20"
 ```
 Again, running the SLAM in mapping mode with initially loaded tag poses can be dangerous though. If you don't have any absolute tag poses to supply, the last estimated tag poses will be used. It means the map will be updated so it fits the last frames.
+
+### Optional Camera use
+
+If camera use is enabled, *LidarSlamNode* subscribes to RGB images ([sensor_msgs::Image](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/Image.html)) on topic '*camera_topic*', and records the most recent images. Note that this feature also needs a subscription to camera_info_topic containing the camera calibration ([sensor_msgs::CameraInfo](http://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/CameraInfo.html)).
+
+**NOTE** : You can specify the camera topics directly in the launch command with the argument : `camera_topic:="your_tag_topic"` and `camera_info_topic:="your_tag_topic"`.
+
+**NOTE** : You can launch a decompression node contained in *ROS* default package **image_transport** directly in the launch command with the argument : `image_compressed:=true`
+
+Images can then be used in local optimization if their timestamps are close enough to the Lidar frames' relatively to the threshold : *time_threshold*. To do so, first, the slam points are projected into the corresponding image. Then, an optical flow is computed on the extracted pixels and the image frame corresponding to next lidar frame (see [opencv documentation](https://docs.opencv.org/3.4/d4/dee/tutorial_optical_flow.html) for more details about optical flow computation). Finally, a constraint between pixels of the optical flow is built and added to slam optimization.
+
+A weight is parameterizable for the new camera constraint. It represents the impact of one pixel match relatively to one geometric 3D point match (built from lidar frame) in the optimization. The more we trust the optical flow, the higher this weight should be. This parameter is described in the supplied [config files](params).
+
+***WARNING***: Remember to set *max_measures*, *lidar_is_posix* and *time_threshold* to convenient values to be able to use this feature.
 
 ## About the published TF tree
 
