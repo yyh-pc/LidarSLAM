@@ -35,6 +35,14 @@ target_link_libraries(LidarSlam
 
 target_include_directories(LidarSlam PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
+# Prefer rpath over runpath to bypass LD_LIBRARY_PATH at runtime (which can be set by ROS notably)
+# See https://stackoverflow.com/questions/47117443/dynamic-linking-with-rpath-not-working-under-ubuntu-17-10/47243544#47243544
+# and https://stackoverflow.com/questions/52018092/how-to-set-rpath-and-runpath-with-gcc-ld
+# for more info
+if (UNIX AND NOT APPLE)
+  target_link_options(LidarSlam PUBLIC "-Wl,--disable-new-dtags")
+endif()
+
 install(TARGETS LidarSlam
         RUNTIME DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
         LIBRARY DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
