@@ -2,6 +2,7 @@
 
 - [Installing LidarView or one of its derivative with SLAM support](#installing-lidarview-or-one-of-its-derivative-with-slam-support)
 - [Using SLAM in LidarView](#using-slam-in-lidarview)
+- [Main functionalities](#main-functionalities)
 - [Saving and exporting SLAM outputs](#saving-and-exporting-slam-outputs)
   - [Saving trajectory](#saving-trajectory)
   - [Saving keypoint maps](#saving-keypoint-maps)
@@ -80,6 +81,35 @@ Please note that your default LidarView application may not include all the vend
    - If you chose **offline SLAM**, nothing new will show up after you hit **Apply**, but that's normal : the computer is working hard to run SLAM on all frames. When the processing is done, it will display its results.
 
 7. You're all done! Now, you can modify the display settings to fit your needs (e.g. color pointclouds using intensity field, modify the points size, hide/show some SLAM outputs, ...).
+
+## Main functionalities
+
+### Reset
+
+A button allows to reset the SLAM at a current frame :
+* maps are cleared and reloaded if initial maps were supplied
+* the trajectory is reset to initial pose
+* the external sensor data are cleared and refilled
+* the parameters are kept unchanged
+
+### Rebuild maps
+
+A button allows to rebuild the maps using the logged trajectory and the view is refreshed.
+After clicking this button, the view is refreshed with the new maps without taking the decaying threshold into account.
+The old points will be removed after next frame is processed.
+If empty first is selected, the maps will be reset before being rebuilt.
+
+### Clear maps
+
+This button allows to clear the maps but keeps the external sensors state and the trajectory unchanged.
+
+### Reload trajectory
+
+A trajectory can be saved (see next section) and a path field allows to reload it afterwards. This allows to do some trajectory modification tests (e.g. pose graph optimization) and to reset to a known state without running the whole data again.
+
+### 2D mode
+
+This checkbox allows to perform the whole process in 2D, optimizing only x, y and yaw in the world frame.
 
 ## Saving and exporting SLAM outputs
 
