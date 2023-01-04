@@ -1594,13 +1594,36 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Enable loop closure"
+      <IntVectorProperty name="Use loop closure constraint"
+                         command="SetPGOConstraintLOOP_CLOSURE"
                          number_of_elements="1"
-                         default_values="0"
+                         default_values="1"
                          panel_visibility="advanced">
         <BooleanDomain name="bool" />
         <Documentation>
-          If enabled, display the loop closure parameters.
+          If enabled, loop closure constraint are used in pose graph optimization.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Use landmark constraint"
+                         command="SetPGOConstraintLANDMARK"
+                         number_of_elements="1"
+                         default_values="1"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, landmark constraint are used in pose graph optimization.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Use GPS constraint"
+                         command="SetPGOConstraintPGO_GPS"
+                         number_of_elements="1"
+                         default_values="1"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, GPS constraint are used in pose graph optimization.
         </Documentation>
       </IntVectorProperty>
 
@@ -1612,7 +1635,9 @@
         <Property name="Fix last vertex" />
         <Property name="Covariance scale" />
         <Property name="Graph iterations" />
-        <Property name="Enable loop closure" />
+        <Property name="Use loop closure constraint" />
+        <Property name="Use landmark constraint" />
+        <Property name="Use GPS constraint" />
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use pose graph" value="1" />
         </Hints>
@@ -1720,7 +1745,7 @@
         <Property name="Revisited map window end interval LC" />
         <Property name="Advanced settings" />
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable loop closure" value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use loop closure constraint" value="1" />
         </Hints>
       </PropertyGroup>
 

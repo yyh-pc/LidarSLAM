@@ -192,6 +192,15 @@ public:
   vtkCustomGetMacro(NbGraphIterations, int)
   vtkCustomSetMacro(NbGraphIterations, int)
 
+  vtkCustomGetMacro(PGOConstraintLOOP_CLOSURE, bool)
+  vtkCustomSetMacro(PGOConstraintLOOP_CLOSURE, bool)
+
+  vtkCustomGetMacro(PGOConstraintLANDMARK, bool)
+  vtkCustomSetMacro(PGOConstraintLANDMARK, bool)
+
+  vtkCustomGetMacro(PGOConstraintPGO_GPS, bool)
+  vtkCustomSetMacro(PGOConstraintPGO_GPS, bool)
+
   // ---------------------------------------------------------------------------
   //   Loop closure parameters
   // ---------------------------------------------------------------------------

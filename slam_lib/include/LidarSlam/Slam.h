@@ -112,6 +112,12 @@ void Set##name##param (type _arg) { name##Params.param = _arg; }
 #define  OptimizationParamsGetMacro(name, param, type)                           \
 type Get##name##param () const { return name##Params.param; }
 
+// Macro to set/get which types of pose graph constraints to use
+#define PGOConstraintSetMacro(name,type)                                         \
+void SetPGOConstraint##name (type _arg) { UsePGOConstraints[name] = _arg; }
+#define PGOConstraintGetMacro(name,type)                                         \
+type GetPGOConstraint##name () const { return UsePGOConstraints.at(name); }
+
 namespace LidarSlam
 {
 // Parameters for pose estimation by ICP-LM optimization
@@ -311,6 +317,15 @@ public:
 
   GetMacro(NbGraphIterations, int)
   SetMacro(NbGraphIterations, int)
+
+  PGOConstraintSetMacro(LOOP_CLOSURE, bool)
+  PGOConstraintGetMacro(LOOP_CLOSURE, bool)
+
+  PGOConstraintSetMacro(LANDMARK, bool)
+  PGOConstraintGetMacro(LANDMARK, bool)
+
+  PGOConstraintSetMacro(PGO_GPS, bool)
+  PGOConstraintGetMacro(PGO_GPS, bool)
 
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
@@ -980,6 +995,9 @@ private:
   // Scale to increase or decrease SLAM pose covariances
   float CovarianceScale = 1.f;
   int NbGraphIterations = 100;
+
+  // Booleans to decide whether to use a pose graph constraint for the optimization
+  std::map<PGOConstraint, bool> UsePGOConstraints = {{LOOP_CLOSURE, true}, {LANDMARK, true}, {PGO_GPS, true}};
 
   // ---------------------------------------------------------------------------
   //   Confidence estimation
