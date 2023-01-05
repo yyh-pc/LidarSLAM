@@ -180,6 +180,10 @@ public:
   // ---------------------------------------------------------------------------
   //   Graph parameters
   // ---------------------------------------------------------------------------
+
+  // Check LoggingTimeout is set correctly to ensure the use of pose graph optimization
+  void SetUsePoseGraph(bool usePoseGraph);
+
   void OptimizeGraph();
 
   vtkCustomGetMacro(G2oFileName, std::string)
@@ -565,6 +569,9 @@ private:
 
   // Boolean to decide if reset the maps before rebuild the maps
   bool ResetMaps = false;
+
+  // Boolean to decide whether or not to use the pose graph
+  bool UsePoseGraph = false;
 
   // Choose whether to synchronize on network packet
   // reception time or on Lidar frame header time

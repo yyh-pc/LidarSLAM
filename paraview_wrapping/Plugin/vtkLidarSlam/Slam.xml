@@ -524,6 +524,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Use pose graph"
+                         command="SetUsePoseGraph"
                          number_of_elements="1"
                          default_values="0"
                          panel_visibility="advanced">
@@ -1564,7 +1565,7 @@
       <DoubleVectorProperty name="Logging timeout"
                             command="SetLoggingTimeout"
                             number_of_elements="1"
-                            default_values="1000. "
+                            default_values="0. "
                             panel_visibility="advanced">
         <Documentation>
           Maximum duration in seconds on which to keep states in memory.

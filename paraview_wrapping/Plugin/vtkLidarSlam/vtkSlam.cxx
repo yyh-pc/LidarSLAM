@@ -1562,6 +1562,20 @@ void vtkSlam::SetLoggingTimeout(double loggingTimeout)
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::SetUsePoseGraph(bool usePoseGraph)
+{
+  if (this->UsePoseGraph != usePoseGraph)
+  {
+    this->UsePoseGraph = usePoseGraph;
+    this->ParametersModificationTime.Modified();
+
+    // If UsePoseGraph is enabled, check LoggingTimeout and return a warning if LoggingTimeout is 0
+    if (this->UsePoseGraph && this->GetLoggingTimeout() <= 1e-6)
+      vtkWarningMacro(<< "Pose graph is required but the logging timeout is null : no pose can be used to build the graph, please increase the logging timeout.");
+  }
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::SetLoopClosureQueryIdx(unsigned int loopClosureQueryIdx)
 {
   // Check the input frame index can be found in Logstates
