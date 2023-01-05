@@ -177,6 +177,48 @@ void PoseGraphOptimizer::AddLidarStates(const std::list<LidarState>& states)
 }
 
 //------------------------------------------------------------------------------
+void PoseGraphOptimizer::AddLoopClosureConstraint(const unsigned int queryFrameIdx, const unsigned int revisitedFrameIdx,
+                                                  const Eigen::Isometry3d& loopClosureTransform,
+                                                  const Eigen::Matrix6d& loopClosureCovariance)
+{
+  // Add a new edge between the revisited frame and the query frame with the relative transform
+  auto* newEdge = new g2o::EdgeSE3Euler;
+  newEdge->setVertex(0, this->Optimizer.vertex(revisitedFrameIdx));
+  newEdge->setVertex(1, this->Optimizer.vertex(queryFrameIdx));
+  // Get inverse of the previous frame
+  auto* v = this->Optimizer.vertex(revisitedFrameIdx);
+  g2o::VertexSE3* vSE3 = dynamic_cast<g2o::VertexSE3*>(v);
+  if (!vSE3)
+  {
+    PRINT_ERROR("Error: could not cast the vertex")
+    return;
+  }
+
+  std::stringstream measureInfo;
+  Eigen::Vector6d poseRelative = Utils::IsometryToXYZRPY(loopClosureTransform);
+  measureInfo << poseRelative(0) << " " << poseRelative(1) << " " << poseRelative(2) << " "
+              << poseRelative(3) << " " << poseRelative(4) << " " << poseRelative(5) << " ";
+
+  Eigen::Matrix6d information = loopClosureCovariance.inverse();
+  for (int i = 0; i < 6; ++i)
+  {
+    for (int j = i; j < 6; ++j)
+      measureInfo << information(i, j) << " ";
+  }
+  newEdge->read(measureInfo);
+  // Add robustifier
+  g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+  newEdge->setRobustKernel(rk);
+  newEdge->robustKernel()->setDelta(this->SaturationDistance);
+  // Add edge
+  if (!this->Optimizer.addEdge(newEdge))
+    PRINT_ERROR("Tag constraint could not be added to the graph");
+  if (this->Verbose)
+    PRINT_INFO("Add Loop closure constraint between state #" << revisitedFrameIdx
+               << " and state #" << queryFrameIdx << " are added to the graph");
+}
+
+//------------------------------------------------------------------------------
 void PoseGraphOptimizer::AddLandmarkConstraint(int lidarIdx, int lmIdx, const ExternalSensors::LandmarkMeasurement& lm, bool onlyPosition)
 {
   // Add an edge between a SLAM pose vertex and a landmark vertex

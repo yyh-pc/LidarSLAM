@@ -3,7 +3,7 @@ if(NOT LidarSlam_VERSION)
 endif()
 
 # Create Plugin
-paraview_add_plugin(LidarSlamPlugin 
+paraview_add_plugin(LidarSlamPlugin
   VERSION ${LidarSlam_VERSION}
   MODULES vtkLidarSlam
   MODULE_FILES "${CMAKE_CURRENT_SOURCE_DIR}/vtkLidarSlam/vtk.module"

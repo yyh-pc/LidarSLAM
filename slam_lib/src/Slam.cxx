@@ -175,7 +175,7 @@ void Slam::InitMap(Keypoint k)
 void Slam::Reset(bool resetLog)
 {
   // Reset keypoints maps
-  this->ClearMaps();
+  this->ClearMaps(this->LocalMaps);
 
   // Reset keyframes
   this->KfLastPose = Eigen::Isometry3d::Identity();
@@ -252,6 +252,7 @@ void Slam::EnableKeypointType(Keypoint k, bool enabled)
       this->CurrentWorldKeypoints[k].reset(new PointCloud);
     this->EgoMotionMatchingResults[k] = KeypointsMatcher::MatchingResults();
     this->LocalizationMatchingResults[k] = KeypointsMatcher::MatchingResults();
+    this->LoopClosureMatchingResults[k] = KeypointsMatcher::MatchingResults();
   }
 }
 
@@ -473,36 +474,18 @@ void Slam::ComputeSensorConstraints()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::UpdateMaps()
+void Slam::UpdateMaps(bool resetMaps)
 {
-  // The iteration is not directly on Keypoint types
-  // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
-  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
-  for (int i = 0; i < nbKeypointTypes; ++i)
+  if(resetMaps)
+    this->ClearMaps(this->LocalMaps);
+  else
   {
-    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
-    this->LocalMaps[k]->Clear();
-    PointCloud::Ptr keypoints(new PointCloud);
-    for (auto& state : this->LogStates)
-    {
-      if (!state.IsKeyFrame)
-        continue;
-
-      // Keypoints are stored undistorted : because of the keyframes mechanism,
-      // undistortion cannot be refined during pose graph
-      // We rely on a good first estimation of the in-frame motion
-      keypoints.reset(new PointCloud);
-      PointCloud::Ptr undistortedKeypoints = state.Keypoints[k]->GetCloud();
-      pcl::transformPointCloud(*undistortedKeypoints, *keypoints, state.Isometry.matrix().cast<float>());
-
-      this->LocalMaps[k]->Add(keypoints, false);
-    }
-    // Roll to center onto last pose
-    Eigen::Vector4f minPoint, maxPoint;
-    pcl::getMinMax3D(*keypoints, minPoint, maxPoint);
-    this->LocalMaps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
+    // Remove points older than the first logged state
+    for (auto k : this->UsableKeypoints)
+      this->LocalMaps[k]->ClearPoints(this->LogStates.front().Time, false);
   }
+  // Update LocalMaps with the keypoints stored in the LogStates
+  this->BuildMaps(this->LocalMaps);
 }
 
 //-----------------------------------------------------------------------------
@@ -510,7 +493,7 @@ bool Slam::OptimizeGraph()
 {
   #ifdef USE_G2O
   // Check if graph can be optimized
-  if (!this->LmHasData() && !this->GpsHasData())
+  if (!this->LmHasData() && !this->GpsHasData() && !UsePGOConstraints[LOOP_CLOSURE])
   {
     PRINT_WARNING("No external constraint found, graph cannot be optimized");
     return false;
@@ -535,8 +518,33 @@ bool Slam::OptimizeGraph()
   // Boolean to store the info "there is at least one external constraint in the graph"
   bool externalConstraint = false;
 
+  // Look for loop closure constraints
+  if (UsePGOConstraints[LOOP_CLOSURE])
+  {
+    // Detect loop closure
+    auto itRevisitedState = this->LogStates.begin();
+    auto itQueryState = itRevisitedState;
+    if (DetectLoopClosureIndices(itQueryState, itRevisitedState))
+    {
+      // Compute a loopClosureTransform from the revisited frame to the query frame
+      // by registering the keypoints of the query frame onto the keypoints of the revisited frame
+      Eigen::Isometry3d loopClosureTransform;
+      Eigen::Matrix6d loopClosureCovariance;
+      if (this->LoopClosureRegistration(itQueryState, itRevisitedState,
+                                        loopClosureTransform, loopClosureCovariance))
+      {
+        // Add loop closure constraint into pose graph
+        graphManager.AddLoopClosureConstraint(this->LoopClosureQueryIdx, this->LoopClosureRevisitedIdx,
+                                              loopClosureTransform, loopClosureCovariance);
+        externalConstraint = true;
+      }
+    }
+    else
+      PRINT_WARNING("No loop closure is detected for pose graph optimization.")
+  }
+
   // Look for landmark constraints
-  if (this->LmHasData())
+  if (UsePGOConstraints[LANDMARK] && this->LmHasData())
   {
     // Allow the rotation of the covariances when interpolating the measurements
     this->SetLandmarkCovarianceRotation(true);
@@ -572,7 +580,7 @@ bool Slam::OptimizeGraph()
   }
 
   // Look for GPS constraints
-  if (this->GpsHasData())
+  if (UsePGOConstraints[PGO_GPS] && this->GpsHasData())
   {
     graphManager.AddExternalSensor(this->GpsManager->GetCalibration(), int(ExternalSensor::GPS));
     for (auto& s : this->LogStates)
@@ -589,7 +597,7 @@ bool Slam::OptimizeGraph()
 
   if (!externalConstraint)
   {
-    PRINT_ERROR("No external constraints exist. Pose graph can not be optimized");
+    PRINT_ERROR("No external constraints nor loop closure constraint exist. Pose graph can not be optimized");
     return false;
   }
 
@@ -619,7 +627,7 @@ bool Slam::OptimizeGraph()
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
-  // Update the maps
+  // Update the maps from the beginning using the new trajectory
   IF_VERBOSE(3, Utils::Timer::Init("PGO : maps update"));
   this->UpdateMaps();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : maps update"));
@@ -655,9 +663,15 @@ void Slam::SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess)
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat, bool filtered) const
+void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat, bool filtered)
 {
   IF_VERBOSE(3, Utils::Timer::Init("Keypoints maps saving to PCD"));
+
+  // Rebuild LocalMaps when the time threshold is set to remove old points
+  // so that the removed points are recovered in LocalMaps.
+  // Check LoggingTimeout is greater than DecayingThreshold to make sure there are enough keyframes stored in Logstates
+  if ( this->LoggingTimeout > this->GetVoxelGridDecayingThreshold() && this->GetVoxelGridDecayingThreshold() > 0)
+    this->UpdateMaps(true);
 
   // Save keypoint maps
   for (auto k : this->UsableKeypoints)
@@ -674,7 +688,7 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
   // In most of the cases, we would like to reset SLAM internal maps before
   // loading new maps to avoid conflicts.
   if (resetMaps)
-    this->ClearMaps();
+    this->ClearMaps(this->LocalMaps);
 
   for (auto k : this->UsableKeypoints)
   {
@@ -699,7 +713,7 @@ void Slam::ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager)
   double startTime = newTrajectoryManager.GetMeasures().front().Time;
   double endTime   = newTrajectoryManager.GetMeasures().back().Time;
   if (startTime > this->LogStates.back().Time || endTime < this->LogStates.front().Time)
-  { 
+  {
     PRINT_WARNING("Unable to reset poses with new trajectory : timestamps are different from lidar time.");
     return;
   }
@@ -708,8 +722,8 @@ void Slam::ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager)
   // Get iterator pointing to the first measurement after new trajectory time
   while (itState->Time < startTime)
     ++itState;
-  
-  // Save the state before endTime of new trajectory 
+
+  // Save the state before endTime of new trajectory
   // when new trajectory is shorter than Logstates
   Eigen::Isometry3d endTimeState = Eigen::Isometry3d::Identity();
   auto itEndTimeState = itState;
@@ -721,7 +735,7 @@ void Slam::ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager)
     endTimeState = itEndTimeState->Isometry;
   }
 
-  // Virtual measure with synchronized timestamp 
+  // Virtual measure with synchronized timestamp
   ExternalSensors::PoseMeasurement synchMeas;
   while (itState->Time <= endTime && itState != this->LogStates.end())
   {
@@ -1005,7 +1019,7 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
       // Transform pose
       s.Isometry = s.Isometry * odom2Ext;
     }
-    // Update maps
+    // Update maps from the beginning using the new trajectory
     this->UpdateMaps();
   }
   else
@@ -1079,116 +1093,46 @@ void Slam::ComputeEgoMotion()
     // kd-tree to process fast nearest neighbor
     // among the keypoints of the previous pointcloud
     IF_VERBOSE(3, Utils::Timer::Init("EgoMotion : build KD tree"));
-    std::map<Keypoint, KDTree> kdtreePrevious;
-    // Kdtrees map initialization to parallelize their
-    // construction using OMP and avoid concurrency issues
+
+    // Build a new submap for PreviousRawKeypoints
+    Maps previousKeypoints;
+    this->InitSubMaps(previousKeypoints);
+    // Reduce the leaf size to get all the keypoints from the previous frame
     for (auto k : this->UsableKeypoints)
-      kdtreePrevious[k] = KDTree();
+      previousKeypoints[k]->SetLeafSize(0.05);
+    for (auto k : this->UsableKeypoints)
+      previousKeypoints[k]->Add(this->PreviousRawKeypoints[k]);
 
     // The iteration is not directly on Keypoint types
     // because of openMP behaviour which needs int iteration on MSVC
     int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+    // Build a kd-tree for previousKeypoints maps
     #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
     for (int i = 0; i < nbKeypointTypes; ++i)
     {
       Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
-      if (kdtreePrevious.count(k))
-        kdtreePrevious[k].Reset(this->PreviousRawKeypoints[k]);
+      if (!previousKeypoints[k]->IsSubMapKdTreeValid())
+        previousKeypoints[k]->BuildSubMapKdTree();
     }
 
     if (this->Verbosity >= 2)
     {
       std::cout << "Keypoints extracted from previous frame : ";
       for (auto k : this->UsableKeypoints)
-        std::cout << this->PreviousRawKeypoints[k]->size() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+        std::cout << previousKeypoints[k]->GetSubMapKdTree().GetInputCloud()->size() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
       std::cout << std::endl;
     }
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("EgoMotion : build KD tree"));
     IF_VERBOSE(3, Utils::Timer::Init("Ego-Motion : whole ICP-LM loop"));
 
-    // Reset ICP results
-    this->TotalMatchedKeypoints = 0;
-
-    // Init matching parameters
-    KeypointsMatcher::Parameters matchingParams;
-    matchingParams.NbThreads = this->NbThreads;
-    matchingParams.SingleEdgePerRing = true;
-    matchingParams.MaxNeighborsDistance = this->EgoMotionMaxNeighborsDistance;
-    matchingParams.EdgeNbNeighbors = this->EgoMotionEdgeNbNeighbors;
-    matchingParams.EdgeMinNbNeighbors = this->EgoMotionEdgeMinNbNeighbors;
-    matchingParams.EdgeMaxModelError = this->EgoMotionEdgeMaxModelError;
-    matchingParams.PlaneNbNeighbors = this->EgoMotionPlaneNbNeighbors;
-    matchingParams.PlanarityThreshold = this->EgoMotionPlanarityThreshold;
-    matchingParams.PlaneMaxModelError = this->EgoMotionPlaneMaxModelError;
-
-    // ICP - Levenberg-Marquardt loop
-    // At each step of this loop an ICP matching is performed. Once the keypoints
-    // are matched, we estimate the the 6-DOF parameters by minimizing the
-    // non-linear least square cost function using Levenberg-Marquardt algorithm.
-    for (unsigned int icpIter = 0; icpIter < this->EgoMotionICPMaxIter; ++icpIter)
-    {
-      IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : ICP"));
-
-      // We want to estimate our 6-DOF parameters using a non linear least square
-      // minimization. The non linear part comes from the parametrization of the
-      // rotation endomorphism SO(3).
-      // First, we need to build the point-to-line, point-to-plane and
-      // point-to-blob ICP matches that will be optimized.
-      // Then, we use CERES Levenberg-Marquardt optimization to minimize the problem.
-
-      // Create a keypoints matcher
-      // At each ICP iteration, the outliers removal is refined to be stricter
-      double iterRatio = icpIter / static_cast<double>(this->EgoMotionICPMaxIter - 1);
-      matchingParams.SaturationDistance = (1 - iterRatio) * this->EgoMotionInitSaturationDistance + iterRatio * this->EgoMotionFinalSaturationDistance;
-      KeypointsMatcher matcher(matchingParams, this->Trelative);
-
-      // Loop over keypoints to build the residuals
-      for (auto k : this->UsableKeypoints)
-        this->EgoMotionMatchingResults[k] = matcher.BuildMatchResiduals(this->CurrentRawKeypoints[k], kdtreePrevious[k], k);
-
-      // Count matches and skip this frame
-      // if there are too few geometric keypoints matched
-      this->TotalMatchedKeypoints = 0;
-      for (auto k : this->UsableKeypoints)
-        this->TotalMatchedKeypoints += this->EgoMotionMatchingResults[k].NbMatches();
-
-      if (this->TotalMatchedKeypoints < this->MinNbMatchedKeypoints)
-      {
-        PRINT_WARNING("Not enough keypoints, EgoMotion skipped for this frame.");
-        break;
-      }
-
-      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : ICP"));
-      IF_VERBOSE(3, Utils::Timer::Init("  Ego-Motion : LM optim"));
-
-      // Init the optimizer with initial pose and parameters
-      LocalOptimizer optimizer;
-      optimizer.SetTwoDMode(this->TwoDMode);
-      optimizer.SetPosePrior(this->Trelative);
-      optimizer.SetLMMaxIter(this->EgoMotionLMMaxIter);
-      optimizer.SetNbThreads(this->NbThreads);
-
-      // Add LiDAR ICP matches
-      for (auto k : this->UsableKeypoints)
-        optimizer.AddResiduals(this->EgoMotionMatchingResults[k].Residuals);
-
-      // Run LM optimization
-      ceres::Solver::Summary summary = optimizer.Solve();
-      PRINT_VERBOSE(4, summary.BriefReport());
-
-      // Get back optimized Trelative
-      this->Trelative = optimizer.GetOptimizedPose();
-
-      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Ego-Motion : LM optim"));
-
-      // If no L-M iteration has been made since the last ICP matching, it means
-      // that we reached a local minimum for the ICP-LM algorithm.
-      if (summary.num_successful_steps == 1)
-      {
-        break;
-      }
-    }
+    // Set localization parameters which do not have a setter
+    this->EgoMotionParams.MatchingParams.NbThreads = static_cast<unsigned int>(this->NbThreads);
+    this->EgoMotionParams.MatchingParams.SingleEdgePerRing = true;
+    // ICP - Levenberg-Marquardt loop to update Trelative
+    this->EstimatePose(this->CurrentRawKeypoints, previousKeypoints,
+                       this->EgoMotionParams, this->Trelative,
+                       this->EgoMotionMatchingResults);
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion : whole ICP-LM loop"));
     if (this->Verbosity >= 2)
@@ -1268,7 +1212,7 @@ void Slam::Localization()
         if (this->LocalMaps[k]->IsTimeThreshold())
         {
           IF_VERBOSE(3, Utils::Timer::Init("Localization : clearing old points"));
-          this->LocalMaps[k]->ClearOldPoints(this->CurrentTime);
+          this->LocalMaps[k]->ClearPoints(this->CurrentTime);
           IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : clearing old points"));
         }
         // Estimate current keypoints bounding box
@@ -1299,126 +1243,24 @@ void Slam::Localization()
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : map keypoints extraction"));
   IF_VERBOSE(3, Utils::Timer::Init("Localization : whole ICP-LM loop"));
 
-  // Reset ICP results
-  this->TotalMatchedKeypoints = 0;
+  // Set localization parameters which do not have a setter
+  this->LocalizationParams.MatchingParams.NbThreads = static_cast<unsigned int>(this->NbThreads);
+  this->LocalizationParams.MatchingParams.SingleEdgePerRing = false;
+  // ICP - Levenberg-Marquardt loop to update Tworld
+  this->LocalizationUncertainty = this->EstimatePose(this->CurrentUndistortedKeypoints,
+                                                     this->LocalMaps,
+                                                     this->LocalizationParams,
+                                                     this->Tworld,
+                                                     this->LocalizationMatchingResults);
+  this->Valid = this->LocalizationUncertainty.Valid;
 
-  // Init matching parameters
-  KeypointsMatcher::Parameters matchingParams;
-  matchingParams.NbThreads = this->NbThreads;
-  matchingParams.SingleEdgePerRing = false;
-  matchingParams.MaxNeighborsDistance = this->LocalizationMaxNeighborsDistance;
-  matchingParams.EdgeNbNeighbors = this->LocalizationEdgeNbNeighbors;
-  matchingParams.EdgeMinNbNeighbors = this->LocalizationEdgeMinNbNeighbors;
-  matchingParams.EdgeMaxModelError = this->LocalizationEdgeMaxModelError;
-  matchingParams.PlaneNbNeighbors = this->LocalizationPlaneNbNeighbors;
-  matchingParams.PlanarityThreshold = this->LocalizationPlanarityThreshold;
-  matchingParams.PlaneMaxModelError = this->LocalizationPlaneMaxModelError;
-  matchingParams.BlobNbNeighbors = this->LocalizationBlobNbNeighbors;
-
-  // ICP - Levenberg-Marquardt loop
-  // At each step of this loop an ICP matching is performed. Once the keypoints
-  // are matched, we estimate the the 6-DOF parameters by minimizing the
-  // non-linear least square cost function using Levenberg-Marquardt algorithm.
-  for (unsigned int icpIter = 0; icpIter < this->LocalizationICPMaxIter; ++icpIter)
+  if (!this->Valid)
   {
-    IF_VERBOSE(3, Utils::Timer::Init("  Localization : ICP"));
+    // Reset state to previous one to avoid instability
+    this->Tworld = this->LogStates.empty() ? Eigen::UnalignedIsometry3d::Identity() : this->LogStates.back().Isometry;
 
-    // We want to estimate our 6-DOF parameters using a non linear least square
-    // minimization. The non linear part comes from the parametrization of the
-    // rotation endomorphism SO(3).
-    // First, we need to build the point-to-line, point-to-plane and
-    // point-to-blob ICP matches that will be optimized.
-    // Then, we use CERES Levenberg-Marquardt optimization to minimize problem.
-
-    // Create a keypoints matcher
-    // At each ICP iteration, the outliers removal is refined to be stricter
-    double iterRatio = icpIter / static_cast<double>(this->LocalizationICPMaxIter - 1);
-    matchingParams.SaturationDistance = (1 - iterRatio) * this->LocalizationInitSaturationDistance + iterRatio * this->LocalizationFinalSaturationDistance;
-    KeypointsMatcher matcher(matchingParams, this->Tworld);
-
-    // Loop over keypoints to build the point to line residuals
-    this->TotalMatchedKeypoints = 0;
-    for (auto k : this->UsableKeypoints)
-    {
-      this->LocalizationMatchingResults[k] = matcher.BuildMatchResiduals(this->CurrentUndistortedKeypoints[k], this->LocalMaps[k]->GetSubMapKdTree(), k);
-      this->TotalMatchedKeypoints += this->LocalizationMatchingResults[k].NbMatches();
-    }
-
-    // Skip frame if not enough keypoints are extracted
-    if (this->TotalMatchedKeypoints < this->MinNbMatchedKeypoints)
-    {
-      // Reset state to previous one to avoid instability
-      if (this->LogStates.empty())
-        this->Tworld = this->TworldInit;
-      else
-        this->Tworld = this->LogStates.back().Isometry;
-      if (this->Undistortion)
-        this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
-      PRINT_ERROR("Not enough keypoints matched, Localization skipped for this frame.");
-      this->Valid = false;
-      break;
-    }
-
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : ICP"));
-    IF_VERBOSE(3, Utils::Timer::Init("  Localization : LM optim"));
-
-    // Init the optimizer with initial pose and parameters
-    LocalOptimizer optimizer;
-    optimizer.SetTwoDMode(this->TwoDMode);
-    optimizer.SetPosePrior(this->Tworld);
-    optimizer.SetLMMaxIter(this->LocalizationLMMaxIter);
-    optimizer.SetNbThreads(this->NbThreads);
-
-    // Add LiDAR ICP matches
-    for (auto k : this->UsableKeypoints)
-      optimizer.AddResiduals(this->LocalizationMatchingResults[k].Residuals);
-
-    // Add odometry constraint
-    // if constraint has been successfully created
-    if (this->WheelOdomManager && this->WheelOdomManager->GetResidual().Cost)
-      optimizer.AddResidual(this->WheelOdomManager->GetResidual());
-
-    // Add gravity alignment constraint
-    // if constraint has been successfully created
-    if (this->GravityManager && this->GravityManager->GetResidual().Cost)
-      optimizer.AddResidual(this->GravityManager->GetResidual());
-
-    // Add Pose constraint
-    // if constraint has been successfully created
-    if (this->PoseManager && this->PoseManager->GetResidual().Cost)
-      optimizer.AddResidual(this->PoseManager->GetResidual());
-
-    // Add available landmark constraints
-    for (auto& idLm : this->LandmarksManagers)
-    {
-      // Add landmark constraint
-      // if constraint has been successfully created
-      if (idLm.second.GetResidual().Cost)
-        optimizer.AddResidual(idLm.second.GetResidual());
-    }
-
-    // Run LM optimization
-    ceres::Solver::Summary summary = optimizer.Solve();
-    PRINT_VERBOSE(4, summary.BriefReport());
-
-    // Update Tworld from optimization results
-    this->Tworld = optimizer.GetOptimizedPose();
-
-    // Optionally refine undistortion
-    if (this->Undistortion == UndistortionMode::REFINED)
-      this->RefineUndistortion();
-
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Localization : LM optim"));
-
-    // If no L-M iteration has been made since the last ICP matching, it means
-    // that we reached a local minimum for the ICP-LM algorithm.
-    // We evaluate the quality of the Tworld optimization using an approximate
-    // computation of the variance covariance matrix.
-    if ((summary.num_successful_steps == 1) || (icpIter == this->LocalizationICPMaxIter - 1))
-    {
-      this->LocalizationUncertainty = optimizer.EstimateRegistrationError();
-      break;
-    }
+    if (this->Undistortion)
+      this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
   }
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
@@ -1549,9 +1391,401 @@ void Slam::LogCurrentFrameState()
 }
 
 //-----------------------------------------------------------------------------
+void Slam::SetUndistortion(UndistortionMode undistMode)
+{
+  this->Undistortion = undistMode;
+  this->LocalizationParams.Undistortion = undistMode;
+}
+
+//-----------------------------------------------------------------------------
 LidarState& Slam::GetLastState()
 {
   return this->LogStates.back();
+}
+
+//==============================================================================
+//   Loop Closure usage
+//==============================================================================
+
+bool Slam::DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState)
+{
+  PRINT_VERBOSE(2, "========== Loop closure : Detection ==========");
+
+  if (this->ExtDetectLoopClosure)
+  {
+    // If ExtDetectLoopClosure is enabled, check whether the input frames are stored in the LogStates
+    // When LogOnlyKeyFrames is enabled, only keyframes are stored in the LogStates.
+    // It is possible that the inputs frame indices are not keyframes.
+    // In this case, replace the input frame index by its neighbor keyframes
+    itQueryState = this->LogStates.begin();
+    itRevisitedState = itQueryState;
+    while (itQueryState->Index < this->LoopClosureQueryIdx && itQueryState->Index != this->LogStates.back().Index)
+      ++itQueryState;
+    if (itQueryState->Index != this->LoopClosureQueryIdx)
+    {
+      this->LoopClosureQueryIdx = itQueryState->Index;
+      PRINT_WARNING("The input query frame index is not found in Logstates and is replaced by frame #"
+                    << this->LoopClosureQueryIdx << ".");
+    }
+
+    while (itRevisitedState->Index < this->LoopClosureRevisitedIdx && itRevisitedState->Index != this->LogStates.back().Index)
+      ++itRevisitedState;
+    if (itRevisitedState->Index != this->LoopClosureRevisitedIdx)
+    {
+      this->LoopClosureRevisitedIdx = itRevisitedState->Index;
+      PRINT_WARNING("The input revisited frame index is not found in Logstates and is replaced by frame #"
+                    << this->LoopClosureRevisitedIdx << ".");
+    }
+    PRINT_VERBOSE(3, "Loop closure is detected by external information. The relevant frame indices are:\n"
+                  << " Query frame #" << itQueryState->Index << " Revisited frame #" << itRevisitedState->Index);
+    return true;
+  }
+  else
+  {
+    // Automatic detection of loop closure will be implemented here
+    // It detects automatically a revisited frame idx for the current frame
+    itQueryState = this->LogStates.end();
+    itRevisitedState = this->LogStates.begin();
+    return false;
+  }
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState,
+                                   std::list<LidarState>::iterator& itRevisitedState,
+                                   Eigen::Isometry3d& loopClosureTransform,
+                                   Eigen::Matrix6d& loopClosureCovariance)
+{
+  // Optimization results of loop closure localization
+  LocalOptimizer::RegistrationError loopClosureUncertainty = LocalOptimizer::RegistrationError();
+  PRINT_VERBOSE(2, "========== Loop closure : Registration ==========");
+
+  // Create a submap around revisited frame where a loop is detected
+  Maps loopClosureRevisitedSubMaps;
+  this->InitSubMaps(loopClosureRevisitedSubMaps);
+  this->BuildMaps(loopClosureRevisitedSubMaps,
+                  itRevisitedState->Index + this->LCRevisitedWindowStartRange,
+                  itRevisitedState->Index + this->LCRevisitedWindowEndRange);
+  PRINT_VERBOSE(3, "Sub maps are created around revisited frame #" << itRevisitedState->Index << ".");
+
+  // Pose prior for optimization
+  Eigen::Isometry3d loopClosureTworld = itQueryState->Isometry;
+  // Enable to add an offset to the pose prior when two poses are too far from each other.
+  if (this->EnableLoopClosureOffset)
+  {
+    PointCloud::Ptr revisitedPlaneKeypoints(new PointCloud);
+    pcl::transformPointCloud(*(itRevisitedState->Keypoints[PLANE]->GetCloud()),
+                             *revisitedPlaneKeypoints,
+                             itRevisitedState->Isometry.matrix().cast<float>());
+    Eigen::Vector4f minPoint, maxPoint, midPoint;
+    pcl::getMinMax3D(*revisitedPlaneKeypoints, minPoint, maxPoint);
+    midPoint = 0.5 * (minPoint + maxPoint);
+    loopClosureTworld.translation() = midPoint.head<3>().cast<double>();
+    PRINT_VERBOSE(3, "An offset is added onto the query submaps.");
+  }
+
+  // If LoopClosureICPWithSubmap is enabled, create a sub map of keypoints around the query frame
+  // Otherwise, use only keypoints of query frame as query keypoints
+  // loopClosureQueryKeypoints are in BASE coordinates of query frame
+  std::map<Keypoint, PointCloud::Ptr> loopClosureQueryKeypoints;
+  for (auto k : this->UsableKeypoints)
+    loopClosureQueryKeypoints[k].reset(new PointCloud);
+  if (this->LoopClosureICPWithSubmap)
+  {
+    Maps loopClosureQuerySubMaps;
+    this->InitSubMaps(loopClosureQuerySubMaps);
+    this->BuildMaps(loopClosureQuerySubMaps,
+                    itQueryState->Index + this->LCQueryWindowStartRange,
+                    itQueryState->Index + this->LCQueryWindowEndRange,
+                    itQueryState->Index);
+    PRINT_VERBOSE(3, "Sub maps are created around query frame #" << itQueryState->Index << ".");
+    for (auto k : this->UsableKeypoints)
+      loopClosureQueryKeypoints[k] = loopClosureQuerySubMaps[k]->Get();
+  }
+  else
+  {
+    for (auto k : this->UsableKeypoints)
+      loopClosureQueryKeypoints[k] = itQueryState->Keypoints[k]->GetCloud();
+  }
+
+  IF_VERBOSE(3, Utils::Timer::Init("Loop closure Registration : submap keypoints extraction"));
+  // Build kd-trees for fast nearest neighbors search from keypoints of loop closure sub map
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
+  {
+    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
+    if (!loopClosureRevisitedSubMaps[k]->IsSubMapKdTreeValid())
+      loopClosureRevisitedSubMaps[k]->BuildSubMapKdTree();
+  }
+
+  if (this->Verbosity >= 2)
+  {
+    std::cout << "Keypoints extracted from loop closure sub map : ";
+    for (auto k : this->UsableKeypoints)
+      std::cout << loopClosureRevisitedSubMaps[k]->GetSubMapKdTree().GetInputCloud()->size()
+                << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+    std::cout << std::endl;
+  }
+
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Loop closure Registration : map keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::Init("Loop closure Registration : whole ICP-LM loop"));
+
+  // Reset ICP results
+  this->TotalMatchedKeypoints = 0;
+
+  // Set loop closure parameters which do not have a setter
+  this->LoopClosureParams.MatchingParams.NbThreads = static_cast<unsigned int>(this->NbThreads);
+  this->LoopClosureParams.MatchingParams.SingleEdgePerRing = false;
+  // ICP - Levenberg-Marquardt loop to estimate the pose of the current frame relatively to the close loop frame
+  loopClosureUncertainty = this->EstimatePose(loopClosureQueryKeypoints, loopClosureRevisitedSubMaps,
+                                              this->LoopClosureParams, loopClosureTworld,
+                                              this->LoopClosureMatchingResults);
+
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Loop closure Registration : whole ICP-LM loop"));
+
+  if (!loopClosureUncertainty.Valid)
+  {
+    PRINT_ERROR("Loop closure registration failed.")
+    return loopClosureUncertainty.Valid;
+  }
+
+  // Get covariance
+  Eigen::Matrix6d covariance = std::pow(this->CovarianceScale, 2) * loopClosureUncertainty.Covariance;
+  float defaultPositionError = 1e-2; // 1cm
+  float defaultAngleError = Utils::Deg2Rad(1.f); // 1°
+  if (!Utils::isCovarianceValid(covariance))
+    covariance = Utils::CreateDefaultCovariance(defaultPositionError, defaultAngleError);
+  // If 2D mode enabled, supply constant covariance for unevaluated variables
+  if (this->TwoDMode)
+  {
+    covariance(2, 2) = std::pow(defaultPositionError, 2);
+    covariance(3, 3) = std::pow(defaultAngleError,    2);
+    covariance(4, 4) = std::pow(defaultAngleError,    2);
+  }
+  // Compute the relative transform between revisited frame and query frame
+  Eigen::Isometry3d revisitedStateInv = itRevisitedState->Isometry.inverse();
+  loopClosureTransform = revisitedStateInv * loopClosureTworld;
+  // Rotate covariance
+  // Lidar Slam gives the covariance expressed in the map frame
+  // We want the covariance expressed in the query frame to be consistent with supplied relative transform
+  Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(loopClosureTworld);
+  loopClosureCovariance = CeresTools::RotateCovariance(xyzrpy, covariance, revisitedStateInv, true); // new = revisitedState^-1 * loopClosureTworld
+
+  // Optionally print loop closure registration optimization summary
+  if (this->Verbosity >= 2)
+  {
+    SET_COUT_FIXED_PRECISION(3);
+    std::cout << "Loop closure matched keypoints: " << this->TotalMatchedKeypoints << " (";
+    for (auto k : this->UsableKeypoints)
+      std::cout << this->LoopClosureMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+
+    std::cout << ")"
+              << "\nLoop closure position uncertainty    = " << loopClosureUncertainty.PositionError    << " m"
+              << " (along [" << loopClosureUncertainty.PositionErrorDirection.transpose()    << "])"
+              << "\nLoop closure orientation uncertainty = " << loopClosureUncertainty.OrientationError << " °"
+              << " (along [" << loopClosureUncertainty.OrientationErrorDirection.transpose() << "])"
+              << std::endl;
+    std::cout << "Loop closure Transform:\n"
+                 " position    = [" << loopClosureTworld.translation().transpose()                                        << "] m\n"
+                 " orientation = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(loopClosureTworld.linear())).transpose() << "] °" << std::endl;
+
+    RESET_COUT_FIXED_PRECISION;
+  }
+  return loopClosureUncertainty.Valid;
+}
+
+//==============================================================================
+//   Map helpers
+//==============================================================================
+
+//-----------------------------------------------------------------------------
+void Slam::InitSubMaps(Maps& maps)
+{
+  // Reset previous sub maps
+  this->ClearMaps(maps);
+
+  // Init SubMaps for each keypoint type with the same resolution as the one used in LocalMaps
+  for (auto k : this->UsableKeypoints)
+  {
+    maps[k] = std::make_shared<RollingGrid>();
+    maps[k]->SetVoxelResolution(this->LocalMaps[k]->GetVoxelResolution());
+    maps[k]->SetGridSize(this->LocalMaps[k]->GetGridSize());
+    maps[k]->SetLeafSize(this->LocalMaps[k]->GetLeafSize());
+  }
+}
+
+//-----------------------------------------------------------------------------
+void Slam::BuildMaps(Maps& maps, int windowStartIdx, int windowEndIdx, int idxFrame)
+{
+  // If default values of windowStartIdx and windowEndIdx are used, build maps with all frames stored in LogStates.
+  // Otherwise, create a sub map with frames [windowStartIdx, windowEndIdx].
+  unsigned int idxMin = static_cast<unsigned int>(std::max(0, windowStartIdx));
+  unsigned int idxMax = windowEndIdx < 0 ? this->LogStates.back().Index : std::min(this->LogStates.back().Index, static_cast<unsigned int>(windowEndIdx));
+
+  // Keypoints are aggregated in base coordinates of frame #idxFrame
+  Eigen::Isometry3d currentBaseInv = Eigen::Isometry3d::Identity();
+  if (idxFrame >= 0)
+  {
+    for (auto& state : this->LogStates)
+    {
+      if (state.Index == static_cast<unsigned int>(idxFrame))
+      {
+        currentBaseInv = state.Isometry.inverse();
+        break;
+      }
+    }
+  }
+
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
+  {
+    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
+    PointCloud::Ptr keypoints(new PointCloud);
+
+    // Roll to center onto last pose to make sure slam can follow the trajectory after the maps have been updated
+    Eigen::Vector4f minPoint, maxPoint;
+    pcl::getMinMax3D(*this->LogStates.back().Keypoints[k]->GetCloud(), minPoint, maxPoint);
+    maps[k]->Roll(minPoint.head<3>().array(), maxPoint.head<3>().array());
+
+    for (auto& state : this->LogStates)
+    {
+      if (!state.IsKeyFrame || state.Index < idxMin)
+        continue;
+      if (state.Index > idxMax)
+        break;
+      // Keypoints are stored undistorted : because of the keyframes mechanism,
+      // undistortion cannot be refined during pose graph
+      // We rely on a good first estimation of the in-frame motion
+      keypoints.reset(new PointCloud);
+      PointCloud::Ptr undistortedKeypoints = state.Keypoints[k]->GetCloud();
+      auto transform = idxFrame >= 0 ? currentBaseInv.matrix() * state.Isometry.matrix() : state.Isometry.matrix();
+      pcl::transformPointCloud(*undistortedKeypoints, *keypoints, transform.cast<float>());
+      maps[k]->Add(keypoints, false);
+    }
+  }
+}
+
+//-----------------------------------------------------------------------------
+LocalOptimizer::RegistrationError Slam::EstimatePose(const std::map<Keypoint, PointCloud::Ptr>& sourceKeypoints,
+                                                     const Maps& targetKeypoints,
+                                                     Optimization::Parameters& params,
+                                                     Eigen::Isometry3d& posePrior,
+                                                     std::map<Keypoint, KeypointsMatcher::MatchingResults>& matchingResults)
+{
+  LocalOptimizer::RegistrationError optimizationUncertainty = LocalOptimizer::RegistrationError();
+
+  // Reset ICP results
+  this->TotalMatchedKeypoints = 0;
+
+  // ICP - Levenberg-Marquardt loop
+  // At each step of this loop an ICP matching is performed. Once the keypoints
+  // are matched, we estimate the 6-DOF parameters by minimizing the
+  // non-linear least square cost function using Levenberg-Marquardt algorithm.
+  for (unsigned int icpIter = 0; icpIter < params.ICPMaxIter; ++icpIter)
+  {
+    IF_VERBOSE(3, Utils::Timer::Init("  Pose estimation : ICP"));
+
+    // We want to estimate our 6-DOF parameters using a non linear least square
+    // minimization. The non linear part comes from the parametrization of the
+    // rotation endomorphism SO(3).
+    // First, we need to build the point-to-line, point-to-plane and
+    // point-to-blob ICP matches that will be optimized.
+    // Then, we use CERES Levenberg-Marquardt optimization to minimize problem.
+
+    // Create a keypoints matcher
+    // At each ICP iteration, the outliers removal is refined to be stricter
+    double iterRatio = icpIter / static_cast<double>(params.ICPMaxIter - 1);
+    params.MatchingParams.SaturationDistance = (1 - iterRatio) * params.InitSaturationDistance + iterRatio * params.FinalSaturationDistance;
+    KeypointsMatcher matcher(params.MatchingParams, posePrior);
+
+    // Loop over keypoints to build the point to line residuals
+    this->TotalMatchedKeypoints = 0;
+    for (auto k : this->UsableKeypoints)
+    {
+      matchingResults[k] = matcher.BuildMatchResiduals(sourceKeypoints.at(k), targetKeypoints.at(k)->GetSubMapKdTree(), k);
+      this->TotalMatchedKeypoints += matchingResults[k].NbMatches();
+    }
+
+    // Skip frame if not enough keypoints are extracted
+    if (this->TotalMatchedKeypoints < this->MinNbMatchedKeypoints)
+    {
+      PRINT_ERROR("Not enough keypoints matched, Pose estimation skipped for this frame.");
+      optimizationUncertainty.Valid = false;
+      break;
+    }
+
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Pose estimation : ICP"));
+    IF_VERBOSE(3, Utils::Timer::Init("  Pose estimation : LM optim"));
+
+    // Init the optimizer with initial pose and parameters
+    LocalOptimizer optimizer;
+    optimizer.SetTwoDMode(this->TwoDMode);
+    optimizer.SetPosePrior(posePrior);
+    optimizer.SetLMMaxIter(params.LMMaxIter);
+    optimizer.SetNbThreads(this->NbThreads);
+
+    // Add LiDAR ICP matches
+    for (auto k : this->UsableKeypoints)
+      optimizer.AddResiduals(matchingResults[k].Residuals);
+
+    if (params.EnableExternalConstraints)
+    {
+      // Add odometry constraint
+      // if constraint has been successfully created
+      if (this->WheelOdomManager && this->WheelOdomManager->GetResidual().Cost)
+        optimizer.AddResidual(this->WheelOdomManager->GetResidual());
+
+      // Add gravity alignment constraint
+      // if constraint has been successfully created
+      if (this->GravityManager && this->GravityManager->GetResidual().Cost)
+        optimizer.AddResidual(this->GravityManager->GetResidual());
+
+      // Add Pose constraint
+      // if constraint has been successfully created
+      if (this->PoseManager && this->PoseManager->GetResidual().Cost)
+        optimizer.AddResidual(this->PoseManager->GetResidual());
+
+      // Add available landmark constraints
+      for (auto& idLm : this->LandmarksManagers)
+      {
+        // Add landmark constraint
+        // if constraint has been successfully created
+        if (idLm.second.GetResidual().Cost)
+          optimizer.AddResidual(idLm.second.GetResidual());
+      }
+    }
+
+    // Run LM optimization
+    ceres::Solver::Summary summary = optimizer.Solve();
+    PRINT_VERBOSE(4, summary.BriefReport());
+
+    // Update pose prior from optimization results
+    posePrior = optimizer.GetOptimizedPose();
+
+    // Optionally refine undistortion
+    if (params.Undistortion == UndistortionMode::REFINED)
+      this->RefineUndistortion();
+
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Pose estimation : LM optim"));
+
+    // If no L-M iteration has been made since the last ICP matching, it means
+    // that we reached a local minimum for the ICP-LM algorithm.
+    // We evaluate the quality of the Tworld optimization using an approximate
+    // computation of the variance covariance matrix.
+    if ((summary.num_successful_steps == 1) || (icpIter == params.ICPMaxIter - 1))
+    {
+      optimizationUncertainty = optimizer.EstimateRegistrationError();
+      break;
+    }
+  }
+
+  return optimizationUncertainty;
 }
 
 //==============================================================================
@@ -1703,7 +1937,7 @@ void Slam::EstimateOverlap()
   PointCloud::Ptr aggregatedPoints = this->GetRegisteredFrame();
 
   // Keep only the maps to use
-  std::map<Keypoint, std::shared_ptr<RollingGrid>> mapsToUse;
+  Maps mapsToUse;
   for (auto k : this->UsableKeypoints)
   {
     if (this->LocalMaps[k]->IsSubMapKdTreeValid())
@@ -2123,7 +2357,7 @@ bool Slam::CalibrateWithGps()
     s.Isometry = firstInverse * s.Isometry;
   }
 
-  // Update the maps and the pose with new trajectory
+  // Update the maps and the pose with the new trajectory
   this->UpdateMaps();
   this->SetWorldTransformFromGuess(this->LogStates.back().Isometry);
 
@@ -2338,9 +2572,9 @@ void Slam::SetBaseToLidarOffset(const Eigen::Isometry3d& transform, uint8_t devi
 //==============================================================================
 
 //-----------------------------------------------------------------------------
-void Slam::ClearMaps()
+void Slam::ClearMaps(Maps& maps)
 {
-  for (auto kmap: this->LocalMaps)
+  for (auto kmap: maps)
     kmap.second->Reset();
 }
 

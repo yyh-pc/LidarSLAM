@@ -121,7 +121,7 @@ void vtkSlam::Reset()
 
   // Init the output SLAM trajectory
   this->ResetTrajectory();
-  
+
   // Add the optional arrays to the trajectory
   if (this->AdvancedReturnMode)
   {
@@ -132,6 +132,33 @@ void vtkSlam::Reset()
 
   // Refill sensor managers
   this->SetSensorData(this->ExtSensorFileName);
+
+  // Refresh view
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::RebuildMaps()
+{
+  this->SlamAlgo->UpdateMaps(this->ResetMaps);
+  PRINT_INFO("Rebuild maps finished.")
+
+  // Refresh view
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::OptimizeGraph()
+{
+  const std::list<LidarSlam::LidarState>& initLidarStates = this->SlamAlgo->GetLogStates();
+  if (initLidarStates.size() < 2)
+    return;
+  this->SlamAlgo->OptimizeGraph();
+  // Update trajectory from the first timestamp of lidarStates with new poses after PGO.
+  const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
+  this->ResetTrajectory(lidarStates.front().Time);
+  for (auto const& state: lidarStates)
+    this->AddPoseToTrajectory(state);
 
   // Refresh view
   this->ParametersModificationTime.Modified();
@@ -606,7 +633,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
     vtkWarningMacro(<<"No valid data in the trajectory file. Load trajectory failed.");
     return;
   }
-  
+
   // Initialize a pose manager to store the external trajectory
   // Enable Verbose is useful to know whether the new trajectory is loaded correctly.
   // Set DistanceThreshold and AngleThreshold by the same values used in slam for checking keyframes.
@@ -635,7 +662,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
       break;
   }
   if (hasCovariance)
-  { 
+  {
     // If covariance exists, set CovarianceRotation true
     trajectoryManager.SetCovarianceRotation(true);
     // Load covariance matrix
@@ -644,7 +671,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
       auto arrayCovariance =  csvTable->GetRowData()->GetArray(("Covariance:"+std::to_string(nCov)).c_str());
       for (vtkIdType poseIdx = 0; poseIdx < numPose; ++poseIdx)
         newCovariances[poseIdx](nCov) =  arrayCovariance->GetTuple1(poseIdx);
-    } 
+    }
   }
 
   // Process Pose data
@@ -664,7 +691,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
 
     for (vtkIdType i = 0; i < numPose; ++i)
     {
-      LidarSlam::ExternalSensors::PoseMeasurement meas;  
+      LidarSlam::ExternalSensors::PoseMeasurement meas;
       meas.Pose = Utils::XYZRPYtoIsometry(arrayX->GetTuple1(i), arrayY->GetTuple1(i), arrayZ->GetTuple1(i),
                                           arrayRoll->GetTuple1(i), arrayPitch->GetTuple1(i), arrayYaw->GetTuple1(i));
       meas.Time = arrayTime->GetTuple1(i);
@@ -694,8 +721,8 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
     auto arrayY     = csvTable->GetRowData()->GetArray("Points:1"                );
     auto arrayZ     = csvTable->GetRowData()->GetArray("Points:2"                );
     for (vtkIdType i = 0; i < numPose; ++i)
-    {  
-      LidarSlam::ExternalSensors::PoseMeasurement meas;  
+    {
+      LidarSlam::ExternalSensors::PoseMeasurement meas;
       meas.Pose = Utils::XYZAngleAxistoIsometry(arrayX->GetTuple1(i), arrayY->GetTuple1(i), arrayZ->GetTuple1(i),
                                                 arrayAngle->GetTuple1(i),
                                                 arrayAxisX->GetTuple1(i), arrayAxisY->GetTuple1(i), arrayAxisZ->GetTuple1(i));
@@ -716,7 +743,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
   PRINT_INFO("Trajectory successfully loaded.");
 
   // Update trajectory from first timestamp of lidarStates
-  const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates(); 
+  const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
   this->ResetTrajectory(lidarStates.front().Time);
   for (auto const& state: lidarStates)
     this->AddPoseToTrajectory(state);
@@ -928,58 +955,57 @@ void vtkSlam::ResetTrajectory(double startTime)
     this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
     this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
     this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
-    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));    
+    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
+    return;
   }
-  else
+  // Create a temporary trajectory to save the trajectory before startTime
+  vtkNew<vtkPolyData> trajectoryTmp;
+  vtkNew<vtkPoints> pts;
+  trajectoryTmp->SetPoints(pts);
+  vtkNew<vtkCellArray> cellArray;
+  trajectoryTmp->SetLines(cellArray);
+  trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
+  trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
+  trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
+  trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
+
+  auto arrayTime = this->Trajectory->GetPointData()->GetArray("Time");
+  for (vtkIdType idx = 0; idx < arrayTime->GetNumberOfTuples(); ++idx)
   {
-    // Create a temporary trajectory to save the trajectory before startTime
-    vtkNew<vtkPolyData> trajectoryTmp;
-    vtkNew<vtkPoints> pts;
-    trajectoryTmp->SetPoints(pts);
-    vtkNew<vtkCellArray> cellArray;
-    trajectoryTmp->SetLines(cellArray);
-    trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
-    trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
-    trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
-    trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));    
-
-    auto arrayTime = this->Trajectory->GetPointData()->GetArray("Time");
-    for (vtkIdType idx = 0; idx < arrayTime->GetNumberOfTuples(); ++idx)
+    if (*arrayTime->GetTuple(idx) < startTime)
     {
-      if (*arrayTime->GetTuple(idx) < startTime)
+      double *translation = this->Trajectory->GetPoint(idx);
+      trajectoryTmp->GetPoints()->InsertNextPoint(translation);
+
+      double *quaternion = this->Trajectory->GetPointData()->GetArray("Orientation(Quaternion)")->GetTuple(idx);
+      trajectoryTmp->GetPointData()->GetArray("Orientation(Quaternion)")->InsertNextTuple(quaternion);
+
+      double *angleAxis = this->Trajectory->GetPointData()->GetArray("Orientation(AxisAngle)")->GetTuple(idx);
+      trajectoryTmp->GetPointData()->GetArray("Orientation(AxisAngle)")->InsertNextTuple(angleAxis);
+
+      double *time = this->Trajectory->GetPointData()->GetArray("Time")->GetTuple(idx);
+      trajectoryTmp->GetPointData()->GetArray("Time")->InsertNextTuple(time);
+
+      double *covariance = this->Trajectory->GetPointData()->GetArray("Covariance")->GetTuple(idx);
+      trajectoryTmp->GetPointData()->GetArray("Covariance")->InsertNextTuple(covariance);
+
+      // Add line linking 2 successive points
+      vtkIdType nPoints = trajectoryTmp->GetNumberOfPoints();
+      if (nPoints >= 2)
       {
-        double *translation = this->Trajectory->GetPoint(idx);
-        trajectoryTmp->GetPoints()->InsertNextPoint(translation);
-
-        double *quaternion = this->Trajectory->GetPointData()->GetArray("Orientation(Quaternion)")->GetTuple(idx);
-        trajectoryTmp->GetPointData()->GetArray("Orientation(Quaternion)")->InsertNextTuple(quaternion);
-
-        double *angleAxis = this->Trajectory->GetPointData()->GetArray("Orientation(AxisAngle)")->GetTuple(idx);
-        trajectoryTmp->GetPointData()->GetArray("Orientation(AxisAngle)")->InsertNextTuple(angleAxis);
-
-        double *time = this->Trajectory->GetPointData()->GetArray("Time")->GetTuple(idx);
-        trajectoryTmp->GetPointData()->GetArray("Time")->InsertNextTuple(time);
-
-        double *covariance = this->Trajectory->GetPointData()->GetArray("Covariance")->GetTuple(idx);
-        trajectoryTmp->GetPointData()->GetArray("Covariance")->InsertNextTuple(covariance);
-
-        // Add line linking 2 successive points
-        vtkIdType nPoints = trajectoryTmp->GetNumberOfPoints();
-        if (nPoints >= 2)
-        {
-          vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
-          line->GetPointIds()->SetId(0, nPoints - 2);
-          line->GetPointIds()->SetId(1, nPoints - 1);
-          trajectoryTmp->GetLines()->InsertNextCell(line);
-        }
+        vtkSmartPointer<vtkLine> line = vtkSmartPointer<vtkLine>::New();
+        line->GetPointIds()->SetId(0, nPoints - 2);
+        line->GetPointIds()->SetId(1, nPoints - 1);
+        trajectoryTmp->GetLines()->InsertNextCell(line);
       }
-      else
-        break;
     }
-
-    // Copy temporary trajectory to Trajectory
-    this->Trajectory->ShallowCopy(trajectoryTmp);
+    else
+      break;
   }
+
+  // Copy temporary trajectory to Trajectory
+  this->Trajectory->ShallowCopy(trajectoryTmp);
+
 }
 
 //-----------------------------------------------------------------------------
@@ -1533,4 +1559,63 @@ void vtkSlam::SetLoggingTimeout(double loggingTimeout)
     this->SlamAlgo->SetLoggingTimeout(std::max(this->LoggingTimeout, 1.1 * this->TimeWindowDuration));
   else
     this->SlamAlgo->SetLoggingTimeout(this->LoggingTimeout);
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetUsePoseGraph(bool usePoseGraph)
+{
+  if (this->UsePoseGraph != usePoseGraph)
+  {
+    this->UsePoseGraph = usePoseGraph;
+    this->ParametersModificationTime.Modified();
+
+    // If UsePoseGraph is enabled, check LoggingTimeout and return a warning if LoggingTimeout is 0
+    if (this->UsePoseGraph && this->GetLoggingTimeout() <= 1e-6)
+      vtkWarningMacro(<< "Pose graph is required but the logging timeout is null : no pose can be used to build the graph, please increase the logging timeout.");
+  }
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetLoopClosureQueryIdx(unsigned int loopClosureQueryIdx)
+{
+  // Check the input frame index can be found in Logstates
+  // If the input query frame index is not in Logstates, replace it by the last frame index stored in Logstates
+  const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
+  if (lidarStates.empty())
+    return;
+  if (loopClosureQueryIdx < lidarStates.front().Index || loopClosureQueryIdx > lidarStates.back().Index )
+  {
+    vtkWarningMacro(<< "The input query frame index is not valid. Please enter a frame index between ["
+                    << lidarStates.front().Index << ", " << lidarStates.back().Index << "].\n"
+                    << "Otherwise, the query frame index will be replaced by the last stored frame #"
+                    << lidarStates.back().Index);
+    loopClosureQueryIdx = lidarStates.back().Index;
+  }
+  vtkDebugMacro("Setting LoopClosureQueryFrameIdx to " << loopClosureQueryIdx);
+  if (this->SlamAlgo->GetLoopClosureQueryIdx() != loopClosureQueryIdx)
+  {
+    this->SlamAlgo->SetLoopClosureQueryIdx(loopClosureQueryIdx);
+    this->ParametersModificationTime.Modified();
+  }
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetLoopClosureRevisitedIdx(unsigned int loopClosureRevisitedIdx)
+{
+  // Check the input frame index can be found in Logstates
+  const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
+  if (lidarStates.empty())
+    return;
+  if (loopClosureRevisitedIdx < lidarStates.front().Index || loopClosureRevisitedIdx > lidarStates.back().Index )
+  {
+    vtkWarningMacro(<< "The input query frame index is not valid. Please enter a frame index between ["
+                    << lidarStates.front().Index << ", " << lidarStates.back().Index << "].");
+    return;
+  }
+  vtkDebugMacro("Setting LoopClosureRevisitedFrameIdx to " << loopClosureRevisitedIdx);
+  if (this->SlamAlgo->GetLoopClosureRevisitedIdx() != loopClosureRevisitedIdx)
+  {
+    this->SlamAlgo->SetLoopClosureRevisitedIdx(loopClosureRevisitedIdx);
+    this->ParametersModificationTime.Modified();
+  }
 }

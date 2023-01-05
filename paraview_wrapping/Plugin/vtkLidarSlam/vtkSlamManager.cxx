@@ -72,7 +72,7 @@ int vtkSlamManager::RequestData(vtkInformation* request,
     vtkErrorMacro("StepSize must be greater than zero!");
     return 0;
   }
-  // Check validity of FirstFrame and LastFrame if AllFrames is disabled 
+  // Check validity of FirstFrame and LastFrame if AllFrames is disabled
   if(!this->AllFrames)
   {
     if (this->LastFrame < 0 || this->FirstFrame < 0)

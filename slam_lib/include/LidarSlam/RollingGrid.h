@@ -158,9 +158,9 @@ public:
   //! Get the sub map lastly computed
    const PointCloud::Ptr GetSubMap() const {return this->SubMap;}
 
-  //! Remove too old voxels from the map
-  //! relatively to the DecayingThreshold parameter
-  void ClearOldPoints(double currentTime);
+  //! Remove the oldest voxels from the map relatively to the current time using the decaying time threshold member
+  //! If clearOldPoints is false, remove voxels newer than the currentTime
+  void ClearPoints(double currentTime, bool clearOldPoints = true);
 
   //============================================================================
   //   Attributes and helper methods

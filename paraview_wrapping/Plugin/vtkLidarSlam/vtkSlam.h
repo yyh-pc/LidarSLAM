@@ -117,6 +117,8 @@ public:
 
   void Reset();
 
+  void RebuildMaps();
+
   // Initialization
   void SetInitialMap(const std::string& mapsPathPrefix);
   void SetInitialPoseTranslation(double x, double y, double z);
@@ -144,6 +146,9 @@ public:
   vtkGetMacro(OutputKeypointsInWorldCoordinates, bool)
   vtkSetMacro(OutputKeypointsInWorldCoordinates, bool)
 
+  vtkGetMacro(ResetMaps, bool)
+  vtkSetMacro(ResetMaps, bool)
+
   void EnableEdges(bool enable);
   void EnableIntensityEdges(bool enable);
   void EnablePlanes(bool enable);
@@ -165,12 +170,113 @@ public:
 
   virtual int GetUndistortion();
   virtual void SetUndistortion(int mode);
-  
+
   // Load trajectory from a file and recompute maps
   void SetTrajectory(const std::string& fileName);
 
   // Set measurements to Slam algo
   virtual void SetSensorData(const std::string& fileName);
+
+  // ---------------------------------------------------------------------------
+  //   Graph parameters
+  // ---------------------------------------------------------------------------
+
+  // Check LoggingTimeout is set correctly to ensure the use of pose graph optimization
+  void SetUsePoseGraph(bool usePoseGraph);
+
+  void OptimizeGraph();
+
+  vtkCustomGetMacro(G2oFileName, std::string)
+  vtkCustomSetMacro(G2oFileName, std::string)
+
+  vtkCustomGetMacro(FixFirstVertex, bool)
+  vtkCustomSetMacro(FixFirstVertex, bool)
+
+  vtkCustomGetMacro(FixLastVertex, bool)
+  vtkCustomSetMacro(FixLastVertex, bool)
+
+  vtkCustomGetMacro(CovarianceScale, float)
+  vtkCustomSetMacro(CovarianceScale, float)
+
+  vtkCustomGetMacro(NbGraphIterations, int)
+  vtkCustomSetMacro(NbGraphIterations, int)
+
+  vtkCustomGetMacro(PGOConstraintLOOP_CLOSURE, bool)
+  vtkCustomSetMacro(PGOConstraintLOOP_CLOSURE, bool)
+
+  vtkCustomGetMacro(PGOConstraintLANDMARK, bool)
+  vtkCustomSetMacro(PGOConstraintLANDMARK, bool)
+
+  vtkCustomGetMacro(PGOConstraintPGO_GPS, bool)
+  vtkCustomSetMacro(PGOConstraintPGO_GPS, bool)
+
+  // ---------------------------------------------------------------------------
+  //   Loop closure parameters
+  // ---------------------------------------------------------------------------
+
+  vtkCustomGetMacro(ExtDetectLoopClosure, bool)
+  vtkCustomSetMacro(ExtDetectLoopClosure, bool)
+
+  vtkCustomGetMacro(LoopClosureQueryIdx, unsigned int)
+  virtual void SetLoopClosureQueryIdx(unsigned int loopClosureQueryIdx);
+
+  vtkCustomGetMacro(LoopClosureRevisitedIdx, unsigned int)
+  virtual void SetLoopClosureRevisitedIdx(unsigned int loopClosureRevisitedIdx);
+
+  vtkCustomGetMacro(LCQueryWindowStartRange, int)
+  vtkCustomSetMacro(LCQueryWindowStartRange, int)
+
+  vtkCustomGetMacro(LCQueryWindowEndRange, int)
+  vtkCustomSetMacro(LCQueryWindowEndRange, int)
+
+  vtkCustomGetMacro(LCRevisitedWindowStartRange, int)
+  vtkCustomSetMacro(LCRevisitedWindowStartRange, int)
+
+  vtkCustomGetMacro(LCRevisitedWindowEndRange, int)
+  vtkCustomSetMacro(LCRevisitedWindowEndRange, int)
+
+  // Get/Set Loop closure registration parameters
+  vtkCustomGetMacro(EnableLoopClosureOffset, bool)
+  vtkCustomSetMacro(EnableLoopClosureOffset, bool)
+
+  vtkCustomGetMacro(LoopClosureICPWithSubmap, bool)
+  vtkCustomSetMacro(LoopClosureICPWithSubmap, bool)
+
+  vtkCustomGetMacro(LoopClosureLMMaxIter, unsigned int)
+  vtkCustomSetMacro(LoopClosureLMMaxIter, unsigned int)
+
+  vtkCustomGetMacro(LoopClosureICPMaxIter, unsigned int)
+  vtkCustomSetMacro(LoopClosureICPMaxIter, unsigned int)
+
+  vtkCustomGetMacro(LoopClosureMaxNeighborsDistance, double)
+  vtkCustomSetMacro(LoopClosureMaxNeighborsDistance, double)
+
+  vtkCustomGetMacro(LoopClosureEdgeNbNeighbors, unsigned int)
+  vtkCustomSetMacro(LoopClosureEdgeNbNeighbors, unsigned int)
+
+  vtkCustomGetMacro(LoopClosureEdgeMinNbNeighbors, unsigned int)
+  vtkCustomSetMacro(LoopClosureEdgeMinNbNeighbors, unsigned int)
+
+  vtkCustomGetMacro(LoopClosureEdgeMaxModelError, double)
+  vtkCustomSetMacro(LoopClosureEdgeMaxModelError, double)
+
+  vtkCustomGetMacro(LoopClosurePlaneNbNeighbors, unsigned int)
+  vtkCustomSetMacro(LoopClosurePlaneNbNeighbors, unsigned int)
+
+  vtkCustomGetMacro(LoopClosurePlanarityThreshold, double)
+  vtkCustomSetMacro(LoopClosurePlanarityThreshold, double)
+
+  vtkCustomGetMacro(LoopClosurePlaneMaxModelError, double)
+  vtkCustomSetMacro(LoopClosurePlaneMaxModelError, double)
+
+  vtkCustomGetMacro(LoopClosureBlobNbNeighbors, unsigned int)
+  vtkCustomSetMacro(LoopClosureBlobNbNeighbors, unsigned int)
+
+  vtkCustomGetMacro(LoopClosureInitSaturationDistance, double)
+  vtkCustomSetMacro(LoopClosureInitSaturationDistance, double)
+
+  vtkCustomGetMacro(LoopClosureFinalSaturationDistance, double)
+  vtkCustomSetMacro(LoopClosureFinalSaturationDistance, double)
 
   // ---------------------------------------------------------------------------
   //   BASE to LIDAR transform
@@ -378,7 +484,7 @@ private:
   std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
 
   // Init/reset the output SLAM trajectory
-  // If startTime is set, reset the trajectory from startTime 
+  // If startTime is set, reset the trajectory from startTime
   void ResetTrajectory(double startTime = -1.);
 
   // Add a SLAM pose and covariance in WORLD coordinates to Trajectory.
@@ -460,6 +566,12 @@ private:
   float TimeWindowDuration = 0.5;
   // Internal variable to store LoggingTimeout to control states kept in memory for pose graph or estimation of local velocity
   double LoggingTimeout = 0;
+
+  // Boolean to decide if reset the maps before rebuild the maps
+  bool ResetMaps = false;
+
+  // Boolean to decide whether or not to use the pose graph
+  bool UsePoseGraph = false;
 
   // Choose whether to synchronize on network packet
   // reception time or on Lidar frame header time

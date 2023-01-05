@@ -33,6 +33,9 @@ public:
   //! Estimation of registration error
   struct RegistrationError
   {
+    // If Valid is true, there is valid data for optimization
+    bool Valid = true;
+
     // Estimation of the maximum position error
     double PositionError = 0.;
     // Direction of the maximum position error

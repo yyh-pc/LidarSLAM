@@ -177,4 +177,18 @@ static const std::map<ExternalSensor, std::string> ExternalSensorNames = { {WHEE
                                                                            {GPS, "GPS"},
                                                                            {POSE, "POSE"} };
 
+//------------------------------------------------------------------------------
+//! Type of pose graph constraints
+enum PGOConstraint
+{
+  //! Loop closure
+  LOOP_CLOSURE  = 0,
+
+  //! Landmark
+  LANDMARK  = 1,
+
+  //! GPS
+  PGO_GPS = 2,
+};
+
 } // end of LidarSlam namespace
