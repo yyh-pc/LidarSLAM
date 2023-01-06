@@ -1628,7 +1628,8 @@
       </Property>
 
       <Property name="Optimize Graph"
-                command="OptimizeGraph">
+                command="OptimizeGraph"
+                panel_visibility="advanced">
         <Documentation>
           Launch pose graph optimization with options below. The Logging timeout needs to be set appropriately.
         </Documentation>
@@ -1780,7 +1781,8 @@
       <IntVectorProperty name="Query map window start interval LC"
                          command="SetLCQueryWindowStartRange"
                          number_of_elements="1"
-                         default_values="-50">
+                         default_values="-50"
+                         panel_visibility="advanced">
         <Documentation>
           The parameter for query sub map interval. Sub maps is built with frames:
           [frame index + start interval, frame index + end interval]
@@ -1790,7 +1792,8 @@
       <IntVectorProperty name="Query map window end interval LC"
                          command="SetLCQueryWindowEndRange"
                          number_of_elements="1"
-                         default_values="50">
+                         default_values="50"
+                         panel_visibility="advanced">
         <Documentation>
           The parameter for query sub map interval. Sub maps is built with frames:
           [frame index + start interval, frame index + end interval]
@@ -1814,7 +1817,8 @@
       <IntVectorProperty name="Revisited map window start interval LC"
                          command="SetLCRevisitedWindowStartRange"
                          number_of_elements="1"
-                         default_values="-50">
+                         default_values="-50"
+                         panel_visibility="advanced">
         <Documentation>
           The parameter for revisited sub map interval. Sub maps is built with frames:
           [frame index + start interval, frame index + end interval]
@@ -1824,7 +1828,8 @@
       <IntVectorProperty name="Revisited map window end interval LC"
                          command="SetLCRevisitedWindowEndRange"
                          number_of_elements="1"
-                         default_values="50">
+                         default_values="50"
+                         panel_visibility="advanced">
         <Documentation>
           The parameter for revisited sub map interval. Sub maps is built with frames:
           [frame index + start interval, frame index + end interval]
