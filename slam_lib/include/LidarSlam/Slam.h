@@ -177,9 +177,9 @@ public:
 
   // Initialization
   Slam();
-  // Reset internal state : maps and trajectory are cleared
-  // and current pose is set back to origin.
-  // This keeps parameters and sensor data unchanged.
+  // Reset internal state : maps and trajectory are cleared,
+  // current pose is set back to origin and the external sensor data are emptied.
+  // This keeps parameters unchanged.
   void Reset(bool resetLog = true);
 
   // Init map with default values
@@ -249,6 +249,11 @@ public:
   // landmarks' constraints as a postprocess
   bool OptimizeGraph();
 
+  // Use IMU measurements and optimized poses (using IMU + Lidar SLAM)
+  // to update LogStates, maps and the current pose
+  bool UpdateTrajectoryAndMapsWithIMU();
+
+  Eigen::Isometry3d GetTworld(double time = -1.);
   // Set world transform with an initial guess (usually from GPS after calibration).
   void SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess);
 
@@ -276,7 +281,7 @@ public:
   GetMacro(NbThreads, int)
   void SetNbThreads(int n);
 
-  SetMacro(Verbosity, int)
+  void SetVerbosity(int verbosity);
   GetMacro(Verbosity, int)
 
   SetMacro(EgoMotion, EgoMotionMode)
@@ -297,6 +302,10 @@ public:
   // Warning! Undefined behavior if LogStates is empty
   LidarState& GetLastState();
   GetMacro(LogStates, std::list<LidarState>)
+  // Get the last states since last input frame timestamp
+  // at a specified frequency
+  // This will use external sensor measurements and/or poses interpolation
+  std::vector<LidarState> GetLastStates(double freq = -1);
 
   GetMacro(Latency, double)
 
@@ -453,6 +462,10 @@ public:
 
   void ResetSensors(bool emptyMeasurements = false);
 
+  // Check if there are external sensor data
+  // available for local optimization
+  bool IsExtSensorForLocalOpt();
+
   // Odometer
   double GetWheelOdomWeight() const;
   void SetWheelOdomWeight(double weight);
@@ -471,6 +484,27 @@ public:
   void AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm);
 
   bool GravityHasData() const {return this->GravityManager && this->GravityManager->HasData();}
+
+  double GetImuWeight() const;
+  void SetImuWeight(double weight);
+
+  void SetImuCalibration(const Eigen::Isometry3d& calib);
+
+  Eigen::Vector3d GetImuGravity() const;
+  void SetImuGravity(const Eigen::Vector3d& gravity);
+
+  float GetImuFrequency() const;
+  void SetImuFrequency(float freq);
+
+  unsigned int GetImuResetThreshold() const;
+  void SetImuResetThreshold(unsigned int);
+
+  GetMacro(ImuUpdate, bool)
+  SetMacro(ImuUpdate, bool)
+
+  void AddImuMeasurement(const ExternalSensors::ImuMeasurement& gm);
+
+  bool ImuHasData() const {return this->ImuManager && this->ImuManager->HasData();}
 
   // Landmark detector
   GetMacro(LandmarkWeight, double)
@@ -517,7 +551,14 @@ public:
   void SetPoseWeight(double weight);
 
   void AddPoseMeasurement(const ExternalSensors::PoseMeasurement& pm);
-  bool PoseHasData() {return this->PoseManager && this->PoseManager->HasData();}
+  // Check if pose manager has been filled with poses
+  // and if it has been filled by the IMU manager, check that it has been updated
+  // at least twice to trust the measurements
+  // This is mostly done because if the frame timestamp references to the frame last point
+  // The update before this timestamp won't have been done.
+  // Moreover, the bias may be still wrong after the first graph optimization.
+  bool PoseHasData() const {return this->PoseManager && this->PoseManager->HasData() &&
+                                   (!this->ImuHasData() || this->ImuHasBeenUpdated > 2);}
 
   void SetPoseCalibration(const Eigen::Isometry3d& calib);
 
@@ -542,6 +583,8 @@ public:
 
   // Set RollingGrid Parameters
   void ClearMaps(Maps& maps);
+  void ClearLocalMaps() {this->ClearMaps(this->LocalMaps);}
+  void ClearLog();
   double GetVoxelGridLeafSize(Keypoint k) const;
   void SetVoxelGridLeafSize(Keypoint k, double size);
   void SetVoxelGridSize(int size);
@@ -852,16 +895,28 @@ private:
   // Odometry manager
   // It computes the residual with a weight, a measurements list and
   // taking account of the acquisition time correspondance
-  // The odometry measurements must be filled and cleared from outside this lib
+  // The odometry measurements must be filled from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::WheelOdometryManager> WheelOdomManager;
 
-  // IMU manager
-  // Compute the residual with a weight, a measurements list and
+  // IMU managers
+  // Gravity manager
+  // It computes the gravity residual with a weight, a measurements list,
   // taking account of the acquisition time correspondance
-  // The IMU measurements must be filled and cleared from outside this lib
+  // The IMU measurements must be filled from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::ImuGravityManager> GravityManager;
+  // Raw IMU data manager
+  // It performs the IMU data (accelerations + angle velocities) preintegration
+  // using an external gravity vector, the SLAM output poses
+  // taking into account the acquisition time correspondance.
+  // This preintegration is used as an external pose (see the pose manager below)
+  // The IMU measurements must be filled from outside this lib
+  // using External Sensors interface
+  std::shared_ptr<ExternalSensors::ImuManager> ImuManager;
+  // Variable used internally to store the IMU update information
+  // IMU should not be used before having been updated once with a SLAM state
+  unsigned int ImuHasBeenUpdated = 0;
 
   // Landmarks manager
   // Each landmark has its own manager and is identified by its ID.
@@ -869,7 +924,7 @@ private:
   // If not, it will be filled at each new detection.
   // The managers compute the residuals with a weight, measurements lists and
   // taking account of the acquisition time correspondance
-  // The tag measurements must be filled and cleared from outside this lib
+  // The tag measurements must be filled from outside this lib
   // using External Sensors interface
   std::map<int, ExternalSensors::LandmarkManager> LandmarksManagers;
   // Calibration
@@ -891,7 +946,7 @@ private:
   bool LandmarkCovarianceRotation = true;
 
   // GPS manager
-  // The GPS measurements must be filled and cleared from outside this lib
+  // The GPS measurements must be filled from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::GpsManager> GpsManager;
   // Calibration
@@ -901,9 +956,14 @@ private:
   // Manager for the acquisition of pose measurements (e.g. from GNNS system, pre-integrated
   // IMU or any other device able to give absolute pose.)
   // It computes a residual with a weight taking into account the timing at which it is captured
-  // The Pose measurements must be filled and cleared from outside this lib
+  // The Pose measurements must be filled from outside this lib
   // using External Sensors interface
   std::shared_ptr<ExternalSensors::PoseManager> PoseManager;
+
+  // Weight for pose when integrating it to the SLAM optimization
+  // This needs a specific variable storage to be able to switch between
+  // IMU data and Poses data as they share the same pointer
+  double PoseWeight = 0.;
 
   // Time difference between Lidar's measurements and external sensors'
   // not null if they are not expressed relatively to the same time reference
@@ -917,6 +977,9 @@ private:
   // Maximum number of sensor measurements stored
   // Above this number, the oldest measurements are forgotten
   unsigned int SensorMaxMeasures = 1e6;
+
+  // To update the IMU bias or not depending on the accuracy
+  bool ImuUpdate = true;
 
   // ---------------------------------------------------------------------------
   //   Optimization parameters
@@ -1145,8 +1208,12 @@ private:
   // and refine the undistortion of the current keypoints clouds.
   void RefineUndistortion();
 
-  // Undistort the keypoints using external pose measurement information
-  void UndistortWithPoseMeasurement();
+  // Undistort the points using external pose measurement information
+  // the input points must be represented in base frame, each at their own timestamp
+  void UndistortWithPoseMeasurement(PointCloud::Ptr pc, double refTime,
+                                    int startIdx = 0, int endIdx = -1,
+                                    Eigen::Isometry3d baseToPointsRef = Eigen::Isometry3d::Identity(),
+                                    double timeOffset = 0) const;
 
   // ---------------------------------------------------------------------------
   //   Confidence estimator helpers
@@ -1174,7 +1241,8 @@ private:
   // The output aggregated points timestamps are corrected to be relative to the 1st frame timestamp.
   // NOTE: If transforming to WORLD coordinates, be sure that Tworld/WithinFrameMotion have been updated
   //       (updated during the Localization step).
-  PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates) const;
+  // This function is parallelized internally, do not put it in a parallelized loop
+  PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates, bool undistort = true) const;
 
   // ---------------------------------------------------------------------------
   //   External sensor helpers
@@ -1183,6 +1251,7 @@ private:
   // The init function creates the objects with known parameters
   void InitWheelOdom();
   void InitGravity();
+  void InitImu();
   // WARNING : If the calibration has not been set for the landmarks detector (cf SetLmDetectorCalibration),
   // default identity calibration is set to the current landmark.
   // This way, data can be stored before receiving the calibration.

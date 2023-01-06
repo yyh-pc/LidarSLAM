@@ -1,0 +1,47 @@
+From 5c1c3234a6b80cb8c9152874953ee2d9b4c1d6af Mon Sep 17 00:00:00 2001
+From: "julia.sanchez" <julia.sanchez@kitware.com>
+Date: Tue, 18 Oct 2022 09:31:28 +0200
+Subject: [PATCH] [fix] Fix compilation for Windows with ninja
+
+* Bugs were :
+   * Infinite compilation with ninja, even in 1 thread
+   * Boost not found
+---
+ cmake/HandleBoost.cmake | 2 +-
+ gtsam/CMakeLists.txt    | 7 -------
+ 2 files changed, 1 insertion(+), 8 deletions(-)
+
+diff --git a/cmake/HandleBoost.cmake b/cmake/HandleBoost.cmake
+index 6c742cfe5..f60db0938 100644
+--- a/cmake/HandleBoost.cmake
++++ b/cmake/HandleBoost.cmake
+@@ -7,7 +7,7 @@
+ 
+ if(MSVC)
+     # By default, boost only builds static libraries on windows
+-    set(Boost_USE_STATIC_LIBS ON)  # only find static libs
++    set(Boost_USE_STATIC_LIBS ON CACHE BOOL "To use only static libs")  # only find static libs
+     # If we ever reset above on windows and, ...
+     # If we use Boost shared libs, disable auto linking.
+     # Some libraries, at least Boost Program Options, rely on this to export DLL symbols.
+diff --git a/gtsam/CMakeLists.txt b/gtsam/CMakeLists.txt
+index 09f1ea806..dba9ccdcb 100644
+--- a/gtsam/CMakeLists.txt
++++ b/gtsam/CMakeLists.txt
+@@ -75,13 +75,6 @@ foreach(subdir ${gtsam_subdirs})
+ endforeach(subdir)
+ list(APPEND gtsam_srcs ${gtsam_core_headers})
+ 
+-IF(MSVC)
+-	# Add precompiled header to sources
+-	include(gtsamAddPch)
+-	gtsamAddPch("precompiled_header.h" "precompiled_header.cpp" "${gtsam_srcs}")
+-	list(INSERT gtsam_srcs 0 "precompiled_header.cpp")
+-ENDIF(MSVC)
+-
+ # Generate and install config and dllexport files
+ configure_file(config.h.in config.h)
+ set(library_name GTSAM) # For substitution in dllexport.h.in
+-- 
+2.25.1
+

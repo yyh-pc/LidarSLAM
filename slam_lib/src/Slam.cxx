@@ -175,7 +175,7 @@ void Slam::InitMap(Keypoint k)
 void Slam::Reset(bool resetLog)
 {
   // Reset keypoints maps
-  this->ClearMaps(this->LocalMaps);
+  this->ClearLocalMaps();
 
   // Reset keyframes
   this->KfLastPose = Eigen::Isometry3d::Identity();
@@ -237,6 +237,24 @@ void Slam::SetNbThreads(int n)
 }
 
 //-----------------------------------------------------------------------------
+void Slam::SetVerbosity(int verbosity)
+{
+  this->Verbosity = verbosity;
+  if (this->WheelOdomManager)
+    this->WheelOdomManager->SetVerbose(verbosity >= 3);
+  if (this->GravityManager)
+    this->GravityManager->SetVerbose(verbosity >= 3);
+  if (this->ImuManager)
+    this->ImuManager->SetVerbose(verbosity >= 3);
+  for (auto& idLm : this->LandmarksManagers)
+    idLm.second.SetVerbose(verbosity >= 3);
+  if (this->GpsManager)
+    this->GpsManager->SetVerbose(verbosity >= 3);
+  if (this->PoseManager)
+    this->PoseManager->SetVerbose(verbosity >= 3);
+}
+
+//-----------------------------------------------------------------------------
 void Slam::EnableKeypointType(Keypoint k, bool enabled)
 {
   this->UseKeypoints[k] = enabled;
@@ -262,6 +280,16 @@ bool Slam::KeypointTypeEnabled(Keypoint k) const
   if (!this->UseKeypoints.count(k))
     return false;
   return this->UseKeypoints.at(k);
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::IsExtSensorForLocalOpt()
+{
+  return (this->WheelOdomManager && this->WheelOdomManager->CanBeUsedLocally()) ||
+         (this->GravityManager && this->GravityManager->CanBeUsedLocally()) ||
+         (this->ImuManager && this->ImuManager->CanBeUsedLocally()) ||
+          this->LmCanBeUsedLocally() ||
+         (this->PoseManager && this->PoseManager->CanBeUsedLocally());
 }
 
 //-----------------------------------------------------------------------------
@@ -312,10 +340,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->ComputeEgoMotion();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Ego-Motion"));
 
-  if ((this->WheelOdomManager && this->WheelOdomManager->CanBeUsedLocally()) ||
-      (this->GravityManager && this->GravityManager->CanBeUsedLocally()) ||
-       this->LmCanBeUsedLocally() ||
-      (this->PoseManager && this->PoseManager->CanBeUsedLocally()))
+  if (this->IsExtSensorForLocalOpt())
   {
     IF_VERBOSE(3, Utils::Timer::Init("External sensor constraints computation"));
     this->ComputeSensorConstraints();
@@ -378,6 +403,17 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
     IF_VERBOSE(3, Utils::Timer::Init("Logging"));
     this->LogCurrentFrameState();
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
+
+    if (this->ImuUpdate && this->ImuHasData())
+    {
+      // Update IMU graph with new slam pose to refine the biases
+      IF_VERBOSE(3, Utils::Timer::Init("IMU biases refinement"));
+      if (this->ImuManager->Update(this->LogStates.back()))
+        ++this->ImuHasBeenUpdated;
+      else
+        this->ImuHasBeenUpdated = 0;
+      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("IMU biases refinement"));
+    }
   }
 
   // Motion and localization parameters estimation information display
@@ -477,7 +513,7 @@ void Slam::ComputeSensorConstraints()
 void Slam::UpdateMaps(bool resetMaps)
 {
   if(resetMaps)
-    this->ClearMaps(this->LocalMaps);
+    this->ClearLocalMaps();
   else
   {
     // Remove points older than the first logged state
@@ -486,6 +522,58 @@ void Slam::UpdateMaps(bool resetMaps)
   }
   // Update LocalMaps with the keypoints stored in the LogStates
   this->BuildMaps(this->LocalMaps);
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::UpdateTrajectoryAndMapsWithIMU()
+{
+  #ifdef USE_GTSAM
+  if (this->ImuHasData())
+  {
+    IF_VERBOSE(1, Utils::Timer::Init("Pose graph optimization"));
+    // Update LogStates and maps
+    // Reset maps
+    this->ClearLocalMaps();
+
+    // Update LogStates and maps
+    for (auto& state : this->LogStates)
+    {
+      if (state.Index < 1 || !state.IsKeyFrame)
+        continue;
+      std::cout << "Updating state #" << state.Index << std::endl;
+      // Update Isometry
+      ExternalSensors::PoseMeasurement synchMeas;
+      this->PoseManager->ComputeSynchronizedMeasureBase(state.Time, synchMeas);
+      state.Isometry = synchMeas.Pose;
+      // Update keypoints and maps
+      for (auto k : this->UsableKeypoints)
+      {
+        // Get keypoints
+        PointCloud::Ptr rawKeypoints = state.RawKeypoints[k]->GetCloud();
+        PointCloud::Ptr undistortedKeypoints(new PointCloud);
+        *undistortedKeypoints = *rawKeypoints;
+
+        // Update undistorted keypoints
+        this->UndistortWithPoseMeasurement(undistortedKeypoints, state.Time);
+        state.Keypoints[k]->SetCloud(undistortedKeypoints, this->LoggingStorage);
+        // Update maps
+        PointCloud::Ptr keypoints(new PointCloud);
+        keypoints->header = Utils::BuildPclHeader(state.Time, this->BaseFrameId, state.Index);
+        pcl::transformPointCloud(*undistortedKeypoints, *keypoints, state.Isometry.matrix().cast<float>());
+        this->LocalMaps[k]->Add(keypoints, false);
+      }
+    }
+    this->Tworld = this->LogStates.back().Isometry;
+
+    IF_VERBOSE(1, Utils::Timer::StopAndDisplay("Pose graph optimization"));
+    return true;
+  }
+  PRINT_ERROR("No IMU data found, trajectory is not optimized")
+  return false;
+  #else
+  PRINT_ERROR("GTSAM was not found, IMU cannot be used, the trajectory is not optimized")
+  return false;
+  #endif
 }
 
 //-----------------------------------------------------------------------------
@@ -660,6 +748,8 @@ void Slam::SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess)
     this->LogStates.back().Isometry = this->Tworld;
   for (auto k : this->UsableKeypoints)
     this->CurrentRawKeypoints[k].reset(new PointCloud);
+  if (this->ImuManager)
+    this->ImuManager->SetInitBasePose(this->Tworld);
 }
 
 //-----------------------------------------------------------------------------
@@ -688,7 +778,7 @@ void Slam::LoadMapsFromPCD(const std::string& filePrefix, bool resetMaps)
   // In most of the cases, we would like to reset SLAM internal maps before
   // loading new maps to avoid conflicts.
   if (resetMaps)
-    this->ClearMaps(this->LocalMaps);
+    this->ClearLocalMaps();
 
   for (auto k : this->UsableKeypoints)
   {
@@ -854,7 +944,7 @@ Slam::PointCloud::Ptr Slam::GetRegisteredFrame()
   // If the input points have not been aggregated to WORLD coordinates yet,
   // transform and aggregate them
   if (this->RegisteredFrame->header.stamp != this->CurrentFrames[0]->header.stamp)
-    this->RegisteredFrame = this->AggregateFrames(this->CurrentFrames, true);
+    this->RegisteredFrame = this->AggregateFrames(this->CurrentFrames, true, true);
   return this->RegisteredFrame;
 }
 
@@ -980,7 +1070,7 @@ void Slam::ExtractKeypoints()
 
   // Merge all keypoints extracted from different frames together
   for (auto k : this->UsableKeypoints)
-    this->CurrentRawKeypoints[k] = this->AggregateFrames(keypoints[k], false);
+    this->CurrentRawKeypoints[k] = this->AggregateFrames(keypoints[k], false, false);
 
   if (this->Verbosity >= 2)
   {
@@ -1164,9 +1254,17 @@ void Slam::Localization()
   this->Tworld = this->Tworld * this->Trelative;
 
   // Init undistorted keypoints clouds from raw points
-  // Warning : pointer copy = points modification :
-  // do not use CurrentRawKeypoints after this step
-  this->CurrentUndistortedKeypoints = this->CurrentRawKeypoints;
+  // The iteration is not directly on Keypoint types
+  // because of openMP behaviour which needs int iteration on MSVC
+  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+  for (int i = 0; i < nbKeypointTypes; ++i)
+  {
+    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
+    this->CurrentUndistortedKeypoints[k].reset(new PointCloud);
+    *this->CurrentUndistortedKeypoints[k] = *this->CurrentRawKeypoints[k];
+  }
+
   // Init and run undistortion if required
   if (this->Undistortion)
   {
@@ -1178,8 +1276,13 @@ void Slam::Localization()
       // Undistort keypoints clouds
       this->RefineUndistortion();
     }
-    else
-      this->UndistortWithPoseMeasurement();
+    else if (this->PoseHasData())
+    {
+      // Get synchronized point pose relatively to frame
+      // CurrentUndistortedKeypoints are represented in base frame
+      for (auto k : this->UsableKeypoints)
+        this->UndistortWithPoseMeasurement(this->CurrentUndistortedKeypoints[k], this->CurrentTime);
+    }
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : initial undistortion"));
   }
@@ -1189,7 +1292,7 @@ void Slam::Localization()
 
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+  nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
   #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
@@ -1378,7 +1481,10 @@ void Slam::LogCurrentFrameState()
   state.Index = this->NbrFrameProcessed;
   state.IsKeyFrame = this->IsKeyFrame;
   for (auto k : this->UsableKeypoints)
+  {
     state.Keypoints[k] = std::make_shared<PCStorage>(this->CurrentUndistortedKeypoints[k], this->LoggingStorage);
+    state.RawKeypoints[k] = std::make_shared<PCStorage>(this->CurrentRawKeypoints[k], this->LoggingStorage);
+  }
 
   this->LogStates.emplace_back(state);
   // Remove the oldest logged states
@@ -1401,6 +1507,62 @@ void Slam::SetUndistortion(UndistortionMode undistMode)
 LidarState& Slam::GetLastState()
 {
   return this->LogStates.back();
+}
+
+//-----------------------------------------------------------------------------
+std::vector<LidarState> Slam::GetLastStates(double freq)
+{
+  if (this->LogStates.empty())
+  {
+    LidarSlam::LidarState state;
+    state.Isometry = this->TworldInit;
+    return {state.Isometry};
+  }
+
+  if (freq < 0 || this->LogStates.size() == 1)
+    return {this->LogStates.back()};
+
+  auto itLogStates = this->LogStates.end();
+  LidarState last = *(--itLogStates);
+  LidarState prevLast = *(--itLogStates);
+
+  double time = prevLast.Time + 1. / freq;
+  std::vector<LidarState> lastStates;
+  lastStates.reserve(std::ceil((last.Time + 1e-6 - prevLast.Time) * freq));
+
+  if (!this->PoseHasData())
+  {
+    LinearTransformInterpolator<double> interpolator(prevLast.Isometry, last.Isometry, prevLast.Time, last.Time);
+    while (time < last.Time - 1e-6)
+    {
+      LidarSlam::LidarState state;
+      state.Time = time;
+      state.Covariance = last.Covariance;
+      state.Isometry = interpolator(time);
+      lastStates.emplace_back(state);
+      time += 1. / freq;
+    }
+    lastStates.emplace_back(last);
+  }
+  else
+  {
+    while (time < last.Time - 1e-6)
+    {
+      LidarSlam::LidarState state;
+      state.Time = time;
+      state.Covariance = last.Covariance;
+      ExternalSensors::PoseMeasurement meas;
+      if (!this->PoseManager->ComputeSynchronizedMeasureBase(time, meas))
+        state.Isometry = LinearInterpolation(lastStates.back().Isometry, last.Isometry,
+                                             time, lastStates.back().Time, last.Time);
+      else
+        state.Isometry = meas.Pose;
+      lastStates.emplace_back(state);
+      time += 1. / freq;
+    }
+    lastStates.emplace_back(last);
+  }
+  return lastStates;
 }
 
 //==============================================================================
@@ -1843,43 +2005,50 @@ void Slam::InitUndistortion()
 }
 
 //-----------------------------------------------------------------------------
-void Slam::UndistortWithPoseMeasurement()
+void Slam::UndistortWithPoseMeasurement(PointCloud::Ptr pc, double refTime,
+                                        int startIdx, int endIdx,
+                                        Eigen::Isometry3d baseToPointsRef,
+                                        double timeOffset) const
 {
-  if (this->PoseHasData())
+  if (!this->PoseHasData())
   {
-    // Get synchronized point pose relatively to frame
-    ExternalSensors::PoseMeasurement synchPoseMeasCurrent; // Virtual measure with synchronized timestamp and calibration applied
-    if (this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime, synchPoseMeasCurrent))
-    {
-      Eigen::Isometry3d invSynchPoseMeasCurrent = synchPoseMeasCurrent.Pose.inverse();
-      // Undistort keypoints
-      for (auto k : this->UsableKeypoints)
-      {
-        // Compute synchronized measures (not parallelizable)
-        int nbPoints = this->CurrentUndistortedKeypoints[k]->size();
-        std::vector<ExternalSensors::PoseMeasurement> synchMeas (nbPoints); // Virtual measures with synchronized timestamp and calibration applied
-        // Sort points by time to speed up synchronization search
-        std::sort(this->CurrentUndistortedKeypoints[k]->points.begin(), this->CurrentUndistortedKeypoints[k]->points.end(), [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
-        int idxPt = 0;
-        for (auto& point : *this->CurrentUndistortedKeypoints[k])
-        {
-          this->PoseManager->ComputeSynchronizedMeasureBase(this->CurrentTime + point.time, synchMeas[idxPt]);
-          ++idxPt;
-        }
-
-        // Transform with computed measures (parallelized)
-        #pragma omp parallel for num_threads(this->NbThreads)
-        for (int i = 0; i < nbPoints; ++i)
-        {
-          auto& point = this->CurrentUndistortedKeypoints[k]->at(i);
-          Utils::TransformPoint(point, invSynchPoseMeasCurrent * synchMeas[i].Pose);
-        }
-      }
-      PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
-    }
-  }
-  else
     PRINT_WARNING("External poses are empty : cannot use them to undistort input pointcloud")
+    return;
+  }
+
+  ExternalSensors::PoseMeasurement synchPoseMeasCurrent; // Virtual measure with synchronized timestamp and calibration applied
+
+  if (!this->PoseManager->ComputeSynchronizedMeasureBase(refTime, synchPoseMeasCurrent))
+  {
+    PRINT_WARNING("Could not perform undistortion using external poses supplied")
+    return;
+  }
+
+  if (endIdx < 0)
+    endIdx = pc->size();
+
+  // Compute synchronized measures (not parallelizable)
+  std::vector<ExternalSensors::PoseMeasurement> synchMeas(pc->size()); // Virtual measures with synchronized timestamp and calibration applied
+  // Sort points by time to speed up synchronization search
+  std::sort(pc->points.begin() + startIdx, pc->points.begin() + endIdx, [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
+
+  // Compute synchronized poses for each point
+  for (int idxPt = startIdx; idxPt < endIdx; ++idxPt)
+    this->PoseManager->ComputeSynchronizedMeasureBase(refTime + pc->at(idxPt).time + timeOffset, synchMeas[idxPt]);
+
+  // Compute synchronized poses for each point
+  Eigen::Isometry3d invSynchPoseMeasCurrent = synchPoseMeasCurrent.Pose.inverse();
+
+  // Transform with computed measures (parallelized)
+  #pragma omp parallel for num_threads(this->NbThreads)
+  for (int idxPt = startIdx; idxPt < endIdx; ++idxPt)
+  {
+    // Get transform from base at current time to base at point time
+    Eigen::Isometry3d update = invSynchPoseMeasCurrent * synchMeas[idxPt].Pose * baseToPointsRef;
+    Utils::TransformPoint(pc->at(idxPt), update);
+  }
+
+  PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
 }
 
 //-----------------------------------------------------------------------------
@@ -2075,7 +2244,7 @@ Slam::PointCloud::Ptr Slam::TransformPointCloud(PointCloud::ConstPtr cloud,
 }
 
 //-----------------------------------------------------------------------------
-Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates) const
+Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates, bool undistort) const
 {
   PointCloud::Ptr aggregatedFrames(new PointCloud);
   aggregatedFrames->header = Utils::BuildPclHeader(this->CurrentFrames[0]->header.stamp,
@@ -2100,17 +2269,41 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
     Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(frame->front().device_id);
 
     // Rigid transform from LIDAR to BASE then undistortion from BASE to WORLD
-    if (worldCoordinates && this->Undistortion)
+    if (undistort)
     {
-      auto transformInterpolator = this->WithinFrameMotion;
-      transformInterpolator.SetTransforms(this->Tworld * this->WithinFrameMotion.GetH0() * baseToLidar,
-                                          this->Tworld * this->WithinFrameMotion.GetH1() * baseToLidar);
-      #pragma omp parallel for num_threads(this->NbThreads)
-      for (int i = startIdx; i < endIdx; ++i)
+      if (this->Undistortion != UndistortionMode::EXTERNAL || !this->PoseHasData())
       {
-        auto& point = aggregatedFrames->at(i);
-        point.time += timeOffset;
-        Utils::TransformPoint(point, transformInterpolator(point.time));
+        auto transformInterpolator = this->WithinFrameMotion;
+        Eigen::Isometry3d h0 = worldCoordinates? this->Tworld * this->WithinFrameMotion.GetH0() * baseToLidar : this->WithinFrameMotion.GetH0() * baseToLidar;
+        Eigen::Isometry3d h1 = worldCoordinates? this->Tworld * this->WithinFrameMotion.GetH1() * baseToLidar : this->WithinFrameMotion.GetH1() * baseToLidar;
+        transformInterpolator.SetTransforms(h0, h1);
+        #pragma omp parallel for num_threads(this->NbThreads)
+        for (int i = startIdx; i < endIdx; ++i)
+        {
+          auto& point = aggregatedFrames->at(i);
+          point.time += timeOffset;
+          Utils::TransformPoint(point, transformInterpolator(point.time));
+        }
+        PRINT_VERBOSE(3, "Undistortion performed using motion interpolation")
+      }
+      else
+      {
+        // Undistort to represent all points from startIdx in base at current time
+        this->UndistortWithPoseMeasurement(aggregatedFrames, this->CurrentTime,
+                                           startIdx, aggregatedFrames->size(),
+                                           baseToLidar, timeOffset);
+
+        // Update times
+        #pragma omp parallel for num_threads(this->NbThreads)
+        for (int idxPt = startIdx; idxPt < int(aggregatedFrames->size()); ++idxPt)
+        {
+          aggregatedFrames->at(idxPt).time += timeOffset;
+          // Transform point to world frame if requested
+          if (worldCoordinates)
+            Utils::TransformPoint(aggregatedFrames->at(idxPt), this->Tworld);
+        }
+
+        PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
       }
     }
 
@@ -2132,9 +2325,8 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
         #pragma omp parallel for num_threads(this->NbThreads)
         for (int i = startIdx; i < endIdx; ++i)
         {
-          auto& point = aggregatedFrames->at(i);
-          point.time += timeOffset;
-          Utils::TransformPoint(point, tf);
+          aggregatedFrames->at(i).time += timeOffset;
+          Utils::TransformPoint(aggregatedFrames->at(i), tf);
         }
       }
     }
@@ -2168,6 +2360,17 @@ void Slam::InitGravity()
 }
 
 //-----------------------------------------------------------------------------
+void Slam::InitImu()
+{
+  this->ImuManager = std::make_shared<ExternalSensors::ImuManager>(0.,
+                                                                   this->SensorTimeOffset,
+                                                                   this->SensorTimeThreshold,
+                                                                   this->SensorMaxMeasures,
+                                                                   this->Tworld,
+                                                                   this->Verbosity >= 3);
+}
+
+//-----------------------------------------------------------------------------
 void Slam::InitLandmarkManager(int id)
 {
   this->LandmarksManagers[id] = ExternalSensors::LandmarkManager(this->SensorTimeOffset,
@@ -2193,7 +2396,7 @@ void Slam::InitGps()
 //-----------------------------------------------------------------------------
 void Slam::InitPoseSensor()
 {
-  this->PoseManager = std::make_shared<ExternalSensors::PoseManager>(0.,
+  this->PoseManager = std::make_shared<ExternalSensors::PoseManager>(this->PoseWeight,
                                                                      this->SensorTimeOffset,
                                                                      this->SensorTimeThreshold,
                                                                      this->SensorMaxMeasures,
@@ -2219,6 +2422,59 @@ void Slam::AddGravityMeasurement(const ExternalSensors::GravityMeasurement& gm)
   if (!this->GravityManager)
     this->InitGravity();
   this->GravityManager->AddMeasurement(gm);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::AddImuMeasurement(const ExternalSensors::ImuMeasurement& m)
+{
+  if (!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->AddMeasurement(m);
+  if (!this->PoseHasData())
+    this->PoseManager = this->ImuManager;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetImuCalibration(const Eigen::Isometry3d& calib)
+{
+  if (!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->SetCalibration(calib);
+}
+
+//-----------------------------------------------------------------------------
+Eigen::Isometry3d Slam::GetTworld(double time)
+{
+  if (time < 0)
+    return this->LogStates.back().Isometry;
+
+  if (this->ImuHasData())
+    return this->ImuManager->GetPose(time);
+  else if (this->PoseHasData())
+  {
+    ExternalSensors::PoseMeasurement synchMeas;
+    this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas);
+    return synchMeas.Pose;
+  }
+  else
+  {
+    // Get iterator pointing to the first state after time
+    auto postIt = std::upper_bound(this->LogStates.begin(),
+                                   this->LogStates.end(),
+                                   time,
+                                   [&](double time, const LidarState& state) {return time < state.Time;});
+
+    auto preIt = postIt;
+    --preIt;
+
+    if (postIt == this->LogStates.end())
+    {
+      PRINT_WARNING("Time " << time << " has not been reached yet. Returning last pose at time " << this->LogStates.back().Time)
+      return this->LogStates.back().Isometry;
+    }
+
+    return LinearInterpolation(preIt->Isometry, postIt->Isometry, time, preIt->Time, postIt->Time);
+  }
 }
 
 // Landmark detector
@@ -2394,6 +2650,8 @@ void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
     this->WheelOdomManager->inFuncProto; \
   if (this->GravityManager) \
     this->GravityManager->inFuncProto; \
+  if (this->ImuManager) \
+    this->ImuManager->inFuncProto; \
   for (auto& idLm : this->LandmarksManagers) \
     idLm.second.inFuncProto; \
   if (this->GpsManager) \
@@ -2406,6 +2664,10 @@ void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
 void Slam::ResetSensors(bool emptyMeasurements)
 {
   ExtSensorMacro(Reset(emptyMeasurements))
+  this->ImuHasBeenUpdated = 0;
+  if (emptyMeasurements)
+    // Break link between IMU and Pose managers
+    this->InitPoseSensor();
 }
 
 //-----------------------------------------------------------------------------
@@ -2482,6 +2744,74 @@ void Slam::SetGravityWeight(double weight)
   this->GravityManager->SetWeight(weight);
 }
 
+//-----------------------------------------------------------------------------
+double Slam::GetImuWeight() const
+{
+  if(this->ImuManager)
+    return this->ImuManager->GetWeight();
+  PRINT_ERROR("IMU has not been set : can't get IMU weight")
+  return 0.;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetImuWeight(double weight)
+{
+  if(!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->SetWeight(weight);
+}
+
+//-----------------------------------------------------------------------------
+Eigen::Vector3d Slam::GetImuGravity() const
+{
+  if(this->ImuManager)
+    return this->ImuManager->GetGravity();
+  PRINT_ERROR("IMU has not been set : can't get IMU gravity")
+  return {0., 0., 0.};
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetImuGravity(const Eigen::Vector3d& gravity)
+{
+  if(!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->SetGravity(gravity);
+}
+
+//-----------------------------------------------------------------------------
+float Slam::GetImuFrequency() const
+{
+  if(this->ImuManager)
+    return this->ImuManager->GetFrequency();
+  PRINT_ERROR("IMU has not been set : can't get IMU frequency")
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetImuFrequency(float frequency)
+{
+  if(!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->SetFrequency(frequency);
+}
+
+//-----------------------------------------------------------------------------
+unsigned int Slam::GetImuResetThreshold() const
+{
+  if(this->ImuManager)
+    return this->ImuManager->GetResetThreshold();
+  PRINT_ERROR("IMU has not been set : can't get IMU reset threshold")
+  return 0;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetImuResetThreshold(unsigned int thresh)
+{
+  if(!this->ImuManager)
+    this->InitImu();
+  this->ImuManager->SetResetThreshold(thresh);
+}
+
 // Landmark detector
 //-----------------------------------------------------------------------------
 void Slam::SetLandmarkWeight(double weight)
@@ -2530,6 +2860,7 @@ void Slam::SetPoseWeight(double weight)
 {
   if (!this->PoseManager)
     this->InitPoseSensor();
+  this->PoseWeight = weight;
   this->PoseManager->SetWeight(weight);
 }
 
@@ -2576,6 +2907,20 @@ void Slam::ClearMaps(Maps& maps)
 {
   for (auto kmap: maps)
     kmap.second->Reset();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::ClearLog()
+{
+  auto prevlastLogStateIt = LogStates.end();
+  --prevlastLogStateIt;
+  --prevlastLogStateIt;
+  std::list<LidarState> storeLog;
+  storeLog.push_back(*prevlastLogStateIt);
+  storeLog.push_back(*(++prevlastLogStateIt));
+
+  this->LogStates.clear();
+  this->LogStates = storeLog;
 }
 
 //-----------------------------------------------------------------------------

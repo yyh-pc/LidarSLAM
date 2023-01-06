@@ -50,6 +50,8 @@ struct LidarState
       Time(time) {};
   // Keypoints extracted at current pose, undistorted and expressed in BASE coordinates
   std::map<Keypoint, PCStoragePtr> Keypoints;
+  // Keypoints extracted at current pose and expressed in BASE coordinates
+  std::map<Keypoint, PCStoragePtr> RawKeypoints;
   bool IsKeyFrame = true;
 };
 

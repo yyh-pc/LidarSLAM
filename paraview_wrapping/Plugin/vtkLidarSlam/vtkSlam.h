@@ -116,6 +116,9 @@ public:
   // ---------------------------------------------------------------------------
 
   void Reset();
+  // Clear the maps and the logged trajectory
+  // but keep all other parameters
+  void ClearMaps();
 
   void RebuildMaps();
 
@@ -177,6 +180,9 @@ public:
   // Set measurements to Slam algo
   virtual void SetSensorData(const std::string& fileName);
 
+  vtkGetMacro(TrajFrequency, double)
+  vtkSetMacro(TrajFrequency, double)
+
   // ---------------------------------------------------------------------------
   //   Graph parameters
   // ---------------------------------------------------------------------------
@@ -184,6 +190,11 @@ public:
   // Check LoggingTimeout is set correctly to ensure the use of pose graph optimization
   void SetUsePoseGraph(bool usePoseGraph);
 
+  // Use the optimized poses from the IMU/SLAM graph to
+  // update the trajectory and rebuild the maps (needs GTSAM not G2O)
+  void OptimizeGraphWithIMU();
+
+  // Optimize the graph with available information (needs G2O not GTSAM)
   void OptimizeGraph();
 
   vtkCustomGetMacro(G2oFileName, std::string)
@@ -375,6 +386,17 @@ public:
   vtkCustomGetMacroExternalSensor(Gravity, GravityWeight, double)
   vtkCustomSetMacroExternalSensor(Gravity, GravityWeight, double)
 
+  vtkCustomGetMacroExternalSensor(Imu, ImuWeight, double)
+  vtkCustomSetMacroExternalSensor(Imu, ImuWeight, double)
+
+  void SetImuGravity(double x, double y, double z);
+
+  vtkCustomGetMacro(ImuResetThreshold, unsigned int)
+  vtkCustomSetMacro(ImuResetThreshold, unsigned int)
+
+  vtkCustomGetMacro(ImuUpdate, bool)
+  vtkCustomSetMacro(ImuUpdate, bool)
+
   vtkCustomGetMacroExternalSensor(Pose, PoseWeight, double)
   vtkCustomSetMacroExternalSensor(Pose, PoseWeight, double)
 
@@ -490,6 +512,9 @@ private:
   // Add a SLAM pose and covariance in WORLD coordinates to Trajectory.
   void AddPoseToTrajectory(const LidarSlam::LidarState& state);
 
+  // Add current SLAM pose and covariance in WORLD coordinates to Trajectory.
+  void AddLastPosesToTrajectory();
+
   // Convert VTK PolyData to PCL pointcloud
   // Returns true if all input points are valid (null coordinates), false otherwise
   bool PolyDataToPointCloud(vtkPolyData* poly,
@@ -580,6 +605,8 @@ private:
   // Sensor file name stored to reload the external sensor data after reset
   std::string ExtSensorFileName;
 
+  // Output trajectory require frequency (Hz)
+  double TrajFrequency = -1;
 };
 
 #endif // VTK_SLAM_H

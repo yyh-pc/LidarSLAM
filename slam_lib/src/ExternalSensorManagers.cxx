@@ -621,5 +621,26 @@ bool PoseManager::CheckBounds(std::list<PoseMeasurement>::iterator& prevIt, std:
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// Get pose at a specific timestamp using the IMU
+Eigen::Isometry3d PoseManager::GetPose(double time)
+{
+  std::lock_guard<std::mutex> lock(this->Mtx);
+  if (this->Measures.empty())
+  {
+    PRINT_WARNING("No sensor data, pose cannot be supplied")
+    return Eigen::Isometry3d::Identity();
+  }
+  PoseMeasurement synchMeas;
+  // Get synchronized pose with calibration applied
+  // trackTime is false because GetPose can be called at any time
+  // for any input timestamp so there is no chronological order
+  bool trackTime = false;
+  if (time >= 0 && this->ComputeSynchronizedMeasureBase(time, synchMeas, trackTime))
+    return synchMeas.Pose;
+  else
+    return this->Measures.back().Pose;
+}
+
 } // end of ExternalSensors namespace
 } // end of LidarSlam namespace

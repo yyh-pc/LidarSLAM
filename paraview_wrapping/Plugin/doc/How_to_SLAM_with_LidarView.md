@@ -2,6 +2,7 @@
 
 - [Installing LidarView or one of its derivative with SLAM support](#installing-lidarview-or-one-of-its-derivative-with-slam-support)
 - [Using SLAM in LidarView](#using-slam-in-lidarview)
+- [Main functionalities](#main-functionalities)
 - [Saving and exporting SLAM outputs](#saving-and-exporting-slam-outputs)
   - [Saving trajectory](#saving-trajectory)
   - [Saving keypoint maps](#saving-keypoint-maps)
@@ -30,6 +31,16 @@ Follow [LidarView's Developer Guide](https://gitlab.kitware.com/LidarView/lidarv
 -DENABLE_nanoflann=True
 -DENABLE_pcl=True
 -DLIDARVIEW_BUILD_SLAM=True
+```
+
+For pose graph uses (see more details below with loop closure), g2o library is mandatory :
+```
+-DENABLE_g2o=True
+```
+
+For IMU uses (see more details below), GTSAM library is mandatory :
+```
+-DENABLE_gtsam=True
 ```
 
 `LidarSlamPlugin` should be automatically loaded at LidarView's startup. If not, ensure **Advanced features** are enabled (in **Help** or  **Tools** > **Debugging**), then select **Advance** > **Tools** > **Manage Plugins** > **Load New**. Browse to your LidarView install directory and select the `libLidarSlamPlugin.so` / `LidarSlamPlugin.dll` (this file can normally be found under `<lv_build>/install/lib/plugins/` on Linux or `<lv_build>/install/bin/plugins/` on Windows).
@@ -75,6 +86,35 @@ Please note that your default LidarView application may not include all the vend
    - If you chose **offline SLAM**, nothing new will show up after you hit **Apply**, but that's normal : the computer is working hard to run SLAM on all frames. When the processing is done, it will display its results.
 
 7. You're all done! Now, you can modify the display settings to fit your needs (e.g. color pointclouds using intensity field, modify the points size, hide/show some SLAM outputs, ...).
+
+## Main functionalities
+
+### Reset
+
+A button allows to reset the SLAM at a current frame :
+* maps are cleared and reloaded if initial maps were supplied
+* the trajectory is reset to initial pose
+* the external sensor data are cleared and refilled
+* the parameters are kept unchanged
+
+### Rebuild maps
+
+A button allows to rebuild the maps using the logged trajectory and the view is refreshed.
+After clicking this button, the view is refreshed with the new maps without taking the decaying threshold into account.
+The old points will be removed after next frame is processed.
+If empty first is selected, the maps will be reset before being rebuilt.
+
+### Clear maps
+
+This button allows to clear the maps but keeps the external sensors state and the trajectory unchanged.
+
+### Reload trajectory
+
+A trajectory can be saved (see next section) and a path field allows to reload it afterwards. This allows to do some trajectory modification tests (e.g. pose graph optimization) and to reset to a known state without running the whole data again.
+
+### 2D mode
+
+This checkbox allows to perform the whole process in 2D, optimizing only x, y and yaw in the world frame.
 
 ## Saving and exporting SLAM outputs
 
@@ -201,6 +241,8 @@ The possible fields of the CSV file are :
 
 - *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second^2 -> optional
 
+- *w_x/w_y/w_z*: Angle velocities from IMU, in radians/second -> optional
+
 - *x/y/z/roll/pitch/yaw*: Absolute pose measurements in meters and radians (YXZ order) -> optional
 
 The calibration file must lay in the same directory as the CSV file and must be named *calibration_external_sensor.mat*. This calibration file must contain the 4x4 calibration matrix representing the transform from external poses sensor to Base frame (i.e. the tracked frame).
@@ -217,12 +259,18 @@ If the calibration file is not provided, the information is supposed to be repre
 Then, the data can be used to add a constraint to the local SLAM optimization. The user must enter a weight corresponding to the external sensor used. This weight must be set experimentally knowing that it will be the confidence factor of the external sensor constraint relatively to all the keypoint matches. If the weight is null, the constraint is not added to the optimization. The constraints are :
 
 - For the odometer a translation constraint between two successive SLAM poses or an absolute translation constraint which can be used in specific contexts such as mine exploration.
-- For the IMU, a gravity constraint between all frames. To do so, the acceleration of the base frame is considered as null, the acceleration measured by the IMU should only represent the gravity.
+- For the IMU (when only the accelerations are provided), a gravity constraint between all frames. To do so, the acceleration of the base frame is considered as null, the acceleration measured by the IMU should only represent the gravity.
 - For the external poses, a relative transform constraint between frames.
 
-External poses can also be used to :
+External poses (obtained by preintegrating the IMU or from another source) can also be used to :
 - Estimate a prior pose : the user must choose the *External* or *External OR motion extrapolation* modes in the Ego-motion selector.
 - De-skew the pointcloud : the user must choose the External mode in the undistortion selector.
+
+When IMU accelerations **and** IMU angle velocities are provided along with the gravity in the world frame, those data can be preintegrated to get poses. Then, those poses can be used exactly as external poses (see features above). To perform the preintegration, a parallel graph is built between IMU and SLAM poses. This graph allows to update the biases and the integration constants. To limit the graph growth, a threshold is added to reset the graph.
+
+**Note** : This feature needs GTSAM in order to be built (available in the superbuild).
+
+**Warning** : the preintegration is not real time.
 
 Finally, the user can choose which synchronization to perform (timestamps supplied by the sensor or packet reception timestamps). The time reference chosen must be the same as the one provided in the CSV file. If the packet reception is chosen, the user must be sure that their is no lag between the external sensor acquisition and the packet reception (no post-process of the data).
 

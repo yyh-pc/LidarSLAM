@@ -8,6 +8,7 @@ option(WITH_NANOFLANN "Whether to install nanoflann" ON)
 option(WITH_PCL "Whether to install PCL" OFF)
 option(WITH_CERES "Whether to install Ceres" ON)
 option(WITH_G2O "Whether to install G2O" OFF)
+option(WITH_GTSAM "Whether to install GTSAM" OFF)
 
 # -----------------------------------------------------------------------------------------------
 # Read CMAKE Arguments
@@ -201,6 +202,47 @@ if (WITH_G2O)
                 -DCeres_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/lib/cmake/Ceres
                 -DEigen3_DIR:FILEPATH=${CMAKE_INSTALL_PREFIX}/share/eigen3/cmake
                 -DG2O_BUILD_EXAMPLES:BOOL=OFF
+                ${GENERIC_PROJECTS_ARGS}
+            )
+
+endif ()
+
+# -----------------------------------------------------------------------------------------------
+# INSTALL gtsam
+if (WITH_GTSAM)
+
+    message(INFO "${LOG_PREFIX} Generating gtsam dependency")
+    ExternalProject_Add(
+            Gtsam_ext
+            DEPENDS Eigen3_ext
+
+            GIT_REPOSITORY https://github.com/borglab/gtsam
+            GIT_TAG develop
+            PATCH_COMMAND git apply "${CMAKE_CURRENT_SOURCE_DIR}/patches/gtsam-windows-compatibility.patch" || (exit 0)
+            GIT_SHALLOW 1
+
+            CMAKE_ARGS
+                -DGTSAM_USE_SYSTEM_EIGEN:BOOL=ON
+                -DEIGEN3_INCLUDE_DIR:PATH=${CMAKE_INSTALL_PREFIX}/include/eigen3/
+                -DGTSAM_BUILD_TESTS:BOOL=OFF
+                -DGTSAM_BUILD_EXAMPLES_ALWAYS:BOOL=OFF
+                -DGTSAM_UNSTABLE_BUILD_PYTHON:BOOL=OFF
+                -DGTSAM_BUILD_UNSTABLE:BOOL=OFF
+                -DGTSAM_INSTALL_MATLAB_TOOLBOX:BOOL=OFF
+                -DGTSAM_INSTALL_CPP_UNITLITE:BOOL=OFF
+                -DGTSAM_WITH_TBB:BOOL=OFF
+                -DGTSAM_DISABLE_NEW_TIMERS:BOOL=OFF
+                -DGTSAM_INSTALL_CPPUNITLITE:BOOL=OFF
+                -DGTSAM_INSTALL_MATLAB_TOOLBOX:BOOL=OFF
+                -DGTSAM_WITH_TBB:BOOL=OFF
+                -DBoost_NO_BOOST_CMAKE:BOOL=${Boost_NO_BOOST_CMAKE}
+                -DBOOST_ROOT:PATH=${BOOST_ROOT}
+                -DBoost_USE_STATIC_LIBS=${Boost_USE_STATIC_LIBS}
+                # Pb of metis dep at packaging
+                # see https://github.com/borglab/gtsam/issues/380 for more details
+                # Next param disables metis use
+                # Warning : graph optimization might be slower than with metis
+                -DGTSAM_SUPPORT_NESTED_DISSECTION=OFF
                 ${GENERIC_PROJECTS_ARGS}
             )
 

@@ -76,9 +76,9 @@
       <Property name="Reset state"
                 command="Reset">
         <Documentation>
-          Reset SLAM internal state : maps and trajectory are cleared, and
-          current pose is set back to origin.
-          This keeps parameters and sensor data unchanged.
+          Reset SLAM internal state : maps and trajectory are cleared,
+          current pose is set back to origin and clear and refill external sensor data.
+          This keeps parameters unchanged.
         </Documentation>
       </Property>
 
@@ -101,16 +101,23 @@
         </Documentation>
       </Property>
 
+      <Property name="Clear maps"
+                command="ClearMaps">
+        <Documentation>
+          Clear the actual maps and the logged keypoints
+        </Documentation>
+      </Property>
+
       <!--~~~~~~~~~~~~~~~~~~~~~~~~~ Inputs options ~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 
       <!-- Sensor data file must be csv.
-           A field time in POSIX format is necessary
+           A field time is necessary with same reference as Lidar data or TCP/UDP packets
            Possible sensor fields are :
            - odom for wheel odometry sensor
            - [acc_x, acc_y, acc_z] for IMU signal
            - [x,y,z,roll,pitch,yaw] for external absolute pose measurements (YXZ convention)
            This file is loaded and used to add constraints or priors to the SLAM optimization -->
-      <StringVectorProperty name="SensorDataFile"
+      <StringVectorProperty name="External sensors data file"
                             command="SetSensorData"
                             number_of_elements="1"
                             animateable="0"
@@ -130,9 +137,14 @@
 
           *acc_x/acc_y/acc_z*: Acceleration from IMU, in meters/second^2
 
+          *w_x/w_y/w_z*: Rotation velocity from IMU, in radians/second
+
           *x/y/z/roll/pitch/yaw*: Absolute pose measurements in meters and radians (YXZ order)
-          WARNING : these poses must come along with a calibration file in the same location named calibration_external_sensor.txt.
-          This calibration should contain the 4x4 calibration matrix representing the transform from external poses sensor to Lidar sensor.
+
+          WARNING : these data must come along with a calibration file in the
+          same location named calibration_external_sensor.mat.
+          This calibration must contain the 4x4 calibration matrix representing
+          the transform from external poses sensor to Base frame (i.e. the tracked frame).
 
           Example :
 
@@ -316,6 +328,18 @@
         </Hints>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Trajectory frequency"
+                         command="SetTrajFrequency"
+                         number_of_elements="1"
+                         default_values="-1"
+                         panel_visibility="advanced">
+        <Documentation>
+          Output frequency for the trajectory poses. The poses in between two frames are computed using interpolation.
+          If an higher frequency external sensor is used (poses or IMU),
+          it is used to do the interpolation.
+        </Documentation>
+      </IntVectorProperty>
+
       <IntVectorProperty name="Output current keypoints"
                          command="SetOutputCurrentKeypoints"
                          number_of_elements="1"
@@ -349,7 +373,8 @@
         <Property name="Reset state" />
         <Property name="Empty first" />
         <Property name="Rebuild maps" />
-        <Property name="SensorDataFile" />
+        <Property name="Clear maps" />
+        <Property name="External sensors data file" />
         <Property name="Reload trajectory" />
         <Property name="Auto detect input arrays" />
         <Property name="Time array" />
@@ -360,6 +385,7 @@
         <Property name="Advanced return mode" />
         <Property name="Keypoint maps output mode" />
         <Property name="Keypoints maps update step" />
+        <Property name="Trajectory frequency" />
         <Property name="Output current keypoints" />
         <Property name="Output keypoints in WORLD coordinates" />
       </PropertyGroup>
@@ -1383,7 +1409,7 @@
         <Property name="Min number of frames per voxel" />
       </PropertyGroup>
 
-      <!-- ==================== External sensors' parameters ==================== -->
+     <!-- ==================== External sensors' parameters ==================== -->
 
       <DoubleVectorProperty name="Wheel odom weight"
                             command="SetWheelOdomWeight"
@@ -1412,7 +1438,28 @@
                             default_values="0."
                             panel_visibility="advanced">
         <Documentation>
+          Weight to apply on the IMU gravity constraint.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="IMU weight"
+                            command="SetImuWeight"
+                            number_of_elements="1"
+                            default_values="0."
+                            panel_visibility="advanced">
+        <Documentation>
           Weight to apply on the IMU constraint.
+        </Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Gravity"
+                            command="SetImuGravity"
+                            number_of_elements="3"
+                            default_values="0. 0. -9.80511"
+                            panel_visibility="advanced">
+        <Documentation>
+          Gravity represented in world reference frame (defined by initTransform and first frame).
+          Default supposes z upwards.
         </Documentation>
       </DoubleVectorProperty>
 
@@ -1425,6 +1472,28 @@
           Weight to apply on the Pose constraint ( which may come from a GNSS sensor ).
         </Documentation>
       </DoubleVectorProperty>
+
+      <IntVectorProperty name="Imu reset threshold"
+                         command="SetImuResetThreshold"
+                         number_of_elements="1"
+                         default_values="400">
+        <Documentation>
+          When raw IMU data are used, a graph is built between SLAM poses and IMU preintegration
+          to refine the IMU bias. This threshold allows to reset the graph every n frames to maintain
+          a reasonable graph size.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Imu update"
+                         command="SetImuUpdate"
+                         number_of_elements="1"
+                         default_values="1">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, the poses deduced preintegrated from IMU measurements are updated at each new SLAM output
+          If disabled, the last preintegration is used without update
+        </Documentation>
+      </IntVectorProperty>
 
       <DoubleVectorProperty name="Time threshold"
                             command="SetSensorTimeThreshold"
@@ -1459,10 +1528,14 @@
         <Property name="Wheel odometry relative mode" />
         <Property name="IMU gravity weight" />
         <Property name="Pose weight" />
+        <Property name="Imu reset threshold" />
+        <Property name="Imu update" />
         <Property name="Time threshold" />
         <Property name="Time synchronization" />
+        <Property name="IMU weight" />
+        <Property name="Gravity" />
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="SensorDataFile" value="" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="External sensors data file" value="" />
         </Hints>
       </PropertyGroup>
 
@@ -1544,8 +1617,19 @@
       </PropertyGroup>
 
       <!-- ============================ Pose Graph Optimization ============================ -->
+
+      <Property name="Optimize Graph With IMU"
+                command="OptimizeGraphWithIMU"
+                panel_visibility="advanced">
+        <Documentation>
+          Use the optimized poses from the IMU/SLAM graph to update the trajectory and the maps.
+          IMU data must be available, GTSAM must be found and the logging timeOut must be set appropriately.
+        </Documentation>
+      </Property>
+
       <Property name="Optimize Graph"
-                command="OptimizeGraph">
+                command="OptimizeGraph"
+                panel_visibility="advanced">
         <Documentation>
           Launch pose graph optimization with options below. The Logging timeout needs to be set appropriately.
         </Documentation>
@@ -1650,6 +1734,7 @@
       </IntVectorProperty>
 
       <PropertyGroup label="Pose Graph Optimization">
+        <Property name="Optimize Graph With IMU" />
         <Property name="Optimize Graph" />
         <Property name="Save g2o file" />
         <Property name="Logging timeout" />
@@ -1696,7 +1781,8 @@
       <IntVectorProperty name="Query map window start interval LC"
                          command="SetLCQueryWindowStartRange"
                          number_of_elements="1"
-                         default_values="-50">
+                         default_values="-50"
+                         panel_visibility="advanced">
         <Documentation>
           The parameter for query sub map interval. Sub maps is built with frames:
           [frame index + start interval, frame index + end interval]
@@ -1706,7 +1792,8 @@
       <IntVectorProperty name="Query map window end interval LC"
                          command="SetLCQueryWindowEndRange"
                          number_of_elements="1"
-                         default_values="50">
+                         default_values="50"
+                         panel_visibility="advanced">
         <Documentation>
           The parameter for query sub map interval. Sub maps is built with frames:
           [frame index + start interval, frame index + end interval]
@@ -1730,7 +1817,8 @@
       <IntVectorProperty name="Revisited map window start interval LC"
                          command="SetLCRevisitedWindowStartRange"
                          number_of_elements="1"
-                         default_values="-50">
+                         default_values="-50"
+                         panel_visibility="advanced">
         <Documentation>
           The parameter for revisited sub map interval. Sub maps is built with frames:
           [frame index + start interval, frame index + end interval]
@@ -1740,7 +1828,8 @@
       <IntVectorProperty name="Revisited map window end interval LC"
                          command="SetLCRevisitedWindowEndRange"
                          number_of_elements="1"
-                         default_values="50">
+                         default_values="50"
+                         panel_visibility="advanced">
         <Documentation>
           The parameter for revisited sub map interval. Sub maps is built with frames:
           [frame index + start interval, frame index + end interval]

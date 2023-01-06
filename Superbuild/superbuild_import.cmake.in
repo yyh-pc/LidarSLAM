@@ -8,6 +8,7 @@ option(WITH_PCL "Whether to install PCL" @WITH_PCL@)
 option(WITH_CERES "Whether to install Ceres" @WITH_CERES@)
 option(WITH_NANOFLANN "Whether to install nanoflann" @WITH_NANOFLANN@)
 option(WITH_G2O "Whether to install g2o" @WITH_G2O@)
+option(WITH_GTSAM "Whether to install gtsam" @WITH_GTSAM@)
 
 set(LOG_PREFIX " [Superbuild] -- ")
 
@@ -41,4 +42,10 @@ endif()
 if (WITH_G2O)
    set(g2o_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/g2o CACHE PATH "Path to g2oConfig.cmake")
    message(INFO "${LOG_PREFIX} Force g2o_DIR to: ${g2o_DIR}")
+endif()
+
+# GTSAM
+if (WITH_GTSAM)
+   set(GTSAM_DIR ${SUPERBUILD_INSTALL_DIR}/lib/cmake/GTSAM CACHE PATH "Path to GTSAMConfig.cmake")
+   message(INFO "${LOG_PREFIX} Force GTSAM_DIR to: ${GTSAM_DIR}")
 endif()

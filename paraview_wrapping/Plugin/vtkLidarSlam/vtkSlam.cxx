@@ -148,6 +148,23 @@ void vtkSlam::RebuildMaps()
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::OptimizeGraphWithIMU()
+{
+  const std::list<LidarSlam::LidarState>& initLidarStates = this->SlamAlgo->GetLogStates();
+  if (initLidarStates.size() < 2)
+    return;
+  this->SlamAlgo->UpdateTrajectoryAndMapsWithIMU();
+  // Update trajectory from beginning with new poses after PGO.
+  this->ResetTrajectory();
+  const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
+  for (auto const& state: lidarStates)
+    this->AddPoseToTrajectory(state);
+
+  // Refresh view
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::OptimizeGraph()
 {
   const std::list<LidarSlam::LidarState>& initLidarStates = this->SlamAlgo->GetLogStates();
@@ -160,6 +177,16 @@ void vtkSlam::OptimizeGraph()
   for (auto const& state: lidarStates)
     this->AddPoseToTrajectory(state);
 
+  // Refresh view
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::ClearMaps()
+{
+  vtkDebugMacro(<< "Clearing the maps");
+  this->SlamAlgo->ClearLocalMaps();
+  this->SlamAlgo->ClearLog();
   // Refresh view
   this->ParametersModificationTime.Modified();
 }
@@ -253,7 +280,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : basic output conversions"));
 
   // Update Trajectory with new SLAM pose
-  this->AddPoseToTrajectory(this->SlamAlgo->GetLastState());
+  this->AddLastPosesToTrajectory();
 
   // ===== SLAM frame and pose =====
   // Output : Current undistorted LiDAR frame in world coordinates
@@ -449,6 +476,15 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::SetImuGravity(double x, double y, double z)
+{
+  vtkDebugMacro(<< "Setting ImuGravity to " << x << " " << y << " " << z);
+  this->SlamAlgo->SetImuGravity(Eigen::Vector3d({x, y, z}));
+  // refresh view
+  this->ParametersModificationTime.Modified();
+}
+
+//-----------------------------------------------------------------------------
 Eigen::Isometry3d vtkSlam::GetCalibrationMatrix(const std::string& fileName) const
 {
   // Look for file
@@ -511,10 +547,16 @@ void vtkSlam::SetSensorData(const std::string& fileName)
 
   // Check if time exists and extract it
   if (!csvTable->GetRowData()->HasArray("time"))
+  {
+    vtkErrorMacro(<< "No time found in external sensor file, loading aborted");
     return;
+  }
   auto arrayTime = csvTable->GetRowData()->GetArray("time");
   if (arrayTime->GetNumberOfTuples() == 0)
+  {
+    vtkErrorMacro(<< "No measure found in external sensor file");
     return;
+  }
   // Set the maximum number of measurements stored in the SLAM filter
   this->SlamAlgo->SetSensorMaxMeasures(arrayTime->GetNumberOfTuples());
 
@@ -529,6 +571,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   // Process wheel odometer data
   if (csvTable->GetRowData()->HasArray("odom"))
   {
+    // this->SlamAlgo->SetWheelOdomCalibration(base2Sensor); // TODO : use calibration in SLAM process
     auto arrayOdom = csvTable->GetRowData()->GetArray("odom");
     for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
     {
@@ -542,10 +585,63 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   }
 
   // Process IMU data
+  #ifdef USE_GTSAM
+  if (csvTable->GetRowData()->HasArray("acc_x")
+   && csvTable->GetRowData()->HasArray("acc_y")
+   && csvTable->GetRowData()->HasArray("acc_z")
+   && csvTable->GetRowData()->HasArray("w_x")
+   && csvTable->GetRowData()->HasArray("w_y")
+   && csvTable->GetRowData()->HasArray("w_z"))
+  {
+    // Deduce frequency using time array
+    // Build a frequency histogram and extract max bin
+    // (in case of cuts in the data or missing measures)
+    std::map<int,int> freqHistogram;
+    for (vtkIdType i = 1; i < arrayTime->GetNumberOfTuples(); ++i)
+    {
+      int freq = std::round(1. / (arrayTime->GetTuple1(i) - arrayTime->GetTuple1(i - 1)));
+      ++freqHistogram[freq];
+    }
+    int frequency = std::max_element(freqHistogram.begin(), freqHistogram.end(),
+                                     [](const auto &x, const auto &y)
+                                     {return x.second < y.second;})->first;
+
+    vtkDebugMacro(<< "IMU frequency detected is " << frequency << " Hz");
+    this->SlamAlgo->SetImuFrequency(frequency);
+
+    this->SlamAlgo->SetImuCalibration(base2Sensor);
+    auto arrayAccX = csvTable->GetRowData()->GetArray("acc_x");
+    auto arrayAccY = csvTable->GetRowData()->GetArray("acc_y");
+    auto arrayAccZ = csvTable->GetRowData()->GetArray("acc_z");
+    auto arrayVelR = csvTable->GetRowData()->GetArray("w_x");
+    auto arrayVelP = csvTable->GetRowData()->GetArray("w_y");
+    auto arrayVelY = csvTable->GetRowData()->GetArray("w_z");
+    for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
+    {
+      LidarSlam::ExternalSensors::ImuMeasurement imuMeasurement;
+      imuMeasurement.Time = arrayTime->GetTuple1(i);
+      imuMeasurement.Acceleration.x()  = arrayAccX->GetTuple1(i);
+      imuMeasurement.Acceleration.y()  = arrayAccY->GetTuple1(i);
+      imuMeasurement.Acceleration.z()  = arrayAccZ->GetTuple1(i);
+      imuMeasurement.AngleVelocity.x() = arrayVelR->GetTuple1(i);
+      imuMeasurement.AngleVelocity.y() = arrayVelP->GetTuple1(i);
+      imuMeasurement.AngleVelocity.z() = arrayVelY->GetTuple1(i);
+      this->SlamAlgo->AddImuMeasurement(imuMeasurement);
+    }
+    PRINT_INFO("IMU data successfully loaded");
+    extSensorFit = true;
+  }
+  else if (csvTable->GetRowData()->HasArray("acc_x")
+        && csvTable->GetRowData()->HasArray("acc_y")
+        && csvTable->GetRowData()->HasArray("acc_z"))
+  {
+  #else
   if (csvTable->GetRowData()->HasArray("acc_x")
    && csvTable->GetRowData()->HasArray("acc_y")
    && csvTable->GetRowData()->HasArray("acc_z"))
   {
+    // this->SlamAlgo->SetGravityCalibration(base2Sensor); // TODO : use calibration in SLAM process
+  #endif
     auto arrayAccX = csvTable->GetRowData()->GetArray("acc_x");
     auto arrayAccY = csvTable->GetRowData()->GetArray("acc_y");
     auto arrayAccZ = csvTable->GetRowData()->GetArray("acc_z");
@@ -558,7 +654,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       gravityMeasurement.Acceleration.z() = arrayAccZ->GetTuple1(i);
       this->SlamAlgo->AddGravityMeasurement(gravityMeasurement);
     }
-    PRINT_INFO("IMU data successfully loaded");
+    PRINT_INFO("IMU data successfully loaded for gravity integration");
     extSensorFit = true;
   }
 
@@ -1039,6 +1135,16 @@ void vtkSlam::AddPoseToTrajectory(const LidarSlam::LidarState& state)
     line->GetPointIds()->SetId(1, nPoints - 1);
     this->Trajectory->GetLines()->InsertNextCell(line);
   }
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::AddLastPosesToTrajectory()
+{
+  // Get current SLAM pose in WORLD coordinates
+  std::vector<LidarSlam::LidarState> lastStates = this->SlamAlgo->GetLastStates(this->TrajFrequency);
+
+  for (const auto& state : lastStates)
+    this->AddPoseToTrajectory(state);
 }
 
 //-----------------------------------------------------------------------------

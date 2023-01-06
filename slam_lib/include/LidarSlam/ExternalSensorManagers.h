@@ -20,9 +20,29 @@
 
 #include "LidarSlam/CeresCostFunctions.h" // for residual structure + ceres
 #include "LidarSlam/Utilities.h"
+#include "LidarSlam/State.h"
+
 #include <list>
 #include <cfloat>
 #include <mutex>
+
+#ifdef USE_GTSAM
+#include <gtsam/navigation/ImuFactor.h>
+#include <gtsam/slam/PriorFactor.h>
+#include <gtsam/slam/BetweenFactor.h>
+#include <gtsam/nonlinear/Values.h>
+#include <gtsam/inference/Symbol.h>
+#include <gtsam/nonlinear/ISAM2.h>
+
+// gtsam uses symbols to create vertex indices in the graph
+// It allows to manage automatically the access to specific vertices
+// (lidar poses, gps poses, landmarks, etc.)
+// User only has to set the indices for each vertex type. They usually follow time sequence.
+// see https://gtsam.org/tutorials/intro.html#magicparlabel-65663
+using gtsam::symbol_shorthand::X; // 6D pose  (x,y,z,r,p,y)
+using gtsam::symbol_shorthand::V; // Velocity (xdot,ydot,zdot)
+using gtsam::symbol_shorthand::B; // Bias     (ax,ay,az,gx,gy,gz)
+#endif
 
 namespace LidarSlam
 {
@@ -78,12 +98,25 @@ struct PoseMeasurement
 };
 
 // ---------------------------------------------------------------------------
+struct ImuMeasurement
+{
+  double Time = 0.;
+  Eigen::Vector3d Acceleration  = Eigen::Vector3d::Zero();
+  Eigen::Vector3d AngleVelocity = Eigen::Vector3d::Zero();
+  // NOTE : Imu preintegrator makes the assumption the
+  // covariance is fixed for all IMU measurements so we
+  // attach the covariances to the IMU manager
+};
+
+// ---------------------------------------------------------------------------
 // SENSOR MANAGERS
 // ---------------------------------------------------------------------------
 
 // Base class to derive all external sensors
 // Contains some tools for time synchronization
 // data management and general parameters
+
+// ---------------------------------------------------------------------------
 template <typename T>
 class SensorManager
 {
@@ -286,6 +319,7 @@ protected:
   // Calibration transform with base_link and the sensor
   Eigen::Isometry3d Calibration = Eigen::Isometry3d::Identity();
   // Time offset to make external sensors/Lidar correspondance
+  // time_lidar = time_ext + offset
   double TimeOffset = 0.;
   // Time threshold between 2 measures to consider they can be interpolated
   double TimeThreshold = 0.5;
@@ -528,7 +562,10 @@ public:
 
   bool ComputeConstraint(double lidarTime) override;
 
-private:
+  // Get pose at a specific timestamp
+  Eigen::Isometry3d GetPose(double time = -1);
+
+protected:
   double PrevLidarTime = -1.;
   Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
   // Allow to rotate the covariance
@@ -543,6 +580,565 @@ private:
   bool CheckBounds(std::list<PoseMeasurement>::iterator& prevIt, std::list<PoseMeasurement>::iterator& postIt) override;
 };
 
+// ---------------------------------------------------------------------------
+// IMU raw data (accelerations and angular rates) must be preprocessed to be able to integrate them into the SLAM optimization
+// This manager allows to preintegrate them. The main problem is to correctly estimate the bias which is a slowly varying error
+// made on raw measurements. This bias can be corrected at each new SLAM pose output using this manager.
+// This manager is derived from PoseManager so that once the data are preintegrated, the pose manager
+// can be used to compute synchronized data and a local constraint
+// NOTE : init values and useful constants were found here : https://github.com/TixiaoShan/LIO-SAM/
+class ImuManager: public PoseManager
+{
+public:
+  ImuManager(const std::string& name = "IMU")
+  : PoseManager(name){this->Reset();}
+
+  ImuManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+             Eigen::Isometry3d initBasePose = Eigen::Isometry3d::Identity(),
+             bool verbose = false, const std::string& name = "IMU")
+  : PoseManager(w, timeOffset, timeThresh, maxMeas, verbose, name)
+  {
+    this->InitBasePose = initBasePose;
+    this->Reset();
+  }
+
+  // ---------------------------------------------------------------------------
+
+  // Setters/Getters
+  GetSensorMacro(Gravity, Eigen::Vector3d)
+  SetSensorMacro(Gravity, const Eigen::Vector3d&)
+
+  GetSensorMacro(Frequency, float)
+  SetSensorMacro(Frequency, float)
+
+  GetSensorMacro(InitBasePose, Eigen::Isometry3d)
+  void SetInitBasePose(const Eigen::Isometry3d& initPose)
+  {
+    this->InitBasePose = initPose;
+    this->Reset();
+  }
+
+  GetSensorMacro(ResetThreshold, unsigned int)
+  SetSensorMacro(ResetThreshold, unsigned int)
+
+  GetSensorMacro(NLag, int)
+  SetSensorMacro(NLag, int)
+
+  // ---------------------------------------------------------------------------
+  void Reset(bool resetMeas = false)
+  {
+    this->SensorManager::Reset(resetMeas);
+    if (resetMeas)
+    {
+      std::lock_guard<std::mutex> lock(this->Mtx);
+      this->RawMeasures.clear();
+    }
+    #ifdef USE_GTSAM
+    this->OptimizedSlamStates.clear();
+    this->OptimizedSlamStates.resize(this->ResetThreshold);
+
+    this->BiasCovarianceDiag << 6.4356659353532566e-05, 6.4356659353532566e-05, 6.4356659353532566e-05,
+                                3.5640318696367613e-05, 3.5640318696367613e-05, 3.5640318696367613e-05;
+
+    // Initialize preintegrator
+    // Set measurement noise and gravity (in world reference frame)
+    // boost smart pointer mandatory to initialize preintegrators
+    boost::shared_ptr<gtsam::PreintegrationParams> p = boost::make_shared<gtsam::PreintegrationParams>(-this->Gravity);
+    p->accelerometerCovariance = this->AccCovariance;
+    p->gyroscopeCovariance     = this->GyrCovariance;
+    // Set integration noise (from velocities to positions)
+    p->integrationCovariance = std::pow(1e-4, 2) * Eigen::Matrix3d::Identity();
+    // Initialize pose isometry with 0 velocity
+    this->OptimizedSlamStates[0] = gtsam::NavState(gtsam::Pose3((this->InitBasePose * this->Calibration).matrix()), Eigen::Vector3d::Zero());
+    this->PrevLidarTime = -1.;
+    // Initialize a null bias
+    this->Bias = gtsam::imuBias::ConstantBias(Eigen::Vector6d::Zero());
+    // Initialize preintegrators with noise and bias
+    this->Preintegrator = std::make_shared<gtsam::PreintegratedImuMeasurements>(p, this->Bias);
+    this->PreintegratorNewData = std::make_shared<gtsam::PreintegratedImuMeasurements>(p, this->Bias);
+    this->ResetOptimization();
+    this->TimeIdx = 0;
+    #endif
+  }
+
+  // --------------------------------------------------------------------------
+  // Add one measure at a time in measures list
+  // The measure added (acc, vel) is not of the same type as the one used in optimization (pose)
+  // so we overload the function AddMeasurement
+  // WARNING for postprocess : preintegration can be heavy,
+  // resulting poses are only used in local SLAM optimization,
+  // we advice to not add measures that are far away from studied SLAM time
+  using PoseManager::AddMeasurement;
+  void AddMeasurement(const ImuMeasurement& m)
+  {
+    #ifdef USE_GTSAM
+    std::lock_guard<std::mutex> lock(this->Mtx);
+    // Update preintegration with new measurement
+    // If this is the first measurement,
+    // dt is approximated using frequency set externally
+    double dt = this->RawMeasures.empty()? 1. / this->Frequency : m.Time - this->RawMeasures.back().Time;
+    this->PreintegratorNewData->integrateMeasurement(m.Acceleration, m.AngleVelocity, dt);
+    // Store raw measurement
+    this->RawMeasures.emplace_back(m);
+    // Use gravity, new data, previously optimized SLAM pose, previously optimized SLAM velocity
+    // and previously optimized bias to derive new IMU pose
+    // and store it into the measures list
+    gtsam::NavState imuState = this->PreintegratorNewData->predict(this->OptimizedSlamStates[0], this->Bias);
+    PoseMeasurement imuPose;
+    imuPose.Pose.linear() = imuState.R();
+    imuPose.Pose.translation() = imuState.t();
+    imuPose.Time = m.Time;
+    this->Measures.emplace_back(imuPose);
+    if (this->Measures.size() > this->MaxMeasures)
+    {
+      if (this->PreviousIt == this->Measures.begin())
+        ++this->PreviousIt;
+      this->Measures.pop_front();
+      this->RawMeasures.pop_front();
+    }
+    return;
+    #endif
+    static_cast<void>(m);
+  }
+
+  #ifdef USE_GTSAM
+  // --------------------------------------------------------------------------
+  void RestartGraph(gtsam::noiseModel::Gaussian::shared_ptr priorPoseNoise,
+                    gtsam::noiseModel::Gaussian::shared_ptr priorVelNoise,
+                    gtsam::noiseModel::Gaussian::shared_ptr priorBiasNoise)
+  {
+    this->Graph = gtsam::ISAM2();
+    // Create factors
+    gtsam::NonlinearFactorGraph graphFactors;
+    // Prior pose
+    gtsam::PriorFactor<gtsam::Pose3> priorPose(X(0), this->OptimizedSlamStates[0].pose(), priorPoseNoise);
+    graphFactors.add(priorPose);
+    // Prior velocity
+    gtsam::PriorFactor<gtsam::Vector3> priorVel(V(0), this->OptimizedSlamStates[0].v(), priorVelNoise);
+    graphFactors.add(priorVel);
+    // Prior bias
+    gtsam::PriorFactor<gtsam::imuBias::ConstantBias> priorBias(B(0), this->Bias, priorBiasNoise);
+    graphFactors.add(priorBias);
+
+    // Create init values
+    gtsam::Values initValues;
+    initValues.insert(X(0), this->OptimizedSlamStates[0].pose());
+    initValues.insert(V(0), this->OptimizedSlamStates[0].v());
+    initValues.insert(B(0), this->Bias);
+
+    // Add factors and value to ISAM graph and optimize once
+    this->Graph.update(graphFactors, initValues);
+  }
+
+  // --------------------------------------------------------------------------
+  void ResetOptimization()
+  {
+    gtsam::ISAM2Params optParameters;
+    optParameters.relinearizeThreshold = 0.1;
+    optParameters.relinearizeSkip = 1;
+    this->Graph = gtsam::ISAM2(optParameters);
+  }
+
+  // --------------------------------------------------------------------------
+  // Update measures between the ith and the (i + 1)th pose using IMU measurements
+  using ImuMeasIt  = std::list<ImuMeasurement>::iterator;
+  using PoseMeasIt = std::list<PoseMeasurement>::iterator;
+  std::pair<ImuMeasIt, PoseMeasIt> UpdateMeasures(std::pair<ImuMeasIt, PoseMeasIt> startIterators,
+                                                  int iCurr, int iNext = -1)
+  {
+    // 1_ Get measure iterators corresponding to the ith graph vertex
+    // Those iterators define the start of the measures update when preintegrating
+    auto itMeasStartUpdate = startIterators.second;
+    auto itRawMeasStartUpdate = startIterators.first;
+
+    double timeIcurr = this->Idx2Time[iCurr];
+    gtsam::imuBias::ConstantBias bias = this->Idx2Bias[iCurr];
+
+    auto lastMeasureIt = this->Measures.end();
+    --lastMeasureIt;
+    auto lastRawMeasureIt = this->RawMeasures.end();
+    --lastRawMeasureIt;
+
+    // We are looking for iterators of measures corresponding to the one just after lidar state timestamp
+    while (itMeasStartUpdate != lastMeasureIt && itMeasStartUpdate->Time < timeIcurr)
+    {
+      ++itMeasStartUpdate;
+      ++itRawMeasStartUpdate;
+    }
+
+    // Reset preintegrator
+    this->PreintegratorNewData->resetIntegrationAndSetBias(bias);
+    // Add first value after lidar state timestamp
+    this->PreintegratorNewData->integrateMeasurement(itRawMeasStartUpdate->Acceleration,
+                                                     itRawMeasStartUpdate->AngleVelocity,
+                                                     itRawMeasStartUpdate->Time - timeIcurr);
+
+    // Update Measures list
+    // Compute new predicted IMU pose for current timestamp
+    gtsam::NavState imuState = this->PreintegratorNewData->predict(this->OptimizedSlamStates[iCurr], bias);
+    // Update measure value with new pose
+    itMeasStartUpdate->Pose.matrix() = imuState.pose().matrix();
+    // Init last time for future dt computation
+    double lastImuTime = itMeasStartUpdate->Time;
+
+    // Update start iterators
+    ++itMeasStartUpdate;
+    ++itRawMeasStartUpdate;
+
+    // Get measure iterators corresponding to the measure just after next SLAM timestamp (i.e. next graph vertex)
+    // This iterator defines the end of the measures update when preintegrating (end exluded)
+    auto itRawMeasEndUpdate = itRawMeasStartUpdate;
+    if (iNext > 0)
+    {
+      double timeInext = this->Idx2Time[iNext];
+      while (itRawMeasEndUpdate != lastRawMeasureIt && itRawMeasEndUpdate->Time < timeInext)
+        ++itRawMeasEndUpdate;
+    }
+    else
+      itRawMeasEndUpdate = this->RawMeasures.end();
+
+
+    // 2_ Refill
+    // Init iterator to measures list
+    auto itMeasure = itMeasStartUpdate;
+    int n = 0;
+    for (auto itRawMeasure = itRawMeasStartUpdate; itRawMeasure != itRawMeasEndUpdate; ++itRawMeasure)
+    {
+      // Readd values to preintegrator of new data
+      this->PreintegratorNewData->integrateMeasurement(itRawMeasure->Acceleration,
+                                                       itRawMeasure->AngleVelocity,
+                                                       itRawMeasure->Time - lastImuTime);
+
+      // Update Measures list
+      // Compute new predicted IMU pose for current timestamp
+      gtsam::NavState imuState = this->PreintegratorNewData->predict(this->OptimizedSlamStates[iCurr], bias);
+      // Update measure value with new pose
+      itMeasure->Pose.matrix() = imuState.pose().matrix();
+      // Update last time for dt computation
+      lastImuTime = itRawMeasure->Time;
+
+      // Update Measures list iterator
+      ++itMeasure;
+      ++n;
+    }
+
+    // Return last iterators changed
+    return {--itRawMeasEndUpdate, --itMeasure};
+  }
+  #endif
+
+  // --------------------------------------------------------------------------
+  // Use last SLAM pose to update IMU poses
+  bool Update(const LidarState& state)
+  {
+    #ifdef USE_GTSAM
+    // Check time
+    if (this->TimeIdx != 0 &&
+        (state.Time - this->PrevLidarTime < 0 ||
+         state.Time - this->PrevLidarTime > this->TimeThreshold))
+    {
+      PRINT_WARNING("There was a time cut in Lidar info at "
+                    << std::fixed << std::setprecision(12) << this->PrevLidarTime << std::scientific
+                    << " : resetting IMU")
+      this->TimeIdx = 0;
+      return false;
+    }
+
+    if (state.Time - this->PrevLidarTime < 1e-6)
+    {
+      if (this->Verbose)
+        PRINT_INFO("SLAM time has not changed : not updating IMU")
+      return true;
+    }
+
+    // Synchronize lidar times to IMU times if needed
+    double prevLidarTimeSynch = this->PrevLidarTime - this->TimeOffset;
+    double lidarTimeSynch = state.Time - this->TimeOffset;
+
+    // Lock mutex to handle RawMeasures and Measures lists
+    std::lock_guard<std::mutex> lock(this->Mtx);
+
+    // First raw measure must be older than previous lidar time
+    // and last measure must be newer than current lidar time
+    if (this->RawMeasures.empty() ||
+        this->RawMeasures.front().Time > lidarTimeSynch + 1e-6 ||
+        (this->TimeIdx != 0 && this->RawMeasures.front().Time > prevLidarTimeSynch + 1e-6) ||
+        this->RawMeasures.back().Time  < lidarTimeSynch - 1e-6)
+    {
+      PRINT_WARNING("Could not find IMU synchronized measures between " << std::fixed << std::setprecision(16) << prevLidarTimeSynch
+                     << " and " << lidarTimeSynch << " -> IMU data not updated, it may drift" << std::scientific)
+      this->TimeIdx = 0;
+      return false;
+    }
+
+    // Init graph with first lidar slam state received
+    if (this->TimeIdx == 0)
+    {
+      this->OptimizedSlamStates[0] = gtsam::NavState(gtsam::Pose3((state.Isometry * this->Calibration).matrix()), Eigen::Vector3d::Zero());
+      this->PrevLidarTime = state.Time;
+      this->RestartGraph(this->InitPoseNoise, this->InitVelNoise, this->InitBiasNoise);
+      this->Idx2Time[this->TimeIdx] = lidarTimeSynch;
+      this->Idx2Bias[this->TimeIdx] = this->Bias;
+
+      // If some measures were already stored, crop them from the current timestamp to speed up searches
+      // Get IMU measure iterators corresponding to the measurement received just before the current timestamp
+      auto itRawCurrent = this->RawMeasures.end();
+      auto itCurrent = this->Measures.end();
+      --itRawCurrent;
+      --itCurrent;
+      while (itRawCurrent->Time > lidarTimeSynch)
+      {
+        --itRawCurrent;
+        --itCurrent;
+      }
+
+      int initMeasuresSize = this->Measures.size();
+      this->Measures = std::list<PoseMeasurement>(itCurrent, this->Measures.end());
+      // Update previous measure iterator for searches
+      this->PreviousIt = this->Measures.begin();
+      this->RawMeasures = std::list<ImuMeasurement>(itRawCurrent, this->RawMeasures.end());
+
+      if (this->Verbose)
+        PRINT_INFO("IMU measures cropped to " << std::fixed << std::setprecision(12) << lidarTimeSynch << std::scientific << "   "
+                   << initMeasuresSize - this->Measures.size() << "   measures forgotten");
+
+      // Update measures from first SLAM pose
+      auto startIts = std::make_pair(this->RawMeasures.begin(), this->Measures.begin());
+      this->UpdateMeasures(startIts, 0);
+
+      // Update time index
+      this->TimeIdx = 1;
+
+      return true;
+    }
+
+    // Reset the graph every ResetThreshold lidar frames
+    if (this->TimeIdx >= this->ResetThreshold)
+    {
+      gtsam::noiseModel::Gaussian::shared_ptr lastPoseNoise, lastVelNoise, lastBiasNoise;
+      lastPoseNoise = gtsam::noiseModel::Gaussian::Covariance(this->Graph.marginalCovariance(X(this->TimeIdx-1)));
+      lastVelNoise  = gtsam::noiseModel::Gaussian::Covariance(this->Graph.marginalCovariance(V(this->TimeIdx-1)));
+      lastBiasNoise = gtsam::noiseModel::Gaussian::Covariance(this->Graph.marginalCovariance(B(this->TimeIdx-1)));
+      auto lastOptimizedSlamState = this->OptimizedSlamStates[this->TimeIdx-1];
+      this->PrevLidarTime = state.Time;
+      this->Idx2Time[0] = lidarTimeSynch;
+      this->Idx2Bias[0] = this->Bias;
+      this->OptimizedSlamStates.clear();
+      this->OptimizedSlamStates.resize(this->ResetThreshold);
+      this->OptimizedSlamStates[0] = lastOptimizedSlamState;
+      this->ResetOptimization();
+      this->RestartGraph(lastPoseNoise, lastVelNoise, lastBiasNoise);
+      this->TimeIdx = 1;
+      return true;
+    }
+    // 0_ Add new IMU measurements to preintegrator until lidarState time
+
+    // 0_0 Init iterators
+    // Get last raw measure iterator
+    auto lastRawMeasureIt = this->RawMeasures.end();
+    --lastRawMeasureIt;
+    // Init search at beginning
+    auto itRawMeasStartUpdate = this->RawMeasures.begin();
+
+    // 0_1 Get raw measure iterator corresponding to the one just after previous lidar state timestamp
+    // This iterator defines the start of the preintegration
+    while (itRawMeasStartUpdate->Time < prevLidarTimeSynch)
+      ++itRawMeasStartUpdate;
+
+    // Reset preintegrator
+    this->Preintegrator->resetIntegrationAndSetBias(this->Bias);
+    // Add first value after lidar state timestamp
+    this->Preintegrator->integrateMeasurement(itRawMeasStartUpdate->Acceleration,
+                                              itRawMeasStartUpdate->AngleVelocity,
+                                              itRawMeasStartUpdate->Time - prevLidarTimeSynch);
+    // Init last time for future dt computation
+    double lastImuTime = itRawMeasStartUpdate->Time;
+
+    // Update start iterator
+    ++itRawMeasStartUpdate;
+
+    // Get measure iterators corresponding to the measure just after current SLAM timestamp
+    // This iterator defines the end of the measures update when preintegrating (end exluded)
+    auto itRawMeasEndUpdate = itRawMeasStartUpdate;
+    while (itRawMeasEndUpdate != lastRawMeasureIt && itRawMeasEndUpdate->Time < lidarTimeSynch)
+      ++itRawMeasEndUpdate;
+
+    // 0_2 Fill preintegrator from last SLAM state to current SLAM state
+    for (auto itRawMeasure = itRawMeasStartUpdate; itRawMeasure != itRawMeasEndUpdate; ++itRawMeasure)
+    {
+      // Add values to preintegrator
+      this->Preintegrator->integrateMeasurement(itRawMeasure->Acceleration,
+                                                itRawMeasure->AngleVelocity,
+                                                itRawMeasure->Time - lastImuTime);
+      // Update last time for dt computation
+      lastImuTime = itRawMeasure->Time;
+    }
+    --itRawMeasEndUpdate;
+    // Integrate last measurement for the remaining time until current SLAM timestamp
+    this->Preintegrator->integrateMeasurement(itRawMeasEndUpdate->Acceleration,
+                                              itRawMeasEndUpdate->AngleVelocity,
+                                              lidarTimeSynch - lastImuTime);
+    // NOTE : A gtsam graph is composed of :
+    // - factors : functions that link elements
+    // - values : initial values of the elements for pose graph optimization
+    // See https://gtsam.org/tutorials/intro.html#magicparlabel-65438
+
+    // 1_ Add new factors to graph
+    gtsam::NonlinearFactorGraph graphFactors;
+    // 1_1 SLAM pose factor (as prior factor)
+    // Create SLAM factor (the graph tracks IMU sensor poses)
+    Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(state.Isometry);
+    Eigen::Matrix6d rotCov = state.Covariance;
+    CeresTools::RotateCovariance(initPose, rotCov, this->Calibration, false); // new = init * calib
+    gtsam::PriorFactor<gtsam::Pose3> poseFactor(X(this->TimeIdx), gtsam::Pose3((state.Isometry * this->Calibration).matrix()), state.Covariance);
+    // Add SLAM pose to factors
+    graphFactors.add(poseFactor);
+    // 1_2_ IMU factor
+    // Get preintegrator reference
+    const gtsam::PreintegratedImuMeasurements& preintegrator = dynamic_cast<const gtsam::PreintegratedImuMeasurements&>(*this->Preintegrator);
+    // Create IMU graph factor
+    gtsam::ImuFactor imuFactor(X(this->TimeIdx - 1), V(this->TimeIdx - 1),
+                               X(this->TimeIdx)    , V(this->TimeIdx),
+                               B(this->TimeIdx - 1),
+                               preintegrator);
+    // Add imu to factors
+    graphFactors.add(imuFactor);
+    // 1_3_ Bias factor (as between factor)
+    // Create noise
+    // CHECK : what is done here, why isn't it constant?
+    gtsam::noiseModel::Diagonal::shared_ptr biasNoise =
+      gtsam::noiseModel::Diagonal::Sigmas(std::sqrt(this->Preintegrator->deltaTij()) * this->BiasCovarianceDiag);
+    // Create bias factor
+    gtsam::BetweenFactor<gtsam::imuBias::ConstantBias> biasFactor(B(this->TimeIdx - 1), B(this->TimeIdx),
+                                                                  gtsam::imuBias::ConstantBias(),
+                                                                  biasNoise);
+    // Add bias to factors
+    graphFactors.add(biasFactor);
+
+    // 2_ Create new init values for graph optimization
+    gtsam::Values initValues;
+    // Preintegrated IMU data
+    gtsam::NavState preintIMU = this->Preintegrator->predict(this->OptimizedSlamStates[this->TimeIdx - 1], this->Bias);
+    initValues.insert(X(this->TimeIdx), preintIMU.pose());
+    initValues.insert(V(this->TimeIdx), preintIMU.v());
+    // Bias
+    initValues.insert(B(this->TimeIdx), this->Bias);
+
+    // 3_ Optimize and update members with result
+    // Add previously computed factors and init values to graph
+    this->Graph.update(graphFactors, initValues);
+    this->Graph.update(); // CHECK : useful?
+    gtsam::Values graphValues = this->Graph.calculateEstimate();
+
+    // Update optimized poses
+    for (unsigned int i = 0; i <= this->TimeIdx; ++i)
+      this->OptimizedSlamStates[i] = gtsam::NavState(graphValues.at<gtsam::Pose3>(X(i)),
+                                                     graphValues.at<gtsam::Vector3>(V(i)));
+
+    // Get last bias from result
+    this->Bias = graphValues.at<gtsam::imuBias::ConstantBias>(B(this->TimeIdx));
+
+    // 4_ Update PreintegratorNewData with new bias
+    auto startIts = std::make_pair(this->RawMeasures.begin(), this->Measures.begin());
+    int lastIdx = std::max(0, int(this->TimeIdx) - this->NLag);
+    for (int i = 0; i < lastIdx; ++i)
+      startIts = this->UpdateMeasures(startIts, i, i + 1);
+
+    this->UpdateMeasures(startIts, lastIdx);
+
+    // 5_ Update time index and last slam state time for next input
+    this->Idx2Time[this->TimeIdx] = lidarTimeSynch;
+    this->Idx2Bias[this->TimeIdx] = this->Bias;
+    ++this->TimeIdx;
+    this->PrevLidarTime = state.Time;
+
+    // Reset the graph every ResetThreshold lidar frames
+    if (this->TimeIdx >= this->ResetThreshold)
+    {
+      gtsam::noiseModel::Gaussian::shared_ptr lastPoseNoise, lastVelNoise, lastBiasNoise;
+      lastPoseNoise = gtsam::noiseModel::Gaussian::Covariance(this->Graph.marginalCovariance(X(this->TimeIdx-1)));
+      lastVelNoise  = gtsam::noiseModel::Gaussian::Covariance(this->Graph.marginalCovariance(V(this->TimeIdx-1)));
+      lastBiasNoise = gtsam::noiseModel::Gaussian::Covariance(this->Graph.marginalCovariance(B(this->TimeIdx-1)));
+      auto lastOptimizedSlamState = this->OptimizedSlamStates[this->TimeIdx-1];
+      this->Idx2Time[0] = lidarTimeSynch;
+      this->Idx2Bias[0] = this->Bias;
+      this->OptimizedSlamStates.clear();
+      this->OptimizedSlamStates.resize(this->ResetThreshold);
+      this->OptimizedSlamStates[0] = lastOptimizedSlamState;
+      this->ResetOptimization();
+      this->RestartGraph(lastPoseNoise, lastVelNoise, lastBiasNoise);
+      this->TimeIdx = 1;
+    }
+
+    return true;
+    #endif
+    static_cast<void>(state);
+    return false;
+  }
+
+private:
+  // ---------------Preintegration relative members---------------
+  // List of old raw measurements received
+  std::list<ImuMeasurement> RawMeasures;
+  // Covariance of raw measurement
+  // NOTE : As covariance is fixed for all raw measurements,
+  // it is attached to the manager and not to the measurements
+  Eigen::Matrix3d AccCovariance = std::pow(3.9939570888238808e-03, 2) * Eigen::Matrix3d::Identity();
+  Eigen::Matrix3d GyrCovariance = std::pow(1.5636343949698187e-03, 2) * Eigen::Matrix3d::Identity();
+  // Estimated gravity (m/s^2)
+  Eigen::Vector3d Gravity = {0., 0., -9.80511}; // default : z upward
+  // Frequency of the IMU
+  float Frequency = 100.f; // Used when dt is not available
+  // Initial pose of BASE
+  Eigen::Isometry3d InitBasePose = Eigen::Isometry3d::Identity();
+  #ifdef USE_GTSAM
+  // SLAM poses optimized using IMU preintegration constraint
+  std::vector<gtsam::NavState> OptimizedSlamStates;
+  // IMU bias on acceleration and angular velocity
+  gtsam::imuBias::ConstantBias Bias = gtsam::imuBias::ConstantBias(Eigen::Vector6d::Zero());
+  // Preintegrator for data since last lidar time
+  // Used to get poses at IMU frequency
+  // NOTE : Those poses can then be used in SLAM optimization
+  std::shared_ptr<gtsam::PreintegratedImuMeasurements> PreintegratorNewData;
+
+  // ---------------Pose graph relative members---------------
+  // Preintegrator until last lidar time
+  // Used to create the IMU factor in the graph
+  std::shared_ptr<gtsam::PreintegratedImuMeasurements> Preintegrator;
+  // ISAM2 optimizer allow to keep the pose graph and only update it
+  // at each new information input
+  gtsam::ISAM2 Graph;
+  // Bias error used to recompute the bias after a new SLAM pose is computed
+  Eigen::Vector6d BiasCovarianceDiag;
+  // Prior factors settings for pose graph optimization
+  // Prior pose noise : rad, rad, rad, m, m, m
+  gtsam::noiseModel::Gaussian::shared_ptr InitPoseNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-2);
+  // Prior velocity noise (m/s)
+  // --> check 1e4 wanted?
+  gtsam::noiseModel::Gaussian::shared_ptr InitVelNoise  = gtsam::noiseModel::Isotropic::Sigma(3, 1e4);
+  // Prior acceleration noise (m/s^2)
+  // 1e-2 ~ 1e-3 recommended by LIO-SAM
+  gtsam::noiseModel::Gaussian::shared_ptr InitBiasNoise = gtsam::noiseModel::Isotropic::Sigma(6, 1e-3);
+  // Map to link vertex indices with timestamps
+  std::map<unsigned int, double> Idx2Time;
+  // Map to link vertex indices with bias
+  std::map<unsigned int, gtsam::imuBias::ConstantBias> Idx2Bias;
+  #endif
+  // Timestamp index in graph
+  unsigned int TimeIdx = 0;
+  // Add threshold as number of lidar frames received
+  // to reset the graph in order to lighten graph optimization process
+  // IMU data and lidar data older than ResetThrehold lidar frames won't impact
+  // new IMU pose estimations
+  unsigned int ResetThreshold = 400;
+  // Number of Lidar SLAM states to wait before using it as preintegration start
+  // The wait is needed in case the new Lidar SLAM poses orientation is not accurate enough
+  // A little orientation error at the begining leads to a bad gravity compensation
+  // and big preintegrated pose errors.
+  // The IMU graph optimization will allow to correct this orientation error when adding
+  // new Lidar SLAM states.
+  int NLag = 3;
+};
 
 } // end of ExternalSensors namespace
 } // end of LidarSlam namespace
