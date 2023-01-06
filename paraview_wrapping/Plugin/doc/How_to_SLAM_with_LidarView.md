@@ -33,6 +33,11 @@ Follow [LidarView's Developer Guide](https://gitlab.kitware.com/LidarView/lidarv
 -DLIDARVIEW_BUILD_SLAM=True
 ```
 
+For pose graph uses (see more details below with loop closure), g2o library is mandatory :
+```
+-DENABLE_g2o=True
+```
+
 For IMU uses (see more details below), GTSAM library is mandatory :
 ```
 -DENABLE_gtsam=True
