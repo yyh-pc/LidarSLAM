@@ -1765,6 +1765,33 @@ void vtkSlam::SetUsePoseGraph(bool usePoseGraph)
 }
 
 //-----------------------------------------------------------------------------
+int vtkSlam::GetLoopDetector()
+{
+  int loopClosureDetector = static_cast<int>(this->SlamAlgo->GetLoopDetector());
+  vtkDebugMacro(<< "Returning loop closure detection of " << loopClosureDetector);
+  return loopClosureDetector;
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetLoopDetector(int detector)
+{
+  LidarSlam::LoopClosureDetector loopClosureDetector = static_cast<LidarSlam::LoopClosureDetector>(detector);
+  if (loopClosureDetector != LidarSlam::LoopClosureDetector::NONE   &&
+      loopClosureDetector != LidarSlam::LoopClosureDetector::MANUAL &&
+      loopClosureDetector != LidarSlam::LoopClosureDetector::AUTO)
+  {
+    vtkErrorMacro(<< "Invalid loop closure detector (" << detector << "), ignoring setting.");
+    return;
+  }
+  vtkDebugMacro(<< "Setting loop closure detector to " << loopClosureDetector);
+  if (this->SlamAlgo->GetLoopDetector() != loopClosureDetector)
+  {
+    this->SlamAlgo->SetLoopDetector(loopClosureDetector);
+    this->ParametersModificationTime.Modified();
+  }
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::SetLoopQueryIdx(unsigned int loopClosureQueryIdx)
 {
   // Check the input frame index can be found in Logstates

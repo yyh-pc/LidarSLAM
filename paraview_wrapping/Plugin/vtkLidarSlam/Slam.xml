@@ -1778,15 +1778,24 @@
 
       <!-- ============================ Loop Closure ============================ -->
 
-      <IntVectorProperty name="External detect loop closure frame"
-                         command="SetLoopExtDetect"
+      <IntVectorProperty name="Loop closure detector"
+                         command="SetLoopDetector"
                          number_of_elements="1"
                          default_values="0"
                          panel_visibility="advanced">
-        <BooleanDomain name="bool" />
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Disabled"/>
+          <Entry value="1" text="Manual"/>
+          <Entry value="2" text="Automatic"/>
+        </EnumerationDomain>
         <Documentation>
-          If enabled, users need to indicate the frame index of the loop closure.
-          Otherwise, SLAM filter will try to auto-detect the loop closure frame.
+          Choose a detector for loop closure:
+
+           (0) No loop closure detection is performed, the graph optimization won't contain loop closure;
+
+           (1) Manual detector: users need to indicate the frame indices of the loop closure;
+
+           (2) Automatic detector: slam detects automatically a loop closure for current frame.
         </Documentation>
       </IntVectorProperty>
 
@@ -1800,7 +1809,7 @@
           The query frame index represents a recent frame who meets a loop.
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="External detect loop closure frame" value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Loop closure detector" value="1" />
         </Hints>
       </IntVectorProperty>
 
@@ -1836,7 +1845,7 @@
           The revisited frame index represents a previous frame which a recent frame considers that there is a loop closure.
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="External detect loop closure frame" value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Loop closure detector" value="1" />
         </Hints>
       </IntVectorProperty>
 
@@ -1873,7 +1882,7 @@
       </IntVectorProperty>
 
       <PropertyGroup label="Loop closure parameters">
-        <Property name="External detect loop closure frame" />
+        <Property name="Loop closure detector" />
         <Property name="Query frame index" />
         <Property name="Query map start range" />
         <Property name="Query map end range" />

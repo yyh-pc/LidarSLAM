@@ -1609,47 +1609,58 @@ std::vector<LidarState> Slam::GetLastStates(double freq)
 //   Loop Closure usage
 //==============================================================================
 
+//-----------------------------------------------------------------------------
 bool Slam::DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState)
 {
   PRINT_VERBOSE(2, "========== Loop closure : Detection ==========");
-
-  if (this->LoopParams.ExtDetect)
+  bool detectionValid = false;
+  switch (this->LoopParams.Detector)
   {
-    // If ExtDetect is enabled, check whether the input frames are stored in the LogStates
-    // When LogOnlyKeyFrames is enabled, only keyframes are stored in the LogStates.
-    // It is possible that the inputs frame indices are not keyframes.
-    // In this case, replace the input frame index by its neighbor keyframes
-    itQueryState = this->LogStates.begin();
-    itRevisitedState = itQueryState;
-    while (itQueryState->Index < this->LoopParams.QueryIdx && itQueryState->Index != this->LogStates.back().Index)
-      ++itQueryState;
-    if (itQueryState->Index != this->LoopParams.QueryIdx)
+    case LoopClosureDetector::NONE:
     {
-      this->LoopParams.QueryIdx = itQueryState->Index;
-      PRINT_WARNING("The input query frame index is not found in Logstates and is replaced by frame #"
-                    << this->LoopParams.QueryIdx << ".");
+      PRINT_WARNING("Loop closure detection is disabled!");
+      return false;
     }
+    case LoopClosureDetector::MANUAL:
+    {
+      // If the detector is manual, check whether or not the input frames are stored in the LogStates
+      // When LogOnlyKeyFrames is enabled, only keyframes are stored in the LogStates.
+      // It is possible that the inputs frame indices are not keyframes.
+      // In this case, replace the input frame index by its neighbor keyframe
+      itQueryState = itRevisitedState = this->LogStates.begin();
+      while (itQueryState->Index < this->LoopParams.QueryIdx && itQueryState->Index != this->LogStates.back().Index)
+        ++itQueryState;
+      if (itQueryState->Index != this->LoopParams.QueryIdx)
+      {
+        this->LoopParams.QueryIdx = itQueryState->Index;
+        PRINT_WARNING("The input query frame index is not found in Logstates and is replaced by frame #"
+                      << this->LoopParams.QueryIdx << ".");
+      }
 
-    while (itRevisitedState->Index < this->LoopParams.RevisitedIdx && itRevisitedState->Index != this->LogStates.back().Index)
-      ++itRevisitedState;
-    if (itRevisitedState->Index != this->LoopParams.RevisitedIdx)
-    {
-      this->LoopParams.RevisitedIdx = itRevisitedState->Index;
-      PRINT_WARNING("The input revisited frame index is not found in Logstates and is replaced by frame #"
-                    << this->LoopParams.RevisitedIdx << ".");
+      while (itRevisitedState->Index < this->LoopParams.RevisitedIdx && itRevisitedState->Index != this->LogStates.back().Index)
+        ++itRevisitedState;
+      if (itRevisitedState->Index != this->LoopParams.RevisitedIdx)
+      {
+        this->LoopParams.RevisitedIdx = itRevisitedState->Index;
+        PRINT_WARNING("The input revisited frame index is not found in Logstates and is replaced by frame #"
+                      << this->LoopParams.RevisitedIdx << ".");
+      }
+      PRINT_VERBOSE(3, "Loop closure is detected by external information. The relevant frame indices are:\n"
+                    << " Query frame #" << this->LoopParams.QueryIdx << " Revisited frame #" << this->LoopParams.RevisitedIdx);
+      detectionValid = true;
+      break;
     }
-    PRINT_VERBOSE(3, "Loop closure is detected by external information. The relevant frame indices are:\n"
-                  << " Query frame #" << itQueryState->Index << " Revisited frame #" << itRevisitedState->Index);
-    return true;
+    case LoopClosureDetector::AUTO:
+    {
+      // Automatic detection of loop closure will be implemented here
+      // It detects automatically a revisited frame idx for the current frame
+      itQueryState = this->LogStates.end();
+      itRevisitedState = this->LogStates.begin();
+      return false;
+    }
   }
-  else
-  {
-    // Automatic detection of loop closure will be implemented here
-    // It detects automatically a revisited frame idx for the current frame
-    itQueryState = this->LogStates.end();
-    itRevisitedState = this->LogStates.begin();
-    return false;
-  }
+
+  return detectionValid;
 }
 
 //-----------------------------------------------------------------------------

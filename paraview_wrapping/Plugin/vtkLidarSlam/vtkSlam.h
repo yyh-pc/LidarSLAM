@@ -227,8 +227,8 @@ public:
   //   Loop closure parameters
   // ---------------------------------------------------------------------------
 
-  vtkCustomGetMacro(LoopExtDetect, bool)
-  vtkCustomSetMacro(LoopExtDetect, bool)
+  virtual int  GetLoopDetector();
+  virtual void SetLoopDetector(int detector);
 
   vtkCustomGetMacro(LoopQueryIdx, unsigned int)
   virtual void SetLoopQueryIdx(unsigned int loopClosureQueryIdx);
