@@ -1686,6 +1686,11 @@ void vtkSlam::SetLoggingTimeout(double loggingTimeout)
     this->ParametersModificationTime.Modified();
   }
 
+  // If UsePoseGraph is enabled, check LoggingTimeout and return a warning if LoggingTimeout is 0
+  if (this->UsePoseGraph && this->LoggingTimeout <= 1e-6)
+    vtkWarningMacro(<< "Pose graph is required but the logging timeout is null : "
+                       "no pose can be used to build the graph, please increase the logging timeout.");
+
   // Forward this parameter change to SLAM
   // If Advanced Return mode is enabled, use the max value
   if (this->AdvancedReturnMode)
@@ -1704,7 +1709,8 @@ void vtkSlam::SetUsePoseGraph(bool usePoseGraph)
 
     // If UsePoseGraph is enabled, check LoggingTimeout and return a warning if LoggingTimeout is 0
     if (this->UsePoseGraph && this->GetLoggingTimeout() <= 1e-6)
-      vtkWarningMacro(<< "Pose graph is required but the logging timeout is null : no pose can be used to build the graph, please increase the logging timeout.");
+      vtkWarningMacro(<< "Pose graph is required but the logging timeout is null : "
+                         "no pose can be used to build the graph, please increase the logging timeout.");
   }
 }
 

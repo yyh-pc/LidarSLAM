@@ -549,6 +549,18 @@
         </Documentation>
       </IntVectorProperty>
 
+      <DoubleVectorProperty name="Logging timeout"
+                            command="SetLoggingTimeout"
+                            number_of_elements="1"
+                            default_values="0. "
+                            panel_visibility="advanced">
+        <Documentation>
+          Maximum duration in seconds on which to keep states in memory.
+          This duration must be increased if a pose graph optimization is planned.
+          The minimum number of logged states is 2, to be able to handle ego-motion and undistortion, independently of this timeout value.
+        </Documentation>
+      </DoubleVectorProperty>
+
       <IntVectorProperty name="Use pose graph"
                          command="SetUsePoseGraph"
                          number_of_elements="1"
@@ -596,6 +608,7 @@
         <Property name="Undistortion mode" />
         <Property name="Interpolation model"/>
         <Property name="Number of threads" />
+        <Property name="Logging timeout" />
         <Property name="Use pose graph" />
       </PropertyGroup>
 
@@ -1672,18 +1685,6 @@
         </Documentation>
       </StringVectorProperty>
 
-      <DoubleVectorProperty name="Logging timeout"
-                            command="SetLoggingTimeout"
-                            number_of_elements="1"
-                            default_values="0. "
-                            panel_visibility="advanced">
-        <Documentation>
-          Maximum duration in seconds on which to keep states in memory.
-          This duration must be increased if a pose graph optimization is planned.
-          The minimum number of logged states is 2, to be able to handle ego-motion and undistortion, independently of this timeout value.
-        </Documentation>
-      </DoubleVectorProperty>
-
       <DoubleVectorProperty name="Covariance scale"
                             command="SetCovarianceScale"
                             number_of_elements="1"
@@ -1763,7 +1764,6 @@
         <Property name="Optimize Graph With IMU" />
         <Property name="Optimize Graph" />
         <Property name="Save g2o file" />
-        <Property name="Logging timeout" />
         <Property name="Fix first vertex" />
         <Property name="Fix last vertex" />
         <Property name="Covariance scale" />
