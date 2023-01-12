@@ -1126,6 +1126,12 @@ void Slam::ComputeEgoMotion()
 {
   PRINT_VERBOSE(2, "========== Ego-Motion ==========");
 
+  if (this->LogStates.empty())
+  {
+    PRINT_WARNING("The LogStates is empty : cannot use them to compute ego motion")
+    return;
+  }
+
   // Reset ego-motion
   this->Trelative = Eigen::Isometry3d::Identity();
 
