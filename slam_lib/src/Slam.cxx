@@ -2465,9 +2465,23 @@ Eigen::Isometry3d Slam::GetTworld(double time)
     return this->ImuManager->GetPose(time);
   else if (this->PoseHasData())
   {
+    // Get iterator pointing to the first state after time
+    auto postIt = std::upper_bound(this->LogStates.begin(),
+                                   this->LogStates.end(),
+                                   time,
+                                   [&](double time, const LidarState& state) {return time < state.Time;});
+
+    // Deduce the iterator pointing to the last state before time
+    auto preIt = postIt;
+    --preIt;
+
+    ExternalSensors::PoseMeasurement synchMeasInf;
+    this->PoseManager->ComputeSynchronizedMeasureBase(preIt->Time, synchMeasInf);
     ExternalSensors::PoseMeasurement synchMeas;
     this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas);
-    return synchMeas.Pose;
+    Eigen::Isometry3d tRelative = synchMeasInf.Pose.inverse() * synchMeas.Pose;
+
+    return preIt->Isometry * tRelative;
   }
   else
   {
