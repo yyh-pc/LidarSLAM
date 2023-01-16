@@ -1504,8 +1504,15 @@ void Slam::SetUndistortion(UndistortionMode undistMode)
 }
 
 //-----------------------------------------------------------------------------
-LidarState& Slam::GetLastState()
+LidarState Slam::GetLastState()
 {
+  if (this->LogStates.empty())
+  {
+    LidarSlam::LidarState state;
+    state.Isometry = this->TworldInit;
+    return state;
+  }
+
   return this->LogStates.back();
 }
 

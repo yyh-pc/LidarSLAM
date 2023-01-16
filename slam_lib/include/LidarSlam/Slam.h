@@ -300,7 +300,7 @@ public:
   GetMacro(LogOnlyKeyframes, bool)
 
   // Warning! Undefined behavior if LogStates is empty
-  LidarState& GetLastState();
+  LidarState GetLastState();
   GetMacro(LogStates, std::list<LidarState>)
   // Get the last states since last input frame timestamp
   // at a specified frequency
