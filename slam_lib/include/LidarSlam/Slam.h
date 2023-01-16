@@ -262,7 +262,7 @@ public:
   // in an external frame (not first Lidar frame)
   // the time of the synchronized pose is input so no Lidar frame needs
   // to have been loaded to use this function
-  bool InitTworldWithPoseMeasurement(double time);
+  bool InitTworldWithPoseMeasurement(double time = -1);
 
   // Save keypoints maps to disk for later use
   // Keypoints maps are rebuilt to recover removed points if the time threshold (DecayingThreshold) is set
