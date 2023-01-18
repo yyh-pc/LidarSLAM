@@ -1090,32 +1090,83 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
     PRINT_WARNING("No external pose manager : Lidar pose not initialized")
     return false;
   }
-  ExternalSensors::PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
-  if (!this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas))
+
+  if (time < 0 && this->LogStates.empty())
   {
-    PRINT_WARNING("Cannot find synchronized pose measurement : Lidar pose not initialized")
+    PRINT_WARNING("No indicated time and LogStates is empty : Lidar pose not initialized")
     return false;
   }
 
-  Eigen::Isometry3d odom2Ext = this->Tworld.inverse() * synchMeas.Pose;
-  // Update trajectory
-  if (!this->LogStates.empty())
+  if (this->LogStates.empty())
   {
-    for (auto& s : this->LogStates)
+    // If LogStates is empty, use directly external pose to init Tworld
+    ExternalSensors::PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
+    if (!this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas))
     {
-      // Rotate covariance
-      Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(s.Isometry);
-      CeresTools::RotateCovariance(initPose, s.Covariance, odom2Ext); // new = init * odom2Ext
-      // Transform pose
-      s.Isometry = s.Isometry * odom2Ext;
+      PRINT_WARNING("Cannot find synchronized pose measurement : Lidar pose not initialized")
+      return false;
     }
-    // Update maps from the beginning using the new trajectory
-    this->UpdateMaps();
+    this->TworldInit = synchMeas.Pose;
+    this->Tworld = synchMeas.Pose;
   }
   else
-    this->TworldInit = this->Tworld * odom2Ext;
+  {
+    // If LogStates is not empty, find the time in LogStates which is relative to the input time
+    // Init Tworld with external pose at this time
+    // Update LogStates and maps
+    double stateTime = time;
+    auto itSt = this->LogStates.end();
+    if (time < 0)
+    {
+      stateTime = this->LogStates.back().Time;
+      --itSt;
+    }
+    else
+    {
+      // Get iterator pointing to the first state after time
+      auto postIt = std::upper_bound(this->LogStates.begin(),
+                                      this->LogStates.end(),
+                                      time,
+                                      [&](double time, const LidarState& state) {return time < state.Time;});
+      // Deduce the iterator pointing to the last state before time
+      itSt = postIt;
+      --itSt;
+      stateTime = itSt->Time;
+      if (postIt == this->LogStates.end() && itSt->Time != time)
+        PRINT_WARNING("Time " << time << " has not been reached yet."
+                      "Use the time of the last state " << itSt->Time << "to init Tworld.")
+    }
 
-  this->Tworld = this->Tworld * odom2Ext;
+    // Compute the external pose at stateTime
+    ExternalSensors::PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
+    if (!this->PoseManager->ComputeSynchronizedMeasureBase(stateTime, synchMeas))
+    {
+      PRINT_WARNING("Cannot find synchronized pose measurement : Lidar pose not initialized")
+      return false;
+    }
+
+    Eigen::Isometry3d odomInv = itSt->Isometry.inverse();
+    for (auto& state: this->LogStates)
+    {
+      Eigen::Isometry3d tRelative = odomInv * state.Isometry;
+      Eigen::Isometry3d extPose   = synchMeas.Pose * tRelative;
+
+      // Rotate covariance
+      Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(state.Isometry);
+      Eigen::Isometry3d odom2Ext = state.Isometry.inverse() * extPose;
+      CeresTools::RotateCovariance(initPose, state.Covariance, odom2Ext); // new = init * odom2Ext
+
+      // Update pose
+      state.Isometry = extPose;
+    }
+
+    // Update Tworld and TworldInit
+    this->Tworld = this->LogStates.back().Isometry;
+    this->TworldInit = this->LogStates.front().Isometry;
+
+    // Update maps from the beginning using the new trajectory
+    this->UpdateMaps(true);
+  }
 
   PRINT_VERBOSE(1, "Pose initialized with external pose measurement");
   return true;
@@ -1125,6 +1176,12 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
 void Slam::ComputeEgoMotion()
 {
   PRINT_VERBOSE(2, "========== Ego-Motion ==========");
+
+  if (this->LogStates.empty())
+  {
+    PRINT_WARNING("The LogStates is empty : cannot use them to compute ego motion")
+    return;
+  }
 
   // Reset ego-motion
   this->Trelative = Eigen::Isometry3d::Identity();
@@ -1504,8 +1561,15 @@ void Slam::SetUndistortion(UndistortionMode undistMode)
 }
 
 //-----------------------------------------------------------------------------
-LidarState& Slam::GetLastState()
+LidarState Slam::GetLastState()
 {
+  if (this->LogStates.empty())
+  {
+    LidarSlam::LidarState state;
+    state.Isometry = this->TworldInit;
+    return state;
+  }
+
   return this->LogStates.back();
 }
 
@@ -2452,9 +2516,23 @@ Eigen::Isometry3d Slam::GetTworld(double time)
     return this->ImuManager->GetPose(time);
   else if (this->PoseHasData())
   {
+    // Get iterator pointing to the first state after time
+    auto postIt = std::upper_bound(this->LogStates.begin(),
+                                   this->LogStates.end(),
+                                   time,
+                                   [&](double time, const LidarState& state) {return time < state.Time;});
+
+    // Deduce the iterator pointing to the last state before time
+    auto preIt = postIt;
+    --preIt;
+
+    ExternalSensors::PoseMeasurement synchMeasInf;
+    this->PoseManager->ComputeSynchronizedMeasureBase(preIt->Time, synchMeasInf);
     ExternalSensors::PoseMeasurement synchMeas;
     this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas);
-    return synchMeas.Pose;
+    Eigen::Isometry3d tRelative = synchMeasInf.Pose.inverse() * synchMeas.Pose;
+
+    return preIt->Isometry * tRelative;
   }
   else
   {
