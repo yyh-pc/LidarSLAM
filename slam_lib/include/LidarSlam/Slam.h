@@ -93,6 +93,7 @@
 #endif  // USE_G2O
 
 #ifdef USE_TEASERPP
+#include <teaser/registration.h>
 #include <pcl/features/fpfh_omp.h>
 #endif
 
@@ -171,10 +172,37 @@ namespace LoopClosure
 {
 struct Parameters
 {
+  // Parameters for the loop closure detection
+
   // Which method to use to detect loop closure
   // Manual detector: users need to indicate the query frame index and the revisited frame index for loop closure.
   // Other methods will be added in the future
   LoopClosureDetector Detector = LoopClosureDetector::NONE;
+
+  // When a query frame searches its revisited frame,
+  // there is very little possibility that the loop is in the last travel distance.
+  // The GapLength is the travel distance before the query frame where is considered no loop formed
+  double GapLength = 10.; // 10 meters
+
+  // For automatic detection, the candidate frames are sampled with a step of LoopSampleStep (in meters)
+  // By default SampleStep is set to -1, the only candidate submap is the full map
+  double SampleStep = -1.; // meter
+
+  // The threshold to decide whether a candidate frame is the revisited frame of loop closure or not
+  double EvaluationThreshold = 0.6;
+
+  #ifdef USE_TEASERPP
+  teaser::RobustRegistrationSolver::Params TeaserParams
+  {
+    // Other parameters are kept as default values. See more details in
+    // https://github.com/MIT-SPARK/TEASER-plusplus/blob/master/teaser/include/teaser/registration.h
+    .noise_bound = 0.05,              // Noise bound in meters
+    .estimate_scaling = false,        // no scaling in the pointcloud
+    .rotation_cost_threshold = 0.005 // The cost threshold compares with the difference between costs of consecutive iterations.
+  };
+  #endif
+
+  // Parameters for the loop closure registration
 
   // Frame indices to indicate where the loop closure is formed.
   unsigned int QueryIdx = 0;
@@ -683,6 +711,16 @@ public:
   GetStructParamsMacro(Loop, RevisitedMapEndRange, double)
   SetStructParamsMacro(Loop, RevisitedMapEndRange, double)
 
+  // Parameters for automatic detection
+  GetStructParamsMacro(Loop, GapLength, double)
+  SetStructParamsMacro(Loop, GapLength, double)
+
+  GetStructParamsMacro(Loop, SampleStep, double)
+  SetStructParamsMacro(Loop, SampleStep, double)
+
+  GetStructParamsMacro(Loop, EvaluationThreshold, double)
+  SetStructParamsMacro(Loop, EvaluationThreshold, double)
+
   // Get/Set Loop Closure registration parameters
   GetStructParamsMacro(Loop, EnableOffset, bool)
   SetStructParamsMacro(Loop, EnableOffset, bool)
@@ -918,6 +956,10 @@ private:
 
   // Loop closure parameters
   LoopClosure::Parameters LoopParams;
+
+  // Transform between the query frame and the revisited frame that has been found by the automatic loop detector
+  // This pose can be used as a pose prior in LoopClosureRegistration step
+  Eigen::Isometry3d LoopDetectionTransform = Eigen::Isometry3d::Identity();
 
   // ---------------------------------------------------------------------------
   //   Optimization data
@@ -1182,6 +1224,9 @@ private:
   // If use manual detection, check whether the inputs of loop closure frame indices are stored in the LogStates
   // if use automatic detection, detect automatically a revisited frame index for the current frame
   bool DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState);
+
+  // Return true if a loop closure has been found and update itRevisitedState iterator, if not return false.
+  bool DetectLoopWithTeaser(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState);
 
   #ifdef USE_TEASERPP
   // Compute FPFH features for a input pointcloud
