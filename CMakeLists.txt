@@ -102,6 +102,15 @@ if (ENABLE_OpenCV)
   endif()
 endif()
 
+# Find optional teaserpp (only used for automatic detection of loop closure)
+option(ENABLE_teaserpp "Use TEASER++, necessary for automatic detection of loop closure." ON)
+if (ENABLE_teaserpp)
+  find_package(teaserpp QUIET)
+  if (NOT teaserpp_FOUND)
+    message("Lidar SLAM : TEASER++ requested but not found, automatic loop closure detection will be ignored.")
+  endif()
+endif()
+
 # Find optional OpenMP
 find_package(OpenMP)
 if(TARGET OpenMP::OpenMP_CXX)

@@ -44,4 +44,11 @@ else()
   message(STATUS "LidarSlam: OpenMP was not found, multi-threading for SLAM disabled")
 endif()
 
+# Find optional teaserpp (only used for automatic detection of loop closure)
+if (@teaserpp_FOUND@)
+  find_dependency(teaserpp QUIET)
+else()
+  message("Lidar SLAM : TEASER++ was not found, automatic loop closure detection disabled")
+endif()
+
 check_required_components(LidarSlam)

@@ -17,6 +17,12 @@ if (OpenCV_FOUND)
   message("Lidar SLAM : OPENCV was found, camera API compiled")
 endif()
 
+# If TEASER is available, compile automatic loop closure detection by teaserpp stuff
+if (teaserpp_FOUND)
+  set(teaserpp_targets teaserpp::teaser_registration)
+  message("Lidar SLAM : TEASER++ was found, automatic loop closure detection enabled")
+endif()
+
 # Generate export symbols on Windows to use this lib
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
@@ -42,6 +48,7 @@ target_link_libraries(LidarSlam
     ${g2o_targets}
     ${gtsam_targets}
     ${opencv_targets}
+    ${teaserpp_targets}
   PRIVATE
     ${Eigen3_target}
     ${OpenMP_target}
@@ -68,6 +75,11 @@ if (OpenCV_FOUND)
   set(opencv_def USE_OPENCV=1)
 endif()
 
+# If TEASERPP is available, set a precompilation variable
+if (teaserpp_FOUND)
+  set(teaserpp_def USE_TEASERPP=1)
+endif()
+
 # NOMINMAX needs to be defined to remove macro file windows.h
 # this file causes error when using min max from std
 # windows.h is included by some dependencies (e.g. glog)
@@ -81,6 +93,7 @@ target_compile_definitions(LidarSlam
     ${g2o_def}
     ${gtsam_def}
     ${opencv_def}
+    ${teaserpp_def}
     ${windows_def}
 )
 
