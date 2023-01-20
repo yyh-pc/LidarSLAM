@@ -1590,6 +1590,15 @@ std::vector<LidarState> Slam::GetLastStates(double freq)
   LidarState last = *(--itLogStates);
   LidarState prevLast = *(--itLogStates);
 
+  if (std::abs(last.Time - prevLast.Time) > 1.0)
+  {
+    PRINT_WARNING("Unable to interpolate between states : time is too far");
+    return {last};
+  }
+
+  if (last.Time < prevLast.Time)
+    std::swap(last, prevLast);
+
   double time = prevLast.Time + 1. / freq;
   std::vector<LidarState> lastStates;
   lastStates.reserve(std::ceil((last.Time + 1e-6 - prevLast.Time) * freq));
