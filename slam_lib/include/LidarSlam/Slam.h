@@ -253,7 +253,11 @@ public:
   // to update LogStates, maps and the current pose
   bool UpdateTrajectoryAndMapsWithIMU();
 
-  Eigen::Isometry3d GetTworld(double time = -1.);
+  // Get the pose of the last state in the LogStates by default
+  // trackTime enables the time tracking in the external sensor and thus reduces
+  // the computation time if this function is to be called on successive timestamps.
+  Eigen::Isometry3d GetTworld(double time = -1., bool trackTime = false);
+
   // Set world transform with an initial guess (usually from GPS after calibration).
   void SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess);
 
