@@ -1624,12 +1624,7 @@ std::vector<LidarState> Slam::GetLastStates(double freq)
       LidarSlam::LidarState state;
       state.Time = time;
       state.Covariance = last.Covariance;
-      ExternalSensors::PoseMeasurement meas;
-      if (!this->PoseManager->ComputeSynchronizedMeasureBase(time, meas))
-        state.Isometry = LinearInterpolation(lastStates.back().Isometry, last.Isometry,
-                                             time, lastStates.back().Time, last.Time);
-      else
-        state.Isometry = meas.Pose;
+      state.Isometry = this->GetTworld(time, true);
       lastStates.emplace_back(state);
       time += 1. / freq;
     }
@@ -2516,7 +2511,7 @@ void Slam::SetImuCalibration(const Eigen::Isometry3d& calib)
 }
 
 //-----------------------------------------------------------------------------
-Eigen::Isometry3d Slam::GetTworld(double time)
+Eigen::Isometry3d Slam::GetTworld(double time, bool trackTime)
 {
   if (time < 0)
     return this->LogStates.back().Isometry;
@@ -2525,23 +2520,37 @@ Eigen::Isometry3d Slam::GetTworld(double time)
     return this->ImuManager->GetPose(time);
   else if (this->PoseHasData())
   {
-    // Get iterator pointing to the first state after time
-    auto postIt = std::upper_bound(this->LogStates.begin(),
-                                   this->LogStates.end(),
-                                   time,
-                                   [&](double time, const LidarState& state) {return time < state.Time;});
+    // The iterator pointing to the last state before time
+    auto preIt = this->LogStates.end();
+    --preIt;--preIt;
+    // If the input time is not after the second-last state, search it in the LogStates
+    // Otherwise, the input time is between the two last states
+    if (time < preIt->Time)
+    {
+      // Get iterator pointing to the first state after time
+      auto postIt = std::upper_bound(this->LogStates.begin(),
+                                    this->LogStates.end(),
+                                    time,
+                                    [&](double time, const LidarState& state) {return time < state.Time;});
 
-    // Deduce the iterator pointing to the last state before time
-    auto preIt = postIt;
-    --preIt;
+      // Deduce the iterator pointing to the last state before time
+      preIt = postIt;
+      --preIt;
+    }
 
-    ExternalSensors::PoseMeasurement synchMeasInf;
-    this->PoseManager->ComputeSynchronizedMeasureBase(preIt->Time, synchMeasInf);
-    ExternalSensors::PoseMeasurement synchMeas;
-    this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas);
-    Eigen::Isometry3d tRelative = synchMeasInf.Pose.inverse() * synchMeas.Pose;
+    // Deduce the pose at the input time
+    ExternalSensors::PoseMeasurement synchMeasInf, synchMeas;
+    if (this->PoseManager->ComputeSynchronizedMeasureBase(preIt->Time, synchMeasInf, trackTime)
+     && this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas, trackTime))
+    {
+      Eigen::Isometry3d tRelative = synchMeasInf.Pose.inverse() * synchMeas.Pose;
+      return preIt->Isometry * tRelative;
+    }
+    else
+      return LinearInterpolation(preIt->Isometry, this->LogStates.back().Isometry,
+                                 time, preIt->Time, this->LogStates.back().Time);
 
-    return preIt->Isometry * tRelative;
+
   }
   else
   {
