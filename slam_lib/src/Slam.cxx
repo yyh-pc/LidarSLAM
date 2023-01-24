@@ -2513,22 +2513,35 @@ void Slam::SetImuCalibration(const Eigen::Isometry3d& calib)
 //-----------------------------------------------------------------------------
 Eigen::Isometry3d Slam::GetTworld(double time, bool trackTime)
 {
+  if (this->LogStates.empty())
+    return this->TworldInit;
+
   if (time < 0)
     return this->LogStates.back().Isometry;
 
+  if (time < this->LogStates.front().Time)
+  {
+
+    PRINT_WARNING("The oldest stored state is newer than the requested time. The oldest state is returned. ")
+    return this->LogStates.front().Isometry;
+  }
+
   if (this->ImuHasData())
     return this->ImuManager->GetPose(time);
-  else if (this->PoseHasData())
+  else
   {
-    // The iterator pointing to the last state before time
+    // Search iterators pointing to the states before and after the input time
+    // They are initialized by pointing to the two last states of the LogStates
     auto preIt = this->LogStates.end();
+    auto postIt = preIt;
     --preIt;--preIt;
-    // If the input time is not after the second-last state, search it in the LogStates
-    // Otherwise, the input time is between the two last states
+    --postIt;
+    // If the input time is before the second-last state, search it in the LogStates
+    // Otherwise, use the two last states to compute the pose
     if (time < preIt->Time)
     {
       // Get iterator pointing to the first state after time
-      auto postIt = std::upper_bound(this->LogStates.begin(),
+      postIt = std::upper_bound(this->LogStates.begin(),
                                     this->LogStates.end(),
                                     time,
                                     [&](double time, const LidarState& state) {return time < state.Time;});
@@ -2538,34 +2551,22 @@ Eigen::Isometry3d Slam::GetTworld(double time, bool trackTime)
       --preIt;
     }
 
-    // Deduce the pose at the input time
+    // If external poses are available, deduce the pose at the input time with external pose measurement
     ExternalSensors::PoseMeasurement synchMeasInf, synchMeas;
-    if (this->PoseManager->ComputeSynchronizedMeasureBase(preIt->Time, synchMeasInf, trackTime)
-     && this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas, trackTime))
+    if (this->PoseHasData()
+      && this->PoseManager->ComputeSynchronizedMeasureBase(preIt->Time, synchMeasInf, trackTime)
+      && this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas, trackTime))
     {
       Eigen::Isometry3d tRelative = synchMeasInf.Pose.inverse() * synchMeas.Pose;
+      if (time > postIt->Time)
+        PRINT_WARNING("Time " << time << " has not been reached yet and the pose is extrapolated")
       return preIt->Isometry * tRelative;
     }
-    else
-      return LinearInterpolation(preIt->Isometry, this->LogStates.back().Isometry,
-                                 time, preIt->Time, this->LogStates.back().Time);
-
-
-  }
-  else
-  {
-    // Get iterator pointing to the first state after time
-    auto postIt = std::upper_bound(this->LogStates.begin(),
-                                   this->LogStates.end(),
-                                   time,
-                                   [&](double time, const LidarState& state) {return time < state.Time;});
-
-    auto preIt = postIt;
-    --preIt;
-
-    if (postIt == this->LogStates.end())
+    // If pose can not be deduced by external pose measurement and time has not been reached, return last pose
+    if (time > postIt->Time)
     {
-      PRINT_WARNING("Time " << time << " has not been reached yet. Returning last pose at time " << this->LogStates.back().Time)
+      PRINT_WARNING("Time " << time << " has not been reached yet and can not be found in the external pose measurements.\n"
+                    "Returning last pose at time " << this->LogStates.back().Time)
       return this->LogStates.back().Isometry;
     }
 
