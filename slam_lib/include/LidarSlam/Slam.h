@@ -816,9 +816,6 @@ private:
   PointCloud::Ptr RegisteredFrame;
 
   // Raw extracted keypoints, in BASE coordinates (no undistortion)
-  // /!\ Warning these pointclouds may be modified by CurrentUndistortedKeypoints
-  // As we do not perform a deep copy to save time
-  // When one will want to use these points, a deep copy will be needed
   std::map<Keypoint, PointCloud::Ptr> CurrentRawKeypoints;
   std::map<Keypoint, PointCloud::Ptr> PreviousRawKeypoints;
 
