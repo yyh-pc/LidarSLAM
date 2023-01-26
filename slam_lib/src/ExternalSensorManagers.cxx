@@ -870,6 +870,26 @@ bool CameraManager::ComputeConstraint(double lidarTime)
     this->Residuals.emplace_back(this->Residual);
   }
 
+  // Display debug
+  cv::Mat arrows (prevImage.Data.size(), prevImage.Data.type());
+  prevImage.Data.copyTo(arrows);
+  for (unsigned int i = 0; i < prevPixels.size(); ++i)
+  {
+    if (validity[i] == 0)
+    {
+      cv::line(arrows, prevPixels[i], prevPixels[i], cv::Scalar(0,0,255), 1);
+      continue;
+    }
+
+    cv::arrowedLine(arrows, prevPixels[i], currPixels[i], cv::Scalar(0,0,0), 1);
+    cv::line(arrows, prevPixels[i], prevPixels[i], cv::Scalar((20 * scanLines[i]) % 200, 255,0), 1);
+  }
+  static int idx = 0;
+  std::ostringstream indexSs;
+  indexSs << std::setw(5) << std::setfill('0') << idx << "\n";
+  cv::imwrite("XX/flow_" + indexSs.str() + ".png", arrows);
+  ++idx;
+
   return true;
   #else
   return false;
