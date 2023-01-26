@@ -999,11 +999,11 @@ void LidarSlamNode::SetSlamParameters()
   // External sensors
   SetSlamParam(float,  "external_sensors/max_measures", SensorMaxMeasures)
   SetSlamParam(float,  "external_sensors/time_threshold", SensorTimeThreshold)
+  this->LidarTimePosix = this->PrivNh.param("external_sensors/lidar_is_posix", true);
   SetSlamParam(float,  "external_sensors/landmark_detector/weight", LandmarkWeight)
   SetSlamParam(float,  "external_sensors/landmark_detector/saturation_distance", LandmarkSaturationDistance)
   SetSlamParam(bool,   "external_sensors/landmark_detector/position_only", LandmarkPositionOnly)
   this->PublishTags    = this->PrivNh.param("external_sensors/landmark_detector/publish_tags", false);
-  this->LidarTimePosix = this->PrivNh.param("external_sensors/landmark_detector/lidar_is_posix", true);
 
   // Graph parameters
   SetSlamParam(std::string, "graph/g2o_file_name", G2oFileName)
