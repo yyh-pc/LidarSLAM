@@ -232,8 +232,10 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
     double absCurrentOffset = std::abs(this->LidarSlam.GetSensorTimeOffset());
     // If the current computed offset is more accurate, replace it
     if (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset)
-      this->LidarSlam.SetSensorTimeOffset(potentialOffset);
+      this->LidarSlam.SetSensorTimeOffset(potentialOffset + this->SensorTimeOffset);
   }
+  else
+    this->LidarSlam.SetSensorTimeOffset(this->SensorTimeOffset);
 
   // Update TF from BASE to LiDAR
   if (!this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id))
@@ -1085,6 +1087,8 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(float,  "external_sensors/max_measures", SensorMaxMeasures)
   SetSlamParam(float,  "external_sensors/time_threshold", SensorTimeThreshold)
   this->LidarTimePosix = this->PrivNh.param("external_sensors/lidar_is_posix", true);
+  SetSlamParam(float,   "external_sensors/time_offset", SensorTimeOffset)
+  this->SensorTimeOffset = this->LidarSlam.GetSensorTimeOffset();
   SetSlamParam(float,  "external_sensors/landmark_detector/weight", LandmarkWeight)
   SetSlamParam(float,  "external_sensors/landmark_detector/saturation_distance", LandmarkSaturationDistance)
   SetSlamParam(bool,   "external_sensors/landmark_detector/position_only", LandmarkPositionOnly)

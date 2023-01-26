@@ -75,6 +75,7 @@ external_sensors:
                        # as we expect external sensor timestamps to be POSIX, we can directly
                        # use header timestamp to synchronize data.
                        # If not, we use message reception time as reference.
+  time_offset: 0.      # [s] Offset to apply on external sensor time data to get lidar time
   # Optional GPS position use (if 'gps/use_gps'=true), subscribing to Odometry msg on 'gps_odom' topic.
   # It allows to estimate calibration between GPS and SLAM trajectories,
   # or post-optimize SLAM trajectory with pose graph optimization (PGO).

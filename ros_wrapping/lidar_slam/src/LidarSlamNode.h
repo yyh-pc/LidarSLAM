@@ -248,6 +248,8 @@ protected:
   // The offset between network reception time
   // and Lidar time is computed
   bool LidarTimePosix = true;
+  // Offset to apply to external sensors to get lidar time
+  float SensorTimeOffset = 0.;
 
   // Landmarks
   ros::Subscriber LandmarksSub;
