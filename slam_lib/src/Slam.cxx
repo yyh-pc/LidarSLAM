@@ -2762,7 +2762,7 @@ void Slam::ResetSensors(bool emptyMeasurements)
 {
   ExtSensorMacro(Reset(emptyMeasurements))
   this->ImuHasBeenUpdated = 0;
-  if (emptyMeasurements)
+  if (emptyMeasurements && this->PoseManager)
     // Break link between IMU and Pose managers
     this->InitPoseSensor();
 }
