@@ -27,7 +27,8 @@ namespace Confidence
 float LCPEstimator(PointCloud::ConstPtr cloud,
                    const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps,
                    float subsamplingRatio,
-                   int nbThreads)
+                   int nbThreads,
+                   bool proba)
 {
   // Number of points to process
   int nbPoints = cloud->size() * subsamplingRatio;
@@ -49,6 +50,11 @@ float LCPEstimator(PointCloud::ConstPtr cloud,
       float nnSqDist;
       if (map.second->GetSubMapKdTree().KnnSearch(point.data, 1, &nnIndex, &nnSqDist))
       {
+        if (!proba && nnSqDist < std::pow(map.second->GetLeafSize(), 2))
+        {
+          bestProba = 1;
+          break;
+        }
         // We use a Gaussian like estimation for each point fitted in target leaf space
         // to check the probability that one cloud point has a neighbor in the target
         // Probability = 1 if the two points are superimposed

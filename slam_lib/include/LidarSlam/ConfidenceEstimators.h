@@ -45,10 +45,13 @@ using PointCloud = pcl::PointCloud<Point>;
 // input cloud to compute overlap on can be specified.
 // It returns a valid overlap value between 0 and 1, or -1 if the overlap could
 // not be computed (not enough points).
+// If proba is disabled, the overlap estimator is simply based on the ratio of the points
+// having a close neighbor in the maps
 float LCPEstimator(PointCloud::ConstPtr cloud,
                    const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps,
                    float subsamplingRatio = 1.,
-                   int nbThreads = 1);
+                   int nbThreads = 1,
+                   bool proba = true);
 
 } // enf of Confidence namespace
 } // end of LidarSlam namespace
