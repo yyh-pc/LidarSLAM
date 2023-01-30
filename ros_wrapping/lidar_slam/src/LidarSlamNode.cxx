@@ -127,6 +127,9 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
     initPublisher(PGO_PATH, "pgo_slam_path", nav_msgs::Path, "graph/publish_path", false, 1, true);
   }
 
+  // Set frequency of output pose (all poses are published at the end of the frames process)
+  priv_nh.param("output/pose/frequency", this->TrajFrequency, -1.);
+
   // ***************************************************************************
   // Init ROS subscribers
 
