@@ -22,6 +22,7 @@
 #include "LidarSlam/PointCloudStorage.h"
 #include "LidarSlam/LidarPoint.h"
 #include "LidarSlam/Enums.h"
+#include "LidarSlam/Utilities.h"
 
 namespace LidarSlam
 {
@@ -36,23 +37,33 @@ struct LidarState
   Eigen::UnalignedIsometry3d BaseToSensor = Eigen::UnalignedIsometry3d::Identity();
   // Pose transform in world coordinates
   Eigen::UnalignedIsometry3d Isometry = Eigen::UnalignedIsometry3d::Identity();
-  // Covariance of current pose
-  Eigen::Matrix6d Covariance;
   // [s] Timestamp of data
   double Time = 0.;
+  // Covariance of current pose
+  Eigen::Matrix6d Covariance = Utils::CreateDefaultCovariance();
   // Index to link the pose graph (G2O)
   unsigned int Index = 0;
 
   LidarState() = default;
-  LidarState(const Eigen::UnalignedIsometry3d& isometry, const Eigen::Matrix6d& covariance = {}, double time = 0.)
+  LidarState(const Eigen::UnalignedIsometry3d& isometry, double time = 0.,
+             const Eigen::Matrix6d& covariance = Utils::CreateDefaultCovariance())
     : Isometry(isometry),
-      Covariance(covariance),
-      Time(time) {};
+      Time(time),
+      Covariance(covariance) {};
   // Keypoints extracted at current pose, undistorted and expressed in BASE coordinates
   std::map<Keypoint, PCStoragePtr> Keypoints;
   // Keypoints extracted at current pose and expressed in BASE coordinates
   std::map<Keypoint, PCStoragePtr> RawKeypoints;
   bool IsKeyFrame = true;
+};
+
+struct PoseStamped
+{
+  Eigen::UnalignedIsometry3d Pose = Eigen::UnalignedIsometry3d::Identity();
+  double Time = 0.;
+
+  PoseStamped() = default;
+  PoseStamped(const Eigen::UnalignedIsometry3d& pose, double time): Pose(pose), Time(time){}
 };
 
 } // end of LidarSlam namespace
