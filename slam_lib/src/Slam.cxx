@@ -1659,13 +1659,19 @@ bool Slam::DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryStat
       detectionValid = true;
       break;
     }
-    case LoopClosureDetector::AUTO:
+    case LoopClosureDetector::TEASERPP:
     {
-      // Automatic detection of loop closure will be implemented here
+      // Automatic detection of loop closure by teaserpp registration
       // It detects automatically a revisited frame idx for the current frame
-      itQueryState = this->LogStates.end();
+      itQueryState = std::prev(this->LogStates.end());
       itRevisitedState = this->LogStates.begin();
-      return false;
+      detectionValid = this->DetectLoopWithTeaser(itQueryState, itRevisitedState);
+      if (detectionValid)
+      {
+        this->LoopParams.QueryIdx = itQueryState->Index;
+        this->LoopParams.RevisitedIdx = itRevisitedState->Index;
+      }
+      break;
     }
   }
 

@@ -1778,7 +1778,7 @@ void vtkSlam::SetLoopDetector(int detector)
   LidarSlam::LoopClosureDetector loopClosureDetector = static_cast<LidarSlam::LoopClosureDetector>(detector);
   if (loopClosureDetector != LidarSlam::LoopClosureDetector::NONE   &&
       loopClosureDetector != LidarSlam::LoopClosureDetector::MANUAL &&
-      loopClosureDetector != LidarSlam::LoopClosureDetector::AUTO)
+      loopClosureDetector != LidarSlam::LoopClosureDetector::TEASERPP)
   {
     vtkErrorMacro(<< "Invalid loop closure detector (" << detector << "), ignoring setting.");
     return;

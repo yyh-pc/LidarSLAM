@@ -1786,7 +1786,7 @@
         <EnumerationDomain name="enum">
           <Entry value="0" text="Disabled"/>
           <Entry value="1" text="Manual"/>
-          <Entry value="2" text="Automatic"/>
+          <Entry value="2" text="Teaserpp"/>
         </EnumerationDomain>
         <Documentation>
           Choose a detector for loop closure:
@@ -1795,7 +1795,7 @@
 
            (1) Manual detector: users need to indicate the frame indices of the loop closure;
 
-           (2) Automatic detector: slam detects automatically a loop closure for current frame.
+           (2) Teaserpp: slam detects automatically a loop closure for current frame by using teaserpp .
         </Documentation>
       </IntVectorProperty>
 

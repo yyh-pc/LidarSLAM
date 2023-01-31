@@ -176,7 +176,7 @@ struct Parameters
 
   // Which method to use to detect loop closure
   // Manual detector: users need to indicate the query frame index and the revisited frame index for loop closure.
-  // Other methods will be added in the future
+  // TEASERPP detector: automatic detection of loop closure by teaser registration
   LoopClosureDetector Detector = LoopClosureDetector::NONE;
 
   // When a query frame searches its revisited frame,
@@ -1222,7 +1222,7 @@ private:
   // ---------------------------------------------------------------------------
 
   // If use manual detection, check whether the inputs of loop closure frame indices are stored in the LogStates
-  // if use automatic detection, detect automatically a revisited frame index for the current frame
+  // if use teaserpp detector, detect automatically a revisited frame index for the current frame by using teaserpp registration
   bool DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState);
 
   // Return true if a loop closure has been found and update itRevisitedState iterator, if not return false.
