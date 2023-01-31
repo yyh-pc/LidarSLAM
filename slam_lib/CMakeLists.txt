@@ -25,6 +25,7 @@ add_library(LidarSlam
   src/SpinningSensorKeypointExtractor.cxx
   src/Utilities.cxx
   src/VoxelGrid.cxx
+  src/InterpolationModels.cxx
   ${SLAM_g2o_sources}
 )
 

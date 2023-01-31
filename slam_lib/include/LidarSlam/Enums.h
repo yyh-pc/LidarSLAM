@@ -103,6 +103,26 @@ enum class EgoMotionMode
 };
 
 //------------------------------------------------------------------------------
+namespace Interpolation
+{
+// List of poses interpolation models
+enum Model
+{
+  LINEAR    = 0,  // Linear interpolation between 2 poses
+  QUADRATIC = 1,  // Quadratic interpolation between 3 poses
+  CUBIC     = 2,  // Cubic interpolation between 4 poses
+};
+
+static const std::map<Model, unsigned int> ModelRequiredNbData = { {LINEAR,    2},
+                                                                   {QUADRATIC, 3},
+                                                                   {CUBIC,     4} };
+static const std::map<Model, std::string> ModelNames = { {LINEAR,    "Linear"},
+                                                    {QUADRATIC, "Quadratic"},
+                                                    {CUBIC,     "Cubic"} };
+
+}  // end of Interpolation namespace
+
+//------------------------------------------------------------------------------
 //! How to update the map
 enum class MappingMode
 {
