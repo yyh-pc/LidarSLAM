@@ -81,6 +81,7 @@ find_package(Ceres REQUIRED)
 find_package(PCL REQUIRED COMPONENTS common io octree geometry)
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
+link_directories(${PCL_LIBRARY_DIRS})
 #We do not want VTK for now, FIX WIN32 command too long issue
 #PCL is linked finds VTK in paraview/src rather than paraview/build
 list(FILTER PCL_LIBRARIES EXCLUDE REGEX "VTK::.*")
