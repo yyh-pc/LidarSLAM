@@ -1835,6 +1835,64 @@
         </Documentation>
       </DoubleVectorProperty>
 
+      <DoubleVectorProperty name="Loop gap length"
+                         command="SetLoopGapLength"
+                         number_of_elements="1"
+                         default_values="10."
+                         panel_visibility="advanced">
+        <Documentation>
+          The loop gap length is the travelled distance before the query frame where is considered no loop formed
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Loop closure detector" value="2" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Loop evaluation threshold"
+                         command="SetLoopEvaluationThreshold"
+                         number_of_elements="1"
+                         default_values="0.7"
+                         panel_visibility="advanced">
+        <Documentation>
+          A overlap threshold to decide whether a candidate frame is the revisited frame or not.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Loop closure detector" value="2" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty name="Subsample revisited maps"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, display parameters for subsampling revisited maps from the full map.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Loop closure detector" value="2" />
+        </Hints>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Loop sample step"
+                         command="SetLoopSampleStep"
+                         number_of_elements="1"
+                         default_values="-1"
+                         panel_visibility="advanced">
+        <Documentation>
+          The candidate frames are sampled with a step of loop sample step. By default, sample step is set to 0 and
+          the detection process does not subsample the candidate frames. Only one submap is used to detect loop.
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="CompositeDecorator">
+            <Expression type="and">
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Loop closure detector" value="2" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Subsample revisited maps" value="1" />
+            </Expression>
+          </PropertyWidgetDecorator>
+        </Hints>
+      </DoubleVectorProperty>
+
       <IntVectorProperty name="Revisited frame index"
                          command="SetLoopRevisitedIdx"
                          number_of_elements="1"
@@ -1858,6 +1916,15 @@
           The parameter for revisited sub map size in meters. Sub maps is built with frames in the range
           [frame index + start range, frame index + end range]
         </Documentation>
+        <Hints>
+          <!-- Revisited map range can be set only if loop detection mode is manual or subsampling is enabled for teaserpp-->
+          <PropertyWidgetDecorator type="CompositeDecorator">
+            <Expression type="or">
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Loop closure detector" value="1" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Subsample revisited maps" value="1" />
+            </Expression>
+          </PropertyWidgetDecorator>
+        </Hints>
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Revisited map end range"
@@ -1869,6 +1936,15 @@
           The parameter for revisited sub map size in meters. Sub maps is built with frames in the range
           [frame index + start interval, frame index + end interval]
         </Documentation>
+        <Hints>
+          <!-- Revisited map range can be set only if loop detection mode is manual or subsampling is enabled for teaserpp-->
+          <PropertyWidgetDecorator type="CompositeDecorator">
+            <Expression type="or">
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Loop closure detector" value="1" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Subsample revisited maps" value="1" />
+            </Expression>
+          </PropertyWidgetDecorator>
+        </Hints>
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Advanced settings"
@@ -1886,6 +1962,10 @@
         <Property name="Query frame index" />
         <Property name="Query map start range" />
         <Property name="Query map end range" />
+        <Property name="Loop gap length" />
+        <Property name="Loop evaluation threshold" />
+        <Property name="Subsample revisited maps" />
+        <Property name="Loop sample step" />
         <Property name="Revisited frame index" />
         <Property name="Revisited map start range" />
         <Property name="Revisited map end range" />

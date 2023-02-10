@@ -248,6 +248,16 @@ public:
   vtkCustomGetMacro(LoopRevisitedMapEndRange, double)
   vtkCustomSetMacro(LoopRevisitedMapEndRange, double)
 
+  // Get/Set automatic detection parameters
+  vtkCustomGetMacro(LoopGapLength, double)
+  vtkCustomSetMacro(LoopGapLength, double)
+
+  vtkCustomGetMacro(LoopSampleStep, double)
+  vtkCustomSetMacro(LoopSampleStep, double)
+
+  vtkCustomGetMacro(LoopEvaluationThreshold, double)
+  vtkCustomSetMacro(LoopEvaluationThreshold, double)
+
   // Get/Set Loop closure registration parameters
   vtkCustomGetMacro(LoopEnableOffset, bool)
   vtkCustomSetMacro(LoopEnableOffset, bool)
