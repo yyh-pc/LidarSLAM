@@ -1730,7 +1730,7 @@
       <IntVectorProperty name="Use loop closure constraint"
                          command="EnablePGOConstraintLoopClosure"
                          number_of_elements="1"
-                         default_values="1"
+                         default_values="0"
                          panel_visibility="advanced">
         <BooleanDomain name="bool" />
         <Documentation>
@@ -1779,7 +1779,7 @@
       <!-- ============================ Loop Closure ============================ -->
 
       <IntVectorProperty name="External detect loop closure frame"
-                         command="SetExtDetectLoopClosure"
+                         command="SetLoopExtDetect"
                          number_of_elements="1"
                          default_values="0"
                          panel_visibility="advanced">
@@ -1791,7 +1791,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Query frame index"
-                         command="SetLoopClosureQueryIdx"
+                         command="SetLoopQueryIdx"
                          number_of_elements="1"
                          default_values="0"
                          panel_visibility="advanced">
@@ -1804,30 +1804,30 @@
         </Hints>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Query map window start interval LC"
-                         command="SetLCQueryWindowStartRange"
+      <IntVectorProperty name="Query map start range"
+                         command="SetLoopQueryMapStartRange"
                          number_of_elements="1"
                          default_values="-50"
                          panel_visibility="advanced">
         <Documentation>
-          The parameter for query sub map interval. Sub maps is built with frames:
-          [frame index + start interval, frame index + end interval]
+          The parameter for query sub map size. Sub maps is built with frames:
+          [frame index + start range, frame index + end range]
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Query map window end interval LC"
-                         command="SetLCQueryWindowEndRange"
+      <IntVectorProperty name="Query map end range"
+                         command="SetLoopQueryMapEndRange"
                          number_of_elements="1"
                          default_values="50"
                          panel_visibility="advanced">
         <Documentation>
-          The parameter for query sub map interval. Sub maps is built with frames:
-          [frame index + start interval, frame index + end interval]
+          The parameter for query sub map size. Sub maps is built with frames:
+          [frame index + start range, frame index + end range]
         </Documentation>
       </IntVectorProperty>
 
       <IntVectorProperty name="Revisited frame index"
-                         command="SetLoopClosureRevisitedIdx"
+                         command="SetLoopRevisitedIdx"
                          number_of_elements="1"
                          default_values="0"
                          panel_visibility="advanced">
@@ -1840,25 +1840,25 @@
         </Hints>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Revisited map window start interval LC"
-                         command="SetLCRevisitedWindowStartRange"
+      <IntVectorProperty name="Revisited map start range"
+                         command="SetLoopRevisitedMapStartRange"
                          number_of_elements="1"
                          default_values="-50"
                          panel_visibility="advanced">
         <Documentation>
-          The parameter for revisited sub map interval. Sub maps is built with frames:
-          [frame index + start interval, frame index + end interval]
+          The parameter for revisited sub map size. Sub maps is built with frames:
+          [frame index + start range, frame index + end range]
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Revisited map window end interval LC"
-                         command="SetLCRevisitedWindowEndRange"
+      <IntVectorProperty name="Revisited map end range"
+                         command="SetLoopRevisitedMapEndRange"
                          number_of_elements="1"
                          default_values="50"
                          panel_visibility="advanced">
         <Documentation>
-          The parameter for revisited sub map interval. Sub maps is built with frames:
-          [frame index + start interval, frame index + end interval]
+          The parameter for revisited sub map size. Sub maps is built with frames:
+          [frame index + start range, frame index + end range]
         </Documentation>
       </IntVectorProperty>
 
@@ -1875,11 +1875,11 @@
       <PropertyGroup label="Loop closure parameters">
         <Property name="External detect loop closure frame" />
         <Property name="Query frame index" />
-        <Property name="Query map window start interval LC" />
-        <Property name="Query map window end interval LC" />
+        <Property name="Query map start range" />
+        <Property name="Query map end range" />
         <Property name="Revisited frame index" />
-        <Property name="Revisited map window start interval LC" />
-        <Property name="Revisited map window end interval LC" />
+        <Property name="Revisited map start range" />
+        <Property name="Revisited map end range" />
         <Property name="Advanced settings" />
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use loop closure constraint" value="1" />
@@ -1888,7 +1888,7 @@
 
         <!-- ==================== Loop Closure Localization Parameters ==================== -->
       <IntVectorProperty name="Add offset"
-                         command="SetEnableLoopClosureOffset"
+                         command="SetLoopEnableOffset"
                          number_of_elements="1"
                          default_values="0"
                          panel_visibility="advanced">
@@ -1899,7 +1899,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Use sub maps"
-                         command="SetLoopClosureICPWithSubmap"
+                         command="SetLoopICPWithSubmap"
                          number_of_elements="1"
                          default_values="1"
                          panel_visibility="advanced">
@@ -1910,7 +1910,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="ICP-Optimization iterations LC"
-                         command="SetLoopClosureICPMaxIter"
+                         command="SetLoopICPMaxIter"
                          number_of_elements="1"
                          default_values="100"
                          panel_visibility="advanced">
@@ -1924,7 +1924,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="LM optimization iterations LC"
-                         command="SetLoopClosureLMMaxIter"
+                         command="SetLoopLMMaxIter"
                          number_of_elements="1"
                          default_values="100"
                          panel_visibility="advanced">
@@ -1935,7 +1935,7 @@
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Max neighbors distance LC"
-                            command="SetLoopClosureMaxNeighborsDistance"
+                            command="SetLoopMaxNeighborsDistance"
                             number_of_elements="1"
                             default_values="5."
                             panel_visibility="advanced">
@@ -1946,7 +1946,7 @@
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Edge nb of neighbors LC"
-                         command="SetLoopClosureEdgeNbNeighbors"
+                         command="SetLoopEdgeNbNeighbors"
                          number_of_elements="1"
                          default_values="9"
                          panel_visibility="advanced">
@@ -1963,7 +1963,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Edge nb min filtered neighbors LC"
-                         command="SetLoopClosureEdgeMinNbNeighbors"
+                         command="SetLoopEdgeMinNbNeighbors"
                          number_of_elements="1"
                          default_values="5"
                          panel_visibility="advanced">
@@ -1980,7 +1980,7 @@
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Edge max model error LC"
-                            command="SetLoopClosureEdgeMaxModelError"
+                            command="SetLoopEdgeMaxModelError"
                             number_of_elements="1"
                             default_values="0.2"
                             panel_visibility="advanced">
@@ -1994,7 +1994,7 @@
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Plane nb of neighbors LC"
-                         command="SetLoopClosurePlaneNbNeighbors"
+                         command="SetLoopPlaneNbNeighbors"
                          number_of_elements="1"
                          default_values="7"
                          panel_visibility="advanced">
@@ -2011,7 +2011,7 @@
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Planarity threshold LC"
-                            command="SetLoopClosurePlanarityThreshold"
+                            command="SetLoopPlanarityThreshold"
                             number_of_elements="1"
                             default_values="0.04"
                             panel_visibility="advanced">
@@ -2030,7 +2030,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Plane max model error LC"
-                            command="SetLoopClosurePlaneMaxModelError"
+                            command="SetLoopPlaneMaxModelError"
                             number_of_elements="1"
                             default_values="0.1"
                             panel_visibility="advanced">
@@ -2044,7 +2044,7 @@
       </DoubleVectorProperty>
 
       <IntVectorProperty name="Blob nb of neighbors LC"
-                         command="SetLoopClosureBlobNbNeighbors"
+                         command="SetLoopBlobNbNeighbors"
                          number_of_elements="1"
                          default_values="10"
                          panel_visibility="advanced">
@@ -2061,7 +2061,7 @@
       </IntVectorProperty>
 
       <DoubleVectorProperty name="Init saturation distance LC"
-                            command="SetLoopClosureInitSaturationDistance"
+                            command="SetLoopInitSaturationDistance"
                             number_of_elements="1"
                             default_values="2."
                             panel_visibility="advanced">
@@ -2077,7 +2077,7 @@
       </DoubleVectorProperty>
 
       <DoubleVectorProperty name="Final saturation distance LC"
-                            command="SetLoopClosureFinalSaturationDistance"
+                            command="SetLoopFinalSaturationDistance"
                             number_of_elements="1"
                             default_values="0.5"
                             panel_visibility="advanced">

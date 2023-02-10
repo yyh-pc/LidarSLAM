@@ -290,7 +290,6 @@ void Slam::EnableKeypointType(Keypoint k, bool enabled)
       this->CurrentWorldKeypoints[k].reset(new PointCloud);
     this->EgoMotionMatchingResults[k] = KeypointsMatcher::MatchingResults();
     this->LocalizationMatchingResults[k] = KeypointsMatcher::MatchingResults();
-    this->LoopClosureMatchingResults[k] = KeypointsMatcher::MatchingResults();
   }
 }
 
@@ -650,7 +649,7 @@ bool Slam::OptimizeGraph()
                                         loopClosureTransform, loopClosureCovariance))
       {
         // Add loop closure constraint into pose graph
-        graphManager.AddLoopClosureConstraint(this->LoopClosureQueryIdx, this->LoopClosureRevisitedIdx,
+        graphManager.AddLoopClosureConstraint(this->LoopParams.QueryIdx, this->LoopParams.RevisitedIdx,
                                               loopClosureTransform, loopClosureCovariance);
         externalConstraint = true;
       }
@@ -1614,30 +1613,30 @@ bool Slam::DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryStat
 {
   PRINT_VERBOSE(2, "========== Loop closure : Detection ==========");
 
-  if (this->ExtDetectLoopClosure)
+  if (this->LoopParams.ExtDetect)
   {
-    // If ExtDetectLoopClosure is enabled, check whether the input frames are stored in the LogStates
+    // If ExtDetect is enabled, check whether the input frames are stored in the LogStates
     // When LogOnlyKeyFrames is enabled, only keyframes are stored in the LogStates.
     // It is possible that the inputs frame indices are not keyframes.
     // In this case, replace the input frame index by its neighbor keyframes
     itQueryState = this->LogStates.begin();
     itRevisitedState = itQueryState;
-    while (itQueryState->Index < this->LoopClosureQueryIdx && itQueryState->Index != this->LogStates.back().Index)
+    while (itQueryState->Index < this->LoopParams.QueryIdx && itQueryState->Index != this->LogStates.back().Index)
       ++itQueryState;
-    if (itQueryState->Index != this->LoopClosureQueryIdx)
+    if (itQueryState->Index != this->LoopParams.QueryIdx)
     {
-      this->LoopClosureQueryIdx = itQueryState->Index;
+      this->LoopParams.QueryIdx = itQueryState->Index;
       PRINT_WARNING("The input query frame index is not found in Logstates and is replaced by frame #"
-                    << this->LoopClosureQueryIdx << ".");
+                    << this->LoopParams.QueryIdx << ".");
     }
 
-    while (itRevisitedState->Index < this->LoopClosureRevisitedIdx && itRevisitedState->Index != this->LogStates.back().Index)
+    while (itRevisitedState->Index < this->LoopParams.RevisitedIdx && itRevisitedState->Index != this->LogStates.back().Index)
       ++itRevisitedState;
-    if (itRevisitedState->Index != this->LoopClosureRevisitedIdx)
+    if (itRevisitedState->Index != this->LoopParams.RevisitedIdx)
     {
-      this->LoopClosureRevisitedIdx = itRevisitedState->Index;
+      this->LoopParams.RevisitedIdx = itRevisitedState->Index;
       PRINT_WARNING("The input revisited frame index is not found in Logstates and is replaced by frame #"
-                    << this->LoopClosureRevisitedIdx << ".");
+                    << this->LoopParams.RevisitedIdx << ".");
     }
     PRINT_VERBOSE(3, "Loop closure is detected by external information. The relevant frame indices are:\n"
                   << " Query frame #" << itQueryState->Index << " Revisited frame #" << itRevisitedState->Index);
@@ -1667,14 +1666,14 @@ bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState
   Maps loopClosureRevisitedSubMaps;
   this->InitSubMaps(loopClosureRevisitedSubMaps);
   this->BuildMaps(loopClosureRevisitedSubMaps,
-                  itRevisitedState->Index + this->LCRevisitedWindowStartRange,
-                  itRevisitedState->Index + this->LCRevisitedWindowEndRange);
+                  itRevisitedState->Index + this->LoopParams.RevisitedMapStartRange,
+                  itRevisitedState->Index + this->LoopParams.RevisitedMapEndRange);
   PRINT_VERBOSE(3, "Sub maps are created around revisited frame #" << itRevisitedState->Index << ".");
 
   // Pose prior for optimization
   Eigen::Isometry3d loopClosureTworld = itQueryState->Isometry;
   // Enable to add an offset to the pose prior when two poses are too far from each other.
-  if (this->EnableLoopClosureOffset)
+  if (this->LoopParams.EnableOffset)
   {
     PointCloud::Ptr revisitedPlaneKeypoints(new PointCloud);
     pcl::transformPointCloud(*(itRevisitedState->Keypoints[PLANE]->GetCloud()),
@@ -1693,13 +1692,13 @@ bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState
   std::map<Keypoint, PointCloud::Ptr> loopClosureQueryKeypoints;
   for (auto k : this->UsableKeypoints)
     loopClosureQueryKeypoints[k].reset(new PointCloud);
-  if (this->LoopClosureICPWithSubmap)
+  if (this->LoopParams.ICPWithSubmap)
   {
     Maps loopClosureQuerySubMaps;
     this->InitSubMaps(loopClosureQuerySubMaps);
     this->BuildMaps(loopClosureQuerySubMaps,
-                    itQueryState->Index + this->LCQueryWindowStartRange,
-                    itQueryState->Index + this->LCQueryWindowEndRange,
+                    itQueryState->Index + this->LoopParams.QueryMapStartRange,
+                    itQueryState->Index + this->LoopParams.QueryMapEndRange,
                     itQueryState->Index);
     PRINT_VERBOSE(3, "Sub maps are created around query frame #" << itQueryState->Index << ".");
     for (auto k : this->UsableKeypoints)
@@ -1740,12 +1739,13 @@ bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState
   this->TotalMatchedKeypoints = 0;
 
   // Set loop closure parameters which do not have a setter
-  this->LoopClosureParams.MatchingParams.NbThreads = static_cast<unsigned int>(this->NbThreads);
-  this->LoopClosureParams.MatchingParams.SingleEdgePerRing = false;
+  this->LoopParams.OptParams.MatchingParams.NbThreads = static_cast<unsigned int>(this->NbThreads);
+  this->LoopParams.OptParams.MatchingParams.SingleEdgePerRing = false;
   // ICP - Levenberg-Marquardt loop to estimate the pose of the current frame relatively to the close loop frame
+  std::map<Keypoint, KeypointsMatcher::MatchingResults> loopMatchingResults;
   loopClosureUncertainty = this->EstimatePose(loopClosureQueryKeypoints, loopClosureRevisitedSubMaps,
-                                              this->LoopClosureParams, loopClosureTworld,
-                                              this->LoopClosureMatchingResults);
+                                              this->LoopParams.OptParams, loopClosureTworld,
+                                              loopMatchingResults);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Loop closure Registration : whole ICP-LM loop"));
 
@@ -1783,7 +1783,7 @@ bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState
     SET_COUT_FIXED_PRECISION(3);
     std::cout << "Loop closure matched keypoints: " << this->TotalMatchedKeypoints << " (";
     for (auto k : this->UsableKeypoints)
-      std::cout << this->LoopClosureMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
+      std::cout << loopMatchingResults[k].NbMatches() << " " << Utils::Plural(KeypointTypeNames.at(k)) << " ";
 
     std::cout << ")"
               << "\nLoop closure position uncertainty    = " << loopClosureUncertainty.PositionError    << " m"

@@ -1765,7 +1765,7 @@ void vtkSlam::SetUsePoseGraph(bool usePoseGraph)
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::SetLoopClosureQueryIdx(unsigned int loopClosureQueryIdx)
+void vtkSlam::SetLoopQueryIdx(unsigned int loopClosureQueryIdx)
 {
   // Check the input frame index can be found in Logstates
   // If the input query frame index is not in Logstates, replace it by the last frame index stored in Logstates
@@ -1781,15 +1781,15 @@ void vtkSlam::SetLoopClosureQueryIdx(unsigned int loopClosureQueryIdx)
     loopClosureQueryIdx = lidarStates.back().Index;
   }
   vtkDebugMacro("Setting LoopClosureQueryFrameIdx to " << loopClosureQueryIdx);
-  if (this->SlamAlgo->GetLoopClosureQueryIdx() != loopClosureQueryIdx)
+  if (this->SlamAlgo->GetLoopQueryIdx() != loopClosureQueryIdx)
   {
-    this->SlamAlgo->SetLoopClosureQueryIdx(loopClosureQueryIdx);
+    this->SlamAlgo->SetLoopQueryIdx(loopClosureQueryIdx);
     this->ParametersModificationTime.Modified();
   }
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::SetLoopClosureRevisitedIdx(unsigned int loopClosureRevisitedIdx)
+void vtkSlam::SetLoopRevisitedIdx(unsigned int loopClosureRevisitedIdx)
 {
   // Check the input frame index can be found in Logstates
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
@@ -1802,9 +1802,9 @@ void vtkSlam::SetLoopClosureRevisitedIdx(unsigned int loopClosureRevisitedIdx)
     return;
   }
   vtkDebugMacro("Setting LoopClosureRevisitedFrameIdx to " << loopClosureRevisitedIdx);
-  if (this->SlamAlgo->GetLoopClosureRevisitedIdx() != loopClosureRevisitedIdx)
+  if (this->SlamAlgo->GetLoopRevisitedIdx() != loopClosureRevisitedIdx)
   {
-    this->SlamAlgo->SetLoopClosureRevisitedIdx(loopClosureRevisitedIdx);
+    this->SlamAlgo->SetLoopRevisitedIdx(loopClosureRevisitedIdx);
     this->ParametersModificationTime.Modified();
   }
 }
