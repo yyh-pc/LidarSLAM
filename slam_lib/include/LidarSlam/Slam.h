@@ -175,13 +175,13 @@ struct Parameters
   unsigned int QueryIdx = 0;
   unsigned int RevisitedIdx = 0;
 
-  // Number of frames used to build the submaps around the query frame or the revisited frame for loop closure.
-  // To build sub maps around query frame, use frames [QueryIdx + QueryMapStartRange, QueryIdx + QueryMapEndRange].
-  // To build sub maps around the revisited frame, use frames [RevisitedIdx + RevisitedMapStartRange, RevisitedIdx + RevisitedMapEndRange].
-  int QueryMapStartRange = -50;
-  int QueryMapEndRange = 50;
-  int RevisitedMapStartRange = -50;
-  int RevisitedMapEndRange = 50;
+  // The submaps size in meters around the query frame or the revisited frame for loop closure.
+  // To build sub maps around query frame, use frames in the range [QueryIdx - 5m, QueryIdx + 5m].
+  // To build sub maps around the revisited frame, use frames in the range [RevisitedIdx - 5m, RevisitedIdx + 5m].
+  double QueryMapStartRange = -5;     // 5 meters before query frame
+  double QueryMapEndRange = 5;        // 5 meters after query frame
+  double RevisitedMapStartRange = -5; // 5 meters before revisited frame
+  double RevisitedMapEndRange = 5;    // 5 meters after revisited frame
 
   // Boolean to add an offset to loop closure pose prior when the frames are too far from each other.
   bool EnableOffset = false;
@@ -666,17 +666,17 @@ public:
   GetStructParamsMacro(Loop, RevisitedIdx, unsigned int)
   SetStructParamsMacro(Loop, RevisitedIdx, unsigned int)
 
-  GetStructParamsMacro(Loop, QueryMapStartRange, int)
-  SetStructParamsMacro(Loop, QueryMapStartRange, int)
+  GetStructParamsMacro(Loop, QueryMapStartRange, double)
+  SetStructParamsMacro(Loop, QueryMapStartRange, double)
 
-  GetStructParamsMacro(Loop, QueryMapEndRange, int)
-  SetStructParamsMacro(Loop, QueryMapEndRange, int)
+  GetStructParamsMacro(Loop, QueryMapEndRange, double)
+  SetStructParamsMacro(Loop, QueryMapEndRange, double)
 
-  GetStructParamsMacro(Loop, RevisitedMapStartRange, int)
-  SetStructParamsMacro(Loop, RevisitedMapStartRange, int)
+  GetStructParamsMacro(Loop, RevisitedMapStartRange, double)
+  SetStructParamsMacro(Loop, RevisitedMapStartRange, double)
 
-  GetStructParamsMacro(Loop, RevisitedMapEndRange, int)
-  SetStructParamsMacro(Loop, RevisitedMapEndRange, int)
+  GetStructParamsMacro(Loop, RevisitedMapEndRange, double)
+  SetStructParamsMacro(Loop, RevisitedMapEndRange, double)
 
   // Get/Set Loop Closure registration parameters
   GetStructParamsMacro(Loop, EnableOffset, bool)
@@ -1200,6 +1200,12 @@ private:
   // Keypoints are aggregated in world coordinates by default
   // or in base coordinates of frame #idxFrame when idxFrame is not negative
   void BuildMaps(Maps& maps, int windowStartIdx = -1, int windowEndIdx = -1, int idxFrame = -1);
+
+  // Fetch the index of the frame stored in LogStates, acquired before startIt
+  // and at a distance at least equal to minDistance
+  // minDistance can be positive or negative to choose
+  // in which chronological direction to perform the search
+  std::list<LidarState>::iterator FetchStateIndex(std::list<LidarState>::iterator startIt, double minDistance);
 
   // ICP-LM Optimization process to estimate pose
   // Compute the pose of the sourceKeypoints by registering

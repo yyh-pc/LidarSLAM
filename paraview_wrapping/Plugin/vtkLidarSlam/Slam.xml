@@ -1804,27 +1804,27 @@
         </Hints>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Query map start range"
-                         command="SetLoopQueryMapStartRange"
-                         number_of_elements="1"
-                         default_values="-50"
-                         panel_visibility="advanced">
+      <DoubleVectorProperty name="Query map start range"
+                            command="SetLoopQueryMapStartRange"
+                            number_of_elements="1"
+                            default_values="-5"
+                            panel_visibility="advanced">
         <Documentation>
-          The parameter for query sub map size. Sub maps is built with frames:
+          The parameter for query sub map size in meters. Sub maps is built with frames in the range
           [frame index + start range, frame index + end range]
         </Documentation>
-      </IntVectorProperty>
+      </DoubleVectorProperty>
 
-      <IntVectorProperty name="Query map end range"
-                         command="SetLoopQueryMapEndRange"
-                         number_of_elements="1"
-                         default_values="50"
-                         panel_visibility="advanced">
+      <DoubleVectorProperty name="Query map end range"
+                            command="SetLoopQueryMapEndRange"
+                            number_of_elements="1"
+                            default_values="5"
+                            panel_visibility="advanced">
         <Documentation>
-          The parameter for query sub map size. Sub maps is built with frames:
+          The parameter for query sub map size in meters. Sub maps is built with frames in the range
           [frame index + start range, frame index + end range]
         </Documentation>
-      </IntVectorProperty>
+      </DoubleVectorProperty>
 
       <IntVectorProperty name="Revisited frame index"
                          command="SetLoopRevisitedIdx"
@@ -1840,27 +1840,27 @@
         </Hints>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Revisited map start range"
-                         command="SetLoopRevisitedMapStartRange"
-                         number_of_elements="1"
-                         default_values="-50"
-                         panel_visibility="advanced">
+      <DoubleVectorProperty name="Revisited map start range"
+                            command="SetLoopRevisitedMapStartRange"
+                            number_of_elements="1"
+                            default_values="-5"
+                            panel_visibility="advanced">
         <Documentation>
-          The parameter for revisited sub map size. Sub maps is built with frames:
+          The parameter for revisited sub map size in meters. Sub maps is built with frames in the range
           [frame index + start range, frame index + end range]
         </Documentation>
-      </IntVectorProperty>
+      </DoubleVectorProperty>
 
-      <IntVectorProperty name="Revisited map end range"
-                         command="SetLoopRevisitedMapEndRange"
-                         number_of_elements="1"
-                         default_values="50"
-                         panel_visibility="advanced">
+      <DoubleVectorProperty name="Revisited map end range"
+                            command="SetLoopRevisitedMapEndRange"
+                            number_of_elements="1"
+                            default_values="5"
+                            panel_visibility="advanced">
         <Documentation>
-          The parameter for revisited sub map size. Sub maps is built with frames:
-          [frame index + start range, frame index + end range]
+          The parameter for revisited sub map size in meters. Sub maps is built with frames in the range
+          [frame index + start interval, frame index + end interval]
         </Documentation>
-      </IntVectorProperty>
+      </DoubleVectorProperty>
 
       <IntVectorProperty name="Advanced settings"
                          number_of_elements="1"

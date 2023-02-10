@@ -236,17 +236,17 @@ public:
   vtkCustomGetMacro(LoopRevisitedIdx, unsigned int)
   virtual void SetLoopRevisitedIdx(unsigned int loopClosureRevisitedIdx);
 
-  vtkCustomGetMacro(LoopQueryMapStartRange, int)
-  vtkCustomSetMacro(LoopQueryMapStartRange, int)
+  vtkCustomGetMacro(LoopQueryMapStartRange, double)
+  vtkCustomSetMacro(LoopQueryMapStartRange, double)
 
-  vtkCustomGetMacro(LoopQueryMapEndRange, int)
-  vtkCustomSetMacro(LoopQueryMapEndRange, int)
+  vtkCustomGetMacro(LoopQueryMapEndRange, double)
+  vtkCustomSetMacro(LoopQueryMapEndRange, double)
 
-  vtkCustomGetMacro(LoopRevisitedMapStartRange, int)
-  vtkCustomSetMacro(LoopRevisitedMapStartRange, int)
+  vtkCustomGetMacro(LoopRevisitedMapStartRange, double)
+  vtkCustomSetMacro(LoopRevisitedMapStartRange, double)
 
-  vtkCustomGetMacro(LoopRevisitedMapEndRange, int)
-  vtkCustomSetMacro(LoopRevisitedMapEndRange, int)
+  vtkCustomGetMacro(LoopRevisitedMapEndRange, double)
+  vtkCustomSetMacro(LoopRevisitedMapEndRange, double)
 
   // Get/Set Loop closure registration parameters
   vtkCustomGetMacro(LoopEnableOffset, bool)
