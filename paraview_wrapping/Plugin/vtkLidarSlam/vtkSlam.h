@@ -215,14 +215,13 @@ public:
   vtkCustomGetMacro(NbGraphIterations, int)
   vtkCustomSetMacro(NbGraphIterations, int)
 
-  vtkCustomGetMacro(PGOConstraintLOOP_CLOSURE, bool)
-  vtkCustomSetMacro(PGOConstraintLOOP_CLOSURE, bool)
+  void EnablePGOConstraintLoopClosure(bool enable);
+  void EnablePGOConstraintLandmark(bool enable);
+  void EnablePGOConstraintGPS(bool enable);
 
-  vtkCustomGetMacro(PGOConstraintLANDMARK, bool)
-  vtkCustomSetMacro(PGOConstraintLANDMARK, bool)
-
-  vtkCustomGetMacro(PGOConstraintPGO_GPS, bool)
-  vtkCustomSetMacro(PGOConstraintPGO_GPS, bool)
+  bool GetPGOConstraintLoopClosure();
+  bool GetPGOConstraintLandmark();
+  bool GetPGOConstraintGPS();
 
   // ---------------------------------------------------------------------------
   //   Loop closure parameters

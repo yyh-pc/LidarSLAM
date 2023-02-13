@@ -182,6 +182,56 @@ void vtkSlam::OptimizeGraph()
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::EnablePGOConstraintLoopClosure(bool enabled)
+{
+  vtkDebugMacro(<< "Enabling loop closure constraint for pose graph optimization");
+  this->SlamAlgo->EnablePGOConstraint(LidarSlam::PGOConstraint::LOOP_CLOSURE, enabled);
+}
+
+void vtkSlam::EnablePGOConstraintLandmark(bool enabled)
+{
+  vtkDebugMacro(<< "Enabling landmark constraint for pose graph optimization");
+  this->SlamAlgo->EnablePGOConstraint(LidarSlam::PGOConstraint::LANDMARK, enabled);
+}
+
+void vtkSlam::EnablePGOConstraintGPS(bool enabled)
+{
+  vtkDebugMacro(<< "Enabling GPS constraint for pose graph optimization");
+  this->SlamAlgo->EnablePGOConstraint(LidarSlam::PGOConstraint::PGO_GPS, enabled);
+}
+
+//-----------------------------------------------------------------------------
+bool vtkSlam::GetPGOConstraintLoopClosure()
+{
+  bool enabled = this->SlamAlgo->IsPGOConstraintEnabled(LidarSlam::PGOConstraint::LOOP_CLOSURE);
+  if (enabled)
+    vtkDebugMacro(<< "Loop closure constraint for PGO is enabled");
+  else
+    vtkDebugMacro(<< "Loop closure constraint for PGO is disabled");
+  return enabled;
+}
+
+bool vtkSlam::GetPGOConstraintLandmark()
+{
+  bool enabled = this->SlamAlgo->IsPGOConstraintEnabled(LidarSlam::PGOConstraint::LANDMARK);
+  if (enabled)
+    vtkDebugMacro(<< "Landmark constraint for PGO is enabled");
+  else
+    vtkDebugMacro(<< "Landmark constraint for PGO is disabled");
+  return enabled;
+}
+
+bool vtkSlam::GetPGOConstraintGPS()
+{
+  bool enabled = this->SlamAlgo->IsPGOConstraintEnabled(LidarSlam::PGOConstraint::PGO_GPS);
+  if (enabled)
+    vtkDebugMacro(<< "GPS constraint for PGO is enabled");
+  else
+    vtkDebugMacro(<< "GPS constraint for PGO is disabled");
+  return enabled;
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::ClearMaps()
 {
   vtkDebugMacro(<< "Clearing the maps");

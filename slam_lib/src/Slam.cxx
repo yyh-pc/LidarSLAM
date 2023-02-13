@@ -762,6 +762,20 @@ bool Slam::OptimizeGraph()
 }
 
 //-----------------------------------------------------------------------------
+void Slam::EnablePGOConstraint(PGOConstraint constraint, bool enabled)
+{
+  this->UsePGOConstraints[constraint] = enabled;
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::IsPGOConstraintEnabled(PGOConstraint constraint) const
+{
+  if (!this->UsePGOConstraints.count(constraint))
+    return false;
+  return this->UsePGOConstraints.at(constraint);
+}
+
+//-----------------------------------------------------------------------------
 void Slam::SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess)
 {
   // Store pose in case of reinitialization need

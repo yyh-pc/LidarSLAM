@@ -1728,7 +1728,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Use loop closure constraint"
-                         command="SetPGOConstraintLOOP_CLOSURE"
+                         command="EnablePGOConstraintLoopClosure"
                          number_of_elements="1"
                          default_values="1"
                          panel_visibility="advanced">
@@ -1739,7 +1739,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Use landmark constraint"
-                         command="SetPGOConstraintLANDMARK"
+                         command="EnablePGOConstraintLandmark"
                          number_of_elements="1"
                          default_values="1"
                          panel_visibility="advanced">
@@ -1750,7 +1750,7 @@
       </IntVectorProperty>
 
       <IntVectorProperty name="Use GPS constraint"
-                         command="SetPGOConstraintPGO_GPS"
+                         command="EnablePGOConstraintGPS"
                          number_of_elements="1"
                          default_values="1"
                          panel_visibility="advanced">
