@@ -19,8 +19,6 @@
 
 #pragma once
 
-// LOCAL
-#include "LidarSlam/MotionModel.h"
 // CERES
 #include <ceres/ceres.h>
 // EIGEN
@@ -227,13 +225,14 @@ struct MahalanobisDistanceInterpolatedMotionResidual
   {
     using Vector3T = Eigen::Matrix<T, 3, 1>;
     using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
+    using Translation3T = Eigen::Translation<T, 3>;
+    using QuaternionT = Eigen::Quaternion<T>;
 
     // Create H0 / H1 transforms in static way.
     // The idea is that all residual functions will need to
     // evaluate those variables so we will only compute then
     // once each time the parameters values change
     static Isometry3T H0 = Isometry3T::Identity(), H1 = Isometry3T::Identity();
-    static LinearTransformInterpolator<T> transformInterpolator;
     static T lastW0[6] = {T(-1.), T(-1.), T(-1.), T(-1.), T(-1.), T(-1.)};
     static T lastW1[6] = {T(-1.), T(-1.), T(-1.), T(-1.), T(-1.), T(-1.)};
 
@@ -242,7 +241,6 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     {
       H0.linear() << Utils::RotationMatrixFromRPY(w0[3], w0[4], w0[5]);
       H0.translation() << w0[0], w0[1], w0[2];
-      transformInterpolator.SetH0(H0);
       std::copy(w0, w0 + 6, lastW0);
     }
 
@@ -251,14 +249,22 @@ struct MahalanobisDistanceInterpolatedMotionResidual
     {
       H1.linear() << Utils::RotationMatrixFromRPY(w1[3], w1[4], w1[5]);
       H1.translation() << w1[0], w1[1], w1[2];
-      transformInterpolator.SetH1(H1);
       std::copy(w1, w1 + 6, lastW1);
     }
 
     // Compute the transform to apply to X depending on (R0, T0) and (R1, T1).
     // The applied isometry will be the linear interpolation between them :
-    // (R, T) = (R0^(1-t) * R1^t, (1 - t)T0 + tT1)
-    const Isometry3T H = transformInterpolator(Time);
+    // (R, T) = (R0^(1-t) * R1^t, T0 + (T1 - T0)t
+    Isometry3T H;
+    // Avoid numerical issues
+    if (H0.isApprox(H1))
+      H = H0;
+    else
+    {
+      Translation3T trans(H0.translation() + Time * (H1.translation() - H0.translation()));
+      QuaternionT rot(Eigen::Quaterniond(H0.linear()).slerp(Time, Eigen::Quaterniond(H1.linear())));
+      H = trans * rot;
+    }
 
     // Transform point with rotation and translation
     const Vector3T Y = H.linear() * X + H.translation();
