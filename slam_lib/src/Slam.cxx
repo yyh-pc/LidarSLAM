@@ -93,6 +93,23 @@
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
 
+// Update sensors' parameters
+#define ExtSensorMacro(inFuncProto) \
+{ \
+  if (this->WheelOdomManager) \
+    this->WheelOdomManager->inFuncProto; \
+  if (this->GravityManager) \
+    this->GravityManager->inFuncProto; \
+  if (this->ImuManager) \
+    this->ImuManager->inFuncProto; \
+  for (auto& idLm : this->LandmarksManagers) \
+    idLm.second.inFuncProto; \
+  if (this->GpsManager) \
+    this->GpsManager->inFuncProto; \
+  if (this->PoseManager) \
+    this->PoseManager->inFuncProto; \
+}
+
 namespace LidarSlam
 {
 
@@ -240,18 +257,7 @@ void Slam::SetNbThreads(int n)
 void Slam::SetVerbosity(int verbosity)
 {
   this->Verbosity = verbosity;
-  if (this->WheelOdomManager)
-    this->WheelOdomManager->SetVerbose(verbosity >= 3);
-  if (this->GravityManager)
-    this->GravityManager->SetVerbose(verbosity >= 3);
-  if (this->ImuManager)
-    this->ImuManager->SetVerbose(verbosity >= 3);
-  for (auto& idLm : this->LandmarksManagers)
-    idLm.second.SetVerbose(verbosity >= 3);
-  if (this->GpsManager)
-    this->GpsManager->SetVerbose(verbosity >= 3);
-  if (this->PoseManager)
-    this->PoseManager->SetVerbose(verbosity >= 3);
+  ExtSensorMacro(SetVerbose(verbosity >= 3));
 }
 
 //-----------------------------------------------------------------------------
@@ -2739,24 +2745,6 @@ void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
 }
 
 // Sensors' parameters
-//-----------------------------------------------------------------------------
-
-#define ExtSensorMacro(inFuncProto) \
-{ \
-  if (this->WheelOdomManager) \
-    this->WheelOdomManager->inFuncProto; \
-  if (this->GravityManager) \
-    this->GravityManager->inFuncProto; \
-  if (this->ImuManager) \
-    this->ImuManager->inFuncProto; \
-  for (auto& idLm : this->LandmarksManagers) \
-    idLm.second.inFuncProto; \
-  if (this->GpsManager) \
-    this->GpsManager->inFuncProto; \
-  if (this->PoseManager) \
-    this->PoseManager->inFuncProto; \
-}
-
 //-----------------------------------------------------------------------------
 void Slam::ResetSensors(bool emptyMeasurements)
 {
