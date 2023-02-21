@@ -333,6 +333,20 @@ inline void TransformPoint(PointT& p, const Eigen::Isometry3d& transform)
 //------------------------------------------------------------------------------
 /*!
  * @brief Apply a rigid transform to a point
+ * @param pIn The input point to transform
+ * @param pIn The output transformed point
+ * @param transform The rigid transform (rotation + translation) to apply.
+ * @return The transformed point (all other fields are copied from p)
+ */
+template<typename PointT>
+inline void TransformPoint(const PointT& pIn, PointT& pOut, const Eigen::Isometry3d& transform)
+{
+  pOut.getVector4fMap() = transform.template cast<float>() * pIn.getVector4fMap();
+}
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Apply a rigid transform to a point
  * @param p The point to transform
  * @param transform The rigid transform (rotation + translation) to apply.
  * @return The transformed point (all other fields are copied from p)

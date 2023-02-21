@@ -79,7 +79,6 @@
 #include "LidarSlam/SpinningSensorKeypointExtractor.h"
 #include "LidarSlam/KeypointsMatcher.h"
 #include "LidarSlam/LocalOptimizer.h"
-#include "LidarSlam/MotionModel.h"
 #include "LidarSlam/RollingGrid.h"
 #include "LidarSlam/PointCloudStorage.h"
 #include "LidarSlam/ExternalSensorManagers.h"
@@ -293,6 +292,9 @@ public:
 
   void SetUndistortion(UndistortionMode undistMode);
   GetMacro(Undistortion, UndistortionMode)
+
+  void SetInterpolation(Interpolation::Model model);
+  GetMacro(Interpolation, Interpolation::Model);
 
   void SetLoggingTimeout(double lMax);
   GetMacro(LoggingTimeout, double)
@@ -768,15 +770,13 @@ private:
   // used to compute latency compensated pose
   double Latency;
 
-  // **** UNDISTORTION ****
-
-  // Transform interpolator to estimate the pose of the sensor within a lidar
-  // frame, using the BASE poses at the beginning and end of frame.
-  // This will be used to undistort the pointcloud and express its points
-  // relatively to the same BASE pose at frame header timestamp.
-  // This will use the point-wise 'time' field, representing the time offset
-  // in seconds to add to the frame header timestamp.
-  LinearTransformInterpolator<double> WithinFrameMotion;
+  // Model used to interpolate between poses
+  // This model can be linear, quadratic or cubic
+  // The interpolator will use a different
+  // number of data to perform the interpolation depending on the model type
+  // Poses interpolation is used during ego-motion, undistortion
+  // and external sensors synchronization
+  Interpolation::Model Interpolation = Interpolation::LINEAR;
 
   // **** LOGGING ****
 
@@ -972,8 +972,8 @@ private:
 
   // Maximum time difference (s) between two measurements to
   // allow the measures interpolation and the integration
-  // of a sensor constraint in the optimization
-  double SensorTimeThreshold = 0.5;
+  // of an external sensor constraint in the optimization
+  double SensorTimeThreshold = 1.;
 
   // Maximum number of sensor measurements stored
   // Above this number, the oldest measurements are forgotten
@@ -1196,21 +1196,34 @@ private:
   // All points of the current frame have been acquired at different timestamps.
   // The goal is to express them in the same referential, at the timestamp in
   // input scan header. This can be done using estimated egomotion and assuming
-  // a constant velocity during a sweep.
+  // a constant velocity during a sweep or using external measurements.
 
-  // Extra/Interpolate scan pose using previous motion from previous and current poses.
-  // 'time' arg is the time offset in seconds to current frame header.stamp.
-  Eigen::Isometry3d InterpolateScanPose(double time);
+  // TODO LogStates should be a sensor in External Sensor to get all useful synchronization functions
 
-  // Init undistortion interpolator time bounds based on point-wise time field.
-  void InitUndistortion();
+  // Get the state logged which is the closest to the input time
+  std::list<LidarState>::const_iterator GetClosestState(double time) const;
 
-  // Update the undistortion interpolator poses bounds,
-  // and refine the undistortion of the current keypoints clouds.
-  void RefineUndistortion();
+  // Get a window of states around an iterator
+  // This function checks time consistency and logging bounds
+  std::vector<PoseStamped> GetStatesWindow(std::list<LidarState>::const_iterator queryIt, unsigned int windowWidth) const;
+
+  // Undistort the points using previous logged states
+  // the input points must be represented in base frame or in lidar frame
+  // if baseToPointsRef is specified, each at their own timestamp
+  // All output points will be represented in the last frame of LogStates or in current frame (Tworld)
+  // If addTworld is true, Tworld is the reference to undistort the points
+  // Best performances can be achieved if pcIn is sorted
+  void UndistortWithLogStates(PointCloud::Ptr pcIn, PointCloud::Ptr pcOut,
+                              bool addTworld,
+                              int startIdx = 0, int endIdx = -1,
+                              Eigen::Isometry3d baseToPointsRef = Eigen::Isometry3d::Identity(),
+                              double timeOffset = 0) const;
 
   // Undistort the points using external pose measurement information
-  // the input points must be represented in base frame, each at their own timestamp
+  // the input points must be represented in base frame or in lidar frame
+  // if baseToPointsRef is specified, each at their own timestamp
+  // All output points will be represented in the frame at refTime
+  // Best performances can be achieved if pc is sorted
   void UndistortWithPoseMeasurement(PointCloud::Ptr pc, double refTime,
                                     int startIdx = 0, int endIdx = -1,
                                     Eigen::Isometry3d baseToPointsRef = Eigen::Isometry3d::Identity(),
@@ -1240,9 +1253,7 @@ private:
   // If worldCoordinates=true, it returns points in WORLD coordinates (optionally undistorted).
   // The LIDAR to BASE offsets specific to each sensor are properly added.
   // The output aggregated points timestamps are corrected to be relative to the 1st frame timestamp.
-  // NOTE: If transforming to WORLD coordinates, be sure that Tworld/WithinFrameMotion have been updated
-  //       (updated during the Localization step).
-  // This function is parallelized internally, do not put it in a parallelized loop
+  // WARNING : this function is parallelized internally, do not put it in a parallelized loop
   PointCloud::Ptr AggregateFrames(const std::vector<PointCloud::Ptr>& frames, bool worldCoordinates, bool undistort = true) const;
 
   // ---------------------------------------------------------------------------
