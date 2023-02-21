@@ -21,6 +21,7 @@
 #include "LidarSlam/CeresCostFunctions.h" // for residual structure + ceres
 #include "LidarSlam/Utilities.h"
 #include "LidarSlam/State.h"
+#include "LidarSlam/InterpolationModels.h"
 
 #include <list>
 #include <cfloat>
@@ -122,7 +123,7 @@ class SensorManager
 {
 public:
   SensorManager(const std::string& name = "BaseSensor")
-  : SensorName(name), PreviousIt(Measures.begin()) {}
+  : SensorName(name), PreviousIt(Measures.begin()), ClosestIt(Measures.begin()) {}
 
   SensorManager(double timeOffset, double timeThreshold, unsigned int maxMeas,
                 bool verbose = false, const std::string& name = "BaseSensor")
@@ -131,7 +132,8 @@ public:
     MaxMeasures(maxMeas),
     Verbose(verbose),
     SensorName(name),
-    PreviousIt(Measures.begin())
+    PreviousIt(Measures.begin()),
+    ClosestIt(Measures.begin())
   {}
 
   // -----------------Setters/Getters-----------------
@@ -165,6 +167,8 @@ public:
     {
       if (this->PreviousIt == this->Measures.begin())
         ++this->PreviousIt;
+      if (this->ClosestIt == this->Measures.begin())
+        ++this->ClosestIt;
       this->Measures.pop_front();
     }
   }
@@ -189,6 +193,8 @@ public:
     {
       if (this->PreviousIt == this->Measures.begin())
         ++this->PreviousIt;
+      if (this->ClosestIt == this->Measures.begin())
+        ++this->ClosestIt;
       this->Measures.pop_front();
     }
   }
@@ -201,6 +207,7 @@ public:
     if (resetMeas)
       this->Measures.clear();
     this->PreviousIt = this->Measures.begin();
+    this->ClosestIt  = this->Measures.begin();
   }
 
   // ------------------
@@ -239,7 +246,13 @@ protected:
   }
 
   // ------------------
-  std::pair<typename std::list<T>::iterator, typename std::list<T>::iterator> GetMeasureBounds(double lidarTime, bool trackTime = true)
+  // Get the measurements before and after the input lidarTime
+  // If trackTime is enabled, the search is optimized for chronological input time values
+  // windowSize allows to choose the number of neighboring measures to take
+  // The output interval is [prev, post]
+  std::pair<typename std::list<T>::iterator, typename std::list<T>::iterator> GetMeasureBounds(double lidarTime,
+                                                                                               bool trackTime = true,
+                                                                                               unsigned int windowSize = 2)
   {
     // Check if the measurements can be interpolated (or slightly extrapolated)
     if (lidarTime < this->Measures.front().Time || lidarTime > this->Measures.back().Time + this->TimeThreshold)
@@ -263,7 +276,7 @@ protected:
     if (prevIt == this->Measures.begin())
     {
       // If after reset or for first search, use upper_bound function
-      postIt = std::upper_bound(prevIt,
+      postIt = std::upper_bound(this->Measures.begin(),
                                 this->Measures.end(),
                                 lidarTime,
                                 [&](double time, const T& measure) {return time < measure.Time;});
@@ -275,39 +288,80 @@ protected:
         ++postIt;
     }
 
-    // If the last measure was taken before Lidar points
-    // extract the two last measures (for extrapolation)
-    if (postIt == this->Measures.end())
-      --postIt;
-
     // Get iterator pointing to the last measurement before LiDAR time
     prevIt = postIt;
     --prevIt;
+
+    // Check the time between the 2 closest measurements to input time
+    // Reset bound if interval is too high
+    if (!this->CheckBounds(prevIt, postIt))
+      return std::make_pair(this->Measures.begin(), this->Measures.begin());
 
     // Update the previous iterator for next call
     if (trackTime)
       this->PreviousIt = prevIt;
 
-    // Check the time between the 2 measurements
-    // Do not interpolate if the time is too long
-    if (!this->CheckBounds(prevIt,postIt))
-      return std::make_pair(this->Measures.begin(), this->Measures.begin());
+    // Update the closest iterator for extra needs
+    this->ClosestIt = std::abs(prevIt->Time - lidarTime) < std::abs(postIt->Time - lidarTime) ? prevIt : postIt;
+
+    // Increase the window until the number of data is reached or no data can be added anymore
+    for (unsigned int nbData = 2; nbData < windowSize; ++nbData)
+    {
+      // Check the next oldest neighbor
+      bool prevIsValid = this->CheckBounds(std::prev(prevIt), prevIt);
+      // Check the next newest neighbor
+      bool nextIsValid = this->CheckBounds(postIt, std::next(postIt));
+
+      // Break if none is valid
+      if (!prevIsValid && !nextIsValid)
+        break;
+
+      // Select the best valid one
+      if (prevIsValid &&
+          (!nextIsValid || std::abs(std::prev(prevIt)->Time - lidarTime) <
+                           std::abs(std::next(postIt)->Time - lidarTime)))
+        --prevIt;
+      else
+        ++postIt;
+    }
 
     return std::make_pair(prevIt, postIt);
   }
 
   // ------------------
-  virtual bool CheckBounds(typename std::list<T>::iterator& prevIt, typename std::list<T>::iterator& postIt)
+  virtual bool CheckBounds(typename std::list<T>::iterator prevIt, typename std::list<T>::iterator postIt)
   {
-    // If the time between the 2 measurements is too long
-    // Do not use the current measures
+    if (prevIt == this->Measures.begin() || prevIt == this->Measures.end() ||
+        postIt == this->Measures.begin() || postIt == this->Measures.end())
+      return false;
+    // Check if the time between the 2 measurements is too short
+    if (postIt->Time - prevIt->Time < 1e-6)
+    {
+      if (this->Verbose)
+        PRINT_INFO("\t" << this->SensorName << " measures cannot be used for interpolation (they are identical)")
+      return false;
+    }
+    // Check if the time between the 2 measurements is too long
     if (postIt->Time - prevIt->Time > this->TimeThreshold)
     {
       if (this->Verbose)
-        PRINT_INFO("\t The two last " << this->SensorName << " measures can not be interpolated (too much time difference)"
-                   << "-> " << this->SensorName << " not used")
+        PRINT_INFO("\t" << this->SensorName << " measures cannot be used for interpolation (too much time difference)")
       return false;
     }
+    return true;
+  }
+
+  // ---------------------------------------------------------------------------
+  bool TimeInBounds(double time)
+  {
+    // Check if the correspondant iterator had been found before
+    if (this->PreviousIt == this->Measures.begin() ||
+        this->PreviousIt == this->Measures.end())
+      return false;
+    // Check if time lays in previous bounds
+    if ((time < this->PreviousIt->Time) ||
+        (time > std::next(this->PreviousIt)->Time))
+      return false;
     return true;
   }
 
@@ -336,6 +390,8 @@ protected:
   // Iterator pointing to the last measure used
   // This allows to keep a time track
   typename std::list<T>::iterator PreviousIt;
+  // Iterator pointing to the closest measure of the last input time
+  typename std::list<T>::iterator ClosestIt;
   // Resulting residual
   CeresTools::Residual Residual;
   // Mutex to handle the data from outside the library
@@ -425,7 +481,8 @@ class LandmarkManager: public SensorManager<LandmarkMeasurement>
 public:
   LandmarkManager(const std::string& name = "Tag detector") : SensorManager(name){}
   LandmarkManager(const LandmarkManager& lmManager);
-  LandmarkManager(double timeOffset, double timeThresh, unsigned int maxMeas, bool positionOnly = true,
+  LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+                  Interpolation::Model model = Interpolation::Model::LINEAR, bool positionOnly = true,
                   bool verbose = false, const std::string& name = "Tag detector");
 
   void operator=(const LandmarkManager& lmManager);
@@ -443,6 +500,10 @@ public:
 
   GetSensorMacro(CovarianceRotation, bool)
   SetSensorMacro(CovarianceRotation, bool)
+
+  Interpolation::Model GetInterpolationModel() const {return this->Interpolator.GetModel();}
+  void SetInterpolationModel(Interpolation::Model model) {this->Interpolator.SetModel(model);}
+
   // Set the initial absolute pose
   // NOTE : the absolute pose can be updated if UpdateAbsolutePose is called
   void SetAbsolutePose(const Eigen::Vector6d& pose, const Eigen::Matrix6d& cov);
@@ -487,6 +548,8 @@ private:
   // Allow to rotate the covariance
   // Can be disabled if the covariance is fixed or not used (e.g. for local constraint)
   bool CovarianceRotation = false;
+  // Interpolator to get the relative pose between timestamps
+  Interpolation::Trajectory Interpolator;
 };
 
 // ---------------------------------------------------------------------------
@@ -534,8 +597,10 @@ public:
   PoseManager(const std::string& name = "Pose sensor") : SensorManager(name){}
 
   PoseManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+              Interpolation::Model model = Interpolation::Model::LINEAR,
               bool verbose = false, const std::string& name = "Pose sensor")
-  : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name) {this->Weight = w;}
+  : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name)
+  {this->Weight = w; this->Interpolator.SetModel(model);}
 
   void Reset(bool resetMeas = false);
 
@@ -551,6 +616,9 @@ public:
 
   GetSensorMacro(DistanceThreshold, double)
   SetSensorMacro(DistanceThreshold, double)
+
+  Interpolation::Model GetInterpolationModel() const {return this->Interpolator.GetModel();}
+  void SetInterpolationModel(Interpolation::Model model) {this->Interpolator.SetModel(model);}
 
   // Compute the interpolated measure (pose of the external pose sensor's)
   // to be synchronized with SLAM output at lidarTime
@@ -575,9 +643,10 @@ protected:
   double DistanceThreshold = 0.;
 
   // Check time and motion difference of bounds
-  // Do not use the 2 measures if time difference is too long and motion difference is too large and return false
-  // Otherwise return true
-  bool CheckBounds(std::list<PoseMeasurement>::iterator& prevIt, std::list<PoseMeasurement>::iterator& postIt) override;
+  // Do not use the 2 measures if time difference is too long and motion difference is too large
+  bool CheckBounds(std::list<PoseMeasurement>::iterator prevIt, std::list<PoseMeasurement>::iterator postIt) override;
+  // Interpolator used to get poses between measurements
+  Interpolation::Trajectory Interpolator;
 };
 
 // ---------------------------------------------------------------------------
@@ -594,9 +663,10 @@ public:
   : PoseManager(name){this->Reset();}
 
   ImuManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+             Interpolation::Model model = Interpolation::Model::LINEAR,
              Eigen::Isometry3d initBasePose = Eigen::Isometry3d::Identity(),
              bool verbose = false, const std::string& name = "IMU")
-  : PoseManager(w, timeOffset, timeThresh, maxMeas, verbose, name)
+  : PoseManager(w, timeOffset, timeThresh, maxMeas, model, verbose, name)
   {
     this->InitBasePose = initBasePose;
     this->Reset();
@@ -693,6 +763,8 @@ public:
     {
       if (this->PreviousIt == this->Measures.begin())
         ++this->PreviousIt;
+      if (this->ClosestIt == this->Measures.begin())
+        ++this->ClosestIt;
       this->Measures.pop_front();
       this->RawMeasures.pop_front();
     }
@@ -896,6 +968,7 @@ public:
       this->Measures = std::list<PoseMeasurement>(itCurrent, this->Measures.end());
       // Update previous measure iterator for searches
       this->PreviousIt = this->Measures.begin();
+      this->ClosestIt = this->Measures.begin();
       this->RawMeasures = std::list<ImuMeasurement>(itRawCurrent, this->RawMeasures.end());
 
       if (this->Verbose)

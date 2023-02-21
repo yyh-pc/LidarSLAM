@@ -49,7 +49,7 @@ bool WheelOdometryManager::ComputeSynchronizedMeasure(double lidarTime, WheelOdo
     return false;
   // Interpolate odometry measurement at LiDAR timestamp
   synchMeas.Time = lidarTime;
-  double rt = (lidarTime - bounds.first->Time) / (bounds.second->Time - bounds.first->Time);
+  double rt = Utils::Normalize(lidarTime, bounds.first->Time, bounds.second->Time);
   synchMeas.Distance = (1.0 - rt) * bounds.first->Distance + rt * bounds.second->Distance;
 
   return true;
@@ -117,7 +117,7 @@ bool ImuGravityManager::ComputeSynchronizedMeasure(double lidarTime, GravityMeas
     return false;
   // Interpolate gravity measurement at LiDAR timestamp
   synchMeas.Time = lidarTime;
-  double rt = (lidarTime - bounds.first->Time) / (bounds.second->Time - bounds.first->Time);
+  double rt = Utils::Normalize(lidarTime, bounds.first->Time, bounds.second->Time);
   synchMeas.Acceleration = (1.0 - rt) * bounds.first->Acceleration.normalized() + rt * bounds.second->Acceleration.normalized();
   // Normalize interpolated gravity vector
   if (synchMeas.Acceleration.norm() > 1e-6) // Check to ensure consistent IMU measure
@@ -217,18 +217,24 @@ void LandmarkManager::Reset(bool resetMeas)
 }
 
 // ---------------------------------------------------------------------------
-LandmarkManager::LandmarkManager(double timeOffset, double timeThresh, unsigned int maxMeas,
-                                 bool positionOnly, bool verbose, const std::string& name)
+LandmarkManager::LandmarkManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+                                 Interpolation::Model model, bool positionOnly,
+                                 bool verbose, const std::string& name)
                 : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name),
                   PositionOnly(positionOnly),
                   CovarianceRotation(false)
-{}
+{
+  this->Weight = w;
+  this->Interpolator.SetModel(model);
+}
 
 // ---------------------------------------------------------------------------
 LandmarkManager::LandmarkManager(const LandmarkManager& lmManager)
-                : LandmarkManager(lmManager.GetTimeOffset(),
+                : LandmarkManager(lmManager.GetWeight(),
+                                  lmManager.GetTimeOffset(),
                                   lmManager.GetTimeThreshold(),
                                   lmManager.GetMaxMeasures(),
+                                  lmManager.GetInterpolationModel(),
                                   lmManager.GetPositionOnly(),
                                   lmManager.GetVerbose(),
                                   lmManager.GetSensorName())
@@ -236,6 +242,7 @@ LandmarkManager::LandmarkManager(const LandmarkManager& lmManager)
   this->CovarianceRotation = lmManager.GetCovarianceRotation();
   this->Measures           = lmManager.GetMeasures();
   this->PreviousIt         = this->Measures.begin();
+  this->ClosestIt          = this->Measures.begin();
   // Parameters only useful in local optimization
   this->Weight             = lmManager.GetWeight();
   this->SaturationDistance = lmManager.GetSaturationDistance();
@@ -249,6 +256,7 @@ void LandmarkManager::operator=(const LandmarkManager& lmManager)
   this->TimeThreshold      = lmManager.GetTimeThreshold();
   this->Verbose            = lmManager.GetVerbose();
   this->MaxMeasures        = lmManager.GetMaxMeasures();
+  this->SetInterpolationModel(lmManager.GetInterpolationModel());
   this->PositionOnly       = lmManager.GetPositionOnly();
   this->CovarianceRotation = lmManager.GetCovarianceRotation();
   this->Measures           = lmManager.GetMeasures();
@@ -308,28 +316,39 @@ bool LandmarkManager::UpdateAbsolutePose(const Eigen::Isometry3d& baseTransform,
 }
 
 // ---------------------------------------------------------------------------
- bool LandmarkManager::ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool trackTime)
+bool LandmarkManager::ComputeSynchronizedMeasure(double lidarTime, LandmarkMeasurement& synchMeas, bool trackTime)
 {
   if (!this->HasData())
     return false;
 
   std::lock_guard<std::mutex> lock(this->Mtx);
-  // Compute the two closest measures to current Lidar frame
   lidarTime -= this->TimeOffset;
-  auto bounds = this->GetMeasureBounds(lidarTime, trackTime);
-  if (bounds.first == bounds.second)
-    return false;
+
+  // If data are not initialized or are out of the bounds, recompute interpolation
+  if (!this->TimeInBounds(lidarTime))
+  {
+    // Get window bounds + update ClosestIt
+    auto bounds = this->GetMeasureBounds(lidarTime, trackTime, this->Interpolator.GetNbRequiredData());
+    if (bounds.first == bounds.second)
+      return false;
+    std::vector<PoseStamped> ctrlPoses;
+    ctrlPoses.reserve(std::distance(bounds.first, bounds.second) + 1);
+    for (auto it = bounds.first; it != std::next(bounds.second); ++it)
+      ctrlPoses.emplace_back(it->TransfoRelative, it->Time);
+    this->Interpolator.BuildModel(ctrlPoses);
+  }
+
   // Fill measure
   synchMeas.Time = lidarTime;
-  synchMeas.Covariance = bounds.first->Covariance;
+  synchMeas.Covariance = this->ClosestIt->Covariance;
   // Interpolate landmark relative pose at LiDAR timestamp
-  synchMeas.TransfoRelative = LinearInterpolation(bounds.first->TransfoRelative, bounds.second->TransfoRelative, lidarTime, bounds.first->Time, bounds.second->Time);
+  synchMeas.TransfoRelative = this->Interpolator(lidarTime);
   // Rotate covariance if required
   if (this->CovarianceRotation)
   {
-    Eigen::Isometry3d update = bounds.first->TransfoRelative.inverse() * synchMeas.TransfoRelative;
-    Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(bounds.first->TransfoRelative);
-    synchMeas.Covariance = CeresTools::RotateCovariance(xyzrpy, bounds.first->Covariance, update); // new = init * update
+    Eigen::Isometry3d update = this->ClosestIt->TransfoRelative.inverse() * synchMeas.TransfoRelative;
+    Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(this->ClosestIt->TransfoRelative);
+    synchMeas.Covariance = CeresTools::RotateCovariance(xyzrpy, this->ClosestIt->Covariance, update); // new = init * update
   }
 
   // Update RelativeTransform for AbsolutePose update
@@ -495,6 +514,7 @@ void PoseManager::Reset(bool resetMeas)
   this->SensorManager::Reset(resetMeas);
   this->PrevLidarTime = 0.;
   this->PrevPoseTransform = Eigen::Isometry3d::Identity();
+  this->Interpolator.Reset();
 }
 
 // ---------------------------------------------------------------------------
@@ -506,21 +526,31 @@ bool PoseManager::ComputeSynchronizedMeasure(double lidarTime, PoseMeasurement& 
   std::lock_guard<std::mutex> lock(this->Mtx);
   // Compute the two closest measures to current Lidar frame
   lidarTime -= this->TimeOffset;
-  auto bounds = this->GetMeasureBounds(lidarTime, trackTime);
-  if (bounds.first == bounds.second)
-    return false;
 
-  // Interpolate external pose at LiDAR timestamp
+  if (!this->TimeInBounds(lidarTime))
+  {
+    // Get window bounds + update ClosestIt
+    auto bounds = this->GetMeasureBounds(lidarTime, trackTime, this->Interpolator.GetNbRequiredData());
+
+    if (bounds.first == bounds.second)
+      return false;
+    std::vector<PoseStamped> ctrlPoses;
+    ctrlPoses.reserve(std::distance(bounds.first, bounds.second) + 1);
+    for (auto it = bounds.first; it != std::next(bounds.second); ++it)
+      ctrlPoses.emplace_back(it->Pose, it->Time);
+    this->Interpolator.BuildModel(ctrlPoses);
+  }
+
   synchMeas.Time = lidarTime;
-  synchMeas.Pose = LinearInterpolation(bounds.first->Pose, bounds.second->Pose, lidarTime, bounds.first->Time, bounds.second->Time);
-
-  // Rotated covariance if required
+  // Interpolate external pose at LiDAR timestamp
+  synchMeas.Pose = this->Interpolator(lidarTime);
+  // Rotate covariance if required
   if (this->CovarianceRotation)
   {
-    Eigen::Isometry3d Trel = bounds.second->Pose.inverse() * synchMeas.Pose;
-    Eigen::Vector6d pose = Utils::IsometryToXYZRPY(bounds.second->Pose);
-    synchMeas.Covariance = bounds.second->Covariance;
-    CeresTools::RotateCovariance(pose, synchMeas.Covariance, Trel);
+    Eigen::Isometry3d update = this->ClosestIt->Pose.inverse() * synchMeas.Pose;
+    Eigen::Vector6d pose = Utils::IsometryToXYZRPY(this->ClosestIt->Pose);
+    synchMeas.Covariance = this->ClosestIt->Covariance;
+    CeresTools::RotateCovariance(pose, synchMeas.Covariance, update);
   }
 
   return true;
@@ -591,8 +621,19 @@ bool PoseManager::ComputeConstraint(double lidarTime)
 }
 
 // ---------------------------------------------------------------------------
-bool PoseManager::CheckBounds(std::list<PoseMeasurement>::iterator& prevIt, std::list<PoseMeasurement>::iterator& postIt)
+bool PoseManager::CheckBounds(std::list<PoseMeasurement>::iterator prevIt, std::list<PoseMeasurement>::iterator postIt)
 {
+  if (prevIt == this->Measures.begin() || prevIt == this->Measures.end() ||
+      postIt == this->Measures.begin() || postIt == this->Measures.end())
+    return false;
+  // If the time between the 2 measurements is too short
+  // Do not use the current measures
+  if (postIt->Time - prevIt->Time < 1e-6)
+  {
+    if (this->Verbose)
+      PRINT_INFO("\t pose measures cannot be used for interpolation (they are identical)")
+    return false;
+  }
   // If the time between the 2 measurements is too long and the motion is too large
   // Do not use the current measures
   if (postIt->Time - prevIt->Time > this->TimeThreshold)
@@ -612,9 +653,9 @@ bool PoseManager::CheckBounds(std::list<PoseMeasurement>::iterator& prevIt, std:
     {
       if (this->Verbose)
           PRINT_INFO(std::fixed << std::setprecision(9)
-                      << "\t Measures at time " << prevIt->Time << " and "
-                      << postIt->Time <<" can not be interpolated (too much time difference or too small motion difference)\n"
-                      << std::scientific)
+                                << "\t Pose measures at time " << prevIt->Time << " and " << postIt->Time
+                                << " cannot be used for interpolation (too much time difference and too big motion difference)\n"
+                                << std::scientific)
       return false;
     }
   }
