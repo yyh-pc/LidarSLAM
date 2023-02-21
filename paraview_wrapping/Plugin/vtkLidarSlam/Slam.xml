@@ -560,6 +560,31 @@
         </Documentation>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Interpolation model"
+                         command="SetInterpolation"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Linear"/>
+          <Entry value="1" text="Quadratic"/>
+          <Entry value="2" text="Cubic"/>
+        </EnumerationDomain>
+        <Documentation>
+          Determine the interpolation model which allows to get a pose (position + orientation)
+          at a specific timestamp from a list of stamped poses.
+          This interpolation is used in ego motion, undistortion and when using
+          external poses, raw IMU data or a landmark detector.
+          Options are :
+
+          LINEAR:     linear interpolation between 2 poses
+
+          QUADRATIC : quadratic spline from a set of 3 poses
+
+          CUBIC :     cubic spline from a set of 4 poses
+        </Documentation>
+      </IntVectorProperty>
+
       <PropertyGroup label="General Parameters">
         <Property name="2d mode" />
         <Property name="Use edges" />
@@ -569,6 +594,7 @@
         <Property name="Verbosity level" />
         <Property name="Ego-Motion mode" />
         <Property name="Undistortion mode" />
+        <Property name="Interpolation model"/>
         <Property name="Number of threads" />
         <Property name="Use pose graph" />
       </PropertyGroup>
