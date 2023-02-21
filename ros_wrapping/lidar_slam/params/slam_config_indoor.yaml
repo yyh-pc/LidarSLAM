@@ -168,6 +168,16 @@ slam:
   #  5) 4 + logging/maps memory usage
   verbosity: 3
 
+  # Determine the interpolation model which allows to get a pose (position + orientation)
+  # at a specific timestamp from a list of stamped poses.
+  # This interpolation is used in ego motion, undistortion and when using
+  # external poses, raw IMU data or a landmark detector.
+  # The different interpolation models available are :
+  # 0) LINEAR:     linear interpolation between 2 poses
+  # 1) QUADRATIC : quadratic spline from a set of 3 poses
+  # 2) CUBIC :     cubic spline from a set of 4 poses
+  interpolation_model: 0
+
   logging:
     # Optional logging of computed pose, localization covariance and keypoints of each processed frame.
     #  - A value of 0. will disable logging.
