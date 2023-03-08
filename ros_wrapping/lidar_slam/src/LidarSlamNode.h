@@ -201,6 +201,10 @@ protected:
   // Output pose required frequency (Hz)
   double TrajFrequency = -1;
 
+  // Start time (which corresponds to master Lidar scan reception)
+  // It is stored to get the process time and be able to compensate the motion if required
+  double StartTime = 0.;
+
   // TF stuff
   std::string OdometryFrameId = "odom";       ///< Frame in which SLAM odometry and maps are expressed.
   std::string TrackingFrameId = "base_link";  ///< Frame to track (ensure a valid TF tree is published).

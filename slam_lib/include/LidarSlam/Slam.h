@@ -209,8 +209,6 @@ public:
   // current pose time, its frame id will be used if no other is specified, ...
   void AddFrames(const std::vector<PointCloud::Ptr>& frames);
 
-  // Get the computed world transform so far, but compensating SLAM computation duration latency.
-  Eigen::Isometry3d GetLatencyCompensatedWorldTransform() const;
   // Get keypoints maps
   // If clean is true, the moving objects are removed from map
   PointCloud::Ptr GetMap(Keypoint k, bool clean = false) const;
@@ -305,15 +303,12 @@ public:
   SetMacro(LogOnlyKeyframes, bool)
   GetMacro(LogOnlyKeyframes, bool)
 
-  // Warning! Undefined behavior if LogStates is empty
-  LidarState GetLastState();
   GetMacro(LogStates, std::list<LidarState>)
   // Get the last states since last input frame timestamp
   // at a specified frequency
   // This will use external sensor measurements and/or poses interpolation
   std::vector<LidarState> GetLastStates(double freq = -1);
-
-  GetMacro(Latency, double)
+  LidarState GetLastState() {return this->GetLastStates().front();};
 
   // ---------------------------------------------------------------------------
   //   Graph parameters
@@ -765,10 +760,6 @@ private:
   bool Valid = true;
   // Store the keyframe information
   bool IsKeyFrame = true;
-
-  // [s] SLAM computation duration of last processed frame (~Tworld delay)
-  // used to compute latency compensated pose
-  double Latency;
 
   // Model used to interpolate between poses
   // This model can be linear, quadratic or cubic

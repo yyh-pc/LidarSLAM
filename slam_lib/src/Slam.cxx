@@ -483,7 +483,6 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   }
 
   // Frame processing duration
-  this->Latency = Utils::Timer::Stop("SLAM frame processing");
   this->NbrFrameProcessed++;
   IF_VERBOSE(1, Utils::Timer::StopAndDisplay("SLAM frame processing"));
 }
@@ -866,41 +865,6 @@ void Slam::ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager)
 //==============================================================================
 //   SLAM results getters
 //==============================================================================
-
-//-----------------------------------------------------------------------------
-Eigen::Isometry3d Slam::GetLatencyCompensatedWorldTransform() const
-{
-  // Get 2 last transforms
-  unsigned int trajectorySize = this->LogStates.size();
-  if (trajectorySize == 0)
-    return Eigen::Isometry3d::Identity();
-  else if (trajectorySize == 1)
-    return this->LogStates.back().Isometry;
-  auto itSt = this->LogStates.end();
-  const LidarState& current = *(--itSt);
-  const LidarState& previous = *(--itSt);
-
-  // Linearly compute normalized timestamp of Hpred.
-  // We expect H0 and H1 to match with time 0 and 1.
-  // If timestamps are not defined or too close, extrapolation is impossible.
-  if (std::abs(current.Time - previous.Time) < 1e-6)
-  {
-    PRINT_WARNING("Unable to compute latency-compensated transform : timestamps undefined or too close.");
-    return current.Isometry;
-  }
-  // If requested extrapolation timestamp is too far from previous frames timestamps, extrapolation is impossible.
-  if (std::abs(this->Latency / (current.Time - previous.Time)) > this->MaxExtrapolationRatio)
-  {
-    PRINT_WARNING("Unable to compute latency-compensated transform : extrapolation time is too far.");
-    return current.Isometry;
-  }
-
-  // Create vector of PoseStamped for extrapolation
-  std::vector<PoseStamped> vecPose({{current.Isometry, current.Time}, {previous.Isometry, previous.Time}});
-
-  Eigen::Isometry3d Hpred = Interpolation::Interpolate(vecPose, current.Time + this->Latency, Interpolation::Model::LINEAR);
-  return Hpred;
-}
 
 //-----------------------------------------------------------------------------
 std::unordered_map<std::string, double> Slam::GetDebugInformation() const
@@ -1558,19 +1522,6 @@ void Slam::SetUndistortion(UndistortionMode undistMode)
 }
 
 //-----------------------------------------------------------------------------
-LidarState Slam::GetLastState()
-{
-  if (this->LogStates.empty())
-  {
-    LidarSlam::LidarState state;
-    state.Isometry = this->TworldInit;
-    return state;
-  }
-
-  return this->LogStates.back();
-}
-
-//-----------------------------------------------------------------------------
 std::vector<LidarState> Slam::GetLastStates(double freq)
 {
   if (this->LogStates.empty())
@@ -1595,7 +1546,9 @@ std::vector<LidarState> Slam::GetLastStates(double freq)
   if (last.Time < prevLast.Time)
     std::swap(last, prevLast);
 
-  double time = prevLast.Time + 1. / freq;
+  double period = 1. / freq;
+
+  double time = prevLast.Time + period;
   std::vector<LidarState> lastStates;
   lastStates.reserve(std::ceil((last.Time + 1e-6 - prevLast.Time) * freq));
 
@@ -1604,32 +1557,20 @@ std::vector<LidarState> Slam::GetLastStates(double freq)
   std::vector<PoseStamped> ctrlPoses = this->GetStatesWindow(std::prev(this->LogStates.end()), nbRequiredData);
   Interpolation::Trajectory interpolator(this->Interpolation, ctrlPoses);
 
-  if (!this->PoseHasData())
+  while (time < last.Time - std::min(1e-6, period))
   {
-    while (time < last.Time - 1e-6)
-    {
-      LidarSlam::LidarState state;
-      state.Time = time;
-      state.Covariance = last.Covariance;
-      state.Isometry = interpolator(time);
-      lastStates.emplace_back(state);
-      time += 1. / freq;
-    }
-    lastStates.emplace_back(last);
-  }
-  else
-  {
-    while (time < last.Time - 1e-6)
-    {
-      LidarSlam::LidarState state;
-      state.Time = time;
-      state.Covariance = last.Covariance;
+    LidarSlam::LidarState state;
+    state.Time = time;
+    state.Covariance = last.Covariance;
+    if (this->PoseHasData())
       state.Isometry = this->GetTworld(time, true);
-      lastStates.emplace_back(state);
-      time += 1. / freq;
-    }
-    lastStates.emplace_back(last);
+    else
+      state.Isometry = interpolator(time);
+    lastStates.emplace_back(state);
+    time += period;
   }
+  lastStates.emplace_back(last);
+
   return lastStates;
 }
 
@@ -2590,7 +2531,6 @@ Eigen::Isometry3d Slam::GetTworld(double time, bool trackTime)
 
   if (time < this->LogStates.front().Time)
   {
-
     PRINT_WARNING("The oldest stored state is newer than the requested time. The oldest state is returned. ")
     return this->LogStates.front().Isometry;
   }
