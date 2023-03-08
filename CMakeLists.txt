@@ -26,6 +26,7 @@ endif()
 
 # Install parameters
 set(SLAM_INSTALL_LIBRARY_DIR "lib"     CACHE STRING "Directory where to install LidarSlam libraries")
+set(SLAM_INSTALL_BINARY_DIR  "bin"     CACHE STRING "Directory where to install LidarSlam dll")
 set(SLAM_INSTALL_INCLUDE_DIR "include" CACHE STRING "Directory where to install LidarSlam header files")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 
