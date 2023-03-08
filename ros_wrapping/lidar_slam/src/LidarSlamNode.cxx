@@ -750,6 +750,10 @@ void LidarSlamNode::PublishOutput()
         tfMsg.transform = Utils::IsometryToTfMsg(state.Isometry);
         this->TfBroadcaster.sendTransform(tfMsg);
       }
+
+      // Enable subscribers to receive those messages
+      // Warning : this may alter cout working in this code area
+      ros::Duration(1e-6).sleep();
     }
   }
 
