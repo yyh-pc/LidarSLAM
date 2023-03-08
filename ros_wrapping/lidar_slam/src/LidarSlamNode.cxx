@@ -713,36 +713,40 @@ bool LidarSlamNode::UpdateBaseToLidarOffset(const std::string& lidarFrameId, uin
 //------------------------------------------------------------------------------
 void LidarSlamNode::PublishOutput()
 {
-  LidarSlam::LidarState currentState = this->LidarSlam.GetLastState();
-  double currentTime = currentState.Time;
+  // Get current SLAM poses in WORLD coordinates at the specified frequency
+  std::vector<LidarSlam::LidarState> lastStates = this->LidarSlam.GetLastStates(this->TrajFrequency);
   // Publish SLAM pose
   if (this->Publish[POSE_ODOM] || this->Publish[POSE_TF])
   {
-    // Publish as odometry msg
-    if (this->Publish[POSE_ODOM])
+    for (const auto& state : lastStates)
     {
-      nav_msgs::Odometry odomMsg;
-      odomMsg.header.stamp = ros::Time(currentTime);
-      odomMsg.header.frame_id = this->OdometryFrameId;
-      odomMsg.child_frame_id = this->TrackingFrameId;
-      odomMsg.pose.pose = Utils::IsometryToPoseMsg(currentState.Isometry);
-      // Note : in eigen 3.4 iterators are available on matrices directly
-      //        >> std::copy(currentState.Covariance.begin(), currentState.Covariance.end(), confidenceMsg.covariance.begin());
-      // For now the only way is to copy or iterate on indices :
-      for (unsigned int i = 0; i < currentState.Covariance.size(); ++i)
-        odomMsg.pose.covariance[i] = currentState.Covariance(i);
-      this->Publishers[POSE_ODOM].publish(odomMsg);
-    }
+      // Publish as odometry msg
+      if (this->Publish[POSE_ODOM])
+      {
+        nav_msgs::Odometry odomMsg;
+        odomMsg.header.stamp = ros::Time(state.Time);
+        odomMsg.header.frame_id = this->OdometryFrameId;
+        odomMsg.child_frame_id = this->TrackingFrameId;
+        odomMsg.pose.pose = Utils::IsometryToPoseMsg(state.Isometry);
+        // Note : in eigen 3.4 iterators are available on matrices directly
+        //        >> std::copy(state.Covariance.begin(), state.Covariance.end(), confidenceMsg.covariance.begin());
+        // For now the only way is to copy or iterate on indices :
+        for (unsigned int i = 0; i < state.Covariance.size(); ++i)
+          odomMsg.pose.covariance[i] = state.Covariance(i);
 
-    // Publish as TF from OdometryFrameId to TrackingFrameId
-    if (this->Publish[POSE_TF])
-    {
-      geometry_msgs::TransformStamped tfMsg;
-      tfMsg.header.stamp = ros::Time(currentTime);
-      tfMsg.header.frame_id = this->OdometryFrameId;
-      tfMsg.child_frame_id = this->TrackingFrameId;
-      tfMsg.transform = Utils::IsometryToTfMsg(currentState.Isometry);
-      this->TfBroadcaster.sendTransform(tfMsg);
+        this->Publishers[POSE_ODOM].publish(odomMsg);
+      }
+
+      // Publish as TF from OdometryFrameId to TrackingFrameId
+      if (this->Publish[POSE_TF])
+      {
+        geometry_msgs::TransformStamped tfMsg;
+        tfMsg.header.stamp = ros::Time(state.Time);
+        tfMsg.header.frame_id = this->OdometryFrameId;
+        tfMsg.child_frame_id = this->TrackingFrameId;
+        tfMsg.transform = Utils::IsometryToTfMsg(state.Isometry);
+        this->TfBroadcaster.sendTransform(tfMsg);
+      }
     }
   }
 
