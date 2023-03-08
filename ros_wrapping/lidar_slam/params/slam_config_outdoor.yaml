@@ -28,6 +28,8 @@ output:
     tf: true               # Publish SLAM pose as a TF from 'odometry_frame' to 'tracking_frame'.
     predicted_odom: false  # Publish latency-corrected SLAM pose as an Odometry msg on 'slam_predicted_odom' topic (default: false).
     predicted_tf: false    # Publish latency-corrected SLAM pose as a TF from 'odometry_frame' to '<tracking_frame>_prediction' (default: false).
+    frequency: -1          # Frequency of output SLAM pose (Hz). For each new scan, all previous poses since last scan
+                           # are published following this frequency. If negative, publish at SLAM frequency.
   maps:
     edges: true            # Publish edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/edges'.
     intensity_edges: true  # Publish intensity edges keypoints map as a LidarPoint PointCloud2 msg to topic 'maps/intensity_edges'.
