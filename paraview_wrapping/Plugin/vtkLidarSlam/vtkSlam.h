@@ -177,6 +177,9 @@ public:
   // Load trajectory from a file and recompute maps
   void SetTrajectory(const std::string& fileName);
 
+  virtual int GetInterpolation();
+  virtual void SetInterpolation(int model);
+
   // Set measurements to Slam algo
   virtual void SetSensorData(const std::string& fileName);
 

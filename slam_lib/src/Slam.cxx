@@ -79,6 +79,7 @@
 #include "LidarSlam/Utilities.h"
 #include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/ConfidenceEstimators.h"
+#include "LidarSlam/InterpolationModels.h"
 
 // CERES
 #include <ceres/solver.h>
@@ -92,6 +93,23 @@
 
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
+
+// Update sensors' parameters
+#define ExtSensorMacro(inFuncProto) \
+{ \
+  if (this->WheelOdomManager) \
+    this->WheelOdomManager->inFuncProto; \
+  if (this->GravityManager) \
+    this->GravityManager->inFuncProto; \
+  if (this->ImuManager) \
+    this->ImuManager->inFuncProto; \
+  for (auto& idLm : this->LandmarksManagers) \
+    idLm.second.inFuncProto; \
+  if (this->GpsManager) \
+    this->GpsManager->inFuncProto; \
+  if (this->PoseManager) \
+    this->PoseManager->inFuncProto; \
+}
 
 namespace LidarSlam
 {
@@ -185,7 +203,6 @@ void Slam::Reset(bool resetLog)
   this->Tworld = Eigen::Isometry3d::Identity();
   this->TworldInit = Eigen::Isometry3d::Identity();
   this->Trelative = Eigen::Isometry3d::Identity();
-  this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
 
   // Reset pose uncertainty
   this->LocalizationUncertainty = LocalOptimizer::RegistrationError();
@@ -240,18 +257,19 @@ void Slam::SetNbThreads(int n)
 void Slam::SetVerbosity(int verbosity)
 {
   this->Verbosity = verbosity;
-  if (this->WheelOdomManager)
-    this->WheelOdomManager->SetVerbose(verbosity >= 3);
-  if (this->GravityManager)
-    this->GravityManager->SetVerbose(verbosity >= 3);
-  if (this->ImuManager)
-    this->ImuManager->SetVerbose(verbosity >= 3);
+  ExtSensorMacro(SetVerbose(verbosity >= 3));
+}
+
+//-----------------------------------------------------------------------------
+void Slam::SetInterpolation(Interpolation::Model model)
+{
+  this->Interpolation = model;
   for (auto& idLm : this->LandmarksManagers)
-    idLm.second.SetVerbose(verbosity >= 3);
-  if (this->GpsManager)
-    this->GpsManager->SetVerbose(verbosity >= 3);
+    idLm.second.SetInterpolationModel(model);
   if (this->PoseManager)
-    this->PoseManager->SetVerbose(verbosity >= 3);
+    this->PoseManager->SetInterpolationModel(model);
+  if (this->ImuManager)
+    this->ImuManager->SetInterpolationModel(model);
 }
 
 //-----------------------------------------------------------------------------
@@ -421,13 +439,6 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   {
     SET_COUT_FIXED_PRECISION(3);
     std::cout << "========== SLAM results ==========\n";
-    if (this->Undistortion)
-    {
-      Eigen::Isometry3d motion = this->WithinFrameMotion.GetTransformRange();
-      std::cout << "Within frame motion:\n"
-                   " translation = [" << motion.translation().transpose()                                        << "] m\n"
-                   " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(motion.linear())).transpose() << "] °\n";
-    }
     std::cout << "Ego-Motion:\n"
                  " translation = [" << this->Trelative.translation().transpose()                                        << "] m\n"
                  " rotation    = [" << Utils::Rad2Deg(Utils::RotationMatrixToRPY(this->Trelative.linear())).transpose() << "] °\n"
@@ -884,8 +895,10 @@ Eigen::Isometry3d Slam::GetLatencyCompensatedWorldTransform() const
     return current.Isometry;
   }
 
-  // Extrapolate H0 and H1 to get expected Hpred at current time
-  Eigen::Isometry3d Hpred = LinearInterpolation(previous.Isometry, current.Isometry, current.Time + this->Latency, previous.Time, current.Time);
+  // Create vector of PoseStamped for extrapolation
+  std::vector<PoseStamped> vecPose({{current.Isometry, current.Time}, {previous.Isometry, previous.Time}});
+
+  Eigen::Isometry3d Hpred = Interpolation::Interpolate(vecPose, current.Time + this->Latency, Interpolation::Model::LINEAR);
   return Hpred;
 }
 
@@ -1111,53 +1124,27 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
   }
   else
   {
-    // If LogStates is not empty, find the time in LogStates which is relative to the input time
-    // Init Tworld with external pose at this time
-    // Update LogStates and maps
-    double stateTime = time;
-    auto itSt = this->LogStates.end();
-    if (time < 0)
-    {
-      stateTime = this->LogStates.back().Time;
-      --itSt;
-    }
-    else
-    {
-      // Get iterator pointing to the first state after time
-      auto postIt = std::upper_bound(this->LogStates.begin(),
-                                      this->LogStates.end(),
-                                      time,
-                                      [&](double time, const LidarState& state) {return time < state.Time;});
-      // Deduce the iterator pointing to the last state before time
-      itSt = postIt;
-      --itSt;
-      stateTime = itSt->Time;
-      if (postIt == this->LogStates.end() && itSt->Time != time)
-        PRINT_WARNING("Time " << time << " has not been reached yet."
-                      "Use the time of the last state " << itSt->Time << "to init Tworld.")
-    }
+    // If LogStates is not empty, find the closest state to time in LogStates
+    // Update this state with the external pose at this time
+    // Update LogStates and maps relatively
+    auto itSt = time < 0? std::prev(this->LogStates.end()) : this->GetClosestState(time);
 
-    // Compute the external pose at stateTime
+    // Compute the external pose at the time of the found state
     ExternalSensors::PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
-    if (!this->PoseManager->ComputeSynchronizedMeasureBase(stateTime, synchMeas))
+    if (!this->PoseManager->ComputeSynchronizedMeasureBase(itSt->Time, synchMeas))
     {
       PRINT_WARNING("Cannot find synchronized pose measurement : Lidar pose not initialized")
       return false;
     }
 
-    Eigen::Isometry3d odomInv = itSt->Isometry.inverse();
+    Eigen::Isometry3d update = synchMeas.Pose * itSt->Isometry.inverse();
     for (auto& state: this->LogStates)
     {
-      Eigen::Isometry3d tRelative = odomInv * state.Isometry;
-      Eigen::Isometry3d extPose   = synchMeas.Pose * tRelative;
-
       // Rotate covariance
       Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(state.Isometry);
-      Eigen::Isometry3d odom2Ext = state.Isometry.inverse() * extPose;
-      CeresTools::RotateCovariance(initPose, state.Covariance, odom2Ext); // new = init * odom2Ext
-
-      // Update pose
-      state.Isometry = extPose;
+      CeresTools::RotateCovariance(initPose, state.Covariance, update, true); // new = update * init
+      // Update isometry
+      state.Isometry = update * state.Isometry;
     }
 
     // Update Tworld and TworldInit
@@ -1218,17 +1205,17 @@ void Slam::ComputeEgoMotion()
        !externalAvailable)))
   {
     // Estimate new Tworld with a constant velocity model
-    auto itSt = this->LogStates.end();
-
-    const double t1 = (--itSt)->Time;
-    const Eigen::Isometry3d& T1 = itSt->Isometry;
-    const double t0 = (--itSt)->Time;
-    const Eigen::Isometry3d& T0 = itSt->Isometry;
-    if (std::abs((this->CurrentTime - t1) / (t1 - t0)) > this->MaxExtrapolationRatio)
+    auto lastItSt = std::prev(this->LogStates.end());
+    const double t1 = lastItSt->Time;
+    const Eigen::Isometry3d& T1 = lastItSt->Isometry;
+    const double t0 = std::prev(lastItSt)->Time;
+    const Eigen::Isometry3d& T0 = std::prev(lastItSt)->Isometry;
+    if (std::abs(Utils::Normalize(this->CurrentTime, t0, t1)) > this->MaxExtrapolationRatio)
       PRINT_WARNING("Unable to extrapolate scan pose from previous motion : extrapolation time is too far.")
     else
     {
-      Eigen::Isometry3d nextTworldEstimation = LinearInterpolation(T0, T1, this->CurrentTime, t0, t1);
+      // Estimate new Tworld with a linear extrapolation
+      Eigen::Isometry3d nextTworldEstimation = Interpolation::LinearInterpo({T0,t0}, {T1, t1}, this->CurrentTime);
       this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
     }
   }
@@ -1310,35 +1297,46 @@ void Slam::Localization()
   // Store previous tworld for next iteration
   this->Tworld = this->Tworld * this->Trelative;
 
-  // Init undistorted keypoints clouds from raw points
-  // The iteration is not directly on Keypoint types
-  // because of openMP behaviour which needs int iteration on MSVC
-  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
-  #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
-  for (int i = 0; i < nbKeypointTypes; ++i)
-  {
-    Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
-    this->CurrentUndistortedKeypoints[k].reset(new PointCloud);
-    *this->CurrentUndistortedKeypoints[k] = *this->CurrentRawKeypoints[k];
-  }
-
-  // Init and run undistortion if required
-  if (this->Undistortion)
+  if (!this->Undistortion)
+    this->CurrentUndistortedKeypoints = this->CurrentRawKeypoints;
+  else
   {
     IF_VERBOSE(3, Utils::Timer::Init("Localization : initial undistortion"));
-    if (this->Undistortion != UndistortionMode::EXTERNAL)
+    // Init undistorted keypoints clouds from raw points
+    // Undistort the keypoints with current information to represent them in base frame at current time
+
+    // The iteration is not directly on Keypoint types
+    // because of openMP behaviour which needs int iteration on MSVC
+    int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+    #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
+    for (int i = 0; i < nbKeypointTypes; ++i)
     {
-      // Init the within frame motion interpolator time bounds
-      this->InitUndistortion();
-      // Undistort keypoints clouds
-      this->RefineUndistortion();
-    }
-    else if (this->PoseHasData())
-    {
-      // Get synchronized point pose relatively to frame
-      // CurrentUndistortedKeypoints are represented in base frame
-      for (auto k : this->UsableKeypoints)
-        this->UndistortWithPoseMeasurement(this->CurrentUndistortedKeypoints[k], this->CurrentTime);
+      Keypoint k = static_cast<Keypoint>(this->UsableKeypoints[i]);
+      // Sort points by time to speed up search
+      if (!std::is_sorted(this->CurrentRawKeypoints[k]->points.begin(), this->CurrentRawKeypoints[k]->points.end(),
+                         [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;}))
+      {
+        std::sort(this->CurrentRawKeypoints[k]->points.begin(), this->CurrentRawKeypoints[k]->points.end(),
+                  [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
+      }
+      this->CurrentUndistortedKeypoints[k].reset(new PointCloud);
+      *this->CurrentUndistortedKeypoints[k] = *this->CurrentRawKeypoints[k];
+
+      if (this->Undistortion != UndistortionMode::EXTERNAL)
+      {
+        // Get base frame at current time in log states and represent all the points in this frame
+        // using pose interpolation with selected model
+        this->UndistortWithLogStates(this->CurrentRawKeypoints[k],
+                                     this->CurrentUndistortedKeypoints[k],
+                                     true); // true -> current Tworld is used to undistort with LogStates
+      }
+      else if (this->PoseHasData())
+      {
+        // Get base frame at current tme in pose measurements and represent all the points in this frame
+        // using pose interpolation with selected model
+        this->UndistortWithPoseMeasurement(this->CurrentUndistortedKeypoints[k],
+                                           this->CurrentTime);
+      }
     }
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : initial undistortion"));
@@ -1349,7 +1347,7 @@ void Slam::Localization()
 
   // The iteration is not directly on Keypoint types
   // because of openMP behaviour which needs int iteration on MSVC
-  nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
+  int nbKeypointTypes = static_cast<int>(this->UsableKeypoints.size());
   #pragma omp parallel for num_threads(std::min(this->NbThreads, nbKeypointTypes))
   for (int i = 0; i < nbKeypointTypes; ++i)
   {
@@ -1414,14 +1412,9 @@ void Slam::Localization()
                                                      this->LocalizationMatchingResults);
   this->Valid = this->LocalizationUncertainty.Valid;
 
+  // Reset state to previous one to avoid instability
   if (!this->Valid)
-  {
-    // Reset state to previous one to avoid instability
-    this->Tworld = this->LogStates.empty() ? Eigen::UnalignedIsometry3d::Identity() : this->LogStates.back().Isometry;
-
-    if (this->Undistortion)
-      this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
-  }
+    this->Tworld = this->LogStates.empty()? this->TworldInit : Eigen::Isometry3d(this->LogStates.back().Isometry);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
 
@@ -1505,14 +1498,17 @@ void Slam::UpdateMapsUsingTworld()
 //-----------------------------------------------------------------------------
 void Slam::LogCurrentFrameState()
 {
-  // The two last poses are logged in any case for motion extrapolation and undistortion
-  // So, if LogOnlyKeyframes is required, remove the second last pose at each iteration if it was not a keyframe
-  if (this->LogStates.size() > 1)
+  // Required number of data to perform interpolation
+  size_t requiredNbData = Interpolation::ModelRequiredNbData.at(this->Interpolation);
+  // Last poses are logged in any case for motion extrapolation and undistortion
+  // If LogOnlyKeyframes is required, remove the no keyframe logStates (those before required logStates)
+  if (this->LogStates.size() > requiredNbData - 1 && this->LogOnlyKeyframes)
   {
-    auto itSt = this->LogStates.end();
-    --itSt; --itSt;
-    if (this->LogOnlyKeyframes && !itSt->IsKeyFrame)
-      this->LogStates.erase(itSt);
+    auto itLastRequired = this->LogStates.end();
+    std::advance(itLastRequired, -1 * (requiredNbData - 1));
+    auto itSt = this->LogStates.begin();
+    while (itSt != itLastRequired)
+      itSt = itSt->IsKeyFrame ? ++itSt : this->LogStates.erase(itSt);
   }
   // Save current state to log buffer.
   // This buffer will be processed in the pose graph optimization
@@ -1546,7 +1542,8 @@ void Slam::LogCurrentFrameState()
   this->LogStates.emplace_back(state);
   // Remove the oldest logged states
   auto itSt = this->LogStates.begin();
-  while (this->CurrentTime - itSt->Time > this->LoggingTimeout && this->LogStates.size() > 2)
+  while (this->CurrentTime - itSt->Time > this->LoggingTimeout &&
+         this->LogStates.size() > requiredNbData)
   {
     ++itSt;
     this->LogStates.pop_front();
@@ -1586,9 +1583,8 @@ std::vector<LidarState> Slam::GetLastStates(double freq)
   if (freq < 0 || this->LogStates.size() == 1)
     return {this->LogStates.back()};
 
-  auto itLogStates = this->LogStates.end();
-  LidarState last = *(--itLogStates);
-  LidarState prevLast = *(--itLogStates);
+  LidarState last     = *(std::prev(this->LogStates.end()));
+  LidarState prevLast = *(std::prev(std::prev(this->LogStates.end())));
 
   if (std::abs(last.Time - prevLast.Time) > 1.0)
   {
@@ -1603,9 +1599,13 @@ std::vector<LidarState> Slam::GetLastStates(double freq)
   std::vector<LidarState> lastStates;
   lastStates.reserve(std::ceil((last.Time + 1e-6 - prevLast.Time) * freq));
 
+  // Create interpolation model from last states
+  unsigned int nbRequiredData = Interpolation::ModelRequiredNbData.at(this->Interpolation);
+  std::vector<PoseStamped> ctrlPoses = this->GetStatesWindow(std::prev(this->LogStates.end()), nbRequiredData);
+  Interpolation::Trajectory interpolator(this->Interpolation, ctrlPoses);
+
   if (!this->PoseHasData())
   {
-    LinearTransformInterpolator<double> interpolator(prevLast.Isometry, last.Isometry, prevLast.Time, last.Time);
     while (time < last.Time - 1e-6)
     {
       LidarSlam::LidarState state;
@@ -2000,7 +2000,12 @@ LocalOptimizer::RegistrationError Slam::EstimatePose(const std::map<Keypoint, Po
 
     // Optionally refine undistortion
     if (params.Undistortion == UndistortionMode::REFINED)
-      this->RefineUndistortion();
+    {
+      for (auto k : this->UsableKeypoints)
+        this->UndistortWithLogStates(this->CurrentRawKeypoints[k],
+                                     this->CurrentUndistortedKeypoints[k],
+                                     true); // true -> current Tworld is used to undistort with LogStates
+    }
 
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("  Pose estimation : LM optim"));
 
@@ -2022,54 +2027,157 @@ LocalOptimizer::RegistrationError Slam::EstimatePose(const std::map<Keypoint, Po
 //   Undistortion helpers
 //==============================================================================
 
-//-----------------------------------------------------------------------------
-Eigen::Isometry3d Slam::InterpolateScanPose(double time)
+std::list<LidarState>::const_iterator Slam::GetClosestState(double queryTime) const
 {
-  if (this->LogStates.empty())
-    return this->Tworld;
+  // Edge cases, should be well processed outside of this function
+  if (this->LogStates.empty() || this->LogStates.size() == 1)
+    return this->LogStates.begin();
 
-  const double prevPoseTime = this->LogStates.back().Time;
-  if (std::abs(time / (this->CurrentTime - prevPoseTime)) > this->MaxExtrapolationRatio)
+  // Get first state after input time
+  auto queryIt = std::upper_bound(this->LogStates.begin(),
+                                  this->LogStates.end(),
+                                  queryTime,
+                                  [&](double t, const LidarState& state) {return t < state.Time;});
+
+  // Deduce closest state to input time
+  if (queryIt == this->LogStates.end())
+    --queryIt;
+  else if (queryIt != LogStates.begin())
   {
-    PRINT_WARNING("Unable to interpolate scan pose from motion : extrapolation time is too far.");
-    return this->Tworld;
+    if (std::abs(queryIt->Time - queryTime) > std::abs(std::prev(queryIt)->Time - queryTime))
+      --queryIt;
   }
-
-  return LinearInterpolation(this->LogStates.back().Isometry, this->Tworld, this->CurrentTime + time, prevPoseTime, this->CurrentTime);
+  return queryIt;
 }
 
 //-----------------------------------------------------------------------------
-void Slam::InitUndistortion()
+std::vector<PoseStamped> Slam::GetStatesWindow(std::list<LidarState>::const_iterator queryIt, unsigned int windowWidth) const
 {
-  // Get 'time' field range
-  double frameFirstTime = std::numeric_limits<double>::max();
-  double frameLastTime  = std::numeric_limits<double>::lowest();
-  for (auto k : this->UsableKeypoints)
+  // Check times validity depending on chronology
+  // Times must follow the required chronology + not be too far
+  // from each others.
+  auto checkTimes = [&](double t1, double t2, int chrono = 0)
   {
-    for (const auto& point : *this->CurrentUndistortedKeypoints[k])
+    return ((chrono == 0 && std::abs(t2 - t1) > 1e-6) ||    // chronology does not matter
+            (chrono == 1 && t2 - t1 > 1e-6)           ||    // chronological order
+            (chrono == 2 && t1 - t2 > 1e-6))          &&    // antichronological order
+           std::abs(t1 - t2) < this->SensorTimeThreshold; // Time duration is not too long
+  };
+
+  auto prevNeighIt = queryIt;
+  auto nextNeighIt = queryIt;
+
+  int chrono = 0;
+  // Increase the window until the number of data is reached
+  while (std::distance(prevNeighIt, nextNeighIt) < windowWidth - 1)
+  {
+    // Check the next oldest neighbor
+    bool prevIsValid = prevNeighIt != this->LogStates.begin() &&
+                       checkTimes(std::prev(prevNeighIt)->Time, prevNeighIt->Time, chrono);
+    // Check the next newest neighbor
+    bool nextIsValid = std::next(nextNeighIt) != this->LogStates.end() &&
+                       checkTimes(std::next(nextNeighIt)->Time, nextNeighIt->Time, chrono);
+
+    // Break if none is valid
+    if (!prevIsValid && !nextIsValid)
+      break;
+
+    // Select the best valid one
+    if (prevIsValid &&
+        (!nextIsValid || std::abs(std::next(nextNeighIt)->Time - queryIt->Time) >
+                         std::abs(std::prev(prevNeighIt)->Time - queryIt->Time)))
     {
-      frameFirstTime = std::min(frameFirstTime, point.time);
-      frameLastTime  = std::max(frameLastTime, point.time);
+      // The oldest is the best
+      --prevNeighIt;
+      // Set chronology for next added elements
+      chrono = queryIt->Time > prevNeighIt->Time ? 1 : 2;
+    }
+    else
+    {
+      // The newest is the best
+      ++nextNeighIt;
+      // Set chronology for next added elements
+      chrono = queryIt->Time < nextNeighIt->Time ? 1 : 2;
     }
   }
+  ++nextNeighIt;
 
-  // Update interpolator timestamps and reset transforms
-  this->WithinFrameMotion.SetTimes(frameFirstTime, frameLastTime);
-  this->WithinFrameMotion.SetTransforms(Eigen::Isometry3d::Identity(), Eigen::Isometry3d::Identity());
+  std::vector<PoseStamped> statesWindow;
+  statesWindow.reserve(std::distance(prevNeighIt, nextNeighIt));
+  for (auto it = prevNeighIt; it != nextNeighIt; ++it)
+    statesWindow.emplace_back(it->Isometry, it->Time);
 
-  // Check time values
-  if (this->WithinFrameMotion.GetTimeRange() < 1e-6)
+  return statesWindow;
+}
+
+//-----------------------------------------------------------------------------
+void Slam::UndistortWithLogStates(PointCloud::Ptr pcIn, PointCloud::Ptr pcOut,
+                                  bool addTworld,
+                                  int startIdx, int endIdx,
+                                  Eigen::Isometry3d baseToPointsRef,
+                                  double timeOffset) const
+{
+  if ((!addTworld && this->LogStates.size() < 2) ||
+      (addTworld && this->LogStates.empty()))
   {
-    // If frame duration is 0, it means that the time field is constant and cannot be used.
-    // We reset timestamps to 0, to ensure no time offset will be used.
-    PRINT_WARNING("'time' field is not properly set (constant value) and cannot be used for undistortion.");
-    this->WithinFrameMotion.SetTimes(0., 0.);
+    PRINT_WARNING("Not enough states logged, cannot undistort")
+    return;
   }
-  else if (this->WithinFrameMotion.GetTimeRange() > 10.)
+
+  // Build vector to compute interpolation model with previous logstates
+  auto lastStateIt = std::prev(this->LogStates.end());
+  unsigned int nbRequiredData = Interpolation::ModelRequiredNbData.at(this->Interpolation);
+  if (addTworld)
+    --nbRequiredData; // Tworld will be added
+  std::vector<PoseStamped> ctrlPoses = this->GetStatesWindow(lastStateIt, nbRequiredData);
+
+  Eigen::Isometry3d refFrameInv;
+  double refTime;
+
+  // If addTworld, Tworld is also used to undistort
+  if (addTworld)
   {
-    // If frame duration is bigger than 10 seconds, it is probably wrongly set
-    PRINT_WARNING("'time' field looks not properly set (frame duration > 10 s) and can lead to faulty undistortion.");
+    // Check if current time is consistent chronologically with previous times
+    if (ctrlPoses.size() > 1 &&
+        (ctrlPoses.back().Time - std::prev(std::prev(ctrlPoses.end()))->Time) *
+        (this->CurrentTime - ctrlPoses.back().Time) < 0)
+      // If times are not consistent, just keep last pose
+      ctrlPoses = {ctrlPoses.back()};
+
+    // Add Tworld to control poses
+    ctrlPoses.emplace_back(this->Tworld, this->CurrentTime);
+    // Update reference
+    refFrameInv = this->Tworld.inverse();
+    refTime = this->CurrentTime;
   }
+  else
+  {
+    refFrameInv = lastStateIt->Isometry.inverse();
+    refTime = lastStateIt->Time;
+  }
+
+  // Put the logStates into the ref frame
+  for (auto& p : ctrlPoses)
+    p.Pose = refFrameInv * p.Pose;
+
+  Interpolation::Trajectory motionInterpo(this->Interpolation, ctrlPoses);
+
+  // If interpolation is unusable, don't undistorted
+  if (!motionInterpo.CanInterpolate())
+  {
+    PRINT_WARNING("Cannot perform undistortion with logged states");
+    return ;
+  }
+
+  if (endIdx < 0)
+    endIdx = pcIn->size();
+
+  // Undistort
+  #pragma omp parallel for num_threads(this->NbThreads)
+  for (int i = startIdx; i < endIdx; ++i)
+    Utils::TransformPoint(pcIn->at(i), pcOut->at(i), motionInterpo(refTime + pcIn->at(i).time + timeOffset) * baseToPointsRef);
+
+  PRINT_VERBOSE(3, "Undistortion performed using SLAM poses interpolation")
 }
 
 //-----------------------------------------------------------------------------
@@ -2097,10 +2205,8 @@ void Slam::UndistortWithPoseMeasurement(PointCloud::Ptr pc, double refTime,
 
   // Compute synchronized measures (not parallelizable)
   std::vector<ExternalSensors::PoseMeasurement> synchMeas(pc->size()); // Virtual measures with synchronized timestamp and calibration applied
-  // Sort points by time to speed up synchronization search
-  std::sort(pc->points.begin() + startIdx, pc->points.begin() + endIdx, [](const LidarPoint& pt1, const LidarPoint& pt2){return pt1.time < pt2.time;});
 
-  // Compute synchronized poses for each point
+  // Compute the synchronized pose for each point
   for (int idxPt = startIdx; idxPt < endIdx; ++idxPt)
     this->PoseManager->ComputeSynchronizedMeasureBase(refTime + pc->at(idxPt).time + timeOffset, synchMeas[idxPt]);
 
@@ -2116,40 +2222,7 @@ void Slam::UndistortWithPoseMeasurement(PointCloud::Ptr pc, double refTime,
     Utils::TransformPoint(pc->at(idxPt), update);
   }
 
-  PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
-}
-
-//-----------------------------------------------------------------------------
-void Slam::RefineUndistortion()
-{
-  // Get previously applied undistortion
-  Eigen::Isometry3d previousBaseBegin = this->WithinFrameMotion.GetH0();
-  Eigen::Isometry3d previousBaseEnd = this->WithinFrameMotion.GetH1();
-
-  // Extrapolate first and last poses to update within frame motion interpolator
-  Eigen::Isometry3d worldToBaseBegin = this->InterpolateScanPose(this->WithinFrameMotion.GetTime0());
-  Eigen::Isometry3d worldToBaseEnd = this->InterpolateScanPose(this->WithinFrameMotion.GetTime1());
-  Eigen::Isometry3d baseToWorld = this->Tworld.inverse();
-  Eigen::Isometry3d newBaseBegin = baseToWorld * worldToBaseBegin;
-  Eigen::Isometry3d newBaseEnd = baseToWorld * worldToBaseEnd;
-  this->WithinFrameMotion.SetTransforms(newBaseBegin, newBaseEnd);
-
-  // Init the interpolator to use to remove previous undistortion and apply updated one
-  auto transformInterpolator = this->WithinFrameMotion;
-  transformInterpolator.SetTransforms(newBaseBegin * previousBaseBegin.inverse(),
-                                      newBaseEnd   * previousBaseEnd.inverse());
-
-  // Refine undistortion of keypoints clouds
-  for (auto k : this->UsableKeypoints)
-  {
-    int nbPoints = this->CurrentUndistortedKeypoints[k]->size();
-    #pragma omp parallel for num_threads(this->NbThreads)
-    for (int i = 0; i < nbPoints; ++i)
-    {
-      auto& point = this->CurrentUndistortedKeypoints[k]->at(i);
-      Utils::TransformPoint(point, transformInterpolator(point.time));
-    }
-  }
+  PRINT_VERBOSE(3, "Undistortion performed using external poses interpolation")
 }
 
 //==============================================================================
@@ -2336,42 +2409,34 @@ Slam::PointCloud::Ptr Slam::AggregateFrames(const std::vector<PointCloud::Ptr>& 
     double timeOffset = Utils::PclStampToSec(frame->header.stamp) - Utils::PclStampToSec(aggregatedFrames->header.stamp);
     Eigen::Isometry3d baseToLidar = this->GetBaseToLidarOffset(frame->front().device_id);
 
+    // Undistort to represent all points from startIdx in base at current time
     // Rigid transform from LIDAR to BASE then undistortion from BASE to WORLD
     if (undistort)
     {
       if (this->Undistortion != UndistortionMode::EXTERNAL || !this->PoseHasData())
       {
-        auto transformInterpolator = this->WithinFrameMotion;
-        Eigen::Isometry3d h0 = worldCoordinates? this->Tworld * this->WithinFrameMotion.GetH0() * baseToLidar : this->WithinFrameMotion.GetH0() * baseToLidar;
-        Eigen::Isometry3d h1 = worldCoordinates? this->Tworld * this->WithinFrameMotion.GetH1() * baseToLidar : this->WithinFrameMotion.GetH1() * baseToLidar;
-        transformInterpolator.SetTransforms(h0, h1);
-        #pragma omp parallel for num_threads(this->NbThreads)
-        for (int i = startIdx; i < endIdx; ++i)
-        {
-          auto& point = aggregatedFrames->at(i);
-          point.time += timeOffset;
-          Utils::TransformPoint(point, transformInterpolator(point.time));
-        }
-        PRINT_VERBOSE(3, "Undistortion performed using motion interpolation")
+        // Undistort using interpolation between logged states
+        this->UndistortWithLogStates(aggregatedFrames, aggregatedFrames,
+                                     false, // false -> Tworld is not used for the undistortion
+                                     startIdx, aggregatedFrames->size(),
+                                     baseToLidar, timeOffset);
       }
       else
       {
-        // Undistort to represent all points from startIdx in base at current time
+        // Undistort using interpolation between logged measurements
         this->UndistortWithPoseMeasurement(aggregatedFrames, this->CurrentTime,
                                            startIdx, aggregatedFrames->size(),
                                            baseToLidar, timeOffset);
+      }
 
-        // Update times
-        #pragma omp parallel for num_threads(this->NbThreads)
-        for (int idxPt = startIdx; idxPt < int(aggregatedFrames->size()); ++idxPt)
-        {
-          aggregatedFrames->at(idxPt).time += timeOffset;
-          // Transform point to world frame if requested
-          if (worldCoordinates)
-            Utils::TransformPoint(aggregatedFrames->at(idxPt), this->Tworld);
-        }
-
-        PRINT_VERBOSE(3, "Undistortion performed using external poses supplied")
+      // Update times
+      #pragma omp parallel for num_threads(this->NbThreads)
+      for (int idxPt = startIdx; idxPt < int(aggregatedFrames->size()); ++idxPt)
+      {
+        aggregatedFrames->at(idxPt).time += timeOffset;
+        // Transform point to world frame if requested
+        if (worldCoordinates)
+          Utils::TransformPoint(aggregatedFrames->at(idxPt), this->Tworld);
       }
     }
 
@@ -2434,6 +2499,7 @@ void Slam::InitImu()
                                                                    this->SensorTimeOffset,
                                                                    this->SensorTimeThreshold,
                                                                    this->SensorMaxMeasures,
+                                                                   this->Interpolation,
                                                                    this->Tworld,
                                                                    this->Verbosity >= 3);
 }
@@ -2441,12 +2507,14 @@ void Slam::InitImu()
 //-----------------------------------------------------------------------------
 void Slam::InitLandmarkManager(int id)
 {
-  this->LandmarksManagers[id] = ExternalSensors::LandmarkManager(this->SensorTimeOffset,
+  this->LandmarksManagers[id] = ExternalSensors::LandmarkManager(this->LandmarkWeight,
+                                                                 this->SensorTimeOffset,
                                                                  this->SensorTimeThreshold,
                                                                  this->SensorMaxMeasures,
+                                                                 this->Interpolation,
                                                                  this->LandmarkPositionOnly,
                                                                  this->Verbosity >= 3);
-  this->LandmarksManagers[id].SetWeight(this->LandmarkWeight);
+
   this->LandmarksManagers[id].SetSaturationDistance(this->LandmarkSaturationDistance);
   // The calibration can be modified afterwards
   this->LandmarksManagers[id].SetCalibration(this->LmDetectorCalibration);
@@ -2468,6 +2536,7 @@ void Slam::InitPoseSensor()
                                                                      this->SensorTimeOffset,
                                                                      this->SensorTimeThreshold,
                                                                      this->SensorMaxMeasures,
+                                                                     this->Interpolation,
                                                                      this->Verbosity >= 3);
 }
 
@@ -2526,52 +2595,31 @@ Eigen::Isometry3d Slam::GetTworld(double time, bool trackTime)
     return this->LogStates.front().Isometry;
   }
 
+  // If IMU data available ask for pose to the IMU manager which has its own pose graph
   if (this->ImuHasData())
     return this->ImuManager->GetPose(time);
-  else
+  else if (this->PoseHasData())
   {
-    // Search iterators pointing to the states before and after the input time
-    // They are initialized by pointing to the two last states of the LogStates
-    auto preIt = this->LogStates.end();
-    auto postIt = preIt;
-    --preIt;--preIt;
-    --postIt;
-    // If the input time is before the second-last state, search it in the LogStates
-    // Otherwise, use the two last states to compute the pose
-    if (time < preIt->Time)
-    {
-      // Get iterator pointing to the first state after time
-      postIt = std::upper_bound(this->LogStates.begin(),
-                                    this->LogStates.end(),
-                                    time,
-                                    [&](double time, const LidarState& state) {return time < state.Time;});
-
-      // Deduce the iterator pointing to the last state before time
-      preIt = postIt;
-      --preIt;
-    }
+    // If ext pose data available, get the state bounds and interpolate using external poses
+    std::vector<PoseStamped> bounds = this->GetStatesWindow(this->GetClosestState(time), 2);
 
     // If external poses are available, deduce the pose at the input time with external pose measurement
     ExternalSensors::PoseMeasurement synchMeasInf, synchMeas;
-    if (this->PoseHasData()
-      && this->PoseManager->ComputeSynchronizedMeasureBase(preIt->Time, synchMeasInf, trackTime)
-      && this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas, trackTime))
+    if (this->PoseManager->ComputeSynchronizedMeasureBase(bounds.front().Time, synchMeasInf, trackTime) &&
+        this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas, trackTime))
     {
       Eigen::Isometry3d tRelative = synchMeasInf.Pose.inverse() * synchMeas.Pose;
-      if (time > postIt->Time)
+      if (time > bounds.back().Time)
         PRINT_WARNING("Time " << time << " has not been reached yet and the pose is extrapolated")
-      return preIt->Isometry * tRelative;
+      return bounds.front().Pose * tRelative;
     }
-    // If pose can not be deduced by external pose measurement and time has not been reached, return last pose
-    if (time > postIt->Time)
-    {
-      PRINT_WARNING("Time " << time << " has not been reached yet and can not be found in the external pose measurements.\n"
-                    "Returning last pose at time " << this->LogStates.back().Time)
-      return this->LogStates.back().Isometry;
-    }
-
-    return LinearInterpolation(preIt->Isometry, postIt->Isometry, time, preIt->Time, postIt->Time);
   }
+
+  // If external data cannot be used, directly interpolate last states
+  std::vector<PoseStamped> vecPose = this->GetStatesWindow(this->GetClosestState(time),
+                                                           Interpolation::ModelRequiredNbData.at(this->Interpolation));
+
+  return Interpolation::Interpolate(vecPose, time, this->Interpolation);
 }
 
 // Landmark detector
@@ -2739,24 +2787,6 @@ void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
 }
 
 // Sensors' parameters
-//-----------------------------------------------------------------------------
-
-#define ExtSensorMacro(inFuncProto) \
-{ \
-  if (this->WheelOdomManager) \
-    this->WheelOdomManager->inFuncProto; \
-  if (this->GravityManager) \
-    this->GravityManager->inFuncProto; \
-  if (this->ImuManager) \
-    this->ImuManager->inFuncProto; \
-  for (auto& idLm : this->LandmarksManagers) \
-    idLm.second.inFuncProto; \
-  if (this->GpsManager) \
-    this->GpsManager->inFuncProto; \
-  if (this->PoseManager) \
-    this->PoseManager->inFuncProto; \
-}
-
 //-----------------------------------------------------------------------------
 void Slam::ResetSensors(bool emptyMeasurements)
 {
@@ -3088,7 +3118,8 @@ void Slam::SetLoggingTimeout(double lMax)
   this->LoggingTimeout = lMax;
   double currentTime = this->LogStates.back().Time;
   auto itSt = this->LogStates.begin();
-  while (currentTime - itSt->Time > lMax && this->LogStates.size() > 2)
+  while (currentTime - itSt->Time > lMax &&
+         this->LogStates.size() > Interpolation::ModelRequiredNbData.at(this->Interpolation))
   {
     ++itSt;
     this->LogStates.pop_front();

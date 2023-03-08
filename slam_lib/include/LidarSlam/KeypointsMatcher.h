@@ -21,7 +21,6 @@
 #include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/CeresCostFunctions.h"
 #include "LidarSlam/LidarPoint.h"
-#include "LidarSlam/MotionModel.h"
 #include "LidarSlam/Utilities.h"
 #include "LidarSlam/Enums.h"
 

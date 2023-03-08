@@ -18,13 +18,13 @@ add_library(LidarSlam
   src/ConfidenceEstimators.cxx
   src/KeypointsMatcher.cxx
   src/LocalOptimizer.cxx
-  src/MotionModel.cxx
   src/RollingGrid.cxx
   src/ExternalSensorManagers.cxx
   src/Slam.cxx
   src/SpinningSensorKeypointExtractor.cxx
   src/Utilities.cxx
   src/VoxelGrid.cxx
+  src/InterpolationModels.cxx
   ${SLAM_g2o_sources}
 )
 

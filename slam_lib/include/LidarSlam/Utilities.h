@@ -22,6 +22,8 @@
 #include <pcl/common/centroid.h>
 #include <pcl/common/eigen.h>
 
+#include <unsupported/Eigen/Splines>
+
 #include <iostream>
 #include <iomanip>
 #include <math.h>
@@ -71,11 +73,16 @@ namespace Eigen
   ///! @brief 6D Vector of double
   using Vector6d = Matrix<double, 6, 1>;
 
+  //! @brief Spline for 3D Vector of double
+  using Spline3d = Eigen::Spline<double, 3>;
+
   //! We could use an unaligned Isometry3d in order to avoid having to use
   //! Eigen::aligned_allocator<Eigen::Isometry3d> in each declaration of
   //! std::container storing isometries instances, as documented here:
   //! http://eigen.tuxfamily.org/dox-devel/group__TopicStlContainers.html
-  using UnalignedIsometry3d = Eigen::Transform<double, 3, Eigen::Isometry, Eigen::DontAlign>;
+  using UnalignedIsometry3d = Transform<double, 3, Isometry, DontAlign>;
+  using UnalignedVector3d = Matrix<double, 3, 1, DontAlign>;
+  using UnalignedQuaterniond = Quaternion<double, DontAlign>;
 }
 
 namespace LidarSlam
@@ -136,6 +143,15 @@ std::string Capitalize(std::string st);
  * @brief Make the string plural (add 's')
  */
 std::string Plural(std::string st);
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Normalize a number
+ */
+inline double Normalize(double n, double min, double max)
+{
+  return (n - min) / (max - min);
+}
 
 //==============================================================================
 //   Geometry helpers
@@ -312,6 +328,20 @@ template<typename PointT>
 inline void TransformPoint(PointT& p, const Eigen::Isometry3d& transform)
 {
   p.getVector4fMap() = transform.template cast<float>() * p.getVector4fMap();
+}
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Apply a rigid transform to a point
+ * @param pIn The input point to transform
+ * @param pIn The output transformed point
+ * @param transform The rigid transform (rotation + translation) to apply.
+ * @return The transformed point (all other fields are copied from p)
+ */
+template<typename PointT>
+inline void TransformPoint(const PointT& pIn, PointT& pOut, const Eigen::Isometry3d& transform)
+{
+  pOut.getVector4fMap() = transform.template cast<float>() * pIn.getVector4fMap();
 }
 
 //------------------------------------------------------------------------------
