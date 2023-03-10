@@ -49,7 +49,8 @@ target_link_libraries(LidarSlam
 
 target_include_directories(LidarSlam
   PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_INCLUDE_DIR}>
 )
 
 # If G2O is available, set a precompilation variable
@@ -83,9 +84,33 @@ if (UNIX AND NOT APPLE)
 endif()
 
 # Install library
+
+set(target_public_header
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/CeresCostFunctions.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/ConfidenceEstimators.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/Enums.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/ExternalSensorManagers.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/InterpolationModels.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/KDTreePCLAdaptor.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/KeypointsMatcher.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/LidarPoint.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/LocalOptimizer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/PointCloudStorage.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/PoseGraphOptimizer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/RollingGrid.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/Slam.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/SpinningSensorKeypointExtractor.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/State.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/Utilities.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/VoxelGrid.h
+)
+
+set_target_properties(LidarSlam PROPERTIES PUBLIC_HEADER "${target_public_header}")
+
 install(TARGETS LidarSlam
         RUNTIME DESTINATION ${SLAM_INSTALL_BINARY_DIR}
         LIBRARY DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
         ARCHIVE DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
         PUBLIC_HEADER DESTINATION ${SLAM_INSTALL_INCLUDE_DIR}/LidarSlam
-        COMPONENT Runtime)
+        COMPONENT Runtime
+)
