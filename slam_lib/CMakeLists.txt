@@ -47,6 +47,11 @@ target_link_libraries(LidarSlam
     ${OpenMP_target}
 )
 
+target_include_directories(LidarSlam
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 # If G2O is available, set a precompilation variable
 if (g2o_FOUND)
   set(g2o_def USE_G2O=1)
@@ -62,9 +67,12 @@ if (OpenCV_FOUND)
   set(opencv_def USE_OPENCV=1)
 endif()
 
-target_compile_definitions(LidarSlam PUBLIC ${g2o_def} ${gtsam_def} ${opencv_def})
-
-target_include_directories(LidarSlam PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_definitions(LidarSlam
+  PUBLIC
+    ${g2o_def}
+    ${gtsam_def}
+    ${opencv_def}
+)
 
 # Prefer rpath over runpath to bypass LD_LIBRARY_PATH at runtime (which can be set by ROS notably)
 # See https://stackoverflow.com/questions/47117443/dynamic-linking-with-rpath-not-working-under-ubuntu-17-10/47243544#47243544

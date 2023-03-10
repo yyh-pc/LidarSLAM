@@ -28,13 +28,16 @@ endif()
 set(SLAM_INSTALL_LIBRARY_DIR "lib"     CACHE STRING "Directory where to install LidarSlam libraries")
 set(SLAM_INSTALL_BINARY_DIR  "bin"     CACHE STRING "Directory where to install LidarSlam dll")
 set(SLAM_INSTALL_INCLUDE_DIR "include" CACHE STRING "Directory where to install LidarSlam header files")
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
+
+# Runtime parameters
+# /!\ warning : must be done before target declaration
 
 # If SLAM superbuild was used, insure rpath fits build paths
 if(SUPERBUILD_INSTALL_DIR)
   list(PREPEND CMAKE_INSTALL_RPATH "${SUPERBUILD_INSTALL_DIR}/lib/")
 endif()
 
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_DIR}")
 
 # MSVC enforce MT
