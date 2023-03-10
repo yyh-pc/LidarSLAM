@@ -104,6 +104,14 @@ if (ENABLE_gtsam)
   endif()
 endif()
 
+option(ENABLE_OpenCV "Use OpenCV, necessary for camera integration." ON)
+if (ENABLE_OpenCV)
+  find_package(OpenCV QUIET COMPONENTS core)
+  if (NOT OpenCV_FOUND)
+    message("Lidar SLAM : OpenCV requested but not found, camera will be ignored.")
+  endif()
+endif()
+
 # Find optional OpenMP
 find_package(OpenMP)
 if(TARGET OpenMP::OpenMP_CXX)

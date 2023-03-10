@@ -31,6 +31,8 @@
 #include <lidar_slam/Confidence.h>
 #include <apriltag_ros/AprilTagDetection.h>
 #include <apriltag_ros/AprilTagDetectionArray.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/CameraInfo.h>
 
 // SLAM
 #include <LidarSlam/Slam.h>
@@ -107,6 +109,20 @@ public:
    * @param[in] msg april tag node output message
    */
   void TagCallback(const apriltag_ros::AprilTagDetectionArray& tagInfo);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief     Optional RGB image callback, adding 2D color features to SLAM
+   * @param[in] msg compressed RGB image
+   */
+  void ImageCallback(const sensor_msgs::Image& imageMsg);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief     Optional image info callback, when using RGB camera into SLAM
+   * @param[in] msg camera calibration
+   */
+  void CameraInfoCallback(const sensor_msgs::CameraInfo& calibMsg);
 
   //----------------------------------------------------------------------------
   /*!
@@ -225,21 +241,28 @@ protected:
   // External sensor data can be used in local optimization or in postprocess pose graph optimization
   std::unordered_map<LidarSlam::ExternalSensor, bool> UseExtSensor = {{LidarSlam::GPS, false},
                                                                       {LidarSlam::LANDMARK_DETECTOR, false},
-                                                                      {LidarSlam::POSE, false}};
+                                                                      {LidarSlam::POSE, false},
+                                                                      {LidarSlam::CAMERA, false}};
 
   // If lidar time contained in the header is not POSIX
   // The offset between network reception time
   // and Lidar time is computed
   bool LidarTimePosix = true;
+  // Offset to apply to external sensors to get lidar time
+  float SensorTimeOffset = 0.;
 
   // Landmarks
   ros::Subscriber LandmarksSub;
   bool PublishTags = false;
-  LidarSlam::ExternalSensors::GpsMeasurement LastGpsMeas;
 
   // GPS
   Eigen::Isometry3d BaseToGpsOffset = Eigen::Isometry3d::Identity();  ///< Pose of the GPS antenna in BASE coordinates.
   ros::Subscriber GpsOdomSub;
+  LidarSlam::ExternalSensors::GpsMeasurement LastGpsMeas;
+
+  // Camera
+  ros::Subscriber CameraSub;
+  ros::Subscriber CameraInfoSub;
 };
 
 #endif // LIDAR_SLAM_NODE_H

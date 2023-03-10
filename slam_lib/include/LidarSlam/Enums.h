@@ -188,14 +188,20 @@ enum ExternalSensor
   GPS = 3,
 
   //! Pose sensor
-  POSE = 4
+  POSE = 4,
+
+  //! Camera
+  CAMERA = 5,
+
+  nbExternalSensors
 };
 
 static const std::map<ExternalSensor, std::string> ExternalSensorNames = { {WHEEL_ODOM,"Wheel odometer"},
                                                                            {IMU, "IMU"},
                                                                            {LANDMARK_DETECTOR, "Landmark detector"},
                                                                            {GPS, "GPS"},
-                                                                           {POSE, "POSE"} };
+                                                                           {POSE, "POSE"},
+                                                                           {CAMERA, "CAMERA"} };
 
 //------------------------------------------------------------------------------
 //! Type of pose graph constraints

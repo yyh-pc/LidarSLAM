@@ -25,6 +25,11 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/Path.h>
 
+#ifdef USE_CV_BRIDGE
+#include <cv_bridge/cv_bridge.h>
+#endif
+#include <sensor_msgs/image_encodings.h>
+
 #define BOLD_GREEN(s) "\033[1;32m" << s << "\033[0m"
 
 enum Output
@@ -76,6 +81,8 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   this->UseExtSensor[LidarSlam::GPS] = priv_nh.param("external_sensors/gps/use_gps", false);
   // Use tags data for local optimization.
   this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR] = priv_nh.param("external_sensors/landmark_detector/use_tags", false);
+  // Use camera rgb images in local optimization.
+  this->UseExtSensor[LidarSlam::CAMERA] = priv_nh.param("external_sensors/camera/use_camera", false);
 
   // ***************************************************************************
   // Init ROS publishers
@@ -152,18 +159,39 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   this->SlamCommandSub = nh.subscribe("slam_command", 1, &LidarSlamNode::SlamCommandCallback, this);
 
   // Init logging of GPS data for GPS/SLAM calibration or Pose Graph Optimization.
+  // Perfect synchronization is not required as GPS data are not used in SLAM local process
   if (this->UseExtSensor[LidarSlam::GPS])
     this->GpsOdomSub = nh.subscribe("gps_odom", 1, &LidarSlamNode::GpsCallback, this);
 
-  // Init logging of landmark data
-  if (this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR])
+  // Init logging of landmark data and/or Camera data
+  if (this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR] || this->UseExtSensor[LidarSlam::CAMERA])
   {
-    // Create an external independent spinner to get the landmarks' info in a parallel way
-    ros::SubscribeOptions ops;
-    ops.initByFullCallbackType<apriltag_ros::AprilTagDetectionArray>("tag_detections", 200,
-                                                                      boost::bind(&LidarSlamNode::TagCallback, this, boost::placeholders::_1));
-    ops.callback_queue = &this->ExternalQueue;
-    this->LandmarksSub = nh.subscribe(ops);
+    // Create an external independent spinner to get the landmarks and/or camera info in a parallel way
+
+    if (this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR])
+    {
+      ros::SubscribeOptions ops;
+      ops.initByFullCallbackType<apriltag_ros::AprilTagDetectionArray>("tag_detections", 200,
+                                                                        boost::bind(&LidarSlamNode::TagCallback, this, boost::placeholders::_1));
+      ops.callback_queue = &this->ExternalQueue;
+      this->LandmarksSub = nh.subscribe(ops);
+    }
+
+    if (this->UseExtSensor[LidarSlam::CAMERA])
+    {
+      ros::SubscribeOptions opsImage;
+      opsImage.initByFullCallbackType<sensor_msgs::Image>("camera", 10, boost::bind(&LidarSlamNode::ImageCallback,
+                                                          this, boost::placeholders::_1));
+      opsImage.callback_queue = &this->ExternalQueue;
+      this->CameraSub = nh.subscribe(opsImage);
+
+      ros::SubscribeOptions opsCameraInfo;
+      opsCameraInfo.initByFullCallbackType<sensor_msgs::CameraInfo>("camera_info", 10, boost::bind(&LidarSlamNode::CameraInfoCallback,
+                                                                    this, boost::placeholders::_1));
+      opsCameraInfo.callback_queue = &this->ExternalQueue;
+      this->CameraInfoSub = nh.subscribe(opsCameraInfo);
+    }
+
     this->ExternalSpinnerPtr = std::make_shared<ros::AsyncSpinner>(ros::AsyncSpinner(this->LidarSlam.GetNbThreads(), &this->ExternalQueue));
     this->ExternalSpinnerPtr->start();
   }
@@ -204,8 +232,10 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
     double absCurrentOffset = std::abs(this->LidarSlam.GetSensorTimeOffset());
     // If the current computed offset is more accurate, replace it
     if (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset)
-      this->LidarSlam.SetSensorTimeOffset(potentialOffset);
+      this->LidarSlam.SetSensorTimeOffset(potentialOffset + this->SensorTimeOffset);
   }
+  else
+    this->LidarSlam.SetSensorTimeOffset(this->SensorTimeOffset);
 
   // Update TF from BASE to LiDAR
   if (!this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id))
@@ -237,6 +267,63 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
 
   // Add new frame to SLAM input frames
   this->Frames.push_back(cloudS_ptr);
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::ImageCallback(const sensor_msgs::Image& imageMsg)
+{
+  #ifdef USE_CV_BRIDGE
+  if (!this->UseExtSensor[LidarSlam::CAMERA])
+    return;
+
+  // Transform to apply to points represented in GPS frame to express them in base frame
+  Eigen::Isometry3d baseToCamera;
+  if (Utils::Tf2LookupTransform(baseToCamera, this->TfBuffer, this->TrackingFrameId, imageMsg.header.frame_id, imageMsg.header.stamp))
+  {
+    if (!this->LidarSlam.CameraCanBeUsedLocally())
+      this->LidarSlam.SetCameraCalibration(baseToCamera);
+
+    cv_bridge::CvImagePtr cvPtr;
+    try
+    {
+      cvPtr = cv_bridge::toCvCopy(imageMsg, sensor_msgs::image_encodings::BGR8);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR("Camera info cannot be used -> cv_bridge exception: %s", e.what());
+      return;
+    }
+
+    ROS_INFO_STREAM("Adding Camera info : "<< std::fixed << std::setprecision(9) << imageMsg.header.stamp.sec + imageMsg.header.stamp.nsec * 1e-9);
+    // Add camera measurement to measurements list
+    LidarSlam::ExternalSensors::Image image;
+    image.Time = imageMsg.header.stamp.sec + imageMsg.header.stamp.nsec * 1e-9;
+    image.Data = cvPtr->image;
+    this->LidarSlam.AddCameraImage(image);
+  }
+  #else
+  static_cast<void>(imageMsg);
+  ROS_WARN_STREAM("cv_bridge was not found so images cannot be processed, camera will not be used")
+  #endif
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::CameraInfoCallback(const sensor_msgs::CameraInfo& calibMsg)
+{
+  #ifdef USE_CV_BRIDGE
+  // The intrinsic calibration must not changed so we can only use
+  // the camera info until the camera is ready to be used
+  if (this->LidarSlam.CameraCanBeUsedLocally())
+    return;
+
+  Eigen::Matrix3f k;
+  for (int i = 0; i < 9; ++i)
+    k(int(i / 3), i % 3) = calibMsg.K[i];
+
+  this->LidarSlam.SetCameraIntrinsicCalibration(k);
+  #else
+  static_cast<void>(calibMsg);
+  #endif
 }
 
 //------------------------------------------------------------------------------
@@ -999,11 +1086,15 @@ void LidarSlamNode::SetSlamParameters()
   // External sensors
   SetSlamParam(float,  "external_sensors/max_measures", SensorMaxMeasures)
   SetSlamParam(float,  "external_sensors/time_threshold", SensorTimeThreshold)
+  this->LidarTimePosix = this->PrivNh.param("external_sensors/lidar_is_posix", true);
+  SetSlamParam(float,   "external_sensors/time_offset", SensorTimeOffset)
+  this->SensorTimeOffset = this->LidarSlam.GetSensorTimeOffset();
   SetSlamParam(float,  "external_sensors/landmark_detector/weight", LandmarkWeight)
   SetSlamParam(float,  "external_sensors/landmark_detector/saturation_distance", LandmarkSaturationDistance)
   SetSlamParam(bool,   "external_sensors/landmark_detector/position_only", LandmarkPositionOnly)
   this->PublishTags    = this->PrivNh.param("external_sensors/landmark_detector/publish_tags", false);
-  this->LidarTimePosix = this->PrivNh.param("external_sensors/landmark_detector/lidar_is_posix", true);
+  SetSlamParam(float,   "external_sensors/camera/weight", CameraWeight)
+  SetSlamParam(float,   "external_sensors/camera/saturation_distance", CameraSaturationDistance)
 
   // Graph parameters
   SetSlamParam(std::string, "graph/g2o_file_name", G2oFileName)

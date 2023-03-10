@@ -9,6 +9,9 @@ option(WITH_PCL "Whether to install PCL" OFF)
 option(WITH_CERES "Whether to install Ceres" ON)
 option(WITH_G2O "Whether to install G2O" OFF)
 option(WITH_GTSAM "Whether to install GTSAM" OFF)
+option(WITH_OPENCV "Whether to install OPENCV" OFF)
+
+set(CV_CUDA_ARCH_BIN 7.5 CACHE STRING "GPU architecture for OPENCV with CUDA (see https://developer.nvidia.com/cuda-gpus). Default is for NVIDIA Quadro T* or RTX*")
 
 # -----------------------------------------------------------------------------------------------
 # Read CMAKE Arguments
@@ -245,5 +248,56 @@ if (WITH_GTSAM)
                 -DGTSAM_SUPPORT_NESTED_DISSECTION=OFF
                 ${GENERIC_PROJECTS_ARGS}
             )
+
+endif ()
+
+# -----------------------------------------------------------------------------------------------
+if (WITH_OPENCV)
+
+    message(INFO "${LOG_PREFIX} Generating OpenCV dependency")
+
+    if (${CV_CUDA_ARCH_BIN} STREQUAL 8.6)
+      message(INFO "${LOG_PREFIX} OpenCV will be built to be compatible with the RTX A6000, please change CV_CUDA_ARCH_BIN if you need to support other GPU")
+    endif ()
+
+    # need to install OpenCV contrib??
+    set(opencv_tag 4.5.4)
+    # prefer handle opencv_contrib as another ExternalProject opencv depend over adding a new step
+    ExternalProject_Add(
+        OpenCV_contrib_ext
+
+        GIT_REPOSITORY https://github.com/opencv/opencv_contrib.git
+        GIT_TAG ${opencv_tag}
+
+        # Only clone the project, this could also be done using an ExternalProject_Add_Step()
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+    )
+    # Get OpenCV_contrib SOURCE_DIR
+    ExternalProject_Get_property(OpenCV_contrib_ext SOURCE_DIR)
+    set(OpenCV_contrib_ext_SOURCE_DIR ${SOURCE_DIR})
+
+    # INSTALL OPENCV with contrib
+    ExternalProject_Add(
+        OpenCV_ext
+        DEPENDS OpenCV_contrib_ext
+
+        GIT_REPOSITORY https://github.com/opencv/opencv.git
+        GIT_TAG ${opencv_tag}
+        GIT_SHALLOW 1
+
+        CMAKE_ARGS
+        -DBUILD_LIST=core,calib3d,highgui,cudev,cudaarithm,cudawarping,cudaimgproc,cudafilters,video,videoio,imgcodecs,imgproc
+        -DENABLE_CXX11=ON
+        -DBUILD_TIFF=ON # needed otherwise get some cmake error
+        -DBUILD_PROTOBUF=OFF # needed otherwise get some cmake error
+        -DWITH_QUIRC=OFF # needed otherwise get some cmake error
+        -DWITH_CUDA=TRUE
+        -DOPENCV_EXTRA_MODULES_PATH=${OpenCV_contrib_ext_SOURCE_DIR}/modules
+        -DCUDA_ARCH_BIN=${CV_CUDA_ARCH_BIN}
+        -DCUDA_NVCC_FLAGS=--expt-relaxed-constexpr
+        ${GENERIC_PROJECTS_ARGS}
+    )
 
 endif ()

@@ -683,5 +683,198 @@ Eigen::Isometry3d PoseManager::GetPose(double time)
     return this->Measures.back().Pose;
 }
 
+// Camera
+// ---------------------------------------------------------------------------
+bool CameraManager::ComputeSynchronizedMeasure(double lidarTime, Image& synchMeas, bool trackTime)
+{
+  if (this->Measures.size() <= 1)
+    return false;
+
+  std::lock_guard<std::mutex> lock(this->Mtx);
+  // Compute the two closest measures to current Lidar frame
+  lidarTime -= this->TimeOffset;
+  auto bounds = this->GetMeasureBounds(lidarTime, trackTime);
+  if (bounds.first == bounds.second)
+    return false;
+
+  // Get closest measure to LiDAR timestamp
+  float diffTime1 = std::abs(bounds.first->Time - lidarTime);
+  float diffTime2 = std::abs(bounds.second->Time - lidarTime);
+  synchMeas.Time = diffTime1 < diffTime2 ? bounds.first->Time : bounds.second->Time;
+  #ifdef USE_OPENCV
+  synchMeas.Data = diffTime1 < diffTime2 ? bounds.first->Data : bounds.second->Data;
+  #endif
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+bool CameraManager::ComputeConstraint(double lidarTime)
+{
+  this->ResetResidual();
+
+  if (!this->CanBeUsedLocally() || !this->PrevLidarFrame)
+    return false;
+
+  // Get synchronized image
+  Image prevImage;
+  if (!this->ComputeSynchronizedMeasure(this->PrevLidarTime, prevImage))
+    return false;
+
+  Image currentImage;
+  if (!this->ComputeSynchronizedMeasure(lidarTime, currentImage))
+    return false;
+
+  // Reject if one image per Lidar frame has not been found
+  if (std::abs(currentImage.Time - prevImage.Time) < 1e-6)
+    return false;
+
+  this->Residuals.clear();
+  this->Residuals.reserve(this->PrevLidarFrame->size());
+
+  #ifdef USE_OPENCV
+
+  std::vector<cv::Point2f> prevPixels, currPixels;
+  std::vector<int> pointIndices;
+  // Extract pixels that contain a Lidar point
+  for (unsigned int ptIdx = 0; ptIdx < this->PrevLidarFrame->size(); ++ptIdx)
+  {
+    const Eigen::Vector3f& pt = this->PrevLidarFrame->at(ptIdx).getVector3fMap();
+    if (pt.x() <= 0)
+      continue;
+    // Compute pixel in previous image corresponding to point
+    Eigen::Vector2f prevPix = (this->IntrinsicCalibration * (this->Calibration.cast<float>().inverse() * pt)).hnormalized();
+
+    // Add constraint for this pixel if it exists
+    if (prevPix[0] >= 0 && prevPix[0] < prevImage.Data.cols &&
+        prevPix[1] >= 0 && prevPix[1] < prevImage.Data.rows)
+    {
+      prevPixels.push_back({prevPix[0], prevPix[1]});
+      pointIndices.push_back(ptIdx);
+    }
+  }
+
+  // Convert images to grayscale
+  cv::Mat flow(currentImage.Data.size(), CV_32FC2);
+  cv::Mat prevImageGray;
+  cvtColor(prevImage.Data, prevImageGray, cv::COLOR_BGR2GRAY);
+  cv::Mat currentImageGray;
+  cvtColor(currentImage.Data, currentImageGray, cv::COLOR_BGR2GRAY);
+  // Compute sparse optical flow with opencv
+  // on pixels which contain a Lidar point
+  std::vector<uchar> status;
+  std::vector<float> err;
+  cv::TermCriteria criteria = cv::TermCriteria((cv::TermCriteria::COUNT) + (cv::TermCriteria::EPS), 10, 0.03);
+  cv::calcOpticalFlowPyrLK(prevImageGray, currentImageGray, prevPixels, currPixels, status, err, cv::Size(15,15), 2, criteria);
+
+  std::vector<bool> validity(prevPixels.size(), false);
+
+  // Struct to store left and right neighbors on previous and current images
+  std::unordered_map<int, int> leftNeighbors;
+  std::vector<int> scanLines(prevPixels.size());
+  // Check validity for each pixel match
+  for (unsigned int i = 0; i < prevPixels.size(); ++i)
+  {
+    // Shortcut to point
+    auto& point = this->PrevLidarFrame->at(pointIndices[i]);
+
+    // Remove non consistent matches
+    // No optical flow
+    if (!status[i])
+      continue;
+
+    auto prevLeft = leftNeighbors.count(point.laser_id) ? prevPixels[leftNeighbors[point.laser_id]]
+                                                        : prevPixels[i];
+
+    auto currLeft = leftNeighbors.count(point.laser_id) ? currPixels[leftNeighbors[point.laser_id]]
+                                                        : currPixels[i];
+
+    leftNeighbors[point.laser_id] = i;
+    scanLines[i] = point.laser_id;
+
+    // Pixels not on image
+    if ((currPixels[i].x < 0 && currPixels[i].x >= prevImage.Data.cols) ||
+        (currPixels[i].y < 0 && currPixels[i].y >= prevImage.Data.rows))
+      continue;
+
+    // Optical flow too high
+    if (cv::norm(prevPixels[i] - currPixels[i]) > 0.2 * prevImage.Data.rows)
+      continue;
+
+    // Geometric inconsistency between left and current pixels
+    float prevDist = cv::norm(prevPixels[i] - prevLeft);
+    float currDist = cv::norm(currPixels[i] - currLeft);
+    if (currDist > std::max(5.f, 2.f * prevDist))
+    {
+      validity[leftNeighbors[point.laser_id]] = false;
+      continue;
+    }
+
+    float radius = 10.f;
+    bool uniformArea = false;
+    if (currPixels[i].x > radius && currPixels[i].x < prevImage.Data.cols - radius &&
+        currPixels[i].y > radius && currPixels[i].y < prevImage.Data.rows - radius)
+    {
+      float color = prevImageGray.at<float>(int(currPixels[i].y), int(currPixels[i].x));
+      for (int radX = -radius/2; radX <= radius/2; ++radX)
+      {
+        for (int radY = -radius/2; radY <= radius/2; ++radY)
+        {
+          int X = int(currPixels[i].x) + radX;
+          int Y = int(currPixels[i].y) + radY;
+          uniformArea = uniformArea && prevImageGray.at<float>(Y, X) == color;
+          if (uniformArea)
+            break;
+        }
+        if (uniformArea)
+          break;
+      }
+
+      if (uniformArea)
+        continue;
+    }
+
+    validity[i] = true;
+  }
+
+  // Create constraint for each pixel match
+  for (unsigned int i = 0; i < prevPixels.size(); ++i)
+  {
+    if (!validity[i])
+      continue;
+
+    Eigen::Vector3f pt = this->PrevLidarFrame->at(pointIndices[i]).getVector3fMap();
+    Eigen::Vector2f pix = Eigen::Vector2f({currPixels[i].x, currPixels[i].y});
+    this->Residual.Cost = CeresCostFunctions::CameraResidual::Create(pt, pix, this->PrevPoseTransform, this->Calibration, this->IntrinsicCalibration);
+
+    // Use a robustifier to limit the contribution of an outlier tag detection (the tag may have been moved)
+    // Tukey loss applied on residual square:
+    //   rho(residual^2) = a^2 / 3 * ( 1 - (1 - residual^2 / a^2)^3 )   for residual^2 <= a^2,
+    //   rho(residual^2) = a^2 / 3                                      for residual^2 >  a^2.
+    // a is the scaling parameter of the function
+    // See http://ceres-solver.org/nnls_modeling.html#theory for details
+    auto* robustifier = new ceres::TukeyLoss(this->SaturationDistance);
+
+    // Weight the contribution of the given match by its reliability
+    // WARNING : in CERES version < 2.0.0, the Tukey loss is badly implemented, so we have to correct the weight by a factor 2
+    // See https://github.com/ceres-solver/ceres-solver/commit/6da364713f5b78ddf15b0e0ad92c76362c7c7683 for details
+    // This is important for covariance scaling
+    #if (CERES_VERSION_MAJOR < 2)
+      this->Residual.Robustifier.reset(new ceres::ScaledLoss(robustifier, 2.0 * this->Weight, ceres::TAKE_OWNERSHIP));
+    // If Ceres version >= 2.0.0, the Tukey loss is corrected.
+    #else
+      this->Residual.Robustifier.reset(new ceres::ScaledLoss(robustifier, this->Weight, ceres::TAKE_OWNERSHIP));
+    #endif
+
+    // Add current pix to pix residual to residuals vector
+    this->Residuals.emplace_back(this->Residual);
+  }
+
+  return true;
+  #else
+  return false;
+  #endif
+}
+
 } // end of ExternalSensors namespace
 } // end of LidarSlam namespace

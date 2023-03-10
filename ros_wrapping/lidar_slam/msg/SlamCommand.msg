@@ -55,4 +55,5 @@ uint8 OPTIMIZE_GRAPH = 20
 # options are :
 #   * LANDMARK_DETECTOR : "2"
 #   * GPS : "3"
+#   * CAMERA : "5"
 uint8 SWITCH_SENSOR = 25

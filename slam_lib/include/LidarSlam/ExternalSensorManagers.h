@@ -26,6 +26,12 @@
 #include <list>
 #include <cfloat>
 #include <mutex>
+#include "LidarSlam/LidarPoint.h"
+
+#ifdef USE_OPENCV
+#include <opencv2/opencv.hpp>
+#include <opencv2/video/tracking.hpp>
+#endif
 
 #ifdef USE_GTSAM
 #include <gtsam/navigation/ImuFactor.h>
@@ -110,6 +116,14 @@ struct ImuMeasurement
 };
 
 // ---------------------------------------------------------------------------
+struct Image
+{
+  double Time = 0.;
+  #ifdef USE_OPENCV
+  cv::Mat Data;
+  #endif
+};
+
 // SENSOR MANAGERS
 // ---------------------------------------------------------------------------
 
@@ -1211,6 +1225,70 @@ private:
   // The IMU graph optimization will allow to correct this orientation error when adding
   // new Lidar SLAM states.
   int NLag = 3;
+};
+
+// ---------------------------------------------------------------------------
+class CameraManager: public SensorManager<Image>
+{
+  // Usefull types
+  using Point = LidarPoint;
+  using PointCloud = pcl::PointCloud<Point>;
+
+public:
+  CameraManager(const std::string& name = "Camera") : SensorManager(name){}
+  CameraManager(const CameraManager& cameraManager);
+  CameraManager(double w, double timeOffset, double timeThresh, unsigned int maxMeas,
+                bool verbose = false, const std::string& name = "Camera")
+  : SensorManager(timeOffset, timeThresh, maxMeas, verbose, name){this->Weight = w;}
+
+  // Setters/Getters
+  GetSensorMacro(PrevLidarTime, double)
+  SetSensorMacro(PrevLidarTime, double)
+
+  GetSensorMacro(PrevPoseTransform, Eigen::Isometry3d)
+  SetSensorMacro(PrevPoseTransform, const Eigen::Isometry3d&)
+
+  GetSensorMacro(PrevLidarFrame, PointCloud::Ptr)
+  SetSensorMacro(PrevLidarFrame, PointCloud::Ptr)
+
+  GetSensorMacro(SaturationDistance, float)
+  SetSensorMacro(SaturationDistance, float)
+
+  GetSensorMacro(Residuals, const std::vector<CeresTools::Residual>&)
+
+  // Setters/Getters
+  GetSensorMacro(IntrinsicCalibration, Eigen::Matrix3f)
+  SetSensorMacro(IntrinsicCalibration, const Eigen::Matrix3f&)
+
+  // Get the closest image to lidar timestamp
+  bool ComputeSynchronizedMeasure(double lidarTime, Image& synchImage, bool trackTime = true) override;
+
+  // Compute camera residuals based on pixel matches
+  bool ComputeConstraint(double lidarTime) override;
+
+  // ------------------
+  // Check if camera can be used in tight SLAM optimization
+  // The weight must be not null, the measures list must contain
+  // at leat 2 elements to be able to interpolate and the intrinsic
+  // calibration must have been provided.
+  bool CanBeUsedLocally()
+  {
+    std::lock_guard<std::mutex> lock(this->Mtx);
+    return this->Weight > 1e-6 && this->Measures.size() > 1 &&
+           !this->IntrinsicCalibration.isIdentity(1e-6);
+  }
+
+private:
+  std::vector<CeresTools::Residual> Residuals;
+  double PrevLidarTime = 0.;
+  // Previous Lidar frame represented in base frame
+  PointCloud::Ptr PrevLidarFrame;
+  Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
+  Eigen::Matrix3f IntrinsicCalibration = Eigen::Matrix3f::Identity();
+  // Pixelic distance threshold to not take into account the pixel matches
+  // because some of them might be wrong
+  // This distance is used in a robustifier to weight the camera residuals
+  float SaturationDistance = 10.f;
 };
 
 } // end of ExternalSensors namespace
