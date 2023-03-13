@@ -87,7 +87,14 @@ ceres::Solver::Summary LocalOptimizer::Solve()
 
   // If 2D mode is enabled, hold Z, rX and rY constant
   if (this->TwoDMode)
-    this->Problem->SetParameterization(this->PoseArray.data(), new ceres::SubsetParameterization(6, {2, 3, 4}));
+  {
+    // SetParameterization was deprecated in Ceres 2.1.0
+    #if (CERES_VERSION_MAJOR <= 2 && CERES_VERSION_MINOR < 1)
+      this->Problem->SetParameterization(this->PoseArray.data(), new ceres::SubsetParameterization(6, {2, 3, 4}));
+    #else
+      this->Problem->SetManifold(this->PoseArray.data(), new ceres::SubsetManifold(6, {2, 3, 4}));
+    #endif
+  }
 
   // LM solver options
   ceres::Solver::Options options;
