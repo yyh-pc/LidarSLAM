@@ -75,7 +75,6 @@
 #include <ctime>
 
 // LOCAL
-#include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
 #include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/ConfidenceEstimators.h"
@@ -90,6 +89,17 @@
 
 // EIGEN
 #include <Eigen/Dense>
+
+// TEASERPP
+#ifdef USE_TEASERPP
+#include <teaser/registration.h>
+#include <pcl/features/normal_3d_omp.h>
+#endif //USE_TEASERPP
+
+// LOCAL
+// Note: Slam.h needs to be included after pcl/features/xx.h
+// because of the conflict between opencv and flann
+#include "LidarSlam/Slam.h"
 
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
@@ -1662,6 +1672,98 @@ bool Slam::DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryStat
 
   return detectionValid;
 }
+
+#ifdef USE_TEASERPP
+//-----------------------------------------------------------------------------
+pcl::PointCloud<pcl::FPFHSignature33>::Ptr Slam::ComputeFPFHFeatures(const PointCloud::Ptr inputCloud,
+                                                                     double normalSearchRadius,
+                                                                     double fpfhSearchRadius)
+{
+  pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+  pcl::PointCloud<pcl::FPFHSignature33>::Ptr descriptors(new pcl::PointCloud<pcl::FPFHSignature33>());
+
+  // Estimate normals
+  pcl::NormalEstimationOMP<Slam::Point, pcl::Normal> normalEstimation;
+  normalEstimation.setInputCloud(inputCloud);
+  normalEstimation.setRadiusSearch(normalSearchRadius);
+  pcl::search::KdTree<Slam::Point>::Ptr kdtree(new pcl::search::KdTree<Slam::Point>);
+  normalEstimation.setSearchMethod(kdtree);
+  normalEstimation.compute(*normals);
+
+  // Estimate FPFH
+  pcl::FPFHEstimationOMP<Slam::Point, pcl::Normal, pcl::FPFHSignature33> fpfh;
+  fpfh.setInputCloud(inputCloud);
+  fpfh.setInputNormals(normals);
+  fpfh.setSearchMethod(kdtree);
+  fpfh.setRadiusSearch(fpfhSearchRadius);
+  fpfh.compute(*descriptors);
+
+  return descriptors;
+}
+
+//-----------------------------------------------------------------------------
+std::vector<std::pair<int, int>> Slam::CalculateCorrespondences(pcl::PointCloud<pcl::FPFHSignature33>::Ptr sourceFeatures,
+                                                                pcl::PointCloud<pcl::FPFHSignature33>::Ptr targetFeatures)
+{
+  std::vector<std::pair<int, int>> corres;
+
+  // Compare the size of two input data and mark the size
+  int nSource = static_cast<int>(sourceFeatures->size());
+  int nTarget = static_cast<int>(targetFeatures->size());
+  bool swapped = nSource < nTarget ? true : false;
+  int nSmall = swapped ? nSource : nTarget;
+  int nLarge = swapped ? nTarget : nSource;
+  auto &featuresSmall = swapped ? sourceFeatures : targetFeatures;
+  auto &featuresLarge = swapped ? targetFeatures : sourceFeatures;
+
+  // Build kdtree for two input cloud
+  pcl::search::KdTree<pcl::FPFHSignature33>::Ptr kdtreeSmall(new pcl::search::KdTree<pcl::FPFHSignature33>);
+  pcl::search::KdTree<pcl::FPFHSignature33>::Ptr kdtreeLarge(new pcl::search::KdTree<pcl::FPFHSignature33>);
+  kdtreeSmall->setInputCloud(featuresSmall);
+  kdtreeLarge->setInputCloud(featuresLarge);
+
+  // Initial matching
+  // Parameters for nearest K search
+  int kNeighbor = 1;
+  std::vector<float> dis;
+  std::vector<int> corresK;
+  // large2Small is a vector to save the correspondence index in the small data set for each feature in the large dataset
+  // small2Large is similiar to large2Small
+  std::vector<int> large2Small(nLarge, -1);
+  std::vector<int> small2Large(nSmall, -1);
+  for (int idxS = 0; idxS < nSmall; idxS++)
+  {
+    // For each feature in the small dataset, search its nearest neighbor in the large dataset
+    kdtreeLarge->nearestKSearch (featuresSmall->points[idxS], kNeighbor, corresK, dis);
+    int idx = corresK[0];
+    small2Large[idxS] = idx;
+    if (large2Small[idx] == -1)
+    {
+      // For a feature index found in large dataset; search its nearest neighbor in the small dataset
+      kdtreeSmall->nearestKSearch (featuresLarge->points[idx], kNeighbor, corresK, dis);
+      large2Small[idx] = corresK[0];
+    }
+  }
+
+  // Cross check the match is bijective
+  for (int idxL = 0; idxL < nLarge; idxL++)
+  {
+    int idxS = large2Small[idxL];
+    if (idxS == -1 )
+      continue;
+    if (small2Large[idxS] == idxL)
+      corres.push_back(std::pair<int, int>(idxL, idxS));
+  }
+
+  if (swapped)
+  {
+    for (auto& c : corres)
+        std::swap(c.first, c.second);
+  }
+
+  return corres;
+}
+#endif
 
 //-----------------------------------------------------------------------------
 bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState,

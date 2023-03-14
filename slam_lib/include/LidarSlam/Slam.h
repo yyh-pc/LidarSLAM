@@ -92,6 +92,10 @@
 #include "LidarSlam/PoseGraphOptimizer.h"
 #endif  // USE_G2O
 
+#ifdef USE_TEASERPP
+#include <pcl/features/fpfh_omp.h>
+#endif
+
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
@@ -1178,6 +1182,19 @@ private:
   // If use manual detection, check whether the inputs of loop closure frame indices are stored in the LogStates
   // if use automatic detection, detect automatically a revisited frame index for the current frame
   bool DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState);
+
+  #ifdef USE_TEASERPP
+  // Compute FPFH features for a input pointcloud
+  // The input arguments are: input cloud, search radius for estimating normals and
+  // search radius for calculating FPFH (needs to be at least normalSearchRadius)
+  pcl::PointCloud<pcl::FPFHSignature33>::Ptr ComputeFPFHFeatures(const PointCloud::Ptr inputCloud,
+                                                                 double normalSearchRadius,
+                                                                 double fpfhSearchRadius);
+
+  // Compute correspondences between two pointclouds by searching nearest FPFH features in kdtree
+  std::vector<std::pair<int, int>> CalculateCorrespondences(pcl::PointCloud<pcl::FPFHSignature33>::Ptr sourceFeatures,
+                                                          pcl::PointCloud<pcl::FPFHSignature33>::Ptr targetFeatures);
+  #endif
 
   // Compute the transform between a query frame and the revisited frame
   // by registering query frame keypoints onto keypoints of the submap around the revisited frame.
