@@ -47,6 +47,12 @@ target_link_libraries(LidarSlam
     ${OpenMP_target}
 )
 
+target_include_directories(LidarSlam
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_INCLUDE_DIR}>
+)
+
 # If G2O is available, set a precompilation variable
 if (g2o_FOUND)
   set(g2o_def USE_G2O=1)
@@ -62,9 +68,12 @@ if (OpenCV_FOUND)
   set(opencv_def USE_OPENCV=1)
 endif()
 
-target_compile_definitions(LidarSlam PUBLIC ${g2o_def} ${gtsam_def} ${opencv_def})
-
-target_include_directories(LidarSlam PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_compile_definitions(LidarSlam
+  PUBLIC
+    ${g2o_def}
+    ${gtsam_def}
+    ${opencv_def}
+)
 
 # Prefer rpath over runpath to bypass LD_LIBRARY_PATH at runtime (which can be set by ROS notably)
 # See https://stackoverflow.com/questions/47117443/dynamic-linking-with-rpath-not-working-under-ubuntu-17-10/47243544#47243544
@@ -74,9 +83,55 @@ if (UNIX AND NOT APPLE)
   target_link_options(LidarSlam PUBLIC "-Wl,--disable-new-dtags")
 endif()
 
+# Install library
+
+set(target_public_header
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/CeresCostFunctions.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/ConfidenceEstimators.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/Enums.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/ExternalSensorManagers.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/InterpolationModels.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/KDTreePCLAdaptor.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/KeypointsMatcher.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/LidarPoint.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/LocalOptimizer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/PointCloudStorage.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/PoseGraphOptimizer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/RollingGrid.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/Slam.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/SpinningSensorKeypointExtractor.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/State.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/Utilities.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/LidarSlam/VoxelGrid.h
+)
+
+set_target_properties(LidarSlam PROPERTIES PUBLIC_HEADER "${target_public_header}")
+
 install(TARGETS LidarSlam
-        RUNTIME DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
+        EXPORT LidarSlamTargets
+        RUNTIME DESTINATION ${SLAM_INSTALL_BINARY_DIR}
         LIBRARY DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
         ARCHIVE DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
         PUBLIC_HEADER DESTINATION ${SLAM_INSTALL_INCLUDE_DIR}/LidarSlam
-        COMPONENT Runtime)
+        COMPONENT Runtime
+)
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file("${CMAKE_BINARY_DIR}/LidarSlamConfigVersion.cmake"
+                                 VERSION 1.6.0
+                                 COMPATIBILITY SameMajorVersion)
+
+configure_package_config_file(
+  "${CMAKE_SOURCE_DIR}/slam_lib/Config.cmake.in"
+  "${CMAKE_BINARY_DIR}/LidarSlamConfig.cmake"
+  INSTALL_DESTINATION "lib/cmake/LidarSlam"
+)
+
+install(EXPORT LidarSlamTargets
+        FILE LidarSlamTargets.cmake
+        NAMESPACE LidarSlam::
+        DESTINATION "lib/cmake/LidarSlam")
+
+install(FILES "${CMAKE_BINARY_DIR}/LidarSlamConfig.cmake"
+              "${CMAKE_BINARY_DIR}/LidarSlamConfigVersion.cmake"
+        DESTINATION "lib/cmake/LidarSlam")
