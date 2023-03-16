@@ -122,7 +122,7 @@ write_basic_package_version_file("${CMAKE_BINARY_DIR}/LidarSlamConfigVersion.cma
                                  COMPATIBILITY SameMajorVersion)
 
 configure_package_config_file(
-  "${CMAKE_SOURCE_DIR}/slam_lib/Config.cmake.in"
+  "Config.cmake.in"
   "${CMAKE_BINARY_DIR}/LidarSlamConfig.cmake"
   INSTALL_DESTINATION "lib/cmake/LidarSlam"
 )
