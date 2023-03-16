@@ -108,9 +108,30 @@ set(target_public_header
 set_target_properties(LidarSlam PROPERTIES PUBLIC_HEADER "${target_public_header}")
 
 install(TARGETS LidarSlam
+        EXPORT LidarSlamTargets
         RUNTIME DESTINATION ${SLAM_INSTALL_BINARY_DIR}
         LIBRARY DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
         ARCHIVE DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
         PUBLIC_HEADER DESTINATION ${SLAM_INSTALL_INCLUDE_DIR}/LidarSlam
         COMPONENT Runtime
 )
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file("${CMAKE_BINARY_DIR}/LidarSlamConfigVersion.cmake"
+                                 VERSION 1.6.0
+                                 COMPATIBILITY SameMajorVersion)
+
+configure_package_config_file(
+  "${CMAKE_SOURCE_DIR}/slam_lib/Config.cmake.in"
+  "${CMAKE_BINARY_DIR}/LidarSlamConfig.cmake"
+  INSTALL_DESTINATION "lib/cmake/LidarSlam"
+)
+
+install(EXPORT LidarSlamTargets
+        FILE LidarSlamTargets.cmake
+        NAMESPACE LidarSlam::
+        DESTINATION "lib/cmake/LidarSlam")
+
+install(FILES "${CMAKE_BINARY_DIR}/LidarSlamConfig.cmake"
+              "${CMAKE_BINARY_DIR}/LidarSlamConfigVersion.cmake"
+        DESTINATION "lib/cmake/LidarSlam")
