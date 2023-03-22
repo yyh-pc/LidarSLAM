@@ -34,7 +34,7 @@ This codebase is under active development. If you're interested by new features,
 
 Repo contents :
 - `slam_lib/` : core *LidarSlam* library containing SLAM algorithm and other utilities.
-- `Superbuild/` : Dependencies installer.
+- `superbuild/` : Cross-platform installer.
 - `ros_wrapping/` : ROS packages to enable SLAM use on a ROS system.
 - `paraview_wrapping/` : ParaView plugin to enable SLAM use with ParaView/LidarView.
 - `ci/` : continuous integration files to automatically build and check *LidarSlam* lib.
@@ -54,11 +54,14 @@ Dependencies are listed in the table below along with the version used during de
 | nanoflann  | 1.3.0                  |
 | g2o*       | 1.0.0 (master)         |
 | OpenMP*    | 2.0                    |
-| OpenCV*    | 4.2                    |
+| gtsam*     | 4.2a8                  |
+| OpenCV*    | 4.5.4                  |
 
 (*) optional dependencies :
 
 - If G2O is not available (or disabled), *LidarSlam* lib will still be compiled, but without pose graph optimization features.
+- If GTSAM is not available (or disabled), *LidarSlam* lib will still be compiled, but without IMU processing features.
+- If OpenCV is not available (or disabled), *LidarSlam* lib will still be compiled, but without camera features.
 - If OpenMP is available, it is possible to use multi-threading to run some SLAM steps in parallel and achieve higher processing speed.
 - If OpenCV is not available (or disabled), *LidarSlam* lib will still be compiled, but without camera integration.
 
@@ -70,7 +73,7 @@ The *LidarSlam* lib has been tested on Linux, Windows and OS X.
 
 First, got to your workspace directory and clone the SLAM repository.
 ```bash
-git clone https://gitlab.kitware.com/keu-computervision/slam.git src
+git clone https://gitlab.kitware.com/keu-computervision/slam.git src --recursive
 ```
 
 #### With system dependencies
@@ -78,11 +81,13 @@ git clone https://gitlab.kitware.com/keu-computervision/slam.git src
 To build only *LidarSlam* lib using your system dependencies, run :
 
 ```bash
-mkdir build
-cd build
+mkdir build && cd build
 cmake ../src -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
 ```
+
+**NOTE** : On Windows, if some dependencies were installed using vcpkg, the variable `CMAKE_TOOLCHAIN_FILE` must be specified :
+cmake ../src -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=[vcpkg-install]/scripts/buildsystems/vcpkg.cmake
 
 #### With local dependencies
 
@@ -92,34 +97,27 @@ cmake ../src -DCMAKE_BUILD_TYPE=Release -DCeres_DIR=path/to/CeresConfig.cmake -D
 ```
 #### With Superbuild
 
-1. Install the superbuild:
-
 In your workspace, run :
 
 ```bash
-mkdir SB-build
-cd SB-build
-cmake ../src/Superbuild -DCMAKE_BUILD_TYPE=Release
+mkdir build && cd build
+cmake ../src/superbuild -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
 ```
 
-**WARNING**: Boost is required to compile the superbuild.
-
-**NOTE**: you can decide which dependencies to build with the superbuild using the options **WITH_XX**. For example, to not compile PCL :
+**NOTE**: By default in the superbuild, mandatory dependencies are installed but optional dependencies are not. You can decide which dependencies to install with the superbuild using the options **INSTALL_XX**. For example, to not build *PCL*:
 ```bash
-cmake ../src/Superbuild -DWITH_PCL=OFF -DCMAKE_BUILD_TYPE=Release
+cmake ../src/superbuild -DCMAKE_BUILD_TYPE=Release -DINSTALL_PCL=OFF
 ```
 
-2. Build the slam library linking to the superbuild dependencies
+Note that installing and enabling an optional dependency is not the same. If you want to install and enable the use of an optional dependency you need to switch two variables to ON : **INSTALL_XX** and **ENABLE_XX**.
 
-In your workspace, run :
-
+Example for *GTSAM* :
 ```bash
-mkdir build
-cd build
-cmake ../src -DSUPERBUILD_INSTALL_DIR=absolute/path/to/workspace/SB-build/install -DCMAKE_BUILD_TYPE=Release
-cmake --build . -j
+cmake ../src/superbuild -DCMAKE_BUILD_TYPE=Release -DINSTALL_GTSAM=ON -DENABLE_GTSAM=ON
 ```
+
+More documentation about the superbuild can be found [here](slam-superbuild/README.md).
 
 ## ROS wrapping
 

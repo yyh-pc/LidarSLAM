@@ -1,0 +1,3 @@
+[submodule "slam-superbuild"]
+  path = slam-superbuild
+  url = ../slam-superbuild.git

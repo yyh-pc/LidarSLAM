@@ -68,11 +68,20 @@ if (OpenCV_FOUND)
   set(opencv_def USE_OPENCV=1)
 endif()
 
+# NOMINMAX needs to be defined to remove macro file windows.h
+# this file causes error when using min max from std
+# windows.h is included by some dependencies (e.g. glog)
+if (WIN32)
+  set(windows_def NOMINMAX)
+  message("Warning: NOMINMAX is defined for windows to solve dependencies windows.h inclusion.")
+endif()
+
 target_compile_definitions(LidarSlam
   PUBLIC
     ${g2o_def}
     ${gtsam_def}
     ${opencv_def}
+    ${windows_def}
 )
 
 # Prefer rpath over runpath to bypass LD_LIBRARY_PATH at runtime (which can be set by ROS notably)

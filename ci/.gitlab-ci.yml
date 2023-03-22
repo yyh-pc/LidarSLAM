@@ -1,5 +1,11 @@
+# Default variables/parameters for all jobs
 variables:
   data_folder: /usr/src/app/data
+  cmake_option_GENERATOR: -GNinja
+  cmake_option_build_type: -DCMAKE_BUILD_TYPE=Release
+  deps_install_path: "${CI_PROJECT_DIR}/../${CI_PROJECT_NAME}_build/build_SB/install"
+  GIT_SUBMODULE_STRATEGY: recursive
+  GIT_SUBMODULE_DEPTH: 20
 
 stages:
   - superbuild
@@ -8,36 +14,9 @@ stages:
   - ros_test
   - paraview_wrapping
 
-# Default parameters for all jobs
-default:
-  before_script: &default_before_script_anchor
-    # To build SLAM, some dependencies are necessary.
-    # If they are not installed system-wide or not visible by CMake, it is
-    # necessary to indicate where to find them on each runner.
-    # The following variables can be defined in the 'environment' field of the
-    # [[runners]] section, defined in the 'config.toml' file.
-    - |
-      echo "Using following cmake arguments that are optionally defined by the runner:"
-      echo "slam_cmake_option_Eigen_INLCUDE_DIR=$slam_cmake_option_Eigen_INCLUDE_DIR"
-      echo "slam_cmake_option_Eigen_DIR=$slam_cmake_option_Eigen_DIR"
-      echo "slam_cmake_option_glog_DIR=$slam_cmake_option_glog_DIR"
-      echo "slam_cmake_option_Ceres_DIR=$slam_cmake_option_Ceres_DIR"
-      echo "slam_cmake_option_nanoflann_DIR=$slam_cmake_option_nanoflann_DIR"
-      echo "slam_cmake_option_Boost_DIR=$slam_cmake_option_Boost_DIR"
-      echo "slam_cmake_option_PCL_DIR=$slam_cmake_option_PCL_DIR"
-      echo "slam_cmake_option_g2o_DIR=$slam_cmake_option_g2o_DIR"
-      echo "slam_cmake_option_ParaView_DIR=$slam_cmake_option_ParaView_DIR"
-      echo "slam_cmake_option_Qt5_DIR=$slam_cmake_option_Qt5_DIR"
-      echo "slam_cmake_option_ZLIB_LIB=$slam_cmake_option_ZLIB_LIB"
-      echo "slam_cmake_option_ZLIB_INC=$slam_cmake_option_ZLIB_INC"
-      echo "slam_cmake_option_PNG_LIB=$slam_cmake_option_PNG_LIB"
-      echo "slam_cmake_option_PNG_PNG_INC=$slam_cmake_option_PNG_PNG_INC"
-      echo "slam_cmake_option_PYTHON=$slam_cmake_option_PYTHON"
-
 # Windows specific configuration
 .windows_runner_config:
   before_script:
-    - *default_before_script_anchor
     # To use the Microsoft C++ Toolset from the command line, some environment variables need to be set.
     # To help with this, Microsoft provides the vcvarsall.bat script that sets different environment vars.
     # (see https://docs.microsoft.com/en-us/cpp/build/building-on-the-command-line?view=vs-2019)
@@ -63,10 +42,9 @@ default:
       }
     - Invoke-CmdScript "${vcvarsall_script_location}/vcvarsall.bat" $architecture
   variables:
-    # Paraview only supports MSVC 14 (2015) and Ninja generator yet
+    # Paraview only supports MSVC 2019 and Ninja generator for now
     vcvarsall_script_location: 'C:/Program Files (x86)/Microsoft Visual Studio/2019/Community/VC/Auxiliary/Build'
     architecture: x86_amd64
-    cmake_option_GENERATOR: -GNinja
 
 # ------------------------------------------------------------------------------
 #   Build superbuild
@@ -74,11 +52,11 @@ default:
 
 # Clean superbuild
 clean_superbuild:
-  tags: [linux, nodocker]
+  tags: []
   stage: superbuild
   needs: []
   variables:
-    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_SB
+    build_dir: "${CI_PROJECT_DIR}/../${CI_PROJECT_NAME}_build/build_SB"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: manual
@@ -89,12 +67,10 @@ clean_superbuild:
     - cmake -E make_directory $build_dir
 
 # Build superbuild
-build_superbuild:
-  tags: [linux, nodocker]
+.build_superbuild:
   stage: superbuild
-  needs: []
   variables:
-    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_SB
+    build_dir: "${CI_PROJECT_DIR}/../${CI_PROJECT_NAME}_build/build_SB"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: manual
@@ -102,11 +78,31 @@ build_superbuild:
       when: manual
   script:
     - cd $build_dir
+    - cmake -E make_directory install
+    - echo "cmake $cmake_option_GENERATOR $cmake_option_build_type -DCMAKE_INSTALL_PREFIX=${deps_install_path} ${CI_PROJECT_DIR}/slam-superbuild"
     - cmake
-      -DCMAKE_BUILD_TYPE=Release
-      -DWITH_G2O=ON
-      $CI_PROJECT_DIR/Superbuild
-    - cmake --build $build_dir -j 4
+      "${CI_PROJECT_DIR}/slam-superbuild"
+      $cmake_option_GENERATOR
+      $cmake_option_build_type
+      -DCMAKE_INSTALL_PREFIX="${deps_install_path}"
+    - cmake --build . -j 4
+
+# Build superbuild on Windows
+# This job allows to store the dependencies
+# for next CI run on windows runners
+windows_build_superbuild:
+  tags: [windows]
+  extends:
+  - .windows_runner_config
+  - .build_superbuild
+
+# Build superbuild on Linux
+# This job allows to store the dependencies
+# for next CI run on linux runners
+linux_build_superbuild:
+  tags: [linux]
+  extends:
+    - .build_superbuild
 
 # ------------------------------------------------------------------------------
 #   Build core LidarSlam lib
@@ -116,7 +112,14 @@ build_superbuild:
   stage: slam_lib
   needs: []
   variables:
-    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_slam_lib
+    build_dir: "${CI_PROJECT_DIR}/../${CI_PROJECT_NAME}_build/build_slam_lib"
+    slam_cmake_option_Eigen_INCLUDE_DIR: "-DEigen_INCLUDE_DIR=${deps_install_path}/include"
+    slam_cmake_option_Eigen_DIR: "-DEigen3_DIR=${deps_install_path}/share/eigen3/cmake"
+    slam_cmake_option_glog_DIR: "-Dglog_DIR=${deps_install_path}/lib/cmake/glog"
+    slam_cmake_option_Ceres_DIR: "-DCeres_DIR=${deps_install_path}/lib/cmake/Ceres"
+    slam_cmake_option_nanoflann_DIR: "-Dnanoflann_DIR=${deps_install_path}/share/nanoflann/cmake"
+    slam_cmake_option_BOOST_ROOT: "-DBOOST_ROOT=${deps_install_path}/"
+    slam_cmake_option_g2o_DIR: "-Dg2o_DIR=${deps_install_path}/lib/cmake/g2o"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: always
@@ -126,20 +129,29 @@ build_superbuild:
     - cmake -E remove_directory $build_dir
     - cmake -E make_directory $build_dir
     - cd $build_dir
+    - echo "cmake $cmake_option_GENERATOR $cmake_option_build_type -DBUILD_SHARED_LIBS=ON $slam_cmake_option_Eigen_INCLUDE_DIR $slam_cmake_option_Eigen_DIR $slam_cmake_option_glog_DIR $slam_cmake_option_Ceres_DIR $slam_cmake_option_nanoflann_DIR $slam_cmake_option_Boost_DIR $slam_cmake_option_PCL_DIR $slam_cmake_option_g2o_DIR ${CI_PROJECT_DIR}"
     - cmake
       $cmake_option_GENERATOR
-      -DCMAKE_BUILD_TYPE=Release
-      -DBUILD_SHARED_LIBS=OFF
-      $slam_cmake_option_Eigen_DIR
+      $cmake_option_build_type
+      -DBUILD_SHARED_LIBS=ON
       $slam_cmake_option_Eigen_INCLUDE_DIR
+      $slam_cmake_option_Eigen_DIR
       $slam_cmake_option_glog_DIR
       $slam_cmake_option_Ceres_DIR
       $slam_cmake_option_nanoflann_DIR
-      $slam_cmake_option_Boost_DIR
+      $slam_cmake_option_BOOST_ROOT
       $slam_cmake_option_PCL_DIR
       $slam_cmake_option_g2o_DIR
-      $CI_PROJECT_DIR
+      ${CI_PROJECT_DIR}
     - cmake --build $build_dir -j 4
+
+# Build core LidarSlam lib on Linux
+linux_slam_lib:
+  tags: [linux, nodocker]
+  extends:
+    - .slam_lib
+  variables:
+    slam_cmake_option_PCL_DIR: "-DPCL_DIR=${deps_install_path}/share/pcl-1.10"
 
 # Build core LidarSlam lib on Windows
 windows_slam_lib:
@@ -147,36 +159,73 @@ windows_slam_lib:
   extends:
   - .windows_runner_config
   - .slam_lib
+  variables:
+    slam_cmake_option_PCL_DIR: "-DPCL_DIR=${deps_install_path}/cmake"
 
-# Build core LidarSlam lib on Linux
-linux_slam_lib:
-  tags: [linux, nodocker]
-  stage: slam_lib
+# ------------------------------------------------------------------------------
+#   Build PV wrapping
+# ------------------------------------------------------------------------------
+
+# Note : Paraview, qt, zlib, png and python deps
+# should be configured in runners' toml files.
+.paraview_wrapping:
+  stage: paraview_wrapping
   needs: []
+  variables:
+    build_dir: "${CI_PROJECT_DIR}/../${CI_PROJECT_NAME}_build/build_paraview_wrapping"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: always
     - if: $CI_COMMIT_BRANCH == "master"
       when: always
-  variables:
-    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_slam_lib
   script:
     - cmake -E remove_directory $build_dir
     - cmake -E make_directory $build_dir
     - cd $build_dir
+    - echo "cmake $cmake_option_GENERATOR $cmake_option_build_type -DBUILD_SHARED_LIBS=ON -DSLAM_PARAVIEW_PLUGIN=ON $slam_cmake_option_Eigen_DIR $slam_cmake_option_Eigen_INCLUDE_DIR $slam_cmake_option_glog_DIR $slam_cmake_option_Ceres_DIR $slam_cmake_option_nanoflann_DIR $slam_cmake_option_Boost_DIR $slam_cmake_option_PCL_DIR $slam_cmake_option_g2o_DIR $slam_cmake_option_ParaView_DIR $slam_cmake_option_Qt5_DIR $slam_cmake_option_ZLIB_LIB $slam_cmake_option_ZLIB_INC $slam_cmake_option_PNG_LIB $slam_cmake_option_PNG_PNG_INC $slam_cmake_option_PYTHON ${CI_PROJECT_DIR}"
     - cmake
       $cmake_option_GENERATOR
-      -DCMAKE_BUILD_TYPE=Release
-      -DBUILD_SHARED_LIBS=OFF
-      -DSUPERBUILD_INSTALL_DIR=$CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_SB/install
+      $cmake_option_build_type
+      -DBUILD_SHARED_LIBS=ON
+      -DSLAM_PARAVIEW_PLUGIN=ON
+      $slam_cmake_option_Eigen_INCLUDE_DIR
+      $slam_cmake_option_Eigen_DIR
+      $slam_cmake_option_glog_DIR
+      $slam_cmake_option_Ceres_DIR
+      $slam_cmake_option_nanoflann_DIR
+      $slam_cmake_option_BOOST_ROOT
+      $slam_cmake_option_PCL_DIR
+      $slam_cmake_option_g2o_DIR
+      $slam_cmake_option_ParaView_DIR
+      $slam_cmake_option_Qt5_DIR
+      $slam_cmake_option_ZLIB_LIB
+      $slam_cmake_option_ZLIB_INC
+      $slam_cmake_option_PNG_LIB
+      $slam_cmake_option_PNG_PNG_INC
+      $slam_cmake_option_PYTHON
       $CI_PROJECT_DIR
     - cmake --build $build_dir -j 4
 
+# Build PV wrapping on Linux
+linux_paraview_wrapping:
+  tags: [linux, paraview]
+  extends:
+    - .paraview_wrapping
+
+# Build PV wrapping on Windows
+windows_paraview_wrapping:
+  tags: [windows, paraview]
+  extends:
+    - .windows_runner_config
+    - .paraview_wrapping
+
 # ------------------------------------------------------------------------------
-#   Build ROS wrapping
+#   Build ROS wrapping (on docker)
 # ------------------------------------------------------------------------------
 
-.ros_wrapping_build:
+# Build ROS wrapping on linux
+linux_ros_wrapping_build:
+  tags: [linux, ros]
   stage: ros_wrapping_build
   needs: []
   cache:
@@ -201,7 +250,7 @@ linux_slam_lib:
     - cd catkin_ws
     - source /opt/ros/noetic/setup.bash
     - catkin_make
-      -DCMAKE_BUILD_TYPE=Release
+      $cmake_option_build_type
       $slam_cmake_option_Eigen_DIR
       $slam_cmake_option_Eigen_INCLUDE_DIR
       $slam_cmake_option_glog_DIR
@@ -212,13 +261,8 @@ linux_slam_lib:
       $slam_cmake_option_g2o_DIR
       -j 4
 
-# Build ROS wrapping on Linux
-linux_ros_wrapping_build:
-  tags: [linux, ros]
-  extends: .ros_wrapping_build
-
 # ------------------------------------------------------------------------------
-#   ROS tests
+#   Perform ROS tests (on docker)
 # ------------------------------------------------------------------------------
 
 # Create a reference for any test from master branch
@@ -241,17 +285,17 @@ linux_ros_wrapping_build:
     - master
   script:
     - echo "Creating reference log files for $test_name for next lib improvements"
-    - cmake -E remove_directory log/$test_name/reference
-    - cmake -E make_directory log/$test_name/reference
+    - cmake -E remove_directory "log/${test_name}/reference"
+    - cmake -E make_directory "log/${test_name}/reference"
     - cd catkin_ws
     - source /opt/ros/noetic/setup.bash
     - source devel/setup.bash
     - roslaunch lidar_slam_test slam.launch
-      test_data:=$data_folder/$test_name/$test_name.bag
+      test_data:="$data_folder/${test_name}/${test_name}.bag"
       outdoor:=$outdoor
       vlp16:=$vlp16
       wait_init:=$wait_init
-      res_path:=$CI_PROJECT_DIR/log/$test_name/reference
+      res_path:="${CI_PROJECT_DIR}/log/${test_name}/reference"
       2>&1
       | grep "comparison ignored"
 
@@ -289,18 +333,18 @@ hack:
       when: always
   script:
     - echo $test_name
-    - cmake -E remove_directory log/$test_name/result
-    - cmake -E make_directory log/$test_name/result
+    - cmake -E remove_directory "log/${test_name}/result"
+    - cmake -E make_directory "log/${test_name}/result"
     - cd catkin_ws
     - source /opt/ros/noetic/setup.bash
     - source devel/setup.bash
     - roslaunch lidar_slam_test slam.launch
-      test_data:=$data_folder/$test_name/$test_name.bag
+      test_data:="${data_folder}/${test_name}/${test_name}.bag"
       outdoor:=$outdoor
       vlp16:=$vlp16
       wait_init:=$wait_init
-      ref_path:=$CI_PROJECT_DIR/log/$test_name/reference
-      res_path:=$CI_PROJECT_DIR/log/$test_name/result
+      ref_path:="${CI_PROJECT_DIR}/log/${test_name}/reference"
+      res_path:="${CI_PROJECT_DIR}/log/${test_name}/result"
       2>&1
       | grep "Test successfully passed"
 
@@ -339,56 +383,3 @@ ros_test2:
     outdoor: "false"
     vlp16: "true"
     wait_init: "4" # To have time to load the reference files
-
-# ------------------------------------------------------------------------------
-#   Build PV wrapping
-# ------------------------------------------------------------------------------
-
-.paraview_wrapping:
-  stage: paraview_wrapping
-  needs: []
-  variables:
-    build_dir: $CI_PROJECT_DIR/../${CI_PROJECT_NAME}_build/build_paraview_wrapping
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: always
-    - if: $CI_COMMIT_BRANCH == "master"
-      when: always
-  script:
-    - cmake -E remove_directory $build_dir
-    - cmake -E make_directory $build_dir
-    - cd $build_dir
-    - cmake
-      $cmake_option_GENERATOR
-      -DCMAKE_BUILD_TYPE=Release
-      -DBUILD_SHARED_LIBS=OFF
-      -DSLAM_PARAVIEW_PLUGIN=ON
-      $slam_cmake_option_Eigen_DIR
-      $slam_cmake_option_Eigen_INCLUDE_DIR
-      $slam_cmake_option_glog_DIR
-      $slam_cmake_option_Ceres_DIR
-      $slam_cmake_option_nanoflann_DIR
-      $slam_cmake_option_Boost_DIR
-      $slam_cmake_option_PCL_DIR
-      $slam_cmake_option_g2o_DIR
-      $slam_cmake_option_ParaView_DIR
-      $slam_cmake_option_Qt5_DIR
-      $slam_cmake_option_ZLIB_LIB
-      $slam_cmake_option_ZLIB_INC
-      $slam_cmake_option_PNG_LIB
-      $slam_cmake_option_PNG_PNG_INC
-      $slam_cmake_option_PYTHON
-      $CI_PROJECT_DIR
-    - cmake --build $build_dir -j 4
-
-# Build PV wrapping on Linux
-linux_paraview_wrapping:
-  tags: [linux, paraview]
-  extends: .paraview_wrapping
-
-# Build PV wrapping on Windows
-windows_paraview_wrapping:
-  tags: [windows, paraview]
-  extends:
-    - .windows_runner_config
-    - .paraview_wrapping

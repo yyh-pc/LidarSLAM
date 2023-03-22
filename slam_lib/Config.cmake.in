@@ -6,17 +6,7 @@ include(CMakeFindDependencyMacro)
 
 find_dependency(nanoflann REQUIRED)
 
-# Find Eigen3. If it defines the target, this is used. If not,
-# fall back to the using the module form.
-# See https://eigen.tuxfamily.org/dox/TopicCMakeGuide.html for details
 find_dependency(Eigen3 QUIET)
-if (NOT TARGET Eigen3::Eigen)
-  if (${EIGEN3_INCLUDE_DIR})
-    target_include_directories(LidarSlam ${EIGEN3_INCLUDE_DIR})
-  else()
-    message(FATAL_ERROR "LidarSlam: Eigen was not found!")
-  endif()
-endif()
 
 find_dependency(Ceres REQUIRED)
 

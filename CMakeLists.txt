@@ -8,11 +8,6 @@ project(LidarSlam
 #  CMake parameters
 #-------------------------
 
-# Use a superbuild if specified
-if(SUPERBUILD_INSTALL_DIR)
-  include(${SUPERBUILD_INSTALL_DIR}/superbuild_import.cmake)
-endif()
-
 set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard")
 message(STATUS "Building LidarSlam with C++${CMAKE_CXX_STANDARD} standard")
 
@@ -31,13 +26,6 @@ set(SLAM_INSTALL_INCLUDE_DIR "include" CACHE STRING "Directory where to install 
 
 # Runtime parameters
 # /!\ warning : must be done before target declaration
-
-# If SLAM superbuild was used, insure rpath fits build paths
-if(SUPERBUILD_INSTALL_DIR)
-  list(PREPEND CMAKE_INSTALL_RPATH "${SUPERBUILD_INSTALL_DIR}/lib/")
-endif()
-
-set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_LIBRARY_DIR}")
 
 # MSVC enforce MT
@@ -100,8 +88,8 @@ if (ENABLE_g2o)
 endif()
 
 # Find optional gtsam (only used for pose IMU raw data integration)
-option(ENABLE_gtsam "Use GTSAM, necessary for raw IMU data integration." ON)
-if (ENABLE_gtsam)
+option(ENABLE_GTSAM "Use GTSAM, necessary for raw IMU data integration." ON)
+if (ENABLE_GTSAM)
   find_package(GTSAM QUIET)
   if (NOT GTSAM_FOUND)
     message("Lidar SLAM : GTSAM requested but not found, IMU raw data will be ignored.")
