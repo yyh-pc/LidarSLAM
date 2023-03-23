@@ -127,7 +127,7 @@ install(TARGETS LidarSlam
 
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file("${CMAKE_BINARY_DIR}/LidarSlamConfigVersion.cmake"
-                                 VERSION 1.6.0
+                                 VERSION 2.0.0
                                  COMPATIBILITY SameMajorVersion)
 
 configure_package_config_file(

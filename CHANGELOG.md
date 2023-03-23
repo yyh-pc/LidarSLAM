@@ -1,5 +1,84 @@
 # SLAM changes history
 
+## *v2.0 (2022/03/23)*
+
+This release mainly brings 4 new features : loop closure (without detection), IMU raw data integration, RGB camera integration and interpolation model choice. It also contains some refactoring, notably in the interpolation steps. An external superbuild is added as submodule. This new superbuild is cross-platform and was used to update the CI. Note that the poses accessibility from the library and in the wrapping has been improved.
+
+The changes are summarized below.
+
+### Core lib
+
+**Major new features:**
+
+* Add a loop closure (detection is not handled) (!192)
+* Integrate IMU raw data to deskew, do egomotion and add a constraint to SLAM (postprocess only) (!187)
+* Allow to get a pose at any required timestamp using external sensors (!216, !219, !221)
+* Allow to get poses since last frame at a specific rate (!216, !217, !219)
+* Add interpolation models choice (!206)
+* Integrate RGB camera data to SLAM optimization (through optical flow constraint) (!180)
+
+**Refactoring and code architecture changes:**
+
+* Add missing const and remove unused functions (!212, !203)
+* Remove the MotionModel class and create an interpolator class (!206)
+* Remove WithinFrameMotion object (!206)
+* Uniformize external sensors (!212)
+
+**Performance improvements:**
+
+* Add keypoints sampling and input frame sampling (!169)
+
+**Bug fixes:**
+
+* Fix behavior of InitTworldWithPoseMeasurment function (!216)
+* Fix segfault that was occuring sometimes because of the PoseManager (!222)
+
+**Compilation / CMake related changes / CI:**
+
+* Fix rpath for Linux systems in case of local dependencies (!215)
+* Fix g2o conditional compilation (!192)
+* Add GTSAM as optional dependency (!187)
+* Add OpenCV as optional dependency (!180)
+* Fix link with PCL + add PCL variable for compilation (!225)
+* Remove Ceres warning of deprecated functions (!227)
+* CMakify the library so it can be built, installed and called as a target on cmake (!228, !229)
+* Add a cross platform external superbuild with all required dependencies (update the CI to use it) (!226)
+
+### ROS wrapping
+
+**Major new features:**
+
+* Allow to provide a pose output frequency (!187)
+* Allow to set the interpolation mode (!206)
+* Allow to provide RGB camera messages (!180)
+
+**Bug fixes:**
+
+* Fix LidarIsPosix parameter (!180)
+
+### ParaView wrapping
+
+**Major new features:**
+
+* Allow to load a calibration file for the Lidar (!212)
+* Allow to load a trajectory to recompute the maps (!210)
+* Add button to rebuild the maps based on the trajectory (!192)
+* Add manual loop closure (!192)
+* Allow to provide raw IMU data (!187)
+* Allow to provide a pose output frequency (!187)
+* Add button to optimize the trajectory using IMU pose graph (!187)
+* Allow to set the interpolation mode (!206)
+
+**Bug fixes:**
+
+* Fix maps blinking when update step is changed (!205)
+* Fix conflict when setting LoggingTimeout (!207)
+* Fix offline SLAM filter (!208)
+
+**Refactoring and code architecture changes:**
+
+* Uniformize debug output (!212)
+
 ## *v1.6 (2022/10/21)*
 
 This release mainly brings 3 new features : landmarks handling, pose graph optimization (big refactoring from old GPS pose graph optimization), external poses use. It also contains some refactoring, notably in the external sensor structures and in the keypoints extraction. A superbuild is added. The CI is updated with new gitlab version and new dependencies versions.
