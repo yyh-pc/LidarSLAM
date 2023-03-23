@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.9)
-project(gps_conversions VERSION 1.6)
+project(gps_conversions VERSION 2.0)
 
 ## Compile as C++14, supported in ROS Kinetic and newer
 set(CMAKE_CXX_STANDARD 14)
