@@ -1075,9 +1075,8 @@ public:
     // 1_1 SLAM pose factor (as prior factor)
     // Create SLAM factor (the graph tracks IMU sensor poses)
     Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(state.Isometry);
-    Eigen::Matrix6d rotCov = state.Covariance;
-    CeresTools::RotateCovariance(initPose, rotCov, this->Calibration, false); // new = init * calib
-    gtsam::PriorFactor<gtsam::Pose3> poseFactor(X(this->TimeIdx), gtsam::Pose3((state.Isometry * this->Calibration).matrix()), state.Covariance);
+    Eigen::Matrix6d rotCov = CeresTools::RotateCovariance(initPose, state.Covariance, this->Calibration, false); // new = init * calib
+    gtsam::PriorFactor<gtsam::Pose3> poseFactor(X(this->TimeIdx), gtsam::Pose3((state.Isometry * this->Calibration).matrix()), rotCov);
     // Add SLAM pose to factors
     graphFactors.add(poseFactor);
     // 1_2_ IMU factor
