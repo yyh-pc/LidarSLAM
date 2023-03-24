@@ -306,6 +306,69 @@ void PoseGraphOptimizer::AddGpsConstraint(int lidarIdx, const ExternalSensors::G
 }
 
 //------------------------------------------------------------------------------
+void PoseGraphOptimizer::AddExtPoseConstraint(int lidarIdx, const ExternalSensors::PoseMeasurement& poseMeas)
+{
+  // Add new vertex corresponding to current
+  // state interpolating the poses
+  auto* newVertex = new g2o::VertexSE3;
+  int idx = --this->ExtIdx;
+  this->ExtPoseIndicesLinking[lidarIdx] = idx;
+  newVertex->setId(idx);
+  newVertex->setEstimate(poseMeas.Pose);
+  newVertex->setFixed(true);
+  this->Optimizer.addVertex(newVertex);
+
+  auto* externalEdge = new g2o::EdgeSE3Euler;
+  // Set vertices
+  auto* slamVertex = this->Optimizer.vertex(lidarIdx);
+  double slamPose [7];
+  slamVertex->getEstimateData(slamPose);
+  Eigen::Isometry3d slamTransform = Utils::XYZQuatToIsometry(slamPose[0], slamPose[1], slamPose[2],
+                                                             slamPose[3], slamPose[4], slamPose[5],
+                                                             slamPose[6]);
+  externalEdge->setVertex(0, slamVertex);
+  externalEdge->setVertex(1, newVertex);
+  // Rotate covariance
+  // Get inverse of last frame
+  Eigen::Isometry3d slamTransformInv = slamTransform.inverse();
+  // Compute relative transform with new frame
+  Eigen::Isometry3d Trelative = slamTransformInv * poseMeas.Pose;
+  // Lidar Slam gives the covariance expressed in the map frame
+  // We want the covariance expressed in the last frame to be consistent with supplied relative transform
+  Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(poseMeas.Pose);
+  Eigen::Matrix6d covariance = CeresTools::RotateCovariance(xyzrpy, poseMeas.Covariance, slamTransformInv, true); // new = slam^-1 * init
+  // Add measurement to edge
+  // Use g2o read function to transform Euler covariance into quaternion covariance
+  // This function takes an istream as input
+  // It needs the measurement vector as 6D euler pose in addition to the covariance
+  // Luckily, g2o uses the same convention as SLAM lib (RPY)
+  // Here we force the poses to be the same: transform is identity
+  std::stringstream measureInfo;
+  measureInfo << 0 << " " << 0 << " " << 0 << " "
+              << 0 << " " << 0 << " " << 0 << " ";
+
+  Eigen::Matrix6d information = covariance.inverse();
+  for (int i = 0; i < 6; ++i)
+  {
+    for (int j = i; j < 6; ++j)
+      measureInfo << information(i, j) << " ";
+  }
+  externalEdge->read(measureInfo);
+
+  // Add robustifier to remove external poses outliers
+  g2o::RobustKernelHuber* rk = new g2o::RobustKernelHuber;
+  externalEdge->setRobustKernel(rk);
+  externalEdge->robustKernel()->setDelta(this->SaturationDistance);
+
+  // Add edge
+  if (!this->Optimizer.addEdge(externalEdge))
+    PRINT_ERROR("External pose constraint could not be added to the graph");
+
+  if (this->Verbose)
+    PRINT_INFO("Add external pose constraint for state #" << lidarIdx);
+}
+
+//------------------------------------------------------------------------------
 bool PoseGraphOptimizer::Process(std::list<LidarState>& statesToOptimize)
 {
   // Save Graph before optimization

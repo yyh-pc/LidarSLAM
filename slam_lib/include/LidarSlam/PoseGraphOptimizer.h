@@ -65,6 +65,9 @@ public:
   //! This odometry reference frame minimize some angle errors
   void AddGpsConstraint(int lidarIdx, const ExternalSensors::GpsMeasurement& gpsMeas);
 
+  //! Add a constraint from an external pose measure
+  void AddExtPoseConstraint(int lidarIdx, const ExternalSensors::PoseMeasurement& poseMeas);
+
   //! Modify all Lidar poses to be in GPS reference frame
   //! Offset is the translation to perform to align trajectories (GPS/Lidar)
   //! GPS data are provided in an external global reference frame
@@ -91,6 +94,9 @@ public:
   GetMacro(FixLast, bool)
   SetMacro(FixLast, bool)
 
+  GetMacro(SaturationDistance, float)
+  SetMacro(SaturationDistance, float)
+
 private:
 
   g2o::SparseOptimizer Optimizer;
@@ -106,8 +112,11 @@ private:
   // Saturation distance to remove outliers (used in robustifier)
   float SaturationDistance = 5.f;
 
-  // Linking between external sensor supplied indices and graph indices
+  // Linking between lm sensor supplied indices and graph indices
   std::unordered_map<int, int> LMIndicesLinking;
+
+  // Linking between external poses supplied indices and graph indices
+  std::unordered_map<int, int> ExtPoseIndicesLinking;
 };
 
 } // end of LidarSlam namespace
