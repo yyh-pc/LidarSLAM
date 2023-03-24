@@ -1719,7 +1719,7 @@ bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState
     std::cout << std::endl;
   }
 
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Loop closure Registration : map keypoints extraction"));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Loop closure Registration : submap keypoints extraction"));
   IF_VERBOSE(3, Utils::Timer::Init("Loop closure Registration : whole ICP-LM loop"));
 
   // Reset ICP results
