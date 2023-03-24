@@ -1663,6 +1663,7 @@ bool Slam::DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryStat
     {
       // Automatic detection of loop closure by teaserpp registration
       // It detects automatically a revisited frame idx for the current frame
+      IF_VERBOSE(3, Utils::Timer::Init("Detect Loop: teaserpp"));
       itQueryState = std::prev(this->LogStates.end());
       itRevisitedState = this->LogStates.begin();
       detectionValid = this->DetectLoopWithTeaser(itQueryState, itRevisitedState);
@@ -1671,6 +1672,7 @@ bool Slam::DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryStat
         this->LoopParams.QueryIdx = itQueryState->Index;
         this->LoopParams.RevisitedIdx = itRevisitedState->Index;
       }
+      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Detect Loop: teaserpp"));
       break;
     }
   }
@@ -1694,17 +1696,33 @@ bool Slam::DetectLoopWithTeaser(std::list<LidarState>::iterator& itQueryState, s
   PointCloud::Ptr queryPoints(new PointCloud);
   for (auto k : this->UsableKeypoints)
     *queryPoints += *querySubMaps[k]->Get();
+  IF_VERBOSE(3, Utils::Timer::Init("Teaser: Query feature"));
   // Compute FPFH features for query keypoints
   auto queryDescriptors = this->ComputeFPFHFeatures(queryPoints,
                                                     2 * this->GetVoxelGridLeafSize(PLANE),
                                                     3 * this->GetVoxelGridLeafSize(PLANE));
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Teaser: Query feature"));
 
   // Convert query submap keypoints into teaser registration input format
+  IF_VERBOSE(3, Utils::Timer::Init("Teaser: convert query sub map"));
   teaser::PointCloud teaserQueryPoints;
   teaserQueryPoints.reserve(queryPoints->size());
   #pragma omp parallel for num_threads(this->NbThreads)
   for (const auto& pt: *queryPoints)
     teaserQueryPoints.push_back({pt.x, pt.y, pt.z}); // Note: only push_back can be used for teaser pointcloud format
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Teaser: convert query sub map"));
+  // Save maps for query frmae --------------------------------------------------------
+  std::ofstream fout0("/home/tfu/Documents/Project/test_teaser/Aquery"
+                      + std::to_string(itQueryState->Index) + ".csv");
+  for (auto k : this->UsableKeypoints)
+  {
+    PointCloud queryWorldKeypoints;
+    pcl::transformPointCloud(*querySubMaps.at(k)->Get(), queryWorldKeypoints, itQueryState->Isometry.matrix().cast<float>());
+    for (const auto pt : queryWorldKeypoints)
+      fout0 << pt.x << "," << pt.y << "," << pt.z << "\n";
+  }
+  fout0.close();
+  // Save maps for query frmae --------------------------------------------------------
 
   // Compute the frame index relative to the newest frame onto which a loop closure is searched
   // A frame gap is set to avoid finding a loop closure between the query frame and its direct surrounding.
@@ -1721,6 +1739,8 @@ bool Slam::DetectLoopWithTeaser(std::list<LidarState>::iterator& itQueryState, s
     // Create candidate submap
     Maps candidateSubMaps;
     this->InitSubMaps(candidateSubMaps);
+    for (auto k : this->UsableKeypoints)
+      candidateSubMaps[k]->SetLeafSize(this->LoopParams.TestSample);
     if (this->LoopParams.SampleStep < 0)
       // Use the whole map as target
       this->BuildMaps(candidateSubMaps, itSt->Index, lastFrameIdx);
@@ -1734,21 +1754,35 @@ bool Slam::DetectLoopWithTeaser(std::list<LidarState>::iterator& itQueryState, s
     PointCloud::Ptr candidatePoints(new PointCloud);
     for (auto k : this->UsableKeypoints)
       *candidatePoints += *candidateSubMaps[k]->Get();
+    IF_VERBOSE(3, Utils::Timer::Init("Teaser: Candidate feature"));
     auto candidateDescriptors = this->ComputeFPFHFeatures(candidatePoints,
                                                           2 * this->GetVoxelGridLeafSize(PLANE),
                                                           3 * this->GetVoxelGridLeafSize(PLANE));
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Teaser: Candidate feature"));
 
+    IF_VERBOSE(3, Utils::Timer::Init("Teaser: Test Correspondences"));
     // Calculate correspondences between query submap and candidate submap
     auto correspondences = this->CalculateCorrespondences(queryDescriptors, candidateDescriptors);
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Teaser: Test Correspondences"));
 
     // TEASER++ registration
     // Convert candidate submap keypoints into teaser registration input format
+    std::ofstream fout1("/home/tfu/Documents/Project/test_teaser/Candidate"
+                  + std::to_string(itSt->Index) + ".csv");
+    IF_VERBOSE(3, Utils::Timer::Init("Teaser: Convert candidate points"));
     teaser::PointCloud teaserCandidatePoints;
     teaserCandidatePoints.reserve(candidatePoints->size());
     #pragma omp parallel for num_threads(this->NbThreads)
     for (const auto& pt: *candidatePoints)
+    {
       teaserCandidatePoints.push_back({pt.x, pt.y, pt.z}); // Note: push_back is defined in teaserpp lib for its pointcloud
+      fout1 << pt.x << "," << pt.y << "," << pt.z << "\n";
+    }
+    fout1.close();
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Teaser: Convert candidate points"));
 
+    IF_VERBOSE(3, Utils::Timer::Init("Teaser: Registration"));
+    this->LoopParams.TeaserParams.noise_bound = this->LoopParams.NoiseBound;
     // Solve with TEASER++
     teaser::RobustRegistrationSolver solver(this->LoopParams.TeaserParams);
     solver.solve(teaserQueryPoints, teaserCandidatePoints, correspondences);
@@ -1756,6 +1790,7 @@ bool Slam::DetectLoopWithTeaser(std::list<LidarState>::iterator& itQueryState, s
     Eigen::Isometry3d candidateLCTransform = Eigen::Isometry3d::Identity();
     candidateLCTransform.translation() = solution.translation;
     candidateLCTransform.linear() = solution.rotation;
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Teaser: Registration"));
 
     // Registration evaluation
     // Register query points in world using estimated LC transform
@@ -1766,8 +1801,16 @@ bool Slam::DetectLoopWithTeaser(std::list<LidarState>::iterator& itQueryState, s
     for (auto k : this->UsableKeypoints)
       candidateSubMaps[k]->BuildSubMapKdTree();
 
+    // Save maps after registration --------------------------------------------------------
+    std::ofstream fout("/home/tfu/Documents/Project/test_teaser/QueryforFrame"
+                        + std::to_string(itSt->Index) + ".csv");
+    for (const auto& pt : *queryWorldPoints)
+      fout << pt.x << "," << pt.y << "," << pt.z << "\n";
+    fout.close();
+
     // Compute LCP like estimator
     // (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
+    IF_VERBOSE(3, Utils::Timer::Init("Teaser: Overlap"));
     float overlapEstimation = Confidence::LCPEstimator(worldQueryPoints, candidateSubMaps,
                                                        this->GetVoxelGridLeafSize(PLANE), this->NbThreads, false);
     if (overlapEstimation > overlap)
@@ -1776,6 +1819,7 @@ bool Slam::DetectLoopWithTeaser(std::list<LidarState>::iterator& itQueryState, s
       itRevisitedState = itSt;
       queryPose = candidateLCTransform;
     }
+    std::cout<<" Overlap between query frame #"<<itQueryState->Index<<" and frame #"<<itSt->Index<<" is "<<overlapEstimation<<"\n";
 
     // Update iterator
     // If sample step is negative, no loop is actually needed
@@ -1784,6 +1828,7 @@ bool Slam::DetectLoopWithTeaser(std::list<LidarState>::iterator& itQueryState, s
     itSt = this->FetchStateIndex(itSt, this->LoopParams.SampleStep);
   }
 
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Teaser: Overlap"));
   if (overlap >= this->LoopParams.EvaluationThreshold)
   {
     this->LoopDetectionTransform = queryPose;
@@ -1852,13 +1897,16 @@ std::vector<std::pair<int, int>> Slam::CalculateCorrespondences(pcl::PointCloud<
   auto &featuresSmall = swapped ? sourceFeatures : targetFeatures;
   auto &featuresLarge = swapped ? targetFeatures : sourceFeatures;
 
+  IF_VERBOSE(3, Utils::Timer::Init("Corres: Build kdtree"));
   // Build kdtree for two input cloud
   pcl::search::KdTree<pcl::FPFHSignature33>::Ptr kdtreeSmall(new pcl::search::KdTree<pcl::FPFHSignature33>);
   pcl::search::KdTree<pcl::FPFHSignature33>::Ptr kdtreeLarge(new pcl::search::KdTree<pcl::FPFHSignature33>);
   kdtreeSmall->setInputCloud(featuresSmall);
   kdtreeLarge->setInputCloud(featuresLarge);
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Corres: Build kdtree"));
 
   // Initial matching
+  IF_VERBOSE(3, Utils::Timer::Init("Corres: Search and match"));
   // Parameters for nearest K search
   int kNeighbor = 1;
   std::vector<float> dis;
@@ -1880,7 +1928,9 @@ std::vector<std::pair<int, int>> Slam::CalculateCorrespondences(pcl::PointCloud<
       large2Small[idx] = corresK[0];
     }
   }
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Corres: Search and match"));
 
+  IF_VERBOSE(3, Utils::Timer::Init("Corres: cross check"));
   // Cross check the match is bijective
   for (int idxL = 0; idxL < nLarge; idxL++)
   {
@@ -1890,12 +1940,15 @@ std::vector<std::pair<int, int>> Slam::CalculateCorrespondences(pcl::PointCloud<
     if (small2Large[idxS] == idxL)
       corres.push_back(std::pair<int, int>(idxL, idxS));
   }
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Corres: cross check"));
 
+  IF_VERBOSE(3, Utils::Timer::Init("Corres: swapped"));
   if (swapped)
   {
     for (auto& c : corres)
         std::swap(c.first, c.second);
   }
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Corres: swapped"));
 
   return corres;
 }
