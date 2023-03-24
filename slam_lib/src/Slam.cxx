@@ -709,7 +709,10 @@ bool Slam::OptimizeGraph()
 {
   #ifdef USE_G2O
   // Check if graph can be optimized
-  if (!this->LmHasData() && !this->GpsHasData() && !this->UsePGOConstraints[LOOP_CLOSURE])
+  if ((!this->UsePGOConstraints[LANDMARK]     || !this->LmHasData())  &&
+      (!this->UsePGOConstraints[PGO_GPS]      || !this->GpsHasData()) &&
+      (!this->UsePGOConstraints[PGO_EXT_POSE] || !this->PoseHasData()) &&
+      !this->UsePGOConstraints[LOOP_CLOSURE])
   {
     PRINT_WARNING("No external constraint found, graph cannot be optimized");
     return false;
@@ -811,6 +814,46 @@ bool Slam::OptimizeGraph()
     }
   }
 
+  // Look for ext pose constraints
+  if (this->UsePGOConstraints[PGO_EXT_POSE] && this->PoseHasData())
+  {
+    if (this->FixFirstVertex || this->FixLastVertex)
+    {
+      PRINT_WARNING("External poses are processed as anchors in pose graph"
+                     << " but a SLAM pose is also fixed,"
+                     << " this may give inconsistent results...")
+    }
+
+    // Compute offset between SLAM referential frame
+    // and external poses referential frame
+    // if it has not been computed or set before (e.g. in MoveToExtPosesRefFrame)
+    // This offset allows to align the first two synchronized poses
+    // It will be updated at the end of the optimization
+    if (this->PoseManager->GetOffset().matrix().isIdentity())
+      this->PoseManager->UpdateOffset(this->LogStates);
+
+    // Compute tracked frame trajectory using external poses
+    // in SLAM referential frame (offset is applied)
+    std::vector<ExternalSensors::PoseMeasurement> poseMeasurements;
+    int startIdx = this->PoseManager->ComputeEquivalentTrajectory(this->LogStates, poseMeasurements);
+    auto startIt = this->LogStates.begin();
+    std::advance(startIt, startIdx);
+    int idx = startIdx;
+
+    for (auto itState = startIt; itState != this->LogStates.end(); ++itState)
+    {
+      ExternalSensors::PoseMeasurement& poseSynchMeasure = poseMeasurements[idx];
+      ++idx;
+      if (std::abs(poseSynchMeasure.Time - itState->Time) > 1e-6)
+        continue;
+
+      // Add ext pose constraint to the graph
+      graphManager.AddExtPoseConstraint(itState->Index, poseSynchMeasure);
+
+      externalConstraint = true;
+    }
+  }
+
   if (!externalConstraint)
   {
     PRINT_ERROR("No external constraints nor loop closure constraint exist. Pose graph can not be optimized");
@@ -846,6 +889,8 @@ bool Slam::OptimizeGraph()
   IF_VERBOSE(3, Utils::Timer::Init("PGO : maps and trajectory update"));
   // Replace Lidar SLAM poses in odom frame
   this->ResetTrajWithTworldInit();
+  // Update offset of referential frames with new de-skewed trajectory
+  this->PoseManager->UpdateOffset(this->LogStates);
   // Update the maps from the beginning using the new trajectory
   // Points older than the first logged state remain untouched
   this->UpdateMaps();

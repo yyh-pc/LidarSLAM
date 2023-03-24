@@ -1210,7 +1210,10 @@ private:
   int NbGraphIterations = 100;
 
   // Booleans to decide whether to use a pose graph constraint for the optimization
-  std::map<PGOConstraint, bool> UsePGOConstraints = {{LOOP_CLOSURE, true}, {LANDMARK, true}, {PGO_GPS, true}};
+  std::map<PGOConstraint, bool> UsePGOConstraints = {{LOOP_CLOSURE, true},
+                                                     {LANDMARK, true},
+                                                     {PGO_GPS, true},
+                                                     {PGO_EXT_POSE, true}};
 
   // ---------------------------------------------------------------------------
   //   Confidence estimation
