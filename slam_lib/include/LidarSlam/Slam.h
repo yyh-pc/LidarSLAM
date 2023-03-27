@@ -557,6 +557,7 @@ public:
   void SetSensorMaxMeasures(unsigned int max);
 
   void ResetSensors(bool emptyMeasurements = false);
+  void ResetSensor(bool emptyMeasurements, ExternalSensor sensor);
 
   // Check if there are external sensor data
   // available for local optimization
@@ -656,6 +657,11 @@ public:
   bool PoseHasData() const {return this->PoseManager && this->PoseManager->HasData() &&
                                    (!this->ImuHasData() || this->ImuHasBeenUpdated > 2);}
 
+  // Find the calibration offset between the base frame and the frame tracked by the external poses
+  // The two trajectories can be represented in different global frames
+  bool CalibrateWithExtPoses();
+
+  Eigen::Isometry3d GetPoseCalibration() const;
   void SetPoseCalibration(const Eigen::Isometry3d& calib);
 
   // Camera
