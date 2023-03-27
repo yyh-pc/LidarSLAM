@@ -141,7 +141,7 @@
 
           *x/y/z/roll/pitch/yaw*: Absolute pose measurements in meters and radians (YXZ order)
 
-          WARNING : these data must come along with a calibration file in the
+          WARNING : these data should come along with a calibration file in the
           same location named calibration_external_sensor.mat.
           This calibration must contain the 4x4 calibration matrix representing
           the transform from external poses sensor to Base frame (i.e. the tracked frame).
@@ -155,6 +155,9 @@
              0 0 -1 0.2
 
              0 0 0 1
+
+          If this file is not found, the calibration is estimated using the current SLAM
+          trajectory and the loaded poses. If it is not possible, the calibration is set to identity.
         </Documentation>
       </StringVectorProperty>
 
