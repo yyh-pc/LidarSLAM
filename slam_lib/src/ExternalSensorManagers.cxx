@@ -696,6 +696,107 @@ Eigen::Isometry3d PoseManager::GetPose(double time)
     return this->Measures.back().Pose;
 }
 
+// ---------------------------------------------------------------------------
+int PoseManager::ComputeEquivalentTrajectory(const std::list<LidarState>& states, std::vector<PoseMeasurement>& poseMeasurements)
+{
+  poseMeasurements.resize(states.size());
+  int idxPose = 0;
+  for (auto it = states.begin(); it != states.end(); ++it)
+  {
+    // Compute synchronized measures representing sensor frame
+    PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
+    if (this->ComputeSynchronizedMeasureBase(it->Time, synchMeas))
+      poseMeasurements[idxPose] = synchMeas;
+    ++idxPose;
+  }
+
+  // Compute the first index for which a synchronized pose was found
+  unsigned int startIdxPose = 0;
+  while (startIdxPose < poseMeasurements.size() && std::abs(poseMeasurements[startIdxPose].Time) < 1e-6)
+    ++startIdxPose;
+
+  return startIdxPose;
+}
+
+// ---------------------------------------------------------------------------
+bool PoseManager::ComputeCalibration(const std::list<LidarState>& states)
+{
+  if (states.size() <= 2)
+  {
+    PRINT_WARNING("Cannot estimate the calibration for ext poses: not enough logged states");
+    return false;
+  }
+
+  // Get equivalent trajectory in pose measurements
+  std::vector<PoseMeasurement> poseMeasurements;
+  int startIdxPose = this->ComputeEquivalentTrajectory(states, poseMeasurements);
+  if (startIdxPose == int(states.size()))
+  {
+    PRINT_WARNING("Cannot estimate the calibration for ext poses: no equivalent trajectory");
+    return false;
+  }
+
+  auto itStart = states.begin();
+  std::advance(itStart, startIdxPose);
+
+  // Store the reference frames
+  Eigen::Isometry3d refSLAMInv = itStart->Isometry.inverse();
+  Eigen::Isometry3d refPoseManagerInv = poseMeasurements[startIdxPose].Pose.inverse();
+
+  // Create solver
+  // Note: to use shared pointers the ownership must be let to them
+  ceres::Problem::Options options;
+  options.loss_function_ownership = ceres::Ownership::DO_NOT_TAKE_OWNERSHIP;
+  options.cost_function_ownership = ceres::Ownership::DO_NOT_TAKE_OWNERSHIP;
+  ceres::Problem problem(options);
+
+  // Create residual storing structure
+  std::vector<CeresTools::Residual> residuals;
+  residuals.reserve(states.size()); // reserve max size
+
+  Eigen::Vector7d calibXYZQuat = Utils::IsometryToXYZQuat(this->Calibration);
+  int idxPose = 0;
+  for (auto it = itStart; it != states.end(); ++it)
+  {
+    PoseMeasurement& synchMeas = poseMeasurements[idxPose];
+    ++idxPose;
+    if (std::abs(synchMeas.Time - it->Time) > 1e-6)
+      continue;
+
+    // Create and store new residual for next optimization
+    residuals.emplace_back(CeresTools::Residual());
+    CeresTools::Residual& res = residuals.back();
+    res.Cost = CeresCostFunctions::CalibResidual::Create(refPoseManagerInv * synchMeas.Pose,
+                                                         refSLAMInv        * it->Isometry);
+    auto* robustifier = new ceres::TukeyLoss(this->SaturationDistance);
+    #if (CERES_VERSION_MAJOR < 2)
+      res.Robustifier.reset(new ceres::ScaledLoss(robustifier, 2.0, ceres::TAKE_OWNERSHIP)); // ownership because of shared pointer use
+    // If Ceres version >= 2.0.0, the Tukey loss is corrected.
+    #else
+      res.Robustifier.reset(new ceres::ScaledLoss(robustifier, 1.0, ceres::TAKE_OWNERSHIP)); // ownership because of shared pointer use
+    #endif
+
+    // Add residual to cost function
+    problem.AddResidualBlock(res.Cost.get(), res.Robustifier.get(), calibXYZQuat.data());
+  }
+
+  // LM solver options
+  ceres::Solver::Options LMoptions;
+  LMoptions.linear_solver_type = ceres::DENSE_QR;
+  LMoptions.max_num_iterations = 500;
+  LMoptions.num_threads = 4;
+
+  // Run optimization
+  ceres::Solver::Summary summary;
+  ceres::Solve(LMoptions, &problem, &summary);
+  this->Calibration = Utils::XYZQuatToIsometry(calibXYZQuat);
+  if (this->Verbose)
+    PRINT_INFO(summary.BriefReport());
+  if (this->Verbose)
+    PRINT_INFO("External pose calibration estimated to : \n" << this->Calibration.matrix());
+  return true;
+}
+
 // Camera
 // ---------------------------------------------------------------------------
 bool CameraManager::ComputeSynchronizedMeasure(double lidarTime, Image& synchMeas, bool trackTime)

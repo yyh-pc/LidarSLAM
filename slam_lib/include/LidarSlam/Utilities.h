@@ -74,6 +74,9 @@ namespace Eigen
   ///! @brief 6D Vector of double
   using Vector6d = Matrix<double, 6, 1>;
 
+  ///! @brief 7D Vector of double
+  using Vector7d = Matrix<double, 7, 1>;
+
   //! @brief Spline for 3D Vector of double
   using Spline3d = Eigen::Spline<double, 3>;
 
@@ -297,6 +300,30 @@ Eigen::Vector6d IsometryToXYZRPY(const Eigen::Isometry3d& transform);
  * @return 6D array, with rotation (rX, rY, rZ) and translation (X, Y, Z)
  */
 Eigen::Vector6d IsometryToRPYXYZ(const Eigen::Isometry3d& transform);
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Convert translation and quaternion to full rigid transform
+ * @param Translation (X, Y, Z) and rotation (QX, QY, QZ, QW)
+ * @return The rigid transform (rotation + translation)
+ */
+Eigen::Isometry3d XYZQuatToIsometry(double x, double y, double z, double qx, double qy, double qz, double qw);
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Convert translation and quaternion to full rigid transform
+ * @param Vector containing translation (X, Y, Z) and rotation (QX, QY, QZ, QW) elements
+ * @return The rigid transform (rotation + translation)
+ */
+Eigen::Isometry3d XYZQuatToIsometry(const Eigen::Vector7d& xyzQuat);
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Get a pose (rotation as quaternion) from a rigid transform
+ * @param transform The rigid transform
+ * @return 7D array, with translation (X, Y, Z) and rotation (quaternion)
+ */
+Eigen::Vector7d IsometryToXYZQuat(const Eigen::Isometry3d& transform);
 
 //------------------------------------------------------------------------------
 /*!
