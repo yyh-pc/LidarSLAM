@@ -68,7 +68,12 @@ endif()
 
 find_package(Ceres REQUIRED)
 
-find_package(PCL REQUIRED COMPONENTS common io octree geometry)
+# pcl_for_teaser registers pcl components only when teaserpp is required
+if (ENABLE_teaserpp)
+  set(pcl_for_teaser features kdtree)
+endif()
+find_package(PCL REQUIRED COMPONENTS common io octree geometry
+             OPTIONAL_COMPONENTS ${pcl_for_teaser})
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 link_directories(${PCL_LIBRARY_DIRS})

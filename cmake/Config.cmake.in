@@ -21,7 +21,8 @@ find_dependency(Eigen3 QUIET)
 
 find_dependency(Ceres REQUIRED)
 
-find_dependency(PCL REQUIRED COMPONENTS common io octree geometry)
+find_dependency(PCL REQUIRED COMPONENTS common io octree geometry
+                OPTIONAL_COMPONENTS @pcl_for_teaser@)
 
 # Find optional g2o (only used for pose graph optimization)
 if (@g2o_FOUND@)
