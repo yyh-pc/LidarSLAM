@@ -13,12 +13,24 @@ find_dependency(Ceres REQUIRED)
 find_dependency(PCL REQUIRED COMPONENTS common io octree geometry)
 
 # Find optional g2o (only used for pose graph optimization)
-find_dependency(g2o QUIET)
+if (@g2o_FOUND@)
+  find_dependency(g2o QUIET)
+else()
+  message("Lidar SLAM : G2O was not found, pose graph API disabled")
+endif()
 
 # Find optional gtsam (only used for pose IMU raw data integration)
-find_dependency(GTSAM QUIET)
+if (@GTSAM_FOUND@)
+  find_dependency(GTSAM QUIET)
+else()
+  message("Lidar SLAM : GTSAM was not found, IMU preintegration disabled")
+endif()
 
 # Find optional OpenMP
-find_dependency(OpenMP QUIET)
+if (@OpenMP_FOUND@)
+  find_dependency(OpenMP QUIET)
+else()
+  message("Lidar SLAM : OpenMP was not found, multi-threading for SLAM disabled")
+endif()
 
 check_required_components(LidarSlam)
