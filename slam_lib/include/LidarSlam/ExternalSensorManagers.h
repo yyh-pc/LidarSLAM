@@ -845,8 +845,8 @@ public:
     auto lastRawMeasureIt = this->RawMeasures.end();
     --lastRawMeasureIt;
 
-    // We are looking for iterators of measures corresponding to the one just after lidar state timestamp
-    while (itMeasStartUpdate != lastMeasureIt && itMeasStartUpdate->Time < timeIcurr)
+    // We are looking for iterators of measures corresponding to the one just AFTER lidar state timestamp
+    while (itMeasStartUpdate != lastMeasureIt && itMeasStartUpdate->Time <= timeIcurr)
     {
       ++itMeasStartUpdate;
       ++itRawMeasStartUpdate;
@@ -1027,9 +1027,9 @@ public:
     // Init search at beginning
     auto itRawMeasStartUpdate = this->RawMeasures.begin();
 
-    // 0_1 Get raw measure iterator corresponding to the one just after previous lidar state timestamp
+    // 0_1 Get raw measure iterator corresponding to the one just AFTER previous lidar state timestamp
     // This iterator defines the start of the preintegration
-    while (itRawMeasStartUpdate->Time < prevLidarTimeSynch)
+    while (itRawMeasStartUpdate->Time <= prevLidarTimeSynch)
       ++itRawMeasStartUpdate;
 
     // Reset preintegrator
