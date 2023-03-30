@@ -208,10 +208,10 @@ static const std::map<ExternalSensor, std::string> ExternalSensorNames = { {WHEE
 enum PGOConstraint
 {
   //! Loop closure
-  LOOP_CLOSURE  = 0,
+  LOOP_CLOSURE = 0,
 
   //! Landmark
-  LANDMARK  = 1,
+  LANDMARK = 1,
 
   //! GPS
   PGO_GPS = 2,
