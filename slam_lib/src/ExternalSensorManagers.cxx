@@ -794,6 +794,26 @@ bool PoseManager::ComputeCalibration(const std::list<LidarState>& states)
     PRINT_INFO(summary.BriefReport());
   if (this->Verbose)
     PRINT_INFO("External pose calibration estimated to : \n" << this->Calibration.matrix());
+
+  std::ofstream fout("XX.csv");
+  idxPose = 0;
+  for (auto it = itStart; it != states.end(); ++it)
+  {
+    PoseMeasurement& synchMeas = poseMeasurements[idxPose];
+    ++idxPose;
+    if (std::abs(synchMeas.Time - it->Time) > 1e-6)
+      continue;
+
+    Eigen::Isometry3d ext = refPoseManagerInv * synchMeas.Pose;
+    Eigen::Isometry3d slam = refSLAMInv * it->Isometry;
+    fout << ext.translation().x() << "," << ext.translation().y() << "," << ext.translation().z() << ",0," << residuals.size() << "\n";
+    fout << slam.translation().x() << "," << slam.translation().y() << "," << slam.translation().z() << ",255," << residuals.size() << "\n";
+    std::cout << (this->Calibration.inverse() * ext * this->Calibration).matrix() << std::endl;
+    std::cout << slam.matrix() << std::endl;
+    getchar();
+  }
+  fout.close();
+
   return true;
 }
 
