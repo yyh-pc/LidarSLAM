@@ -665,7 +665,7 @@ bool Slam::OptimizeGraph()
     // Allow the rotation of the covariances when interpolating the measurements
     this->SetLandmarkCovarianceRotation(true);
     // Set the landmark detector calibration
-    graphManager.AddExternalSensor(this->LmDetectorCalibration, int(ExternalSensor::LANDMARK_DETECTOR));
+    graphManager.AddExternalSensor(this->LmDetectorCalibration, ExternalSensor::LANDMARK_DETECTOR);
 
     for (auto& idLm : this->LandmarksManagers)
     {
@@ -698,7 +698,7 @@ bool Slam::OptimizeGraph()
   // Look for GPS constraints
   if (this->UsePGOConstraints[PGO_GPS] && this->GpsHasData())
   {
-    graphManager.AddExternalSensor(this->GpsManager->GetCalibration(), int(ExternalSensor::GPS));
+    graphManager.AddExternalSensor(this->GpsManager->GetCalibration(), ExternalSensor::GPS);
     for (auto& s : this->LogStates)
     {
       ExternalSensors::GpsMeasurement gpsSynchMeasure; // Virtual GPS measure in SLAM reference frame with synchronized timestamp

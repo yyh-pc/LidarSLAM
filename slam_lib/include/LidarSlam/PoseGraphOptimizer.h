@@ -45,7 +45,7 @@ public:
 
   //! Position (pose) of the sensor that produces the trajectory to optimize in GPS antenna cordinates.
   //! As only GPS position is used, only translation offset will be used.
-  void AddExternalSensor(const Eigen::Isometry3d& BaseToSensorOffset, unsigned int index = 0);
+  bool AddExternalSensor(const Eigen::Isometry3d& baseToSensorOffset, ExternalSensor sensor);
 
   //! Compute optimized SLAM trajectory using ground-control points.
   bool Process(std::list<LidarState>& optimizedStates);

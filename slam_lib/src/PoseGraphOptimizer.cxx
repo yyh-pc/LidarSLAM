@@ -48,21 +48,22 @@ void PoseGraphOptimizer::ResetGraph()
 }
 
 //------------------------------------------------------------------------------
-void PoseGraphOptimizer::AddExternalSensor(const Eigen::Isometry3d& BaseToSensorOffset, unsigned int index)
+bool PoseGraphOptimizer::AddExternalSensor(const Eigen::Isometry3d& baseToSensorOffset, ExternalSensor sensor)
 {
   // Check if the offset has never been set
-  if (this->Optimizer.parameter(index))
+  if (this->Optimizer.parameter(int(sensor)))
   {
-    PRINT_WARNING("Sensor pose could not be set : index already exists");
-    return;
+    PRINT_WARNING("Sensor calibration could not be set : index already exists");
+    return false;
   }
 
   // Add base/sensor offset parameter
-  auto* BaseToSensorSE3Offset = new g2o::ParameterSE3Offset;
-  BaseToSensorSE3Offset->setId(index);
-  BaseToSensorSE3Offset->setOffset(BaseToSensorOffset);
-  PRINT_INFO("Calib set for index " << index << " :\n" << BaseToSensorOffset.matrix())
-  this->Optimizer.addParameter(BaseToSensorSE3Offset);
+  auto* baseToSensorSE3Offset = new g2o::ParameterSE3Offset;
+  baseToSensorSE3Offset->setId(int(sensor));
+  baseToSensorSE3Offset->setOffset(baseToSensorOffset);
+  this->Optimizer.addParameter(baseToSensorSE3Offset);
+  PRINT_INFO("Calib set for " << ExternalSensorNames.at(sensor) << " :\n" << baseToSensorOffset.matrix())
+  return true;
 }
 
 //------------------------------------------------------------------------------
