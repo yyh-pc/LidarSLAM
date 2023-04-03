@@ -594,6 +594,10 @@ public:
   // The measures data track GPS sensor frame (not base frame) but are represented in the same referential
   bool ComputeSynchronizedMeasureOffset(double lidarTime, GpsMeasurement& synchMeas, bool trackTime = true);
 
+  // Compute the interpolated measure (SLAM base frame position in SLAM referential) to be synchronized with SLAM output at lidarTime
+  // The measures data track base frame and are represented in the same referential
+  bool ComputeSynchronizedMeasureOffsetBase(double lidarTime, GpsMeasurement& synchMeas, bool trackTime = true);
+
   bool ComputeConstraint(double lidarTime) override;
 
   bool CanBeUsedLocally() const {return false;}

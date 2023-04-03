@@ -498,6 +498,19 @@ bool GpsManager::ComputeSynchronizedMeasureOffset(double lidarTime, GpsMeasureme
 }
 
 // ---------------------------------------------------------------------------
+bool GpsManager::ComputeSynchronizedMeasureOffsetBase(double lidarTime, GpsMeasurement& synchMeas, bool trackTime)
+{
+  if (!this->ComputeSynchronizedMeasureOffset(lidarTime, synchMeas, trackTime))
+    return false;
+  // Apply calibration relatively to base frame to track base frame in SLAM reference frame
+  synchMeas.Position += this->Calibration.translation();
+  // Rotate covariance
+  synchMeas.Covariance = synchMeas.Covariance * this->Calibration.linear();
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 bool GpsManager::ComputeConstraint(double lidarTime)
 {
   static_cast<void>(lidarTime);
