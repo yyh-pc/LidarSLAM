@@ -594,6 +594,10 @@ public:
   // The measures data track GPS sensor frame (not base frame) but are represented in the same referential
   bool ComputeSynchronizedMeasureOffset(double lidarTime, GpsMeasurement& synchMeas, bool trackTime = true);
 
+  // Compute the interpolated measure (SLAM base frame position in SLAM referential) to be synchronized with SLAM output at lidarTime
+  // The measures data track base frame and are represented in the same referential
+  bool ComputeSynchronizedMeasureOffsetBase(double lidarTime, GpsMeasurement& synchMeas, bool trackTime = true);
+
   bool ComputeConstraint(double lidarTime) override;
 
   bool CanBeUsedLocally() const {return false;}
@@ -1075,9 +1079,8 @@ public:
     // 1_1 SLAM pose factor (as prior factor)
     // Create SLAM factor (the graph tracks IMU sensor poses)
     Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(state.Isometry);
-    Eigen::Matrix6d rotCov = state.Covariance;
-    CeresTools::RotateCovariance(initPose, rotCov, this->Calibration, false); // new = init * calib
-    gtsam::PriorFactor<gtsam::Pose3> poseFactor(X(this->TimeIdx), gtsam::Pose3((state.Isometry * this->Calibration).matrix()), state.Covariance);
+    Eigen::Matrix6d rotCov = CeresTools::RotateCovariance(initPose, state.Covariance, this->Calibration, false); // new = init * calib
+    gtsam::PriorFactor<gtsam::Pose3> poseFactor(X(this->TimeIdx), gtsam::Pose3((state.Isometry * this->Calibration).matrix()), rotCov);
     // Add SLAM pose to factors
     graphFactors.add(poseFactor);
     // 1_2_ IMU factor

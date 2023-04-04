@@ -21,7 +21,6 @@
 #include "LidarSlam/CeresCostFunctions.h"
 #include "LidarSlam/Utilities.h"
 #include <Eigen/Geometry>
-#include <ceres/ceres.h>
 
 namespace LidarSlam
 {

@@ -113,9 +113,9 @@ type Get##name##param () const { return name##Params.param; }
 
 // Macro to set/get which types of pose graph constraints to use
 #define PGOConstraintSetMacro(name,type)                                         \
-void SetPGOConstraint##name (type _arg) { UsePGOConstraints[name] = _arg; }
+void SetPGOConstraint##name (type _arg) { this->UsePGOConstraints[name] = _arg; }
 #define PGOConstraintGetMacro(name,type)                                         \
-type GetPGOConstraint##name () const { return UsePGOConstraints.at(name); }
+type GetPGOConstraint##name () const { return this->UsePGOConstraints.at(name); }
 
 namespace LidarSlam
 {

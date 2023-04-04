@@ -609,7 +609,7 @@ bool Slam::OptimizeGraph()
 {
   #ifdef USE_G2O
   // Check if graph can be optimized
-  if (!this->LmHasData() && !this->GpsHasData() && !UsePGOConstraints[LOOP_CLOSURE])
+  if (!this->LmHasData() && !this->GpsHasData() && !this->UsePGOConstraints[LOOP_CLOSURE])
   {
     PRINT_WARNING("No external constraint found, graph cannot be optimized");
     return false;
@@ -635,7 +635,7 @@ bool Slam::OptimizeGraph()
   bool externalConstraint = false;
 
   // Look for loop closure constraints
-  if (UsePGOConstraints[LOOP_CLOSURE])
+  if (this->UsePGOConstraints[LOOP_CLOSURE])
   {
     // Detect loop closure
     auto itRevisitedState = this->LogStates.begin();
@@ -660,12 +660,12 @@ bool Slam::OptimizeGraph()
   }
 
   // Look for landmark constraints
-  if (UsePGOConstraints[LANDMARK] && this->LmHasData())
+  if (this->UsePGOConstraints[LANDMARK] && this->LmHasData())
   {
     // Allow the rotation of the covariances when interpolating the measurements
     this->SetLandmarkCovarianceRotation(true);
     // Set the landmark detector calibration
-    graphManager.AddExternalSensor(this->LmDetectorCalibration, int(ExternalSensor::LANDMARK_DETECTOR));
+    graphManager.AddExternalSensor(this->LmDetectorCalibration, ExternalSensor::LANDMARK_DETECTOR);
 
     for (auto& idLm : this->LandmarksManagers)
     {
@@ -696,9 +696,9 @@ bool Slam::OptimizeGraph()
   }
 
   // Look for GPS constraints
-  if (UsePGOConstraints[PGO_GPS] && this->GpsHasData())
+  if (this->UsePGOConstraints[PGO_GPS] && this->GpsHasData())
   {
-    graphManager.AddExternalSensor(this->GpsManager->GetCalibration(), int(ExternalSensor::GPS));
+    graphManager.AddExternalSensor(this->GpsManager->GetCalibration(), ExternalSensor::GPS);
     for (auto& s : this->LogStates)
     {
       ExternalSensors::GpsMeasurement gpsSynchMeasure; // Virtual GPS measure in SLAM reference frame with synchronized timestamp
