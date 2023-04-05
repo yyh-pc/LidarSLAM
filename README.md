@@ -95,29 +95,30 @@ You can link to the local libraries you have installed adding cmake flags. Notab
 ```bash
 cmake ../src -DCMAKE_BUILD_TYPE=Release -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
 ```
+
 #### With Superbuild
 
 In your workspace, run :
 
 ```bash
 mkdir build && cd build
-cmake ../src/superbuild -DCMAKE_BUILD_TYPE=Release
+cmake ../src/slam-superbuild -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
 ```
 
 **NOTE**: By default in the superbuild, mandatory dependencies are installed but optional dependencies are not. You can decide which dependencies to install with the superbuild using the options **INSTALL_XX**. For example, to not build *PCL*:
 ```bash
-cmake ../src/superbuild -DCMAKE_BUILD_TYPE=Release -DINSTALL_PCL=OFF
+cmake ../src/slam-superbuild -DCMAKE_BUILD_TYPE=Release -DINSTALL_PCL=OFF
 ```
 
 Note that installing and enabling an optional dependency is not the same. If you want to install and enable the use of an optional dependency you need to switch two variables to ON : **INSTALL_XX** and **ENABLE_XX**.
 
 Example for *GTSAM* :
 ```bash
-cmake ../src/superbuild -DCMAKE_BUILD_TYPE=Release -DINSTALL_GTSAM=ON -DENABLE_GTSAM=ON
+cmake ../src/slam-superbuild -DCMAKE_BUILD_TYPE=Release -DINSTALL_GTSAM=ON -DENABLE_GTSAM=ON
 ```
 
-More documentation about the superbuild can be found [here](slam-superbuild/README.md).
+More documentation about the superbuild can be found [here](https://gitlab.kitware.com/keu-computervision/slam-superbuild).
 
 ## ROS wrapping
 
