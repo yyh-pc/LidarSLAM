@@ -283,7 +283,7 @@ void PoseGraphOptimizer::AddGpsConstraint(int lidarIdx, const ExternalSensors::G
 {
   // Add a vertex with a GPS position
   auto* newVertex = new g2o::VertexPointXYZ;
-  newVertex->setId(this->ExtIdx);
+  newVertex->setId(--this->ExtIdx);
   newVertex->setEstimate(gpsMeas.Position);
   newVertex->setFixed(true);
   this->Optimizer.addVertex(newVertex);
