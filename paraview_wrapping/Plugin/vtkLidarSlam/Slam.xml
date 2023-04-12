@@ -1947,32 +1947,6 @@
         </Hints>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Loop point sampling"
-                         command="SetLoopTestSample"
-                         number_of_elements="1"
-                         default_values="1."
-                         panel_visibility="advanced">
-        <Documentation>
-          Pointcloud sampling for candidate maps.
-        </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Loop closure detector" value="2" />
-        </Hints>
-      </DoubleVectorProperty>
-
-      <DoubleVectorProperty name="Loop noise bound"
-                         command="SetLoopNoiseBound"
-                         number_of_elements="1"
-                         default_values="0.05"
-                         panel_visibility="advanced">
-        <Documentation>
-          Noise bound.
-        </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Loop closure detector" value="2" />
-        </Hints>
-      </DoubleVectorProperty>
-
       <IntVectorProperty name="Advanced settings"
                          number_of_elements="1"
                          default_values="0"
@@ -1995,8 +1969,6 @@
         <Property name="Revisited frame index" />
         <Property name="Revisited map start range" />
         <Property name="Revisited map end range" />
-        <Property name="Loop point sampling" />
-        <Property name="Loop noise bound" />
         <Property name="Advanced settings" />
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use loop closure constraint" value="1" />

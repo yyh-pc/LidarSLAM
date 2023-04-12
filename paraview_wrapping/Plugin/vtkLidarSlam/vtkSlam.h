@@ -258,12 +258,6 @@ public:
   vtkCustomGetMacro(LoopEvaluationThreshold, double)
   vtkCustomSetMacro(LoopEvaluationThreshold, double)
 
-  vtkCustomGetMacro(LoopTestSample, double)
-  vtkCustomSetMacro(LoopTestSample, double)
-
-  vtkCustomGetMacro(LoopNoiseBound, double)
-  vtkCustomSetMacro(LoopNoiseBound, double)
-
   // Get/Set Loop closure registration parameters
   vtkCustomGetMacro(LoopEnableOffset, bool)
   vtkCustomSetMacro(LoopEnableOffset, bool)

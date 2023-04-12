@@ -188,9 +188,6 @@ struct Parameters
   // By default SampleStep is set to -1, the only candidate submap is the full map
   double SampleStep = -1.; // meter
 
-  double TestSample = 1.;
-  double NoiseBound = 0.05;
-
   // The threshold to decide whether a candidate frame is the revisited frame of loop closure or not
   double EvaluationThreshold = 0.6;
 
@@ -720,12 +717,6 @@ public:
 
   GetStructParamsMacro(Loop, SampleStep, double)
   SetStructParamsMacro(Loop, SampleStep, double)
-
-  GetStructParamsMacro(Loop, TestSample, double)
-  SetStructParamsMacro(Loop, TestSample, double)
-
-  GetStructParamsMacro(Loop, NoiseBound, double)
-  SetStructParamsMacro(Loop, NoiseBound, double)
 
   GetStructParamsMacro(Loop, EvaluationThreshold, double)
   SetStructParamsMacro(Loop, EvaluationThreshold, double)
