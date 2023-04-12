@@ -20,9 +20,9 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # Install parameters
-set(SLAM_INSTALL_LIBRARY_DIR "lib"     CACHE STRING "Directory where to install LidarSlam libraries")
-set(SLAM_INSTALL_BINARY_DIR  "bin"     CACHE STRING "Directory where to install LidarSlam dll")
-set(SLAM_INSTALL_INCLUDE_DIR "include" CACHE STRING "Directory where to install LidarSlam header files")
+set(SLAM_INSTALL_LIBRARY_DIR "${CMAKE_INSTALL_LIBDIR}"     CACHE STRING "Directory where to install LidarSlam libraries")
+set(SLAM_INSTALL_BINARY_DIR  "${CMAKE_INSTALL_BINDIR}"     CACHE STRING "Directory where to install LidarSlam dll")
+set(SLAM_INSTALL_INCLUDE_DIR "${CMAKE_INSTALL_INCLUDEDIR}" CACHE STRING "Directory where to install LidarSlam header files")
 
 # Runtime parameters
 # /!\ warning : must be done before target declaration
@@ -131,3 +131,36 @@ endif()
 
 # To build/use ROS wrapping, just put this entire directory in the catkin src
 # workspace and run `catkin_make` or `catkin build`.
+
+#-------------------------
+#  Install export files
+#-------------------------
+
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(
+  "${CMAKE_BINARY_DIR}/LidarSlamConfigVersion.cmake"
+  VERSION "${CMAKE_PROJECT_VERSION}"
+  COMPATIBILITY SameMajorVersion
+)
+
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Config.cmake.in"
+  "${CMAKE_BINARY_DIR}/LidarSlamConfig.cmake"
+  INSTALL_DESTINATION "${SLAM_INSTALL_LIBRARY_DIR}/cmake/LidarSlam"
+)
+
+# Is automatically exported in paraview_wrapping with LidarSlamPlugin
+if (NOT SLAM_PARAVIEW_PLUGIN)
+  install(
+    EXPORT LidarSlamLib
+    FILE "LidarSlamLib-targets.cmake"
+    NAMESPACE LidarSlam::
+    DESTINATION "${SLAM_INSTALL_LIBRARY_DIR}/cmake/LidarSlam"
+  )
+endif()
+
+install(
+  FILES "${CMAKE_BINARY_DIR}/LidarSlamConfig.cmake"
+        "${CMAKE_BINARY_DIR}/LidarSlamConfigVersion.cmake"
+  DESTINATION "${SLAM_INSTALL_LIBRARY_DIR}/cmake/LidarSlam"
+)
