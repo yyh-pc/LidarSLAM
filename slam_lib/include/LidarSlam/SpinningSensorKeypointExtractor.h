@@ -201,7 +201,7 @@ private:
   int MinNeighNb = 4;
 
   // Minimum radius to define the neighborhood to compute curvature of a studied point
-  float MinNeighRadius = 0.05f;
+  float MinNeighRadius = 0.10f;
 
   // Minimal point/sensor sensor to consider a point as valid
   float MinDistanceToSensor = 1.5;  // [m]

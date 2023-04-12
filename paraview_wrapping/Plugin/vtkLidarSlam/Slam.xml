@@ -2229,7 +2229,7 @@
       <DoubleVectorProperty name="Min neighborhood radius"
                             command="SetMinNeighRadius"
                             number_of_elements="1"
-                            default_values="0.05"
+                            default_values="0.10"
                             panel_visibility="advanced">
         <Documentation>
           Minimum distance of the farthest neighbor to use on each side of current point to estimate
