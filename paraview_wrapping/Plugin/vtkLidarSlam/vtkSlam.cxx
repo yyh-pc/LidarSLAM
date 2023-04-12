@@ -182,6 +182,56 @@ void vtkSlam::OptimizeGraph()
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::EnablePGOConstraintLoopClosure(bool enabled)
+{
+  vtkDebugMacro(<< "Enabling loop closure constraint for pose graph optimization");
+  this->SlamAlgo->EnablePGOConstraint(LidarSlam::PGOConstraint::LOOP_CLOSURE, enabled);
+}
+
+void vtkSlam::EnablePGOConstraintLandmark(bool enabled)
+{
+  vtkDebugMacro(<< "Enabling landmark constraint for pose graph optimization");
+  this->SlamAlgo->EnablePGOConstraint(LidarSlam::PGOConstraint::LANDMARK, enabled);
+}
+
+void vtkSlam::EnablePGOConstraintGPS(bool enabled)
+{
+  vtkDebugMacro(<< "Enabling GPS constraint for pose graph optimization");
+  this->SlamAlgo->EnablePGOConstraint(LidarSlam::PGOConstraint::PGO_GPS, enabled);
+}
+
+//-----------------------------------------------------------------------------
+bool vtkSlam::GetPGOConstraintLoopClosure()
+{
+  bool enabled = this->SlamAlgo->IsPGOConstraintEnabled(LidarSlam::PGOConstraint::LOOP_CLOSURE);
+  if (enabled)
+    vtkDebugMacro(<< "Loop closure constraint for PGO is enabled");
+  else
+    vtkDebugMacro(<< "Loop closure constraint for PGO is disabled");
+  return enabled;
+}
+
+bool vtkSlam::GetPGOConstraintLandmark()
+{
+  bool enabled = this->SlamAlgo->IsPGOConstraintEnabled(LidarSlam::PGOConstraint::LANDMARK);
+  if (enabled)
+    vtkDebugMacro(<< "Landmark constraint for PGO is enabled");
+  else
+    vtkDebugMacro(<< "Landmark constraint for PGO is disabled");
+  return enabled;
+}
+
+bool vtkSlam::GetPGOConstraintGPS()
+{
+  bool enabled = this->SlamAlgo->IsPGOConstraintEnabled(LidarSlam::PGOConstraint::PGO_GPS);
+  if (enabled)
+    vtkDebugMacro(<< "GPS constraint for PGO is enabled");
+  else
+    vtkDebugMacro(<< "GPS constraint for PGO is disabled");
+  return enabled;
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::ClearMaps()
 {
   vtkDebugMacro(<< "Clearing the maps");
@@ -1686,6 +1736,11 @@ void vtkSlam::SetLoggingTimeout(double loggingTimeout)
     this->ParametersModificationTime.Modified();
   }
 
+  // If UsePoseGraph is enabled, check LoggingTimeout and return a warning if LoggingTimeout is 0
+  if (this->UsePoseGraph && this->LoggingTimeout <= 1e-6)
+    vtkWarningMacro(<< "Pose graph is required but the logging timeout is null : "
+                       "no pose can be used to build the graph, please increase the logging timeout.");
+
   // Forward this parameter change to SLAM
   // If Advanced Return mode is enabled, use the max value
   if (this->AdvancedReturnMode)
@@ -1704,12 +1759,13 @@ void vtkSlam::SetUsePoseGraph(bool usePoseGraph)
 
     // If UsePoseGraph is enabled, check LoggingTimeout and return a warning if LoggingTimeout is 0
     if (this->UsePoseGraph && this->GetLoggingTimeout() <= 1e-6)
-      vtkWarningMacro(<< "Pose graph is required but the logging timeout is null : no pose can be used to build the graph, please increase the logging timeout.");
+      vtkWarningMacro(<< "Pose graph is required but the logging timeout is null : "
+                         "no pose can be used to build the graph, please increase the logging timeout.");
   }
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::SetLoopClosureQueryIdx(unsigned int loopClosureQueryIdx)
+void vtkSlam::SetLoopQueryIdx(unsigned int loopClosureQueryIdx)
 {
   // Check the input frame index can be found in Logstates
   // If the input query frame index is not in Logstates, replace it by the last frame index stored in Logstates
@@ -1725,15 +1781,15 @@ void vtkSlam::SetLoopClosureQueryIdx(unsigned int loopClosureQueryIdx)
     loopClosureQueryIdx = lidarStates.back().Index;
   }
   vtkDebugMacro("Setting LoopClosureQueryFrameIdx to " << loopClosureQueryIdx);
-  if (this->SlamAlgo->GetLoopClosureQueryIdx() != loopClosureQueryIdx)
+  if (this->SlamAlgo->GetLoopQueryIdx() != loopClosureQueryIdx)
   {
-    this->SlamAlgo->SetLoopClosureQueryIdx(loopClosureQueryIdx);
+    this->SlamAlgo->SetLoopQueryIdx(loopClosureQueryIdx);
     this->ParametersModificationTime.Modified();
   }
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::SetLoopClosureRevisitedIdx(unsigned int loopClosureRevisitedIdx)
+void vtkSlam::SetLoopRevisitedIdx(unsigned int loopClosureRevisitedIdx)
 {
   // Check the input frame index can be found in Logstates
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
@@ -1746,9 +1802,9 @@ void vtkSlam::SetLoopClosureRevisitedIdx(unsigned int loopClosureRevisitedIdx)
     return;
   }
   vtkDebugMacro("Setting LoopClosureRevisitedFrameIdx to " << loopClosureRevisitedIdx);
-  if (this->SlamAlgo->GetLoopClosureRevisitedIdx() != loopClosureRevisitedIdx)
+  if (this->SlamAlgo->GetLoopRevisitedIdx() != loopClosureRevisitedIdx)
   {
-    this->SlamAlgo->SetLoopClosureRevisitedIdx(loopClosureRevisitedIdx);
+    this->SlamAlgo->SetLoopRevisitedIdx(loopClosureRevisitedIdx);
     this->ParametersModificationTime.Modified();
   }
 }

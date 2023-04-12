@@ -95,27 +95,30 @@
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
-// The following macros are used to get/set optimization parameters which include
-// matching parameters for keypoints match and parameters for ICP-LM optimization
-// See more details in struct Parameters
-// Macro to set MatchingParameters in struct Parameters
-#define OptMatchingParamsSetMacro(name, param, type)                             \
-void Set##name##param (type _arg) { name##Params.MatchingParams.param = _arg; }
-// Macro to get a parameter value in MatchingParameters
-#define  OptMatchingParamsGetMacro(name, param, type)                            \
-type Get##name##param () const { return name##Params.MatchingParams.param; }
-// Macro to set parameters (except matching parameters) in struct Parameters
-#define OptimizationParamsSetMacro(name, param, type)                            \
+// The following macros are used to set/get a parameter in a struct
+// !Attention the name of variable needs to be ended with "Params"
+// to avoid a collision with the existed variable
+#define SetStructParamsMacro(name, param, type)                              \
 void Set##name##param (type _arg) { name##Params.param = _arg; }
-// Macro to get a parameter value (except matching parameters) in struct Parameters
-#define  OptimizationParamsGetMacro(name, param, type)                           \
+// Macro to get a parameter value in a struct
+#define GetStructParamsMacro(name, param, type)                             \
 type Get##name##param () const { return name##Params.param; }
 
-// Macro to set/get which types of pose graph constraints to use
-#define PGOConstraintSetMacro(name,type)                                         \
-void SetPGOConstraint##name (type _arg) { this->UsePGOConstraints[name] = _arg; }
-#define PGOConstraintGetMacro(name,type)                                         \
-type GetPGOConstraint##name () const { return this->UsePGOConstraints.at(name); }
+// The following macros are used to get/set a parameters in a nested structure
+// !Attention the name of variable needs to be ended with "Params"
+// to avoid a collision with the existed variable
+#define SetNestedStructParamsMacro(name, nestedName, param, type)            \
+void Set##name##param (type _arg) { name##Params.nestedName.param = _arg; }
+#define GetNestedStructParamsMacro(name, nestedName, param, type)            \
+type Get##name##param () const { return name##Params.nestedName.param; }
+
+// The following macros are used to get/set a parameters in a nested structure
+// !Attention the name of variable needs to be ended with "Params"
+// to avoid a collision with the existed variable
+#define SetDeepNestedStructParamsMacro(name, nested1, nested2, param, type)                             \
+void Set##name##param (type _arg) { name##Params.nested1.nested2.param = _arg; }
+#define GetDeepNestedStructParamsMacro(name, nested1, nested2, param, type)                            \
+type Get##name##param () const { return name##Params.nested1.nested2.param; }
 
 namespace LidarSlam
 {
@@ -159,6 +162,53 @@ struct Parameters
   bool EnableExternalConstraints = false;
 };
 } // end of Optimization namespace
+// Parameters for loop closure
+namespace LoopClosure
+{
+struct Parameters
+{
+  // Boolean to decide if the closure information can be provided externally by various sources (user or camera or landmark...)
+  // If true, users need to indicate the query frame index and the revisited frame index for loop closure.
+  bool ExtDetect = false;
+
+  // Frame indices to indicate where the loop closure is formed.
+  unsigned int QueryIdx = 0;
+  unsigned int RevisitedIdx = 0;
+
+  // Number of frames used to build the submaps around the query frame or the revisited frame for loop closure.
+  // To build sub maps around query frame, use frames [QueryIdx + QueryMapStartRange, QueryIdx + QueryMapEndRange].
+  // To build sub maps around the revisited frame, use frames [RevisitedIdx + RevisitedMapStartRange, RevisitedIdx + RevisitedMapEndRange].
+  int QueryMapStartRange = -50;
+  int QueryMapEndRange = 50;
+  int RevisitedMapStartRange = -50;
+  int RevisitedMapEndRange = 50;
+
+  // Boolean to add an offset to loop closure pose prior when the frames are too far from each other.
+  bool EnableOffset = false;
+
+  // Boolean to enable the registration between two sub maps instead of registering a single frame on a sub map.
+  bool ICPWithSubmap = true;
+
+  Optimization::Parameters OptParams
+  {
+    // KeypointsMatcher::Parameters MatchingParams
+    {
+      // unsigned int NbThreads, bool SingleEdgePerRing, double MaxNeighborsDistance,
+      1, false, 5.,
+      // unsigned int EdgeNbNeighbors, unsigned int EdgeMinNbNeighbors, double EdgeMaxModelError,
+      10, 4, 0.2,
+      // unsigned int PlaneNbNeighbors, double PlanarityThreshold, double PlaneMaxModelError
+      5, 0.04, 0.2,
+      // unsigned int BlobNbNeighbors, double SaturationDistance
+      10, 1.
+    },
+    // unsigned int ICPMaxIter, unsigned int LMMaxIter, double InitSaturationDistance, double FinalSaturationDistance
+    3, 15, 2, 0.5,
+    // UndistortionMode Undistortion, bool enableExternalConstraints
+    UndistortionMode::NONE, false
+  };
+};
+} // end of LoopClosure namespace
 
 class Slam
 {
@@ -329,14 +379,10 @@ public:
   GetMacro(NbGraphIterations, int)
   SetMacro(NbGraphIterations, int)
 
-  PGOConstraintSetMacro(LOOP_CLOSURE, bool)
-  PGOConstraintGetMacro(LOOP_CLOSURE, bool)
-
-  PGOConstraintSetMacro(LANDMARK, bool)
-  PGOConstraintGetMacro(LANDMARK, bool)
-
-  PGOConstraintSetMacro(PGO_GPS, bool)
-  PGOConstraintGetMacro(PGO_GPS, bool)
+  // Set the pose graph constraint type to use
+  void EnablePGOConstraint(PGOConstraint constraint, bool enabled = true);
+  // Get the pose graph constraint types used
+  bool IsPGOConstraintEnabled(PGOConstraint constraint) const;
 
   // ---------------------------------------------------------------------------
   //   Coordinates systems parameters
@@ -379,75 +425,75 @@ public:
   SetMacro(TwoDMode, bool)
 
   // Get/Set EgoMotion
-  OptimizationParamsGetMacro(EgoMotion, LMMaxIter, unsigned int)
-  OptimizationParamsSetMacro(EgoMotion, LMMaxIter, unsigned int)
+  GetStructParamsMacro(EgoMotion, LMMaxIter, unsigned int)
+  SetStructParamsMacro(EgoMotion, LMMaxIter, unsigned int)
 
-  OptimizationParamsGetMacro(EgoMotion, ICPMaxIter, unsigned int)
-  OptimizationParamsSetMacro(EgoMotion, ICPMaxIter, unsigned int)
+  GetStructParamsMacro(EgoMotion, ICPMaxIter, unsigned int)
+  SetStructParamsMacro(EgoMotion, ICPMaxIter, unsigned int)
 
-  OptMatchingParamsGetMacro(EgoMotion, MaxNeighborsDistance, double)
-  OptMatchingParamsSetMacro(EgoMotion, MaxNeighborsDistance, double)
+  GetNestedStructParamsMacro(EgoMotion, MatchingParams, MaxNeighborsDistance, double)
+  SetNestedStructParamsMacro(EgoMotion, MatchingParams, MaxNeighborsDistance, double)
 
-  OptMatchingParamsGetMacro(EgoMotion, EdgeNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(EgoMotion, EdgeNbNeighbors, unsigned int)
+  GetNestedStructParamsMacro(EgoMotion, MatchingParams, EdgeNbNeighbors, unsigned int)
+  SetNestedStructParamsMacro(EgoMotion, MatchingParams, EdgeNbNeighbors, unsigned int)
 
-  OptMatchingParamsGetMacro(EgoMotion, EdgeMinNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(EgoMotion, EdgeMinNbNeighbors, unsigned int)
+  GetNestedStructParamsMacro(EgoMotion, MatchingParams, EdgeMinNbNeighbors, unsigned int)
+  SetNestedStructParamsMacro(EgoMotion, MatchingParams, EdgeMinNbNeighbors, unsigned int)
 
-  OptMatchingParamsGetMacro(EgoMotion, PlaneNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(EgoMotion, PlaneNbNeighbors, unsigned int)
+  GetNestedStructParamsMacro(EgoMotion, MatchingParams, PlaneNbNeighbors, unsigned int)
+  SetNestedStructParamsMacro(EgoMotion, MatchingParams, PlaneNbNeighbors, unsigned int)
 
-  OptMatchingParamsGetMacro(EgoMotion, PlanarityThreshold, double)
-  OptMatchingParamsSetMacro(EgoMotion, PlanarityThreshold, double)
+  GetNestedStructParamsMacro(EgoMotion, MatchingParams, PlanarityThreshold, double)
+  SetNestedStructParamsMacro(EgoMotion, MatchingParams, PlanarityThreshold, double)
 
-  OptMatchingParamsGetMacro(EgoMotion, EdgeMaxModelError, double)
-  OptMatchingParamsSetMacro(EgoMotion, EdgeMaxModelError, double)
+  GetNestedStructParamsMacro(EgoMotion, MatchingParams, EdgeMaxModelError, double)
+  SetNestedStructParamsMacro(EgoMotion, MatchingParams, EdgeMaxModelError, double)
 
-  OptMatchingParamsGetMacro(EgoMotion, PlaneMaxModelError, double)
-  OptMatchingParamsSetMacro(EgoMotion, PlaneMaxModelError, double)
+  GetNestedStructParamsMacro(EgoMotion, MatchingParams, PlaneMaxModelError, double)
+  SetNestedStructParamsMacro(EgoMotion, MatchingParams, PlaneMaxModelError, double)
 
-  OptimizationParamsGetMacro(EgoMotion, InitSaturationDistance, double)
-  OptimizationParamsSetMacro(EgoMotion, InitSaturationDistance, double)
+  GetStructParamsMacro(EgoMotion, InitSaturationDistance, double)
+  SetStructParamsMacro(EgoMotion, InitSaturationDistance, double)
 
-  OptimizationParamsGetMacro(EgoMotion, FinalSaturationDistance, double)
-  OptimizationParamsSetMacro(EgoMotion, FinalSaturationDistance, double)
+  GetStructParamsMacro(EgoMotion, FinalSaturationDistance, double)
+  SetStructParamsMacro(EgoMotion, FinalSaturationDistance, double)
 
   // Get/Set Localization
-  OptimizationParamsGetMacro(Localization, LMMaxIter, unsigned int)
-  OptimizationParamsSetMacro(Localization, LMMaxIter, unsigned int)
+  GetStructParamsMacro(Localization, LMMaxIter, unsigned int)
+  SetStructParamsMacro(Localization, LMMaxIter, unsigned int)
 
-  OptimizationParamsGetMacro(Localization, ICPMaxIter, unsigned int)
-  OptimizationParamsSetMacro(Localization, ICPMaxIter, unsigned int)
+  GetStructParamsMacro(Localization, ICPMaxIter, unsigned int)
+  SetStructParamsMacro(Localization, ICPMaxIter, unsigned int)
 
-  OptMatchingParamsGetMacro(Localization, MaxNeighborsDistance, double)
-  OptMatchingParamsSetMacro(Localization, MaxNeighborsDistance, double)
+  GetNestedStructParamsMacro(Localization, MatchingParams, MaxNeighborsDistance, double)
+  SetNestedStructParamsMacro(Localization, MatchingParams, MaxNeighborsDistance, double)
 
-  OptMatchingParamsGetMacro(Localization, EdgeNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(Localization, EdgeNbNeighbors, unsigned int)
+  GetNestedStructParamsMacro(Localization, MatchingParams, EdgeNbNeighbors, unsigned int)
+  SetNestedStructParamsMacro(Localization, MatchingParams, EdgeNbNeighbors, unsigned int)
 
-  OptMatchingParamsGetMacro(Localization, EdgeMinNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(Localization, EdgeMinNbNeighbors, unsigned int)
+  GetNestedStructParamsMacro(Localization, MatchingParams, EdgeMinNbNeighbors, unsigned int)
+  SetNestedStructParamsMacro(Localization, MatchingParams, EdgeMinNbNeighbors, unsigned int)
 
-  OptMatchingParamsGetMacro(Localization, PlaneNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(Localization, PlaneNbNeighbors, unsigned int)
+  GetNestedStructParamsMacro(Localization, MatchingParams, PlaneNbNeighbors, unsigned int)
+  SetNestedStructParamsMacro(Localization, MatchingParams, PlaneNbNeighbors, unsigned int)
 
-  OptMatchingParamsGetMacro(Localization, PlanarityThreshold, double)
-  OptMatchingParamsSetMacro(Localization, PlanarityThreshold, double)
+  GetNestedStructParamsMacro(Localization, MatchingParams, PlanarityThreshold, double)
+  SetNestedStructParamsMacro(Localization, MatchingParams, PlanarityThreshold, double)
 
-  OptMatchingParamsGetMacro(Localization, EdgeMaxModelError, double)
-  OptMatchingParamsSetMacro(Localization, EdgeMaxModelError, double)
+  GetNestedStructParamsMacro(Localization, MatchingParams, EdgeMaxModelError, double)
+  SetNestedStructParamsMacro(Localization, MatchingParams, EdgeMaxModelError, double)
 
-  OptMatchingParamsGetMacro(Localization, PlaneMaxModelError, double)
-  OptMatchingParamsSetMacro(Localization, PlaneMaxModelError, double)
+  GetNestedStructParamsMacro(Localization, MatchingParams, PlaneMaxModelError, double)
+  SetNestedStructParamsMacro(Localization, MatchingParams, PlaneMaxModelError, double)
 
-  OptMatchingParamsGetMacro(Localization, BlobNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(Localization, BlobNbNeighbors, unsigned int)
+  GetNestedStructParamsMacro(Localization, MatchingParams, BlobNbNeighbors, unsigned int)
+  SetNestedStructParamsMacro(Localization, MatchingParams, BlobNbNeighbors, unsigned int)
 
-  OptimizationParamsGetMacro(Localization, InitSaturationDistance, double)
-  OptimizationParamsSetMacro(Localization, InitSaturationDistance, double)
+  GetStructParamsMacro(Localization, InitSaturationDistance, double)
+  SetStructParamsMacro(Localization, InitSaturationDistance, double)
 
-  OptimizationParamsGetMacro(Localization, FinalSaturationDistance, double)
-  OptimizationParamsSetMacro(Localization, FinalSaturationDistance, double)
+  GetStructParamsMacro(Localization, FinalSaturationDistance, double)
+  SetStructParamsMacro(Localization, FinalSaturationDistance, double)
 
   // External Sensor parameters
 
@@ -611,69 +657,70 @@ public:
   // ---------------------------------------------------------------------------
   //   Loop Closure parameters
   // ---------------------------------------------------------------------------
-  GetMacro(ExtDetectLoopClosure, bool)
-  SetMacro(ExtDetectLoopClosure, bool)
+  GetStructParamsMacro(Loop, ExtDetect, bool)
+  SetStructParamsMacro(Loop, ExtDetect, bool)
 
-  GetMacro(LoopClosureQueryIdx, unsigned int)
-  SetMacro(LoopClosureQueryIdx, unsigned int)
+  GetStructParamsMacro(Loop, QueryIdx, unsigned int)
+  SetStructParamsMacro(Loop, QueryIdx, unsigned int)
 
-  GetMacro(LoopClosureRevisitedIdx, unsigned int)
-  SetMacro(LoopClosureRevisitedIdx, unsigned int)
+  GetStructParamsMacro(Loop, RevisitedIdx, unsigned int)
+  SetStructParamsMacro(Loop, RevisitedIdx, unsigned int)
 
-  GetMacro(LCQueryWindowStartRange, int)
-  SetMacro(LCQueryWindowStartRange, int)
+  GetStructParamsMacro(Loop, QueryMapStartRange, int)
+  SetStructParamsMacro(Loop, QueryMapStartRange, int)
 
-  GetMacro(LCQueryWindowEndRange, int)
-  SetMacro(LCQueryWindowEndRange, int)
+  GetStructParamsMacro(Loop, QueryMapEndRange, int)
+  SetStructParamsMacro(Loop, QueryMapEndRange, int)
 
-  GetMacro(LCRevisitedWindowStartRange, int)
-  SetMacro(LCRevisitedWindowStartRange, int)
+  GetStructParamsMacro(Loop, RevisitedMapStartRange, int)
+  SetStructParamsMacro(Loop, RevisitedMapStartRange, int)
 
-  GetMacro(LCRevisitedWindowEndRange, int)
-  SetMacro(LCRevisitedWindowEndRange, int)
+  GetStructParamsMacro(Loop, RevisitedMapEndRange, int)
+  SetStructParamsMacro(Loop, RevisitedMapEndRange, int)
 
   // Get/Set Loop Closure registration parameters
-  GetMacro(EnableLoopClosureOffset, bool)
-  SetMacro(EnableLoopClosureOffset, bool)
+  GetStructParamsMacro(Loop, EnableOffset, bool)
+  SetStructParamsMacro(Loop, EnableOffset, bool)
 
-  GetMacro(LoopClosureICPWithSubmap, bool)
-  SetMacro(LoopClosureICPWithSubmap, bool)
+  GetStructParamsMacro(Loop, ICPWithSubmap, bool)
+  SetStructParamsMacro(Loop, ICPWithSubmap, bool)
 
-  OptimizationParamsGetMacro(LoopClosure, LMMaxIter, unsigned int)
-  OptimizationParamsSetMacro(LoopClosure, LMMaxIter, unsigned int)
+  GetNestedStructParamsMacro(Loop, OptParams, LMMaxIter, unsigned int)
+  SetNestedStructParamsMacro(Loop, OptParams, LMMaxIter, unsigned int)
 
-  OptimizationParamsGetMacro(LoopClosure, ICPMaxIter, unsigned int)
-  OptimizationParamsSetMacro(LoopClosure, ICPMaxIter, unsigned int)
+  GetNestedStructParamsMacro(Loop, OptParams, ICPMaxIter, unsigned int)
+  SetNestedStructParamsMacro(Loop, OptParams, ICPMaxIter, unsigned int)
 
-  OptMatchingParamsGetMacro(LoopClosure, MaxNeighborsDistance, double)
-  OptMatchingParamsSetMacro(LoopClosure, MaxNeighborsDistance, double)
+  GetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, MaxNeighborsDistance, double)
+  SetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, MaxNeighborsDistance, double)
 
-  OptMatchingParamsGetMacro(LoopClosure, EdgeNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(LoopClosure, EdgeNbNeighbors, unsigned int)
+  GetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, EdgeNbNeighbors, unsigned int)
+  SetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, EdgeNbNeighbors, unsigned int)
 
-  OptMatchingParamsGetMacro(LoopClosure, EdgeMinNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(LoopClosure, EdgeMinNbNeighbors, unsigned int)
+  GetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, EdgeMinNbNeighbors, unsigned int)
+  SetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, EdgeMinNbNeighbors, unsigned int)
 
-  OptMatchingParamsGetMacro(LoopClosure, PlaneNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(LoopClosure, PlaneNbNeighbors, unsigned int)
+  GetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, PlaneNbNeighbors, unsigned int)
+  SetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, PlaneNbNeighbors, unsigned int)
 
-  OptMatchingParamsGetMacro(LoopClosure, PlanarityThreshold, double)
-  OptMatchingParamsSetMacro(LoopClosure, PlanarityThreshold, double)
+  GetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, PlanarityThreshold, double)
+  SetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, PlanarityThreshold, double)
 
-  OptMatchingParamsGetMacro(LoopClosure, EdgeMaxModelError, double)
-  OptMatchingParamsSetMacro(LoopClosure, EdgeMaxModelError, double)
+  GetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, EdgeMaxModelError, double)
+  SetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, EdgeMaxModelError, double)
 
-  OptMatchingParamsGetMacro(LoopClosure, PlaneMaxModelError, double)
-  OptMatchingParamsSetMacro(LoopClosure, PlaneMaxModelError, double)
+  GetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, PlaneMaxModelError, double)
+  SetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, PlaneMaxModelError, double)
 
-  OptMatchingParamsGetMacro(LoopClosure, BlobNbNeighbors, unsigned int)
-  OptMatchingParamsSetMacro(LoopClosure, BlobNbNeighbors, unsigned int)
+  GetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, BlobNbNeighbors, unsigned int)
+  SetDeepNestedStructParamsMacro(Loop, OptParams, MatchingParams, BlobNbNeighbors, unsigned int)
 
-  OptimizationParamsGetMacro(LoopClosure, InitSaturationDistance, double)
-  OptimizationParamsSetMacro(LoopClosure, InitSaturationDistance, double)
+  GetNestedStructParamsMacro(Loop, OptParams, InitSaturationDistance, double)
+  SetNestedStructParamsMacro(Loop, OptParams, InitSaturationDistance, double)
 
-  OptimizationParamsGetMacro(LoopClosure, FinalSaturationDistance, double)
-  OptimizationParamsSetMacro(LoopClosure, FinalSaturationDistance, double)
+  GetNestedStructParamsMacro(Loop, OptParams, FinalSaturationDistance, double)
+  SetNestedStructParamsMacro(Loop, OptParams, FinalSaturationDistance, double)
+
   // ---------------------------------------------------------------------------
   //   Confidence estimation
   // ---------------------------------------------------------------------------
@@ -864,27 +911,8 @@ private:
   //   Loop closure
   // ---------------------------------------------------------------------------
 
-  // Boolean to decide if the closure information can be provided externally by various sources (user or camera or landmark...)
-  // If true, users need to indicate the query frame index and the revisited frame index for loop closure.
-  bool ExtDetectLoopClosure = false;
-
-  // Frame indices to indicate where the loop closure is.
-  unsigned int LoopClosureQueryIdx = 0;
-  unsigned int LoopClosureRevisitedIdx = 0;
-
-  // Number of frames used to build the submaps around the query frame or the revisited frame for loop closure.
-  // To build sub maps around query frame, use frames [LoopClosureQueryIdx + LCQueryWindowStartRange, LoopClosureQueryIdx + LCQueryWindowEndRange].
-  // To build sub maps around the revisited frame, use frames [LoopClosureRevisitedIdx + LCRevisitedWindowStartRange, LoopClosureRevisitedIdx + LCRevisitedWindowEndRnage].
-  int LCQueryWindowStartRange = -50;
-  int LCQueryWindowEndRange = 50;
-  int LCRevisitedWindowStartRange = -50;
-  int LCRevisitedWindowEndRange = 50;
-
-  // Boolean to add an offset to loop closure pose prior when the frames are too far from each other.
-  bool EnableLoopClosureOffset = false;
-
-  // Boolean to enable the registration between two sub maps instead of registering a single frame on a sub map.
-  bool LoopClosureICPWithSubmap = false;
+  // Loop closure parameters
+  LoopClosure::Parameters LoopParams;
 
   // ---------------------------------------------------------------------------
   //   Optimization data
@@ -893,7 +921,6 @@ private:
   //! Matching results
   std::map<Keypoint, KeypointsMatcher::MatchingResults> EgoMotionMatchingResults;
   std::map<Keypoint, KeypointsMatcher::MatchingResults> LocalizationMatchingResults;
-  std::map<Keypoint, KeypointsMatcher::MatchingResults> LoopClosureMatchingResults;
 
   // Optimization results
   // Variance-Covariance matrix that estimates the localization error about the
@@ -1040,25 +1067,6 @@ private:
     3, 15, 2, 0.5,
     // UndistortionMode Undistortion, bool enableExternalConstraints
     this->Undistortion, true
-  };
-
-  Optimization::Parameters LoopClosureParams
-  {
-    // KeypointsMatcher::Parameters MatchingParams
-    {
-      // unsigned int NbThreads, bool SingleEdgePerRing, double MaxNeighborsDistance,
-      1, false, 5.,
-      // unsigned int EdgeNbNeighbors, unsigned int EdgeMinNbNeighbors, double EdgeMaxModelError,
-      10, 4, 0.2,
-      // unsigned int PlaneNbNeighbors, double PlanarityThreshold, double PlaneMaxModelError
-      5, 0.04, 0.2,
-      // unsigned int BlobNbNeighbors, double SaturationDistance
-      10, 1.
-    },
-    // unsigned int ICPMaxIter, unsigned int LMMaxIter, double InitSaturationDistance, double FinalSaturationDistance
-    3, 15, 2, 0.5,
-    // UndistortionMode Undistortion, bool enableExternalConstraints
-    UndistortionMode::NONE, false
   };
 
   // ---------------------------------------------------------------------------
