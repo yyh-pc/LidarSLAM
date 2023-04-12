@@ -304,7 +304,7 @@ void LidarSlamNode::ImageCallback(const sensor_msgs::Image& imageMsg)
   }
   #else
   static_cast<void>(imageMsg);
-  ROS_WARN_STREAM("cv_bridge was not found so images cannot be processed, camera will not be used")
+  ROS_WARN_STREAM("cv_bridge was not found so images cannot be processed, camera will not be used");
   #endif
 }
 
