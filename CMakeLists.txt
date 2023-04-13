@@ -19,6 +19,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "MinSizeRel" "RelWithDebInfo" "Release")
 endif()
 
+set(CMAKE_INSTALL_BINDIR "bin" CACHE STRING "name of the install binary foder")
+set(CMAKE_INSTALL_LIBDIR "lib" CACHE STRING "name of the install library foder")
+set(CMAKE_INSTALL_INCLUDEDIR "include" CACHE STRING "name of the install include foder")
+
 # Runtime parameters
 # /!\ warning : must be done before target declaration
 list(APPEND CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
