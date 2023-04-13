@@ -14,15 +14,15 @@ foreach (module IN LISTS required_modules)
 endforeach ()
 
 paraview_plugin_build(
-  HEADERS_DESTINATION   "${SLAM_INSTALL_INCLUDE_DIR}"
-  RUNTIME_DESTINATION   "${SLAM_INSTALL_BINARY_DIR}"
-  LIBRARY_DESTINATION   "${SLAM_INSTALL_LIBRARY_DIR}"
+  HEADERS_DESTINATION   "${CMAKE_INSTALL_INCLUDEDIR}"
+  RUNTIME_DESTINATION   "${CMAKE_INSTALL_BINDIR}"
+  LIBRARY_DESTINATION   "${CMAKE_INSTALL_LIBDIR}"
   LIBRARY_SUBDIRECTORY  "slam/plugins"
   PLUGINS_FILE_NAME     "slam.plugins.xml"
   TARGET                LidarSlam::paraview_wrapping
   INSTALL_EXPORT        LidarSlamLib
   TARGET_COMPONENT      Runtime
-  CMAKE_DESTINATION     "${SLAM_INSTALL_LIBRARY_DIR}/cmake/LidarSlam"
+  CMAKE_DESTINATION     "${CMAKE_INSTALL_LIBDIR}/cmake/LidarSlam"
   PLUGINS               ${plugins}
   AUTOLOAD              LidarSlamPlugin
 )
