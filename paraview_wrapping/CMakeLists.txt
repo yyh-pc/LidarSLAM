@@ -1,12 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
-project(LidarSlamPlugin  C CXX)
-
-# Build Shared ParaView Plugin
-set(BUILD_SHARED_LIBS ON)
+project(LidarSlamPlugin C CXX)
 
 paraview_plugin_scan(
   PLUGIN_FILES      "${CMAKE_CURRENT_LIST_DIR}/Plugin/paraview.plugin"
-  ENABLE_BY_DEFAULT ON #You can use this instead of the variables above
+  ENABLE_BY_DEFAULT ON
   PROVIDES_PLUGINS  plugins
   REQUIRES_MODULES  required_modules)
 
@@ -17,11 +14,15 @@ foreach (module IN LISTS required_modules)
 endforeach ()
 
 paraview_plugin_build(
-  HEADERS_DESTINATION   "${LV_INSTALL_INCLUDE_DIR}"
-  RUNTIME_DESTINATION   "${LV_INSTALL_RUNTIME_DIR}"
-  LIBRARY_DESTINATION   "${LV_INSTALL_LIBRARY_DIR}"
-  LIBRARY_SUBDIRECTORY  "${LV_PLUGIN_BUILD_SUBDIRECTORY}"
-  PLUGINS_FILE_NAME "lidarview.LidarSlamPlugin.xml"
-  PLUGINS ${plugins}
-  AUTOLOAD LidarSlamPlugin
+  HEADERS_DESTINATION   "${CMAKE_INSTALL_INCLUDEDIR}"
+  RUNTIME_DESTINATION   "${CMAKE_INSTALL_BINDIR}"
+  LIBRARY_DESTINATION   "${CMAKE_INSTALL_LIBDIR}"
+  LIBRARY_SUBDIRECTORY  "slam/plugins"
+  PLUGINS_FILE_NAME     "slam.plugins.xml"
+  TARGET                LidarSlam::paraview_wrapping
+  INSTALL_EXPORT        LidarSlamLib
+  TARGET_COMPONENT      Runtime
+  CMAKE_DESTINATION     "${CMAKE_INSTALL_LIBDIR}/cmake/LidarSlam"
+  PLUGINS               ${plugins}
+  AUTOLOAD              LidarSlamPlugin
 )

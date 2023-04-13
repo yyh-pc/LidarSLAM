@@ -50,7 +50,7 @@ target_link_libraries(LidarSlam
 target_include_directories(LidarSlam
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/${SLAM_INSTALL_INCLUDE_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
 # If G2O is available, set a precompilation variable
@@ -117,30 +117,10 @@ set(target_public_header
 set_target_properties(LidarSlam PROPERTIES PUBLIC_HEADER "${target_public_header}")
 
 install(TARGETS LidarSlam
-        EXPORT LidarSlamTargets
-        RUNTIME DESTINATION ${SLAM_INSTALL_BINARY_DIR}
-        LIBRARY DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
-        ARCHIVE DESTINATION ${SLAM_INSTALL_LIBRARY_DIR}
-        PUBLIC_HEADER DESTINATION ${SLAM_INSTALL_INCLUDE_DIR}/LidarSlam
+        EXPORT LidarSlamLib
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/LidarSlam
         COMPONENT Runtime
 )
-
-include(CMakePackageConfigHelpers)
-write_basic_package_version_file("${CMAKE_BINARY_DIR}/LidarSlamConfigVersion.cmake"
-                                 VERSION 2.0.0
-                                 COMPATIBILITY SameMajorVersion)
-
-configure_package_config_file(
-  "Config.cmake.in"
-  "${CMAKE_BINARY_DIR}/LidarSlamConfig.cmake"
-  INSTALL_DESTINATION "lib/cmake/LidarSlam"
-)
-
-install(EXPORT LidarSlamTargets
-        FILE LidarSlamTargets.cmake
-        NAMESPACE LidarSlam::
-        DESTINATION "lib/cmake/LidarSlam")
-
-install(FILES "${CMAKE_BINARY_DIR}/LidarSlamConfig.cmake"
-              "${CMAKE_BINARY_DIR}/LidarSlamConfigVersion.cmake"
-        DESTINATION "lib/cmake/LidarSlam")

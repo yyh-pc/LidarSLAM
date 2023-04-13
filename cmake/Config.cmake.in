@@ -1,6 +1,15 @@
 @PACKAGE_INIT@
 
-include("${CMAKE_CURRENT_LIST_DIR}/LidarSlamTargets.cmake")
+if (@SLAM_PARAVIEW_PLUGIN@)
+  # Workaround to avoid circular dependency between LidarSlamLib and LidarSlamPlugin
+  add_library(vtkLidarSlam SHARED IMPORTED)
+endif ()
+
+include("${CMAKE_CURRENT_LIST_DIR}/LidarSlamLib-targets.cmake")
+
+if (@SLAM_PARAVIEW_PLUGIN@)
+  include("${CMAKE_CURRENT_LIST_DIR}/LidarSlamLib-paraview-plugin-properties.cmake")
+endif ()
 
 include(CMakeFindDependencyMacro)
 
@@ -16,21 +25,21 @@ find_dependency(PCL REQUIRED COMPONENTS common io octree geometry)
 if (@g2o_FOUND@)
   find_dependency(g2o QUIET)
 else()
-  message("Lidar SLAM : G2O was not found, pose graph API disabled")
+  message(STATUS "LidarSlam: G2O was not found, pose graph API disabled")
 endif()
 
 # Find optional gtsam (only used for pose IMU raw data integration)
 if (@GTSAM_FOUND@)
   find_dependency(GTSAM QUIET)
 else()
-  message("Lidar SLAM : GTSAM was not found, IMU preintegration disabled")
+  message(STATUS "LidarSlam: GTSAM was not found, IMU preintegration disabled")
 endif()
 
 # Find optional OpenMP
 if (@OpenMP_FOUND@)
   find_dependency(OpenMP QUIET)
 else()
-  message("Lidar SLAM : OpenMP was not found, multi-threading for SLAM disabled")
+  message(STATUS "LidarSlam: OpenMP was not found, multi-threading for SLAM disabled")
 endif()
 
 check_required_components(LidarSlam)
