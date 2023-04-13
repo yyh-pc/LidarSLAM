@@ -15,6 +15,7 @@ set(lidarslam_xml
 
 # Create Module
 vtk_module_add_module(vtkLidarSlam
+  FORCE_STATIC
   SOURCES ${lidarslam_sources} # Will not trigger a PV wrapping
   CLASSES ${lidarslam_classes} # Those will be PV ClientServer wrapped #shorcut for sources x.cxx x.h
   HEADERS ${lidarslam_headers} # Those will be PV ClientServer wrapped
@@ -24,4 +25,4 @@ paraview_add_server_manager_xmls(
   XMLS  ${lidarslam_xml}
 )
 
-target_link_libraries(vtkLidarSlam PRIVATE LidarSlam)
+target_link_libraries(vtkLidarSlam PUBLIC LidarSlam)
