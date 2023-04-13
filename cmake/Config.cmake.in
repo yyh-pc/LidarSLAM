@@ -13,6 +13,8 @@ endif ()
 
 include(CMakeFindDependencyMacro)
 
+find_dependency(Boost REQUIRED)
+
 find_dependency(nanoflann REQUIRED)
 
 find_dependency(Eigen3 QUIET)

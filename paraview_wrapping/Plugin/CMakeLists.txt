@@ -1,4 +1,5 @@
 # Create Plugin
+set(CMAKE_PROJECT_VERSION ${LidarSlam_VERSION})
 paraview_add_plugin(LidarSlamPlugin
   VERSION ${CMAKE_PROJECT_VERSION}
   MODULES vtkLidarSlam
