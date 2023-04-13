@@ -39,6 +39,8 @@ set(Boost_USE_STATIC_LIBS OFF)
 #  Find dependencies
 #-------------------------
 
+find_package(Boost REQUIRED)
+
 # If the Paraview plugin needs to be compiled, we must find Paraview before PCL.
 # Otherwise, if PCL is built with pcl_visualization module and uses another VTK
 # than the one provided by Paraview, it may override the correct include
