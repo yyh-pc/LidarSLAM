@@ -218,10 +218,12 @@ public:
   void EnablePGOConstraintLoopClosure(bool enable);
   void EnablePGOConstraintLandmark(bool enable);
   void EnablePGOConstraintGPS(bool enable);
+  void EnablePGOConstraintExtPose(bool enable);
 
   bool GetPGOConstraintLoopClosure();
   bool GetPGOConstraintLandmark();
   bool GetPGOConstraintGPS();
+  bool GetPGOConstraintExtPose();
 
   // ---------------------------------------------------------------------------
   //   Loop closure parameters

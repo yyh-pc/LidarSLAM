@@ -206,6 +206,12 @@ void vtkSlam::EnablePGOConstraintGPS(bool enabled)
   this->SlamAlgo->EnablePGOConstraint(LidarSlam::PGOConstraint::PGO_GPS, enabled);
 }
 
+void vtkSlam::EnablePGOConstraintExtPose(bool enabled)
+{
+  vtkDebugMacro(<< "Enabling ext pose constraint for pose graph optimization");
+  this->SlamAlgo->EnablePGOConstraint(LidarSlam::PGOConstraint::PGO_EXT_POSE, enabled);
+}
+
 //-----------------------------------------------------------------------------
 bool vtkSlam::GetPGOConstraintLoopClosure()
 {
@@ -234,6 +240,16 @@ bool vtkSlam::GetPGOConstraintGPS()
     vtkDebugMacro(<< "GPS constraint for PGO is enabled");
   else
     vtkDebugMacro(<< "GPS constraint for PGO is disabled");
+  return enabled;
+}
+
+bool vtkSlam::GetPGOConstraintExtPose()
+{
+  bool enabled = this->SlamAlgo->IsPGOConstraintEnabled(LidarSlam::PGOConstraint::PGO_EXT_POSE);
+  if (enabled)
+    vtkDebugMacro(<< "Ext pose constraint for PGO is enabled");
+  else
+    vtkDebugMacro(<< "Ext pose constraint for PGO is disabled");
   return enabled;
 }
 

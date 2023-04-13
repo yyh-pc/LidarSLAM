@@ -1842,7 +1842,7 @@
       <IntVectorProperty name="Use landmark constraint"
                          command="EnablePGOConstraintLandmark"
                          number_of_elements="1"
-                         default_values="1"
+                         default_values="0"
                          panel_visibility="advanced">
         <BooleanDomain name="bool" />
         <Documentation>
@@ -1853,11 +1853,22 @@
       <IntVectorProperty name="Use GPS constraint"
                          command="EnablePGOConstraintGPS"
                          number_of_elements="1"
-                         default_values="1"
+                         default_values="0"
                          panel_visibility="advanced">
         <BooleanDomain name="bool" />
         <Documentation>
           If enabled, GPS constraint are used in pose graph optimization.
+        </Documentation>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="Use external pose constraint"
+                         command="EnablePGOConstraintExtPose"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          If enabled, external pose constraint are used in pose graph optimization.
         </Documentation>
       </IntVectorProperty>
 
@@ -1872,6 +1883,7 @@
         <Property name="Use loop closure constraint" />
         <Property name="Use landmark constraint" />
         <Property name="Use GPS constraint" />
+        <Property name="Use external pose constraint" />
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Use pose graph" value="1" />
         </Hints>
