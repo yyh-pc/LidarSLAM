@@ -182,7 +182,7 @@ windows_slam_lib:
     - cmake -E remove_directory $build_dir
     - cmake -E make_directory $build_dir
     - cd $build_dir
-    - echo "cmake $cmake_option_GENERATOR $cmake_option_build_type -DBUILD_SHARED_LIBS=ON -DSLAM_PARAVIEW_PLUGIN=ON $slam_cmake_option_Eigen_DIR $slam_cmake_option_Eigen_INCLUDE_DIR $slam_cmake_option_glog_DIR $slam_cmake_option_Ceres_DIR $slam_cmake_option_nanoflann_DIR $slam_cmake_option_Boost_DIR $slam_cmake_option_PCL_DIR $slam_cmake_option_g2o_DIR $slam_cmake_option_ParaView_DIR $slam_cmake_option_Qt5_DIR $slam_cmake_option_ZLIB_LIB $slam_cmake_option_ZLIB_INC $slam_cmake_option_PNG_LIB $slam_cmake_option_PNG_PNG_INC $slam_cmake_option_PYTHON ${CI_PROJECT_DIR}"
+    - echo "cmake $cmake_option_GENERATOR $cmake_option_build_type -DBUILD_SHARED_LIBS=ON -DSLAM_PARAVIEW_PLUGIN=ON $slam_cmake_option_Eigen_DIR $slam_cmake_option_Eigen_INCLUDE_DIR $slam_cmake_option_glog_DIR $slam_cmake_option_Ceres_DIR $slam_cmake_option_nanoflann_DIR $slam_cmake_option_BOOST_ROOT $slam_cmake_option_Boost_DIR $slam_cmake_option_PCL_DIR $slam_cmake_option_g2o_DIR $slam_cmake_option_ParaView_DIR $slam_cmake_option_Qt5_DIR $slam_cmake_option_ZLIB_LIB $slam_cmake_option_ZLIB_INC $slam_cmake_option_PNG_LIB $slam_cmake_option_PNG_PNG_INC $slam_cmake_option_PYTHON ${CI_PROJECT_DIR}"
     - cmake
       $cmake_option_GENERATOR
       $cmake_option_build_type
@@ -194,6 +194,7 @@ windows_slam_lib:
       $slam_cmake_option_Ceres_DIR
       $slam_cmake_option_nanoflann_DIR
       $slam_cmake_option_BOOST_ROOT
+      $slam_cmake_option_Boost_DIR
       $slam_cmake_option_PCL_DIR
       $slam_cmake_option_g2o_DIR
       $slam_cmake_option_ParaView_DIR
