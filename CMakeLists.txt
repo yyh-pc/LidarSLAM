@@ -19,9 +19,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "MinSizeRel" "RelWithDebInfo" "Release")
 endif()
 
-set(CMAKE_INSTALL_BINDIR "bin" CACHE STRING "name of the install binary foder")
-set(CMAKE_INSTALL_LIBDIR "lib" CACHE STRING "name of the install library foder")
-set(CMAKE_INSTALL_INCLUDEDIR "include" CACHE STRING "name of the install include foder")
+include(GNUInstallDirs) # Required for CMAKE_INSTALL_VARIABLES
 
 # Runtime parameters
 # /!\ warning : must be done before target declaration
@@ -48,7 +46,6 @@ find_package(Boost REQUIRED)
 option(SLAM_PARAVIEW_PLUGIN "Build a Paraview plugin to wrap SLAM" OFF)
 if (SLAM_PARAVIEW_PLUGIN)
   # Find ParaView
-  include(GNUInstallDirs) #Required
   find_package(ParaView REQUIRED)
   # As the PV plugin is a shared library, we also need to ensure that the core
   # SLAM lib is compatible with position independent code.
