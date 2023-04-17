@@ -23,6 +23,10 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
+#ifdef USE_TEASERPP
+#include <pcl/impl/pcl_base.hpp>
+#endif
+
 namespace LidarSlam
 {
 
@@ -76,3 +80,8 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (LidarSlam::LidarPoint,
                                    (std::uint8_t, device_id, device_id)
                                    (std::uint8_t, label, label)
 )
+
+#ifdef USE_TEASERPP
+// Instantiate PCL base filters with LidarPoint
+PCL_INSTANTIATE_PCLBase(LidarSlam::LidarPoint)
+#endif
