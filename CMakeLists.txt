@@ -68,7 +68,12 @@ endif()
 
 find_package(Ceres REQUIRED)
 
-find_package(PCL REQUIRED COMPONENTS common io octree geometry)
+# pcl_for_teaser registers pcl components only when teaserpp is required
+if (ENABLE_teaserpp)
+  set(pcl_for_teaser features kdtree)
+endif()
+find_package(PCL REQUIRED COMPONENTS common io octree geometry
+             OPTIONAL_COMPONENTS ${pcl_for_teaser})
 include_directories(SYSTEM ${PCL_INCLUDE_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 link_directories(${PCL_LIBRARY_DIRS})
@@ -99,6 +104,15 @@ if (ENABLE_OpenCV)
   find_package(OpenCV QUIET COMPONENTS core)
   if (NOT OpenCV_FOUND)
     message("Lidar SLAM : OpenCV requested but not found, camera will be ignored.")
+  endif()
+endif()
+
+# Find optional teaserpp (only used for automatic detection of loop closure)
+option(ENABLE_teaserpp "Use TEASER++, necessary for automatic detection of loop closure." ON)
+if (ENABLE_teaserpp)
+  find_package(teaserpp QUIET)
+  if (NOT teaserpp_FOUND)
+    message("Lidar SLAM : TEASER++ requested but not found, automatic loop closure detection will be ignored.")
   endif()
 endif()
 

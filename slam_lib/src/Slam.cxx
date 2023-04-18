@@ -75,7 +75,6 @@
 #include <ctime>
 
 // LOCAL
-#include "LidarSlam/Slam.h"
 #include "LidarSlam/Utilities.h"
 #include "LidarSlam/KDTreePCLAdaptor.h"
 #include "LidarSlam/ConfidenceEstimators.h"
@@ -90,6 +89,16 @@
 
 // EIGEN
 #include <Eigen/Dense>
+
+// TEASERPP
+#ifdef USE_TEASERPP
+#include <pcl/features/normal_3d_omp.h>
+#endif //USE_TEASERPP
+
+// LOCAL
+// Note: Slam.h needs to be included after pcl/features/xx.h
+// because of the conflict between opencv and flann
+#include "LidarSlam/Slam.h"
 
 #define PRINT_VERBOSE(minVerbosityLevel, stream) if (this->Verbosity >= (minVerbosityLevel)) {std::cout << stream << std::endl;}
 #define IF_VERBOSE(minVerbosityLevel, command) if (this->Verbosity >= (minVerbosityLevel)) { command; }
@@ -1609,48 +1618,288 @@ std::vector<LidarState> Slam::GetLastStates(double freq)
 //   Loop Closure usage
 //==============================================================================
 
+//-----------------------------------------------------------------------------
 bool Slam::DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState)
 {
   PRINT_VERBOSE(2, "========== Loop closure : Detection ==========");
-
-  if (this->LoopParams.ExtDetect)
+  bool detectionValid = false;
+  switch (this->LoopParams.Detector)
   {
-    // If ExtDetect is enabled, check whether the input frames are stored in the LogStates
-    // When LogOnlyKeyFrames is enabled, only keyframes are stored in the LogStates.
-    // It is possible that the inputs frame indices are not keyframes.
-    // In this case, replace the input frame index by its neighbor keyframes
-    itQueryState = this->LogStates.begin();
-    itRevisitedState = itQueryState;
-    while (itQueryState->Index < this->LoopParams.QueryIdx && itQueryState->Index != this->LogStates.back().Index)
-      ++itQueryState;
-    if (itQueryState->Index != this->LoopParams.QueryIdx)
+    case LoopClosureDetector::NONE:
     {
-      this->LoopParams.QueryIdx = itQueryState->Index;
-      PRINT_WARNING("The input query frame index is not found in Logstates and is replaced by frame #"
-                    << this->LoopParams.QueryIdx << ".");
+      PRINT_WARNING("Loop closure detection is disabled!");
+      return false;
+    }
+    case LoopClosureDetector::MANUAL:
+    {
+      // If the detector is manual, check whether or not the input frames are stored in the LogStates
+      // When LogOnlyKeyFrames is enabled, only keyframes are stored in the LogStates.
+      // It is possible that the inputs frame indices are not keyframes.
+      // In this case, replace the input frame index by its neighbor keyframe
+      itQueryState = itRevisitedState = this->LogStates.begin();
+      while (itQueryState->Index < this->LoopParams.QueryIdx && itQueryState->Index != this->LogStates.back().Index)
+        ++itQueryState;
+      if (itQueryState->Index != this->LoopParams.QueryIdx)
+      {
+        this->LoopParams.QueryIdx = itQueryState->Index;
+        PRINT_WARNING("The input query frame index is not found in Logstates and is replaced by frame #"
+                      << this->LoopParams.QueryIdx << ".");
+      }
+
+      while (itRevisitedState->Index < this->LoopParams.RevisitedIdx && itRevisitedState->Index != this->LogStates.back().Index)
+        ++itRevisitedState;
+      if (itRevisitedState->Index != this->LoopParams.RevisitedIdx)
+      {
+        this->LoopParams.RevisitedIdx = itRevisitedState->Index;
+        PRINT_WARNING("The input revisited frame index is not found in Logstates and is replaced by frame #"
+                      << this->LoopParams.RevisitedIdx << ".");
+      }
+      PRINT_VERBOSE(3, "Loop closure is detected by external information. The relevant frame indices are:\n"
+                    << " Query frame #" << this->LoopParams.QueryIdx << " Revisited frame #" << this->LoopParams.RevisitedIdx);
+      detectionValid = true;
+      break;
+    }
+    case LoopClosureDetector::TEASERPP:
+    {
+      // Automatic detection of loop closure by teaserpp registration
+      // It detects automatically a revisited frame idx for the current frame
+      itQueryState = std::prev(this->LogStates.end());
+      itRevisitedState = this->LogStates.begin();
+      detectionValid = this->DetectLoopWithTeaser(itQueryState, itRevisitedState);
+      if (detectionValid)
+      {
+        this->LoopParams.QueryIdx = itQueryState->Index;
+        this->LoopParams.RevisitedIdx = itRevisitedState->Index;
+      }
+      break;
+    }
+  }
+
+  return detectionValid;
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::DetectLoopWithTeaser(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState)
+{
+  #ifdef USE_TEASERPP
+  // Create query submap and get keypoints in BASE coordinates
+  Maps querySubMaps;
+  this->InitSubMaps(querySubMaps);
+  this->BuildMaps(querySubMaps,
+                  this->FetchStateIndex(itQueryState, this->LoopParams.QueryMapStartRange)->Index,
+                  this->FetchStateIndex(itQueryState, this->LoopParams.QueryMapEndRange)->Index,
+                  itQueryState->Index);
+
+  // Aggregate keypoints
+  PointCloud::Ptr queryPoints(new PointCloud);
+  for (auto k : this->UsableKeypoints)
+    *queryPoints += *querySubMaps[k]->Get();
+  // Compute FPFH features for query keypoints
+  auto queryDescriptors = this->ComputeFPFHFeatures(queryPoints,
+                                                    2 * this->GetVoxelGridLeafSize(PLANE),
+                                                    3 * this->GetVoxelGridLeafSize(PLANE));
+
+  // Convert query submap keypoints into teaser registration input format
+  teaser::PointCloud teaserQueryPoints;
+  teaserQueryPoints.reserve(queryPoints->size());
+  #pragma omp parallel for num_threads(this->NbThreads)
+  for (const auto& pt: *queryPoints)
+    teaserQueryPoints.push_back({pt.x, pt.y, pt.z}); // Note: only push_back can be used for teaser pointcloud format
+
+  // Compute the frame index relative to the newest frame onto which a loop closure is searched
+  // A frame gap is set to avoid finding a loop closure between the query frame and its direct surrounding.
+  int lastFrameIdx = this->FetchStateIndex(itQueryState, -this->LoopParams.GapLength)->Index;
+
+  // Search the revisited frame by teaser registration
+  auto itSt = this->LogStates.begin();
+  // Temporary value to evaluate the overlap for each candidate
+  float overlap = 0.;
+  // Temporary value to store the transform of the best teaser registration
+  Eigen::Isometry3d queryPose = Eigen::Isometry3d::Identity();
+  while (itSt->Index < static_cast<unsigned int>(lastFrameIdx) && itSt != this->LogStates.end())
+  {
+    // Create candidate submap
+    Maps candidateSubMaps;
+    this->InitSubMaps(candidateSubMaps);
+    if (this->LoopParams.SampleStep < 0)
+      // Use the whole map as target
+      this->BuildMaps(candidateSubMaps, itSt->Index, lastFrameIdx);
+    else
+      // Use the submap between RevisitedMapStartRange and RevisitedMapEndRange as target
+      this->BuildMaps(candidateSubMaps,
+                      this->FetchStateIndex(itSt, this->LoopParams.RevisitedMapStartRange)->Index,
+                      this->FetchStateIndex(itSt, this->LoopParams.RevisitedMapEndRange)->Index);
+
+    // Compute FPFH features for candidate keypoints
+    PointCloud::Ptr candidatePoints(new PointCloud);
+    for (auto k : this->UsableKeypoints)
+      *candidatePoints += *candidateSubMaps[k]->Get();
+    auto candidateDescriptors = this->ComputeFPFHFeatures(candidatePoints,
+                                                          2 * this->GetVoxelGridLeafSize(PLANE),
+                                                          3 * this->GetVoxelGridLeafSize(PLANE));
+
+    // Calculate correspondences between query submap and candidate submap
+    auto correspondences = this->CalculateCorrespondences(queryDescriptors, candidateDescriptors);
+
+    // TEASER++ registration
+    // Convert candidate submap keypoints into teaser registration input format
+    teaser::PointCloud teaserCandidatePoints;
+    teaserCandidatePoints.reserve(candidatePoints->size());
+    #pragma omp parallel for num_threads(this->NbThreads)
+    for (const auto& pt: *candidatePoints)
+      teaserCandidatePoints.push_back({pt.x, pt.y, pt.z}); // Note: push_back is defined in teaserpp lib for its pointcloud
+
+    // Solve with TEASER++
+    teaser::RobustRegistrationSolver solver(this->LoopParams.TeaserParams);
+    solver.solve(teaserQueryPoints, teaserCandidatePoints, correspondences);
+    auto solution = solver.getSolution();
+    Eigen::Isometry3d candidateLCTransform = Eigen::Isometry3d::Identity();
+    candidateLCTransform.translation() = solution.translation;
+    candidateLCTransform.linear() = solution.rotation;
+
+    // Registration evaluation
+    // Register query points in world using estimated LC transform
+    PointCloud::Ptr worldQueryPoints(new PointCloud);
+    pcl::transformPointCloud(*queryPoints, *worldQueryPoints, candidateLCTransform.matrix().cast<float>());
+
+    // Build kdtree for candidate sub maps
+    for (auto k : this->UsableKeypoints)
+      candidateSubMaps[k]->BuildSubMapKdTree();
+
+    // Compute LCP like estimator
+    // (see http://geometry.cs.ucl.ac.uk/projects/2014/super4PCS/ for more info)
+    float overlapEstimation = Confidence::LCPEstimator(worldQueryPoints, candidateSubMaps,
+                                                       this->GetVoxelGridLeafSize(PLANE), this->NbThreads, false);
+    if (overlapEstimation > overlap)
+    {
+      overlap = overlapEstimation;
+      itRevisitedState = itSt;
+      queryPose = candidateLCTransform;
     }
 
-    while (itRevisitedState->Index < this->LoopParams.RevisitedIdx && itRevisitedState->Index != this->LogStates.back().Index)
-      ++itRevisitedState;
-    if (itRevisitedState->Index != this->LoopParams.RevisitedIdx)
-    {
-      this->LoopParams.RevisitedIdx = itRevisitedState->Index;
-      PRINT_WARNING("The input revisited frame index is not found in Logstates and is replaced by frame #"
-                    << this->LoopParams.RevisitedIdx << ".");
-    }
-    PRINT_VERBOSE(3, "Loop closure is detected by external information. The relevant frame indices are:\n"
-                  << " Query frame #" << itQueryState->Index << " Revisited frame #" << itRevisitedState->Index);
+    // Update iterator
+    // If sample step is negative, no loop is actually needed
+    if (this->LoopParams.SampleStep <= 1e-6)
+      break;
+    itSt = this->FetchStateIndex(itSt, this->LoopParams.SampleStep);
+  }
+
+  if (overlap >= this->LoopParams.EvaluationThreshold)
+  {
+    this->LoopDetectionTransform = queryPose;
+    PRINT_VERBOSE(1, "Loop closure is detected for frame #"
+                  << itQueryState->Index << " by teaserpp with "
+                  << 100 * overlap << "% overlap.\n"
+                  << "The revisited frame is #" << itRevisitedState->Index);
     return true;
   }
   else
   {
-    // Automatic detection of loop closure will be implemented here
-    // It detects automatically a revisited frame idx for the current frame
-    itQueryState = this->LogStates.end();
-    itRevisitedState = this->LogStates.begin();
+    this->LoopDetectionTransform = Eigen::Isometry3d::Identity();
+    PRINT_ERROR("Loop closure is NOT detected for frame #" << itQueryState->Index << " by teaserpp.\n"
+                 << "The detected frame (#" << itRevisitedState->Index << ") has a low overlap ("<< 100 * overlap << "%) ");
     return false;
   }
+  #else
+  static_cast<void>(itQueryState);
+  static_cast<void>(itRevisitedState);
+
+  PRINT_ERROR("Automatic loop closure detection requires TEASER++, but it was not found.");
+  return false;
+  #endif
 }
+
+#ifdef USE_TEASERPP
+//-----------------------------------------------------------------------------
+pcl::PointCloud<pcl::FPFHSignature33>::Ptr Slam::ComputeFPFHFeatures(const PointCloud::Ptr inputCloud,
+                                                                     double normalSearchRadius,
+                                                                     double fpfhSearchRadius)
+{
+  pcl::PointCloud<pcl::Normal>::Ptr normals(new pcl::PointCloud<pcl::Normal>);
+  pcl::PointCloud<pcl::FPFHSignature33>::Ptr descriptors(new pcl::PointCloud<pcl::FPFHSignature33>());
+
+  // Estimate normals
+  pcl::NormalEstimationOMP<Slam::Point, pcl::Normal> normalEstimation;
+  normalEstimation.setInputCloud(inputCloud);
+  normalEstimation.setRadiusSearch(normalSearchRadius);
+  pcl::search::KdTree<Slam::Point>::Ptr kdtree(new pcl::search::KdTree<Slam::Point>);
+  normalEstimation.setSearchMethod(kdtree);
+  normalEstimation.compute(*normals);
+
+  // Estimate FPFH
+  pcl::FPFHEstimationOMP<Slam::Point, pcl::Normal, pcl::FPFHSignature33> fpfh;
+  fpfh.setInputCloud(inputCloud);
+  fpfh.setInputNormals(normals);
+  fpfh.setSearchMethod(kdtree);
+  fpfh.setRadiusSearch(fpfhSearchRadius);
+  fpfh.compute(*descriptors);
+
+  return descriptors;
+}
+
+//-----------------------------------------------------------------------------
+std::vector<std::pair<int, int>> Slam::CalculateCorrespondences(pcl::PointCloud<pcl::FPFHSignature33>::Ptr sourceFeatures,
+                                                                pcl::PointCloud<pcl::FPFHSignature33>::Ptr targetFeatures)
+{
+  std::vector<std::pair<int, int>> corres;
+
+  // Compare the size of two input data and mark the size
+  int nSource = static_cast<int>(sourceFeatures->size());
+  int nTarget = static_cast<int>(targetFeatures->size());
+  bool swapped = nSource < nTarget ? true : false;
+  int nSmall = swapped ? nSource : nTarget;
+  int nLarge = swapped ? nTarget : nSource;
+  auto &featuresSmall = swapped ? sourceFeatures : targetFeatures;
+  auto &featuresLarge = swapped ? targetFeatures : sourceFeatures;
+
+  // Build kdtree for two input cloud
+  pcl::search::KdTree<pcl::FPFHSignature33>::Ptr kdtreeSmall(new pcl::search::KdTree<pcl::FPFHSignature33>);
+  pcl::search::KdTree<pcl::FPFHSignature33>::Ptr kdtreeLarge(new pcl::search::KdTree<pcl::FPFHSignature33>);
+  kdtreeSmall->setInputCloud(featuresSmall);
+  kdtreeLarge->setInputCloud(featuresLarge);
+
+  // Initial matching
+  // Parameters for nearest K search
+  int kNeighbor = 1;
+  std::vector<float> dis;
+  std::vector<int> corresK;
+  // large2Small is a vector to save the correspondence index in the small data set for each feature in the large dataset
+  // small2Large is similiar to large2Small
+  std::vector<int> large2Small(nLarge, -1);
+  std::vector<int> small2Large(nSmall, -1);
+  for (int idxS = 0; idxS < nSmall; idxS++)
+  {
+    // For each feature in the small dataset, search its nearest neighbor in the large dataset
+    kdtreeLarge->nearestKSearch (featuresSmall->points[idxS], kNeighbor, corresK, dis);
+    int idx = corresK[0];
+    small2Large[idxS] = idx;
+    if (large2Small[idx] == -1)
+    {
+      // For a feature index found in large dataset; search its nearest neighbor in the small dataset
+      kdtreeSmall->nearestKSearch (featuresLarge->points[idx], kNeighbor, corresK, dis);
+      large2Small[idx] = corresK[0];
+    }
+  }
+
+  // Cross check the match is bijective
+  for (int idxL = 0; idxL < nLarge; idxL++)
+  {
+    int idxS = large2Small[idxL];
+    if (idxS == -1 )
+      continue;
+    if (small2Large[idxS] == idxL)
+      corres.push_back(std::pair<int, int>(idxL, idxS));
+  }
+
+  if (swapped)
+  {
+    for (auto& c : corres)
+        std::swap(c.first, c.second);
+  }
+
+  return corres;
+}
+#endif
 
 //-----------------------------------------------------------------------------
 bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState,
@@ -1666,15 +1915,17 @@ bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState
   Maps loopClosureRevisitedSubMaps;
   this->InitSubMaps(loopClosureRevisitedSubMaps);
   this->BuildMaps(loopClosureRevisitedSubMaps,
-                  itRevisitedState->Index + this->LoopParams.RevisitedMapStartRange,
-                  itRevisitedState->Index + this->LoopParams.RevisitedMapEndRange);
+                  this->FetchStateIndex(itRevisitedState, this->LoopParams.RevisitedMapStartRange)->Index,
+                  this->FetchStateIndex(itRevisitedState, this->LoopParams.RevisitedMapEndRange)->Index);
   PRINT_VERBOSE(3, "Sub maps are created around revisited frame #" << itRevisitedState->Index << ".");
 
   // Pose prior for optimization
   Eigen::Isometry3d loopClosureTworld = itQueryState->Isometry;
-  // Enable to add an offset to the pose prior when two poses are too far from each other.
-  if (this->LoopParams.EnableOffset)
+  if (!this->LoopDetectionTransform.matrix().isIdentity())
+    loopClosureTworld = this->LoopDetectionTransform;
+  else if (this->LoopParams.EnableOffset)
   {
+    // Enable to add an offset to the pose prior when two poses are too far from each other.
     PointCloud::Ptr revisitedPlaneKeypoints(new PointCloud);
     pcl::transformPointCloud(*(itRevisitedState->Keypoints[PLANE]->GetCloud()),
                              *revisitedPlaneKeypoints,
@@ -1697,8 +1948,8 @@ bool Slam::LoopClosureRegistration(std::list<LidarState>::iterator& itQueryState
     Maps loopClosureQuerySubMaps;
     this->InitSubMaps(loopClosureQuerySubMaps);
     this->BuildMaps(loopClosureQuerySubMaps,
-                    itQueryState->Index + this->LoopParams.QueryMapStartRange,
-                    itQueryState->Index + this->LoopParams.QueryMapEndRange,
+                    this->FetchStateIndex(itQueryState, this->LoopParams.QueryMapStartRange)->Index,
+                    this->FetchStateIndex(itQueryState, this->LoopParams.QueryMapEndRange)->Index,
                     itQueryState->Index);
     PRINT_VERBOSE(3, "Sub maps are created around query frame #" << itQueryState->Index << ".");
     for (auto k : this->UsableKeypoints)
@@ -1872,6 +2123,27 @@ void Slam::BuildMaps(Maps& maps, int windowStartIdx, int windowEndIdx, int idxFr
       maps[k]->Add(keypoints, false);
     }
   }
+}
+
+//-----------------------------------------------------------------------------
+std::list<LidarState>::iterator Slam::FetchStateIndex(std::list<LidarState>::iterator startIt, double minDistance)
+{
+  if (minDistance == 0)
+    return startIt;
+
+  // itBound represents the first state that the trajectory length is not smaller than minDistance
+  // between startIt and itBound
+  auto itBound = startIt;
+  auto itStop = minDistance < 0 ? this->LogStates.begin() : std::prev(this->LogStates.end());
+  double trajLength = 0;
+  while (trajLength < std::abs(minDistance) && itBound != itStop)
+  {
+    // Compute distance between two poses
+    auto itNeighbor = minDistance < 0 ? std::prev(itBound) : std::next(itBound);
+    trajLength += (itBound->Isometry.translation() - itNeighbor->Isometry.translation()).norm();
+    itBound = itNeighbor;
+  }
+  return itBound;
 }
 
 //-----------------------------------------------------------------------------

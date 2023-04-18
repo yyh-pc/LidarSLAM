@@ -29,6 +29,7 @@
 #include <math.h>
 #include <numeric>
 #include <cctype>
+#include <list>
 
 //==============================================================================
 //   Usefull macros or typedefs
@@ -151,6 +152,29 @@ std::string Plural(std::string st);
 inline double Normalize(double n, double min, double max)
 {
   return (n - min) / (max - min);
+}
+
+//------------------------------------------------------------------------------
+/*!
+ * @brief Increment or decrement given iterator by steps elements
+ * @param it    A bidirectional iterator
+ * @param steps Numbers of elements it should be advanced
+ * @param stop  Stop condition, usually the beginning or the end of a list
+ * @return The incremented or decremented iterator
+ */
+template <typename It>
+void SafeAdvance(It& it, int steps, const It& stop)
+{
+  while (steps > 0 && it!=stop)
+  {
+    --steps;
+    ++it;
+  }
+  while (steps < 0 && it!=stop)
+  {
+    ++steps;
+    --it;
+  }
 }
 
 //==============================================================================

@@ -92,6 +92,11 @@
 #include "LidarSlam/PoseGraphOptimizer.h"
 #endif  // USE_G2O
 
+#ifdef USE_TEASERPP
+#include <teaser/registration.h>
+#include <pcl/features/fpfh_omp.h>
+#endif
+
 #define SetMacro(name,type) void Set##name (type _arg) { name = _arg; }
 #define GetMacro(name,type) type Get##name () const { return name; }
 
@@ -167,21 +172,49 @@ namespace LoopClosure
 {
 struct Parameters
 {
-  // Boolean to decide if the closure information can be provided externally by various sources (user or camera or landmark...)
-  // If true, users need to indicate the query frame index and the revisited frame index for loop closure.
-  bool ExtDetect = false;
+  // Parameters for the loop closure detection
+
+  // Which method to use to detect loop closure
+  // Manual detector: users need to indicate the query frame index and the revisited frame index for loop closure.
+  // TEASERPP detector: automatic detection of loop closure by teaser registration
+  LoopClosureDetector Detector = LoopClosureDetector::NONE;
+
+  // When a query frame searches its revisited frame,
+  // there is very little possibility that the loop is in the last travel distance.
+  // The GapLength is the travel distance before the query frame where is considered no loop formed
+  double GapLength = 10.; // 10 meters
+
+  // For automatic detection, the candidate frames are sampled with a step of LoopSampleStep (in meters)
+  // By default SampleStep is set to -1, the only candidate submap is the full map
+  double SampleStep = -1.; // meter
+
+  // The threshold to decide whether a candidate frame is the revisited frame of loop closure or not
+  double EvaluationThreshold = 0.6;
+
+  #ifdef USE_TEASERPP
+  teaser::RobustRegistrationSolver::Params TeaserParams
+  {
+    // Other parameters are kept as default values. See more details in
+    // https://github.com/MIT-SPARK/TEASER-plusplus/blob/master/teaser/include/teaser/registration.h
+    .noise_bound = 0.05,              // Noise bound in meters
+    .estimate_scaling = false,        // no scaling in the pointcloud
+    .rotation_cost_threshold = 0.005 // The cost threshold compares with the difference between costs of consecutive iterations.
+  };
+  #endif
+
+  // Parameters for the loop closure registration
 
   // Frame indices to indicate where the loop closure is formed.
   unsigned int QueryIdx = 0;
   unsigned int RevisitedIdx = 0;
 
-  // Number of frames used to build the submaps around the query frame or the revisited frame for loop closure.
-  // To build sub maps around query frame, use frames [QueryIdx + QueryMapStartRange, QueryIdx + QueryMapEndRange].
-  // To build sub maps around the revisited frame, use frames [RevisitedIdx + RevisitedMapStartRange, RevisitedIdx + RevisitedMapEndRange].
-  int QueryMapStartRange = -50;
-  int QueryMapEndRange = 50;
-  int RevisitedMapStartRange = -50;
-  int RevisitedMapEndRange = 50;
+  // The submaps size in meters around the query frame or the revisited frame for loop closure.
+  // To build sub maps around query frame, use frames in the range [QueryIdx - 5m, QueryIdx + 5m].
+  // To build sub maps around the revisited frame, use frames in the range [RevisitedIdx - 5m, RevisitedIdx + 5m].
+  double QueryMapStartRange = -5;     // 5 meters before query frame
+  double QueryMapEndRange = 5;        // 5 meters after query frame
+  double RevisitedMapStartRange = -5; // 5 meters before revisited frame
+  double RevisitedMapEndRange = 5;    // 5 meters after revisited frame
 
   // Boolean to add an offset to loop closure pose prior when the frames are too far from each other.
   bool EnableOffset = false;
@@ -657,8 +690,8 @@ public:
   // ---------------------------------------------------------------------------
   //   Loop Closure parameters
   // ---------------------------------------------------------------------------
-  GetStructParamsMacro(Loop, ExtDetect, bool)
-  SetStructParamsMacro(Loop, ExtDetect, bool)
+  GetStructParamsMacro(Loop, Detector, LoopClosureDetector)
+  SetStructParamsMacro(Loop, Detector, LoopClosureDetector)
 
   GetStructParamsMacro(Loop, QueryIdx, unsigned int)
   SetStructParamsMacro(Loop, QueryIdx, unsigned int)
@@ -666,17 +699,27 @@ public:
   GetStructParamsMacro(Loop, RevisitedIdx, unsigned int)
   SetStructParamsMacro(Loop, RevisitedIdx, unsigned int)
 
-  GetStructParamsMacro(Loop, QueryMapStartRange, int)
-  SetStructParamsMacro(Loop, QueryMapStartRange, int)
+  GetStructParamsMacro(Loop, QueryMapStartRange, double)
+  SetStructParamsMacro(Loop, QueryMapStartRange, double)
 
-  GetStructParamsMacro(Loop, QueryMapEndRange, int)
-  SetStructParamsMacro(Loop, QueryMapEndRange, int)
+  GetStructParamsMacro(Loop, QueryMapEndRange, double)
+  SetStructParamsMacro(Loop, QueryMapEndRange, double)
 
-  GetStructParamsMacro(Loop, RevisitedMapStartRange, int)
-  SetStructParamsMacro(Loop, RevisitedMapStartRange, int)
+  GetStructParamsMacro(Loop, RevisitedMapStartRange, double)
+  SetStructParamsMacro(Loop, RevisitedMapStartRange, double)
 
-  GetStructParamsMacro(Loop, RevisitedMapEndRange, int)
-  SetStructParamsMacro(Loop, RevisitedMapEndRange, int)
+  GetStructParamsMacro(Loop, RevisitedMapEndRange, double)
+  SetStructParamsMacro(Loop, RevisitedMapEndRange, double)
+
+  // Parameters for automatic detection
+  GetStructParamsMacro(Loop, GapLength, double)
+  SetStructParamsMacro(Loop, GapLength, double)
+
+  GetStructParamsMacro(Loop, SampleStep, double)
+  SetStructParamsMacro(Loop, SampleStep, double)
+
+  GetStructParamsMacro(Loop, EvaluationThreshold, double)
+  SetStructParamsMacro(Loop, EvaluationThreshold, double)
 
   // Get/Set Loop Closure registration parameters
   GetStructParamsMacro(Loop, EnableOffset, bool)
@@ -913,6 +956,10 @@ private:
 
   // Loop closure parameters
   LoopClosure::Parameters LoopParams;
+
+  // Transform between the query frame and the revisited frame that has been found by the automatic loop detector
+  // This pose can be used as a pose prior in LoopClosureRegistration step
+  Eigen::Isometry3d LoopDetectionTransform = Eigen::Isometry3d::Identity();
 
   // ---------------------------------------------------------------------------
   //   Optimization data
@@ -1174,9 +1221,25 @@ private:
   //   Loop Closure usage
   // ---------------------------------------------------------------------------
 
-  // If external detection is enabled, check whether the inputs of loop closure frame indices are stored in the LogStates
-  // if not, detect automatically a revisited frame idx for the current frame (TBA)
+  // If use manual detection, check whether the inputs of loop closure frame indices are stored in the LogStates
+  // if use teaserpp detector, detect automatically a revisited frame index for the current frame by using teaserpp registration
   bool DetectLoopClosureIndices(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState);
+
+  // Return true if a loop closure has been found and update itRevisitedState iterator, if not return false.
+  bool DetectLoopWithTeaser(std::list<LidarState>::iterator& itQueryState, std::list<LidarState>::iterator& itRevisitedState);
+
+  #ifdef USE_TEASERPP
+  // Compute FPFH features for a input pointcloud
+  // The input arguments are: input cloud, search radius for estimating normals and
+  // search radius for calculating FPFH (needs to be at least normalSearchRadius)
+  pcl::PointCloud<pcl::FPFHSignature33>::Ptr ComputeFPFHFeatures(const PointCloud::Ptr inputCloud,
+                                                                 double normalSearchRadius,
+                                                                 double fpfhSearchRadius);
+
+  // Compute correspondences between two pointclouds by searching nearest FPFH features in kdtree
+  std::vector<std::pair<int, int>> CalculateCorrespondences(pcl::PointCloud<pcl::FPFHSignature33>::Ptr sourceFeatures,
+                                                          pcl::PointCloud<pcl::FPFHSignature33>::Ptr targetFeatures);
+  #endif
 
   // Compute the transform between a query frame and the revisited frame
   // by registering query frame keypoints onto keypoints of the submap around the revisited frame.
@@ -1200,6 +1263,12 @@ private:
   // Keypoints are aggregated in world coordinates by default
   // or in base coordinates of frame #idxFrame when idxFrame is not negative
   void BuildMaps(Maps& maps, int windowStartIdx = -1, int windowEndIdx = -1, int idxFrame = -1);
+
+  // Fetch the index of the frame stored in LogStates, acquired before startIt
+  // and at a distance at least equal to minDistance
+  // minDistance can be positive or negative to choose
+  // in which chronological direction to perform the search
+  std::list<LidarState>::iterator FetchStateIndex(std::list<LidarState>::iterator startIt, double minDistance);
 
   // ICP-LM Optimization process to estimate pose
   // Compute the pose of the sourceKeypoints by registering

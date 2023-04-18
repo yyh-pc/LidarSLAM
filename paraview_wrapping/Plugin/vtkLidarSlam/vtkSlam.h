@@ -227,8 +227,8 @@ public:
   //   Loop closure parameters
   // ---------------------------------------------------------------------------
 
-  vtkCustomGetMacro(LoopExtDetect, bool)
-  vtkCustomSetMacro(LoopExtDetect, bool)
+  virtual int  GetLoopDetector();
+  virtual void SetLoopDetector(int detector);
 
   vtkCustomGetMacro(LoopQueryIdx, unsigned int)
   virtual void SetLoopQueryIdx(unsigned int loopClosureQueryIdx);
@@ -236,17 +236,27 @@ public:
   vtkCustomGetMacro(LoopRevisitedIdx, unsigned int)
   virtual void SetLoopRevisitedIdx(unsigned int loopClosureRevisitedIdx);
 
-  vtkCustomGetMacro(LoopQueryMapStartRange, int)
-  vtkCustomSetMacro(LoopQueryMapStartRange, int)
+  vtkCustomGetMacro(LoopQueryMapStartRange, double)
+  vtkCustomSetMacro(LoopQueryMapStartRange, double)
 
-  vtkCustomGetMacro(LoopQueryMapEndRange, int)
-  vtkCustomSetMacro(LoopQueryMapEndRange, int)
+  vtkCustomGetMacro(LoopQueryMapEndRange, double)
+  vtkCustomSetMacro(LoopQueryMapEndRange, double)
 
-  vtkCustomGetMacro(LoopRevisitedMapStartRange, int)
-  vtkCustomSetMacro(LoopRevisitedMapStartRange, int)
+  vtkCustomGetMacro(LoopRevisitedMapStartRange, double)
+  vtkCustomSetMacro(LoopRevisitedMapStartRange, double)
 
-  vtkCustomGetMacro(LoopRevisitedMapEndRange, int)
-  vtkCustomSetMacro(LoopRevisitedMapEndRange, int)
+  vtkCustomGetMacro(LoopRevisitedMapEndRange, double)
+  vtkCustomSetMacro(LoopRevisitedMapEndRange, double)
+
+  // Get/Set automatic detection parameters
+  vtkCustomGetMacro(LoopGapLength, double)
+  vtkCustomSetMacro(LoopGapLength, double)
+
+  vtkCustomGetMacro(LoopSampleStep, double)
+  vtkCustomSetMacro(LoopSampleStep, double)
+
+  vtkCustomGetMacro(LoopEvaluationThreshold, double)
+  vtkCustomSetMacro(LoopEvaluationThreshold, double)
 
   // Get/Set Loop closure registration parameters
   vtkCustomGetMacro(LoopEnableOffset, bool)
