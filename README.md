@@ -95,29 +95,30 @@ You can link to the local libraries you have installed adding cmake flags. Notab
 ```bash
 cmake ../src -DCMAKE_BUILD_TYPE=Release -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
 ```
+
 #### With Superbuild
 
 In your workspace, run :
 
 ```bash
 mkdir build && cd build
-cmake ../src/superbuild -DCMAKE_BUILD_TYPE=Release
+cmake ../src/slam-superbuild -DCMAKE_BUILD_TYPE=Release
 cmake --build . -j
 ```
 
 **NOTE**: By default in the superbuild, mandatory dependencies are installed but optional dependencies are not. You can decide which dependencies to install with the superbuild using the options **INSTALL_XX**. For example, to not build *PCL*:
 ```bash
-cmake ../src/superbuild -DCMAKE_BUILD_TYPE=Release -DINSTALL_PCL=OFF
+cmake ../src/slam-superbuild -DCMAKE_BUILD_TYPE=Release -DINSTALL_PCL=OFF
 ```
 
 Note that installing and enabling an optional dependency is not the same. If you want to install and enable the use of an optional dependency you need to switch two variables to ON : **INSTALL_XX** and **ENABLE_XX**.
 
 Example for *GTSAM* :
 ```bash
-cmake ../src/superbuild -DCMAKE_BUILD_TYPE=Release -DINSTALL_GTSAM=ON -DENABLE_GTSAM=ON
+cmake ../src/slam-superbuild -DCMAKE_BUILD_TYPE=Release -DINSTALL_GTSAM=ON -DENABLE_GTSAM=ON
 ```
 
-More documentation about the superbuild can be found [here](slam-superbuild/README.md).
+More documentation about the superbuild can be found [here](https://gitlab.kitware.com/keu-computervision/slam-superbuild).
 
 ## ROS wrapping
 
@@ -127,11 +128,14 @@ The ROS wrapping has been tested on Linux only.
 
 Ensure all *LidarSlam* dependencies are respected. Specific ROS packages dependencies are listed in the table below along with the version used during development and testing.
 
-| Dependency     | Tested Versions | Install (`sudo apt-get install <pkg>`)                                           |
-|:--------------:|:---------------:|:--------------------------------------------------------------------------------:|
-| ROS            | melodic, noetic | `ros-melodic-desktop-full` and [tutorial](http://wiki.ros.org/ROS/Installation)  |
-| gps_common     | 0.3.0           | `ros-$ROS_DISTRO-gps-common`                                                     |
-| geodesy        | 0.5.3           | `ros-$ROS_DISTRO-geodesy`                                                        |
+| Dependency      | Tested Versions | Install (`sudo apt-get install <pkg>`)                                             | status    |
+|:---------------:|:---------------:|:----------------------------------------------------------------------------------:|:---------:|
+| ROS             | melodic, noetic | `ros-$ROS_DISTRO-desktop-full` and [tutorial](http://wiki.ros.org/ROS/Installation)| mandatory |
+| pcl-ros         | 1.7.4           | `ros-$ROS_DISTRO-pcl-ros`                                                          | mandatory |
+| geodesy         | 0.5.3           | `ros-$ROS_DISTRO-geodesy`                                                          | mandatory |
+| gps_common      | 0.3.0           | `ros-$ROS_DISTRO-gps-common`                                                       | optionnal |
+| apriltag        | 3.2.0           | `ros-$ROS_DISTRO-apriltag`                                                         | optionnal |
+| g2o             | 5.3             | `ros-$ROS_DISTRO-libg2o`                                                           | optionnal |
 
 For Velodyne usage, please note that the ROS Velodyne driver with minimum version 1.6 is needed.
 Be careful, this ROS Velodyne driver 1.6 is not backward-compatible with previous versions.
@@ -142,11 +146,46 @@ For Ouster usage, the driver can be found in this [git repo](https://github.com/
 
 ### Installation
 
-Clone this git repo directly into your catkin directory, and run `catkin_make -DCMAKE_BUILD_TYPE=RelWithDebInfo` or `catkin_make -DCMAKE_BUILD_TYPE=Release` (to turn on optimizations, highly recommended when using Eigen). The same can be done with `catkin build`. It will automatically build *LidarSlam* lib before ROS packages.
+Clone this git repo directly into your workspace under the src directory
+git clone https://gitlab.kitware.com/keu-computervision/slam.git src/slam --recursive
 
-**NOTE** : The superbuild can also be used here setting the **SUPERBUILD_INSTALL_DIR** variable.
-
+**NOTE** : Boost, g2o and PCL dependencies can be resolved wih ROS packages.
 **WARNING** : Be sure to use the same PCL library dependency for ROS basic tools and slam library to avoid compilation errors and/or segfaults.
+
+#### With system dependencies
+Run `catkin_make -DCMAKE_BUILD_TYPE=RelWithDebInfo` or `catkin_make -DCMAKE_BUILD_TYPE=Release` (to turn on optimizations, highly recommended when using Eigen). The same can be done with `catkin build`. It will automatically build *LidarSlam* lib before ROS packages.
+
+#### With local dependencies
+As with Core SLAM lib, you can use local dependencies for Slam lib by passing them to catkin.
+
+Example for Ceres and g2o :
+ ```bash
+ catkin_make -j -DCMAKE_BUILD_TYPE=Release --cmake-args -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
+  OR
+ catkin build -j -DCMAKE_BUILD_TYPE=Release --cmake-args -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
+ ```
+
+#### With Superbuild
+The [superbuild](https://gitlab.kitware.com/keu-computervision/slam-superbuild/) can also download and install the required dependencies.
+
+**WARNING** It is not possible to use PCL from the superbuild (this would create runtime issues with system version).
+
+**WARNING** The superbuild must be installed outside of catkin workspace.
+
+Example :
+ ```bash
+ # Clone project
+ git clone https://gitlab.kitware.com/keu-computervision/slam.git catkin_ws/src/slam --recursive
+ # Build Superbuild
+ mkdir SB-build && cd SB-build
+ cmake ../catkin_ws/src/slam/slam-superbuild -GNinja -DCMAKE_BUILD_TYPE=Release -DINSTALL_PCL=OFF
+ cmake --build . -j
+ # Build Slam ROS package
+ cd ../catkin_ws
+ catkin_make -j -DCMAKE_BUILD_TYPE=Release --cmake-args -DSUPERBUILD_INSTALL_DIR=absolute/path/to/superbuild/install
+  OR
+ catkin build -j -DCMAKE_BUILD_TYPE=Release --cmake-args -DSUPERBUILD_INSTALL_DIR=absolute/path/to/superbuild/install
+```
 
 ### Live usage
 
