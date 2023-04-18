@@ -356,7 +356,7 @@ ros_make_reference1:
     test_name: "test1"
     outdoor: "true"
     vlp16: "false"
-    wait_init: "1" # To have time to init the process
+    wait_init: "2" # To have time to init the process
 
 # Create a reference for test2 from master branch
 ros_make_reference2:
@@ -365,7 +365,7 @@ ros_make_reference2:
     test_name: "test2"
     outdoor: "false"
     vlp16: "true"
-    wait_init: "1" # To have time to init the process
+    wait_init: "4" # To have time to init the process
 
 # Perform test 1
 ros_test1:
