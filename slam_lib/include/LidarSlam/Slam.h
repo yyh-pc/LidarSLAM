@@ -789,6 +789,8 @@ public:
 
   GetMacro(ComplyMotionLimits, bool)
 
+  float GetPositionErrorStd() const;
+
 private:
 
   // ---------------------------------------------------------------------------

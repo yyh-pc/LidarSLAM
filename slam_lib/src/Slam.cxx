@@ -2515,6 +2515,12 @@ void Slam::EstimateOverlap()
 }
 
 //-----------------------------------------------------------------------------
+float Slam::GetPositionErrorStd() const
+{
+  return this->LocalizationUncertainty.PositionError;
+}
+
+//-----------------------------------------------------------------------------
 void Slam::CheckMotionLimits()
 {
   int nPoses = this->LogStates.size();

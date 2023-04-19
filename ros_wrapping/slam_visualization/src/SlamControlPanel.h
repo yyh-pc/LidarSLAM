@@ -95,6 +95,7 @@ private:
   // UI widgets
   QLabel* OverlapValueLabel = nullptr;
   QLabel* ComplyMotionLimitsValueLabel = nullptr;
+  QLabel* StdPositionErrorValueLabel = nullptr;
   QLabel* ComputationTimeValueLabel = nullptr;
 
   // ROS interface

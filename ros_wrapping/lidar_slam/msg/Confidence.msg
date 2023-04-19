@@ -26,5 +26,9 @@ int16 nb_matches
 # respects the specified physical constraints on velocity and acceleration
 bool comply_motion_limits
 
+# Standard deviation of the position error based on the pose
+# covariance supplied by the SLAM algorithm
+float32 std_position_error
+
 # This value indicates the computation time from data reception to pose output
 float32 computation_time

@@ -917,6 +917,7 @@ void LidarSlamNode::PublishOutput()
       confidenceMsg.covariance[i] = lastStates.back().Covariance(i);
     confidenceMsg.nb_matches = this->LidarSlam.GetTotalMatchedKeypoints();
     confidenceMsg.comply_motion_limits = this->LidarSlam.GetComplyMotionLimits();
+    confidenceMsg.std_position_error = this->LidarSlam.GetPositionErrorStd();
     this->Publishers[CONFIDENCE].publish(confidenceMsg);
   }
 }

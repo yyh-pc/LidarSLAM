@@ -79,6 +79,11 @@ void SlamControlPanel::CreateLayout()
   this->ComplyMotionLimitsValueLabel->setTextFormat(Qt::TextFormat::PlainText);
   complyMotionLimitsLabel->setBuddy(this->ComplyMotionLimitsValueLabel);
 
+  auto stdPositionErrorValueLabel = new QLabel{ "Position error estimated: " };
+  this->StdPositionErrorValueLabel = new QLabel;
+  this->StdPositionErrorValueLabel->setTextFormat(Qt::TextFormat::PlainText);
+  stdPositionErrorValueLabel->setBuddy(this->ComplyMotionLimitsValueLabel);
+
   auto computationTimeLabel = new QLabel{ "Frame computation time: " };
   this->ComputationTimeValueLabel = new QLabel;
   this->ComputationTimeValueLabel->setTextFormat(Qt::TextFormat::PlainText);
@@ -89,8 +94,10 @@ void SlamControlPanel::CreateLayout()
   confidenceLayout->addWidget(this->OverlapValueLabel, 0, 1, Qt::AlignRight);
   confidenceLayout->addWidget(complyMotionLimitsLabel, 1, 0, Qt::AlignLeft);
   confidenceLayout->addWidget(this->ComplyMotionLimitsValueLabel, 1, 1, Qt::AlignRight);
-  confidenceLayout->addWidget(computationTimeLabel, 2, 0, Qt::AlignLeft);
-  confidenceLayout->addWidget(this->ComputationTimeValueLabel, 2, 1, Qt::AlignRight);
+  confidenceLayout->addWidget(stdPositionErrorValueLabel, 2, 0, Qt::AlignLeft);
+  confidenceLayout->addWidget(this->StdPositionErrorValueLabel, 2, 1, Qt::AlignRight);
+  confidenceLayout->addWidget(computationTimeLabel, 3, 0, Qt::AlignLeft);
+  confidenceLayout->addWidget(this->ComputationTimeValueLabel, 3, 1, Qt::AlignRight);
 
   auto confidenceBox = new QGroupBox;
   confidenceBox->setTitle("Confidence estimator");
@@ -149,6 +156,9 @@ void SlamControlPanel::SlamConfidenceCallback(const lidar_slam::ConfidenceConstP
 
   this->ComplyMotionLimitsValueLabel->setPalette(palette);
   this->ComplyMotionLimitsValueLabel->setText(confidence->comply_motion_limits ? "Yes" : "No");
+
+  this->StdPositionErrorValueLabel->setText(
+    QString::number(confidence->std_position_error) + " m");
 
   this->ComputationTimeValueLabel->setText(
     QString::number(confidence->computation_time * 1000.0) + " ms");
