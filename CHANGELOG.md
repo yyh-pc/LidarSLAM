@@ -10,12 +10,14 @@ The changes are summarized below.
 
 **Major new features:**
 
-* Add a loop closure (detection is not handled) (!192)
-* Integrate IMU raw data to deskew, do egomotion and add a constraint to SLAM (postprocess only) (!187)
+* Add a loop closure (detection is not handled) (!192, !235, !240)
+* Add loop closure automatic detection for the current frame using teaserpp (!218)
+* Integrate IMU raw data to deskew, do egomotion and add a constraint to SLAM (postprocess only) (!187, !232, !235)
 * Allow to get a pose at any required timestamp using external sensors (!216, !219, !221)
 * Allow to get poses since last frame at a specific rate (!216, !217, !219)
-* Add interpolation models choice (!206)
+* Add interpolation models choice (!206, !247)
 * Integrate RGB camera data to SLAM optimization (through optical flow constraint) (!180)
+* Allow to get base frame from GPS measurements in external sensors API (!235)
 
 **Refactoring and code architecture changes:**
 
@@ -23,6 +25,7 @@ The changes are summarized below.
 * Remove the MotionModel class and create an interpolator class (!206)
 * Remove WithinFrameMotion object (!206)
 * Uniformize external sensors (!212)
+* Refactore AddExternalSensor function in PoseGraphOptimizer (!235)
 
 **Performance improvements:**
 
@@ -32,6 +35,8 @@ The changes are summarized below.
 
 * Fix behavior of InitTworldWithPoseMeasurment function (!216)
 * Fix segfault that was occuring sometimes because of the PoseManager (!222)
+* Fix min neighbor radius application (!239)
+* Fix GPS vertex indices in pose graph (!240)
 
 **Compilation / CMake related changes / CI:**
 
@@ -40,9 +45,10 @@ The changes are summarized below.
 * Add GTSAM as optional dependency (!187)
 * Add OpenCV as optional dependency (!180)
 * Fix link with PCL + add PCL variable for compilation (!225)
-* Remove Ceres warning of deprecated functions (!227)
-* CMakify the library so it can be built, installed and called as a target on cmake (!228, !229)
+* Remove Ceres warning of deprecated functions (!227, !237)
+* CMakify the library so it can be built, installed and called as a target on cmake (!228, !229, !232, !238, !241, !242, !243)
 * Add a cross platform external superbuild with all required dependencies (update the CI to use it) (!226)
+* Fix CI ROS test 2 (!246)
 
 ### ROS wrapping
 
@@ -51,10 +57,12 @@ The changes are summarized below.
 * Allow to provide a pose output frequency (!187)
 * Allow to set the interpolation mode (!206)
 * Allow to provide RGB camera messages (!180)
+* Update build documentation (!237)
 
 **Bug fixes:**
 
 * Fix LidarIsPosix parameter (!180)
+* Fix Compilation (!237)
 
 ### ParaView wrapping
 
@@ -68,6 +76,7 @@ The changes are summarized below.
 * Allow to provide a pose output frequency (!187)
 * Add button to optimize the trajectory using IMU pose graph (!187)
 * Allow to set the interpolation mode (!206)
+* Adapt Cmake architecture to new LidarView version (!238)
 
 **Bug fixes:**
 
@@ -93,7 +102,7 @@ The changes are summarized below.
 * Add pose graph as postprocess (!162, !178)
 * Restore GPS use to update a pose graph (!172)
 * Use external pose in a tight optimization (!173)
-* Add radius to define neighborhood (!200)
+* Add radius to define neighborhood (!193, !200)
 
 **Refactoring and code architecture changes:**
 
