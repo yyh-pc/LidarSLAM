@@ -1502,14 +1502,14 @@ void Slam::UpdateMapsUsingTworld()
 //-----------------------------------------------------------------------------
 void Slam::LogCurrentFrameState()
 {
-  // Required number of data to perform interpolation
-  size_t requiredNbData = Interpolation::ModelRequiredNbData.at(this->Interpolation);
+  // Number of data to keep in order to perform interpolation
+  // The std::max avoid underflow
+  size_t nbDataToKeep = std::max(Interpolation::ModelRequiredNbData.at(this->Interpolation), 1u) - 1u;
   // Last poses are logged in any case for motion extrapolation and undistortion
   // If LogOnlyKeyframes is required, remove the no keyframe logStates (those before required logStates)
-  if (this->LogStates.size() > requiredNbData - 1 && this->LogOnlyKeyframes)
+  if (this->LogStates.size() > nbDataToKeep && this->LogOnlyKeyframes)
   {
-    auto itLastRequired = this->LogStates.end();
-    std::advance(itLastRequired, -1 * (requiredNbData - 1));
+    auto itLastRequired = std::prev(this->LogStates.end(), nbDataToKeep);
     auto itSt = this->LogStates.begin();
     while (itSt != itLastRequired)
       itSt = itSt->IsKeyFrame ? ++itSt : this->LogStates.erase(itSt);
@@ -1547,7 +1547,7 @@ void Slam::LogCurrentFrameState()
   // Remove the oldest logged states
   auto itSt = this->LogStates.begin();
   while (this->CurrentTime - itSt->Time > this->LoggingTimeout &&
-         this->LogStates.size() > requiredNbData)
+         this->LogStates.size() > nbDataToKeep + 1)
   {
     ++itSt;
     this->LogStates.pop_front();
