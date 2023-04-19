@@ -154,7 +154,7 @@ Visualization Manager:
         Position:
           Alpha: 0.5
           Color: 252; 233; 79
-          Scale: 1
+          Scale: 2
           Value: true
         Value: true
       Enabled: true
