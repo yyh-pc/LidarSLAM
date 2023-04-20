@@ -522,6 +522,11 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
 
   IF_VERBOSE(1, Utils::Timer::StopAndDisplay("vtkSlam"));
 
+  if (this->SlamAlgo->HasFailed())
+  {
+    vtkErrorMacro(<< "SLAM has failed");
+  }
+
   return 1;
 }
 

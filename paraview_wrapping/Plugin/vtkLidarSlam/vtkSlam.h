@@ -497,6 +497,15 @@ public:
   virtual void SetLoggingTimeout(double loggingTimeout);
   vtkCustomGetMacro(LoggingTimeout, double)
 
+  vtkCustomGetMacro(ConfidenceWindow, int)
+  vtkCustomSetMacro(ConfidenceWindow, int)
+
+  vtkCustomGetMacro(OverlapDerivativeThreshold, double)
+  vtkCustomSetMacro(OverlapDerivativeThreshold, double)
+
+  vtkCustomGetMacro(PositionErrorThreshold, double)
+  vtkCustomSetMacro(PositionErrorThreshold, double)
+
 protected:
   vtkSlam();
 

@@ -1648,11 +1648,56 @@
         </Hints>
       </DoubleVectorProperty>
 
+      <IntVectorProperty name="Window for average and derivative"
+                         command="SetConfidenceWindow"
+                         number_of_elements="1"
+                         default_values="10"
+                         panel_visibility="advanced">
+        <Documentation>
+          Number of frames onto which to perform an average on confidence
+          values and to compute the derivatives.
+          If too high, some failure cases might be not detected
+          If too low, too many failure cases might be detected
+        </Documentation>
+         <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Threshold on overlap gap"
+                         command="SetOverlapDerivativeThreshold"
+                         number_of_elements="1"
+                         default_values="0.04"
+                         panel_visibility="advanced">
+        <Documentation>
+          Threshold on overlap derivative to trigger on failure
+        </Documentation>
+         <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Threshold on position error"
+                         command="SetPositionErrorThreshold"
+                         number_of_elements="1"
+                         default_values="0.15"
+                         panel_visibility="advanced">
+        <Documentation>
+          Threshold on position error to trigger on failure
+        </Documentation>
+         <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
       <PropertyGroup label="Confidence estimator parameters">
         <Property name="Overlap sampling ratio" />
         <Property name="Velocity limits" />
         <Property name="Acceleration limits" />
         <Property name="Time window duration" />
+        <Property name="Window for average and derivative" />
+        <Property name="Threshold on overlap gap" />
+        <Property name="Threshold on position error" />
       </PropertyGroup>
 
       <!-- ============================ Pose Graph Optimization ============================ -->
