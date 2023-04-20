@@ -83,6 +83,7 @@
 #include "LidarSlam/PointCloudStorage.h"
 #include "LidarSlam/ExternalSensorManagers.h"
 #include "LidarSlam/State.h"
+#include "LidarSlam/ConfidenceEstimators.h"
 
 #include <Eigen/Geometry>
 
@@ -768,12 +769,6 @@ public:
   //   Confidence estimation
   // ---------------------------------------------------------------------------
 
-  // Overlap
-  GetMacro(OverlapSamplingRatio, float)
-  void SetOverlapSamplingRatio(float _arg);
-
-  GetMacro(OverlapEstimation, float)
-
   // Matches
   GetMacro(TotalMatchedKeypoints, int)
 
@@ -789,7 +784,27 @@ public:
 
   GetMacro(ComplyMotionLimits, bool)
 
+  unsigned int GetConfidenceWindow() const {return this->FailDetect.GetWindowSize();}
+  void SetConfidenceWindow(int window) {this->FailDetect.SetWindowSize(window);}
+
+  // Overlap
+  GetMacro(OverlapSamplingRatio, float)
+  void SetOverlapSamplingRatio(float _arg);
+
+  GetMacro(OverlapEstimation, float)
+
+  float GetOverlapDerivativeThreshold() const {return this->FailDetect.GetOverlapDerivativeThreshold();}
+  void SetOverlapDerivativeThreshold(float thresh) {this->FailDetect.SetOverlapDerivativeThreshold(thresh);}
+
+  // Position error
+  float GetPositionErrorThreshold() const {return this->FailDetect.GetPositionErrorThreshold();}
+  void SetPositionErrorThreshold(float thresh) {this->FailDetect.SetPositionErrorThreshold(thresh);}
+
   float GetPositionErrorStd() const;
+
+  // Fuse confidence estimators to
+  // check if SLAM has failed
+  bool HasFailed() {return this->FailDetect.HasFailed();}
 
 private:
 
@@ -864,8 +879,8 @@ private:
   // It is used to reset the pose in case of failure
   Eigen::Isometry3d TworldInit = Eigen::Isometry3d::Identity();
 
-  // Reflect the success of one SLAM iteration computation (used to log or not the state).
-  bool Valid = true;
+  // Reflect the success of the optimization for current input frames
+  bool OptimizationValid = true;
   // Store the keyframe information
   bool IsKeyFrame = true;
 
@@ -1154,6 +1169,9 @@ private:
   // Previous computed velocity (for acceleration computation)
   Eigen::Array2f PreviousVelocity;
 
+  // Failure detector
+  Confidence::FailDetector FailDetect;
+
   // Parameters
 
   // Extrapolating a pose farther from this time ratio is forbidden and will abort.
@@ -1213,8 +1231,10 @@ private:
   // and add points to the maps if we are dealing with a new keyframe.
   void UpdateMapsUsingTworld();
 
-  // Check if the current frame is a keyframe or not
-  bool CheckKeyFrame();
+  // Check if a new keyframe is needed or not
+  // This is based on the motion that has been performed
+  // and if a tag manager requires one
+  bool NeedNewKeyFrame();
 
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState();

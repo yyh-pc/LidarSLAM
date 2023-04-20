@@ -77,7 +77,6 @@
 // LOCAL
 #include "LidarSlam/Utilities.h"
 #include "LidarSlam/KDTreePCLAdaptor.h"
-#include "LidarSlam/ConfidenceEstimators.h"
 #include "LidarSlam/InterpolationModels.h"
 
 // CERES
@@ -252,6 +251,7 @@ void Slam::Reset(bool resetLog)
     // Reset processing duration timers
     Utils::Timer::Reset();
   }
+  this->FailDetect.Reset();
 }
 
 //-----------------------------------------------------------------------------
@@ -382,67 +382,86 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   this->Localization();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization"));
 
+  // Update the tags if requested
+  if (this->LandmarkConstraintLocal)
+  {
+    for (auto& idLm : this->LandmarksManagers)
+    {
+      if (idLm.second.UpdateAbsolutePose(this->Tworld, this->CurrentTime))
+        PRINT_VERBOSE(3, "Updating reference pose of tag #" << idLm.first << " to "<<idLm.second.GetAbsolutePose().transpose());
+    }
+  }
+
   // Compute and check pose confidence estimators
   // Must be set before maps update because the overlap computation
   // requires the current KdTree. This KdTree is reset in the maps update.
-  if (this->OverlapSamplingRatio > 0 || this->TimeWindowDuration > 0)
+  IF_VERBOSE(3, Utils::Timer::Init("Confidence estimators computation"));
+  this->EstimateOverlap();
+  this->CheckMotionLimits();
+
+  // Check if the map is starting
+  unsigned int nbMapKpts = 0;
+  for (const auto& mapKptsCloud : this->LocalMaps)
+    nbMapKpts += mapKptsCloud.second->Size();
+  bool startingMap = nbMapKpts < this->MinNbMatchedKeypoints * 10;
+
+  if (this->FailureDetectionEnabled)
   {
-    IF_VERBOSE(3, Utils::Timer::Init("Confidence estimators computation"));
-    if (this->OverlapSamplingRatio > 0)
-      this->EstimateOverlap();
-    if (this->TimeWindowDuration > 0)
-      this->CheckMotionLimits();
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Confidence estimators computation"));
+    this->FailDetect.AddConfidence(this->OverlapEstimation,
+                                   this->GetPositionErrorStd(),
+                                   this->ComplyMotionLimits,
+                                   startingMap || this->OptimizationValid,
+                                   this->CurrentTime);
   }
 
-  // Check if the frame is a keyframe
-  this->IsKeyFrame = this->CheckKeyFrame();
+  if (this->FailDetect.HasFailed())
+  {
+    PRINT_ERROR("SLAM has failed")
+    ++this->NbrFrameProcessed;
+    return;
+  }
+
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Confidence estimators computation"));
+
+  // A keyframe is a frame that has moved enough
+  // or that is required by the tag manager and for
+  // which the optimization has been performed correctly
+  // (or exceptionnally when the map is initializing)
+  this->IsKeyFrame = (this->OptimizationValid || startingMap ) && this->NeedNewKeyFrame();
   if (this->IsKeyFrame)
   {
     // Notify current frame to be a new keyframe
     this->KfCounter++;
     this->KfLastPose = this->Tworld;
-  }
-
-  if (this->Valid || this->IsKeyFrame)
-  {
-    // Update the tags if requested
-    if (this->LandmarkConstraintLocal)
-    {
-      for (auto& idLm : this->LandmarksManagers)
-      {
-        if (idLm.second.UpdateAbsolutePose(this->Tworld, this->CurrentTime))
-          PRINT_VERBOSE(3, "Updating reference pose of tag #" << idLm.first << " to "<<idLm.second.GetAbsolutePose().transpose());
-      }
-    }
 
     // Update keypoints maps if required: add current keypoints to map using Tworld
     // If mapping mode is ADD_KPTS_TO_FIXED_MAP the initial map points will remain untouched
     // If mapping mode is UPDATE, the initial map points can disappear.
-    if ((this->MapUpdate == MappingMode::ADD_KPTS_TO_FIXED_MAP
-        || this->MapUpdate == MappingMode::UPDATE)
-        && this->IsKeyFrame)
+    if (this->MapUpdate == MappingMode::ADD_KPTS_TO_FIXED_MAP ||
+        this->MapUpdate == MappingMode::UPDATE)
     {
       IF_VERBOSE(3, Utils::Timer::Init("Maps update"));
       this->UpdateMapsUsingTworld();
       IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Maps update"));
     }
+  }
 
-    // Log current frame processing results : pose, covariance and keypoints.
-    IF_VERBOSE(3, Utils::Timer::Init("Logging"));
-    this->LogCurrentFrameState();
-    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
+  // Log current frame processing results : pose, covariance and keypoints.
+  IF_VERBOSE(3, Utils::Timer::Init("Logging"));
+  this->LogCurrentFrameState();
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Logging"));
 
-    if (this->ImuUpdate && this->ImuHasData())
-    {
-      // Update IMU graph with new slam pose to refine the biases
-      IF_VERBOSE(3, Utils::Timer::Init("IMU biases refinement"));
-      if (this->ImuManager->Update(this->LogStates.back()))
-        ++this->ImuHasBeenUpdated;
-      else
-        this->ImuHasBeenUpdated = 0;
-      IF_VERBOSE(3, Utils::Timer::StopAndDisplay("IMU biases refinement"));
-    }
+  if (this->OptimizationValid &&
+      this->ImuUpdate &&
+      this->ImuHasData())
+  {
+    // Update IMU graph with new slam pose to refine the biases
+    IF_VERBOSE(3, Utils::Timer::Init("IMU biases refinement"));
+    if (this->ImuManager->Update(this->LogStates.back()))
+      ++this->ImuHasBeenUpdated;
+    else
+      this->ImuHasBeenUpdated = 0;
+    IF_VERBOSE(3, Utils::Timer::StopAndDisplay("IMU biases refinement"));
   }
 
   // Motion and localization parameters estimation information display
@@ -912,20 +931,16 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation() const
   std::unordered_map<std::string, double> map;
   for (Keypoint k : this->UsableKeypoints)
   {
-    std::string name = "EgoMotion: " + Utils::Plural(KeypointTypeNames.at(k)) + " used";
-    map[name] = this->EgoMotionMatchingResults.at(k).NbMatches();
+    std::string nameEgo = "EgoMotion: " + Utils::Plural(KeypointTypeNames.at(k)) + " used";
+    map[nameEgo] = this->EgoMotionMatchingResults.at(k).NbMatches();
+    std::string nameLoc = "Localization: " + Utils::Plural(KeypointTypeNames.at(k)) + " used";
+    map[nameLoc] = this->LocalizationMatchingResults.at(k).NbMatches();
   }
 
-  for (auto k : this->UsableKeypoints)
-  {
-    std::string name = "Localization: " + Utils::Plural(KeypointTypeNames.at(k)) + " used";
-    map[name] = this->LocalizationMatchingResults.at(k).NbMatches();
-  }
-
-  map["Localization: position error"]      = this->LocalizationUncertainty.PositionError;
-  map["Localization: orientation error"]   = this->LocalizationUncertainty.OrientationError;
-  map["Confidence: overlap"]               = this->OverlapEstimation;
-  map["Confidence: comply motion limits"]  = this->ComplyMotionLimits;
+  map["Confidence: position error"]       = this->LocalizationUncertainty.PositionError;
+  map["Confidence: orientation error"]    = this->LocalizationUncertainty.OrientationError;
+  map["Confidence: overlap"]              = this->OverlapEstimation;
+  map["Confidence: comply motion limits"] = this->ComplyMotionLimits;
 
   return map;
 }
@@ -1294,7 +1309,7 @@ void Slam::ComputeEgoMotion()
 void Slam::Localization()
 {
   this->LocalizationUncertainty = LocalOptimizer::RegistrationError();
-  this->Valid = true;
+  this->OptimizationValid = true;
   PRINT_VERBOSE(2, "========== Localization ==========");
 
   // Integrate the relative motion to the world transformation
@@ -1414,10 +1429,10 @@ void Slam::Localization()
                                                      this->LocalizationParams,
                                                      this->Tworld,
                                                      this->LocalizationMatchingResults);
-  this->Valid = this->LocalizationUncertainty.Valid;
+  this->OptimizationValid = this->LocalizationUncertainty.Valid;
 
   // Reset state to previous one to avoid instability
-  if (!this->Valid)
+  if (!this->OptimizationValid)
     this->Tworld = this->LogStates.empty()? this->TworldInit : Eigen::Isometry3d(this->LogStates.back().Isometry);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
@@ -1441,7 +1456,7 @@ void Slam::Localization()
 }
 
 //-----------------------------------------------------------------------------
-bool Slam::CheckKeyFrame()
+bool Slam::NeedNewKeyFrame()
 {
   // Compute motion since last keyframe
   Eigen::Isometry3d motionSinceLastKf = this->KfLastPose.inverse() * this->Tworld;
@@ -1454,9 +1469,6 @@ bool Slam::CheckKeyFrame()
   // If we don't have enough keyframes yet, the threshold is linearly lowered
   constexpr double MIN_KF_NB = 10.;
   double thresholdCoef = std::min(this->KfCounter / MIN_KF_NB, 1.);
-  unsigned int nbMapKpts = 0;
-  for (const auto& mapKptsCloud : this->LocalMaps)
-    nbMapKpts += mapKptsCloud.second->Size();
 
   // Mark as keyframe if a new tag was seen after some time
   // This allows to force some keyframes and therefore a constraint in the pose graph optimization
@@ -1471,8 +1483,7 @@ bool Slam::CheckKeyFrame()
     }
   }
 
-  return nbMapKpts < this->MinNbMatchedKeypoints * 10 ||
-         transSinceLastKf >= thresholdCoef * this->KfDistanceThreshold ||
+  return transSinceLastKf >= thresholdCoef * this->KfDistanceThreshold ||
          rotSinceLastKf >= Utils::Deg2Rad(thresholdCoef * this->KfAngleThreshold) ||
          tagRequirement;
 }
@@ -2496,6 +2507,12 @@ void Slam::SetOverlapSamplingRatio (float _arg)
 //-----------------------------------------------------------------------------
 void Slam::EstimateOverlap()
 {
+  if (this->OverlapSamplingRatio <= 0.f || !this->OptimizationValid)
+  {
+    this->OverlapEstimation = 1.f;
+    return;
+  }
+
   // Aggregate all input points into WORLD coordinates
   PointCloud::Ptr aggregatedPoints = this->GetRegisteredFrame();
 
@@ -2517,12 +2534,20 @@ void Slam::EstimateOverlap()
 //-----------------------------------------------------------------------------
 float Slam::GetPositionErrorStd() const
 {
+  if (!this->OptimizationValid)
+    return 0.f;
   return this->LocalizationUncertainty.PositionError;
 }
 
 //-----------------------------------------------------------------------------
 void Slam::CheckMotionLimits()
 {
+  if (this->TimeWindowDuration <= 0 || !this->OptimizationValid)
+  {
+    this->ComplyMotionLimits = true;
+    return;
+  }
+
   int nPoses = this->LogStates.size();
   if (nPoses == 0)
     return;
