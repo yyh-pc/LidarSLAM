@@ -17,12 +17,137 @@
 //==============================================================================
 
 #include <LidarSlam/ConfidenceEstimators.h>
+#include <LidarSlam/Utilities.h>
 
 namespace LidarSlam
 {
 namespace Confidence
 {
+//-----------------------------------------------------------------------------
+// Estimator functions
+//-----------------------------------------------------------------------------
 
+//-----------------------------------------------------------------------------
+void Estimator::SetWindowSize(unsigned int size)
+{
+  this->Values.SetMaxWindowSize(size);
+  this->Averages.SetMaxWindowSize(size);
+}
+
+//-----------------------------------------------------------------------------
+void Estimator::Reset()
+{
+  this->Values.Clear();
+  this->Averages.Clear();
+  this->Derivative = FLT_MAX;
+}
+
+//-----------------------------------------------------------------------------
+void Estimator::AddValue(float value, double timestamp)
+{
+  this->Values.AddValue(value, timestamp);
+  this->Derivative = FLT_MAX;
+  if (this->Average())
+    this->Derivate();
+}
+
+//-----------------------------------------------------------------------------
+bool Estimator::Average()
+{
+  if (!this->Values.Full())
+    return false;
+
+  this->Averages.AddValue(this->Values.Sum() / this->Values.Size(), this->Values.Back().Time);
+
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+bool Estimator::Derivate()
+{
+  if (!this->Averages.Full())
+    return false;
+
+  this->Derivative = (this->Averages.Back().Value - this->Averages.Front().Value) /
+                     (this->Averages.Back().Time - this->Averages.Front().Time);
+
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+// FailDetector functions
+//-----------------------------------------------------------------------------
+void FailDetector::Reset()
+{
+  this->LocalizationValid = true;
+  this->CounterUnvalidity = 0;
+  this->OverlapEst.Reset();
+  this->PositionErrorEst.Reset();
+  this->SuspiciousMotion.Clear();
+}
+
+//-----------------------------------------------------------------------------
+void FailDetector::SetWindowSize(unsigned int size)
+{
+  this->OverlapEst.SetWindowSize(size);
+  this->PositionErrorEst.SetWindowSize(size);
+  this->SuspiciousMotion.SetMaxWindowSize(size);
+}
+
+//-----------------------------------------------------------------------------
+void FailDetector::AddConfidence(float overlap, float positionError,
+                                 bool goodMotion, bool localizationValid,
+                                 double timestamp)
+{
+  this->OverlapEst.AddValue(overlap, timestamp);
+  this->PositionErrorEst.AddValue(positionError, timestamp);
+  if (!goodMotion || !localizationValid)
+    ++this->CounterUnvalidity;
+  else
+    this->CounterUnvalidity = 0;
+  this->SuspiciousMotion.AddValue(!goodMotion);
+  this->LocalizationValid = localizationValid;
+}
+
+//-----------------------------------------------------------------------------
+bool FailDetector::HasFailed()
+{
+  // Check divergence
+  if (this->CounterUnvalidity > this->MaxUnvalidityNb)
+  {
+    PRINT_WARNING("Failure : SLAM might be diverging");
+    return true;
+  }
+
+  float ovpDer = this->OverlapEst.GetDerivative();
+  if (std::abs(ovpDer - FLT_MAX) < 1e-4)
+    return false;
+
+  // Check bad local minimum
+  if (this->SuspiciousMotion.Sum() &&
+      -ovpDer > this->OverlapDerivativeThreshold)
+  {
+    PRINT_WARNING("Failure : bad local minimum found, the map might be corrupted");
+    return true;
+  }
+
+  float posErDer =  this->PositionErrorEst.GetDerivative();
+  if (std::abs(posErDer - FLT_MAX) < 1e-4)
+    return false;
+
+  // Check missing degree of liberty
+  if (this->SuspiciousMotion.Sum() &&
+      this->PositionErrorEst.GetAverage() > this->PositionErrorThreshold)
+  {
+    PRINT_WARNING("Failure : missing degree of liberty constraint (e.g. corridor or field contexts)");
+    return true;
+  }
+
+  return false;
+}
+
+//-----------------------------------------------------------------------------
+// LCP function
 //-----------------------------------------------------------------------------
 float LCPEstimator(PointCloud::ConstPtr cloud,
                    const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps,
