@@ -552,12 +552,12 @@
       <DoubleVectorProperty name="Logging timeout"
                             command="SetLoggingTimeout"
                             number_of_elements="1"
-                            default_values="0. "
+                            default_values="0."
                             panel_visibility="advanced">
         <Documentation>
           Maximum duration in seconds on which to keep states in memory.
           This duration must be increased if a pose graph optimization is planned.
-          The minimum number of logged states is 2, to be able to handle ego-motion and undistortion, independently of this timeout value.
+          In any case, a minimum number of states is stored, to be able to interpolate, independently of this timeout value.
         </Documentation>
       </DoubleVectorProperty>
 
@@ -1601,6 +1601,23 @@
         </Hints>
       </DoubleVectorProperty>
 
+      <DoubleVectorProperty name="Acceleration limits"
+                            command="SetAccelerationLimits"
+                            number_of_elements="2"
+                            default_values="1e3 1e3"
+                            panel_visibility="advanced">
+        <Documentation>
+          Acceleration thresholds to evaluate and discard pose.
+
+          translation acceleration: m/s^2
+
+          rotation acceleration: °/s^2
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
       <DoubleVectorProperty name="Velocity limits"
                             command="SetVelocityLimits"
                             number_of_elements="2"
@@ -1618,30 +1635,17 @@
         </Hints>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Acceleration limits"
-                            command="SetAccelerationLimits"
+      <DoubleVectorProperty name="Pose limits"
+                            command="SetPoseLimits"
                             number_of_elements="2"
-                            default_values="1e3 1e3"
+                            default_values="1e6 1e6"
                             panel_visibility="advanced">
         <Documentation>
-          Acceleration threshold to evaluate and discard pose.
+          Pose thresholds to evaluate and discard pose.
 
-          translation acceleration: m/s^2
+          translation: m
 
-          rotation acceleration: °/s^2
-        </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
-        </Hints>
-      </DoubleVectorProperty>
-
-      <DoubleVectorProperty name="Time window duration"
-                            command="SetTimeWindowDuration"
-                            number_of_elements="1"
-                            default_values="0.5"
-                            panel_visibility="advanced">
-        <Documentation>
-          Duration of the window on poses to estimate the velocity in seconds.
+          rotation: °
         </Documentation>
         <Hints>
           <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
@@ -1655,7 +1659,7 @@
                          panel_visibility="advanced">
         <Documentation>
           Number of frames onto which to perform an average on confidence
-          values and to compute the derivatives.
+          values and/or to compute the derivatives (including velocity/acceleration).
           If too high, some failure cases might be not detected
           If too low, too many failure cases might be detected
         </Documentation>
@@ -1692,9 +1696,9 @@
 
       <PropertyGroup label="Confidence estimator parameters">
         <Property name="Overlap sampling ratio" />
-        <Property name="Velocity limits" />
         <Property name="Acceleration limits" />
-        <Property name="Time window duration" />
+        <Property name="Velocity limits" />
+        <Property name="Pose limits" />
         <Property name="Window for average and derivative" />
         <Property name="Threshold on overlap gap" />
         <Property name="Threshold on position error" />

@@ -219,5 +219,76 @@ float LCPEstimator(PointCloud::ConstPtr cloud,
                    int nbThreads = 1,
                    bool proba = true);
 
+// Helper manager to store motion values, compute its derivatives
+// and evaluate them w.r.t. thresholds
+class MotionChecker
+{
+public:
+  // Initialize Poses structure
+  MotionChecker();
+
+  // Clear data
+  void Reset();
+
+  // Getters/Setters
+  Eigen::Array2f GetPoseLimits() const {return this->PoseLimits;}
+  void SetPoseLimits(const Eigen::Array2f& pose) {this->PoseLimits = pose;}
+
+  Eigen::Array2f GetVelocityLimits() const {return this->VelocityLimits;}
+  void SetVelocityLimits(const Eigen::Array2f& vel) {this->VelocityLimits = vel;}
+
+  Eigen::Array2f GetAccelerationLimits() const {return this->AccelerationLimits;}
+  void SetAccelerationLimits(const Eigen::Array2f& acc) {this->AccelerationLimits = acc;}
+
+  // The motion checker does not compute velocity
+  // directly using successive poses because little error on pose
+  // can lead to a great difference in velocity.
+  // Instead, it uses a local window of poses
+  // This should be set using the poses frequency and the poses accuracy
+  unsigned int GetWindowSize() const {return this->Poses.GetMaxWindowSize();}
+  void SetWindowSize(unsigned int size) {this->Poses.SetMaxWindowSize(size);}
+
+  bool GetVerbose() const {return this->Verbose;}
+  void SetVerbose(bool v) {this->Verbose = v;}
+
+  // Compute new motion metrics
+  void SetNewPose(const Eigen::Isometry3d& pose, double time);
+  // Check
+  bool isMotionValid();
+
+private:
+  // Helper
+  // Compute the motion (distance and angle from two rigid transforms)
+  // NOTE : It is not possible to detect an angle greater than PI,
+  // the detectable velocity and acceleration are limited on deltaTime
+  // Rotation angle in [0, 2pi]
+  Eigen::Array2f GetMotion(const Eigen::Isometry3d& TWindow);
+  // Data
+  // Last absolute poses stored for derivatives computation
+  LastValues<Eigen::Isometry3d> Poses;
+  // Current relative pose
+  Eigen::Array2f Pose         = {0.f, 0.f};
+  // Current velocity
+  Eigen::Array2f Velocity     = {0.f, 0.f};
+  // Current acceleration
+  Eigen::Array2f Acceleration = {0.f, 0.f};
+  // Vector to store motion direction
+  Eigen::Vector3d PrevMotionDirection = {0., 0., 0.};
+  // Boolean to store if motion has changed direction
+  bool ChangeDirection = false;
+
+  // Parameters
+
+  // Motion limitations
+  // Local pose thresholds
+  Eigen::Array2f PoseLimits         = {FLT_MAX, FLT_MAX};
+  // Local velocity thresholds
+  Eigen::Array2f VelocityLimits     = {FLT_MAX, FLT_MAX};
+  // Local acceleration thresholds
+  Eigen::Array2f AccelerationLimits = {FLT_MAX, FLT_MAX};
+
+  bool Verbose = false;
+};
+
 } // enf of Confidence namespace
 } // end of LidarSlam namespace

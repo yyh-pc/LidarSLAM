@@ -251,6 +251,7 @@ void Slam::Reset(bool resetLog)
     // Reset processing duration timers
     Utils::Timer::Reset();
   }
+  this->MotionCheck.Reset();
   this->FailDetect.Reset();
 }
 
@@ -268,6 +269,7 @@ void Slam::SetNbThreads(int n)
 void Slam::SetVerbosity(int verbosity)
 {
   this->Verbosity = verbosity;
+  this->MotionCheck.SetVerbose(verbosity >= 3);
   ExtSensorMacro(SetVerbose(verbosity >= 3));
 }
 
@@ -2542,105 +2544,17 @@ float Slam::GetPositionErrorStd() const
 //-----------------------------------------------------------------------------
 void Slam::CheckMotionLimits()
 {
-  if (this->TimeWindowDuration <= 0 || !this->OptimizationValid)
+  if (this->GetConfidenceWindow() <= 0 || !this->OptimizationValid)
   {
     this->ComplyMotionLimits = true;
     return;
   }
 
-  int nPoses = this->LogStates.size();
-  if (nPoses == 0)
-    return;
-
-  // Extract number of poses to comply with the required window time, and relative time duration.
-  double deltaTime = this->CurrentTime - this->LogStates.back().Time;
-  double nextDeltaTime = FLT_MAX;
-  // Index of the last pose that defines the window starting bound
-  // The window ends on current pose
-  auto startIt = this->LogStates.end();
-  auto beforeBegin = this->LogStates.begin();
-  --beforeBegin;
-  --startIt;
-  // If the time between current pose and the last pose is l.t. TimeWindowDuration, look for the window's starting bound pose
-  if (deltaTime < this->TimeWindowDuration)
-  {
-    // Search an interval containing TimeWindowDuration : [deltaTime, nextDeltaTime]
-    while (startIt != beforeBegin)
-    {
-      deltaTime = nextDeltaTime;
-      nextDeltaTime = this->CurrentTime - startIt->Time;
-      if (nextDeltaTime >= this->TimeWindowDuration)
-        break;
-      --startIt;
-    }
-
-    // If startIt lays before first element, no interval containing TimeWindowDuration was found, the oldest logged pose is taken
-    if (startIt == beforeBegin)
-    {
-      PRINT_WARNING("Not enough logged trajectory poses to get the required time window to estimate velocity, using a smaller time window of "
-                    << nextDeltaTime << "s")
-      startIt = this->LogStates.begin();
-    }
-
-    // Choose which bound of the interval is the best window's starting bound
-    else if (std::abs(deltaTime - this->TimeWindowDuration) < std::abs(nextDeltaTime - this->TimeWindowDuration))
-      ++startIt;
-
-    // Actualize deltaTime with the best startIndex
-    deltaTime = this->CurrentTime - startIt->Time;
-  }
-  // If the time between current pose and the last pose is g.t. TimeWindowDuration, take the last pose as window's starting bound
-  else
-    PRINT_WARNING("The required time window is too short to estimate velocity, using motion since last pose")
-
-  this->ComplyMotionLimits = true;
-
-  // Compute transform between the two pose bounds of the window
-  Eigen::Isometry3d TWindow = startIt->Isometry.inverse() * this->Tworld;
-
-  // Compute angular part
-  // NOTE : It is not possible to detect an angle greater than PI,
-  // the detectable velocity and acceleration are limited on deltaTime
-  // Rotation angle in [0, 2pi]
-  float angle = Eigen::AngleAxisd(TWindow.linear()).angle();
-  // Rotation angle in [0, pi]
-  if (angle > M_PI)
-    angle = 2 * M_PI - angle;
-  angle = Utils::Rad2Deg(angle);
-  // Compute linear part
-  float distance = TWindow.translation().norm();
-
-  // Compute velocity
-  Eigen::Array2f velocity = {distance / deltaTime, angle / deltaTime};
-  SET_COUT_FIXED_PRECISION(3);
-  // Print local velocity
-  PRINT_VERBOSE(3, "Velocity     = " << std::setw(6) << velocity[0] << " m/s,  "
-                                     << std::setw(6) << velocity[1] << " °/s")
-  RESET_COUT_FIXED_PRECISION;
-
-  if (this->NbrFrameProcessed >= 2)
-  {
-    // Compute local acceleration in BASE
-    Eigen::Array2f acceleration = (velocity - this->PreviousVelocity) / deltaTime;
-    // Print local acceleration
-    SET_COUT_FIXED_PRECISION(3);
-    PRINT_VERBOSE(3, "Acceleration = " << std::setw(6) << acceleration[0] << " m/s2, "
-                                       << std::setw(6) << acceleration[1] << " °/s2")
-    RESET_COUT_FIXED_PRECISION;
-
-    // Check velocity compliance
-    bool complyVelocityLimits = (velocity < this->VelocityLimits).all();
-    // Check acceleration compliance
-    bool complyAccelerationLimits = (acceleration.abs() < this->AccelerationLimits).all();
-
-    // Set ComplyMotionLimits
-    this->ComplyMotionLimits = complyVelocityLimits && complyAccelerationLimits;
-  }
-
-  this->PreviousVelocity = velocity;
+  this->MotionCheck.SetNewPose(this->Tworld, this->CurrentTime);
+  this->ComplyMotionLimits = this->MotionCheck.isMotionValid();
 
   if (!this->ComplyMotionLimits)
-    PRINT_WARNING("The pose does not comply with the motion limitations. Lidar SLAM may have failed.")
+    PRINT_WARNING("Motion passed limits : SLAM may have failed")
 }
 
 //==============================================================================

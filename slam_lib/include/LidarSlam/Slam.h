@@ -773,19 +773,20 @@ public:
   GetMacro(TotalMatchedKeypoints, int)
 
   // Motion constraints
-  GetMacro(AccelerationLimits, Eigen::Array2f)
-  SetMacro(AccelerationLimits, const Eigen::Array2f&)
+  Eigen::Array2f GetPoseLimits() const {return this->MotionCheck.GetAccelerationLimits();}
+  void SetPoseLimits(Eigen::Array2f& lim) {this->MotionCheck.SetPoseLimits(lim);}
 
-  GetMacro(VelocityLimits, Eigen::Array2f)
-  SetMacro(VelocityLimits, const Eigen::Array2f&)
+  Eigen::Array2f GetVelocityLimits() const {return this->MotionCheck.GetVelocityLimits();}
+  void SetVelocityLimits(Eigen::Array2f& lim) {this->MotionCheck.SetVelocityLimits(lim);}
 
-  GetMacro(TimeWindowDuration, float)
-  SetMacro(TimeWindowDuration, float)
+  Eigen::Array2f GetAccelerationLimits() const {return this->MotionCheck.GetAccelerationLimits();}
+  void SetAccelerationLimits(Eigen::Array2f& lim) {this->MotionCheck.SetAccelerationLimits(lim);}
 
   GetMacro(ComplyMotionLimits, bool)
 
   unsigned int GetConfidenceWindow() const {return this->FailDetect.GetWindowSize();}
-  void SetConfidenceWindow(int window) {this->FailDetect.SetWindowSize(window);}
+  void SetConfidenceWindow(int window) {this->MotionCheck.SetWindowSize(window);
+                                        this->FailDetect.SetWindowSize(window);}
 
   // Overlap
   GetMacro(OverlapSamplingRatio, float)
@@ -1163,11 +1164,11 @@ private:
   // Number of matches for processed frame
   unsigned int TotalMatchedKeypoints = 0;
 
+  // Helper to check the motion and compare it
+  // to input limits
+  Confidence::MotionChecker MotionCheck;
   // Check motion limitations compliance
   bool ComplyMotionLimits = true;
-
-  // Previous computed velocity (for acceleration computation)
-  Eigen::Array2f PreviousVelocity;
 
   // Failure detector
   Confidence::FailDetector FailDetect;
@@ -1189,19 +1190,6 @@ private:
   // Downsampling accelerates the overlap computation, but may be less precise.
   // If 0, overlap won't be computed.
   float OverlapSamplingRatio = 0.f;
-
-  // Motion limitations
-  // Local velocity thresholds in BASE
-  Eigen::Array2f VelocityLimits     = {FLT_MAX, FLT_MAX};
-  // Local acceleration thresholds in BASE
-  Eigen::Array2f AccelerationLimits = {FLT_MAX, FLT_MAX};
-
-  // Duration on which to estimate the local velocity
-  // This window is used to smooth values to get a more accurate velocity estimation
-  // If 0, motion limits won't be checked.
-  // WARNING : the logging time out must be greater
-  // in order to comply with this required value.
-  float TimeWindowDuration = 0.f;
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods

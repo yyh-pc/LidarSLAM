@@ -195,5 +195,135 @@ float LCPEstimator(PointCloud::ConstPtr cloud,
   return lcp / nbPoints;
 }
 
+//-----------------------------------------------------------------------------
+MotionChecker::MotionChecker()
+{
+  this->Poses.SetMaxWindowSize(10);
+  this->Poses.SetMaxWindowDuration(FLT_MAX);
+}
+
+//-----------------------------------------------------------------------------
+void MotionChecker::Reset()
+{
+  this->Poses.Clear();
+  this->Pose.Zero();
+  this->Velocity.Zero();
+  this->Acceleration.Zero();
+  this->PrevMotionDirection.Zero();
+}
+
+//-----------------------------------------------------------------------------
+Eigen::Array2f MotionChecker::GetMotion(const Eigen::Isometry3d& TWindow)
+{
+  // Compute angular part
+  float angle = Eigen::AngleAxisd(TWindow.linear()).angle();
+  // Rotation angle in [0, pi]
+  if (angle > M_PI)
+    angle = 2 * M_PI - angle;
+  angle = Utils::Rad2Deg(angle);
+  // Compute linear part
+  float distance = TWindow.translation().norm();
+
+  return {distance, angle};
+}
+
+//-----------------------------------------------------------------------------
+void MotionChecker::SetNewPose(const Eigen::Isometry3d& pose, double time)
+{
+  if (this->Poses.Empty())
+  {
+    // Disable all motion constraints
+    this->Pose.Zero();
+    this->Velocity.Zero();
+    this->Acceleration.Zero();
+    this->PrevMotionDirection.Zero();
+    // Add new pose to stored values
+    this->Poses.AddValue(pose, time);
+    return;
+  }
+
+  // Compute motion between the two last poses
+  Eigen::Isometry3d TWindow = this->Poses.Back().Value.inverse() * pose;
+
+  this->ChangeDirection = this->PrevMotionDirection.norm() > 1e-6 &&
+                          TWindow.translation().dot(this->PrevMotionDirection) < -0.1; // margin for stops
+  this->PrevMotionDirection = TWindow.translation().normalized();
+
+  this->Pose = this->GetMotion(TWindow);
+  // Add new pose into stored values for next inputs
+  this->Poses.AddValue(pose, time);
+
+  if (!this->Poses.Full())
+  {
+    // Disable velocity/acceleration constraints
+    this->Velocity.Zero();
+    this->Acceleration.Zero();
+    return;
+  }
+
+  // Compute motion between the two bounds of the window
+  TWindow = this->Poses.Front().Value.inverse() * pose;
+  Eigen::Array2f motion = this->GetMotion(TWindow);
+  double deltaTime      = std::abs(time - this->Poses.Front().Time);
+
+  // Compute velocity
+  // Store previous one for acceleration
+  Eigen::Array2f prevVel = this->Velocity;
+  this->Velocity = {motion(0) / deltaTime, motion(1) / deltaTime};
+
+  // Do not compute acceleration if there is no previous velocity
+  if (prevVel[0] > FLT_MAX - 1)
+  {
+    this->Acceleration.Zero();
+    return;
+  }
+
+  // Compute local acceleration in BASE
+  this->Acceleration = (this->Velocity - prevVel) / deltaTime;
+
+  if (this->Verbose)
+  {
+    SET_COUT_FIXED_PRECISION(3)
+    PRINT_INFO("Pose         = " << this->Pose[0] << " m,  "
+                                 << this->Pose[1] << " °");
+    PRINT_INFO("Velocity     = " << this->Velocity[0] << " m/s,  "
+                                 << this->Velocity[1] << " °/s");
+    PRINT_INFO("Acceleration = " << this->Acceleration[0] << " m/s2, "
+                                 << this->Acceleration[1] << " °/s2");
+    if (this->ChangeDirection) { PRINT_INFO("Changing direction"); }
+    else { PRINT_INFO("Keeping direction"); }
+    RESET_COUT_FIXED_PRECISION
+  }
+}
+
+//-----------------------------------------------------------------------------
+bool MotionChecker::isMotionValid()
+{
+  if (this->ChangeDirection)
+    return false;
+
+  // Check if metrics have been computed
+  if (this->Acceleration[0] > FLT_MAX - 1)
+  {
+    PRINT_WARNING("Motion validity could not be checked");
+    return true;
+  }
+
+  // Check pose compliance
+  bool complyPoseLimits = this->Pose[0] < FLT_MAX - 1 ? (this->Pose.abs() < this->PoseLimits).all()
+                                                      : true;
+  // Check velocity compliance
+  bool complyVelocityLimits = this->Velocity[0] < FLT_MAX - 1 ? (this->Velocity.abs() < this->VelocityLimits).all()
+                                                              : true;
+  // Check acceleration compliance
+  bool complyAccelerationLimits = this->Acceleration[0] < FLT_MAX - 1 ? (this->Acceleration.abs() < this->AccelerationLimits).all()
+                                                                      : true;
+
+  // Check limits
+  return complyPoseLimits     &&
+         complyVelocityLimits &&
+         complyAccelerationLimits;
+}
+
 } // end of Confidence namespace
 } // end of LidarSlam namespace

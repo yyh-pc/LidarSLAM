@@ -101,12 +101,16 @@ vtkSlam::vtkSlam()
   this->SetInputArrayToProcess(3, CALIBRATION_INPUT_PORT, 0, vtkDataObject::FIELD_ASSOCIATION_ROWS,   vtkDataSetAttributes::SCALARS);
   this->Reset();
 
-  // Enable overlap computation only if advanced return mode is activated
-  this->SlamAlgo->SetOverlapSamplingRatio(this->AdvancedReturnMode ? this->OverlapSamplingRatio : 0.);
-  // Enable motion limitation checks if advanced return mode is activated
-  this->SlamAlgo->SetTimeWindowDuration(this->AdvancedReturnMode ? this->TimeWindowDuration : 0.);
-  // Log the necessary poses if advanced return mode is activated
-  this->SlamAlgo->SetLoggingTimeout(this->AdvancedReturnMode ? 1.1 * this->TimeWindowDuration : 0.);
+  // Enable overlap computation only if required
+  this->SlamAlgo->SetOverlapSamplingRatio(this->AdvancedReturnMode ||
+                                          this->SlamAlgo->GetFailureDetectionEnabled() ?
+                                          this->OverlapSamplingRatio :
+                                          0.);
+  // Enable motion metrics and averages/derivatives computation if required
+  this->SlamAlgo->SetConfidenceWindow(this->AdvancedReturnMode ||
+                                      this->SlamAlgo->GetFailureDetectionEnabled() ?
+                                      this->ConfidenceWindow :
+                                      0.);
 }
 
 //-----------------------------------------------------------------------------
@@ -1398,8 +1402,8 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
       }
       // Enable overlap computation
       this->SlamAlgo->SetOverlapSamplingRatio(this->OverlapSamplingRatio);
-      this->SlamAlgo->SetTimeWindowDuration(this->TimeWindowDuration);
-      this->SlamAlgo->SetLoggingTimeout(std::max(this->LoggingTimeout, 1.1 * this->TimeWindowDuration));
+      // Enable motion metrics and averages/derivatives computation
+      this->SlamAlgo->SetConfidenceWindow(this->ConfidenceWindow);
     }
 
     // If AdvancedReturnMode is being disabled
@@ -1410,8 +1414,8 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
         this->Trajectory->GetPointData()->RemoveArray(it.first.c_str());
       // Disable overlap computation
       this->SlamAlgo->SetOverlapSamplingRatio(0.);
-      this->SlamAlgo->SetTimeWindowDuration(0.);
-      this->SlamAlgo->SetLoggingTimeout(this->LoggingTimeout);
+      // Disable motion metrics and averages/derivatives computation
+      this->SlamAlgo->SetConfidenceWindow(0);
     }
 
     this->AdvancedReturnMode = _arg;
@@ -1680,16 +1684,40 @@ void vtkSlam::SetOverlapSamplingRatio(double ratio)
 {
   // Change parameter value if it is modified
   vtkDebugMacro(<< "Setting OverlapSamplingRatio to " << ratio);
+  if (ratio < 0 || ratio > 1)
+  {
+    vtkWarningMacro(<< "Overlap sampling ratio should be contained between 0 and 1"
+                    << "Input value is : " << ratio
+                    << "It is set to default value : 0.25");
+    ratio = 0.25;
+  }
   if (this->OverlapSamplingRatio != ratio)
   {
     this->OverlapSamplingRatio = ratio;
+    // Forward this parameter change to SLAM if it is to be used in the interface
+    if (this->AdvancedReturnMode || this->SlamAlgo->GetFailureDetectionEnabled())
+      this->SlamAlgo->SetOverlapSamplingRatio(this->OverlapSamplingRatio);
     this->ParametersModificationTime.Modified();
   }
+}
 
-  // Forward this parameter change to SLAM if Advanced Return Mode is enabled
-  if (this->AdvancedReturnMode)
+//-----------------------------------------------------------------------------
+void vtkSlam::SetConfidenceWindow(unsigned int window)
+{
+  // Change parameter value if it is modified
+  vtkDebugMacro(<< "Setting ConfidenceWindow to " << window);
+  if (window == 1)
   {
-    this->SlamAlgo->SetOverlapSamplingRatio(this->OverlapSamplingRatio);
+    vtkWarningMacro(<< "Some confidence metrics will not be computed, "
+                    << "please increase Confidence window value if you want to use it");
+    window = 0;
+  }
+  if (this->ConfidenceWindow != window)
+  {
+    this->ConfidenceWindow = window;
+    // Forward this parameter change to SLAM if it is to be used in the interface
+    if (this->AdvancedReturnMode || this->SlamAlgo->GetFailureDetectionEnabled())
+      this->SlamAlgo->SetConfidenceWindow(this->ConfidenceWindow);
     this->ParametersModificationTime.Modified();
   }
 }
@@ -1698,7 +1726,8 @@ void vtkSlam::SetOverlapSamplingRatio(double ratio)
 void vtkSlam::SetAccelerationLimits(float linearAcc, float angularAcc)
 {
   vtkDebugMacro(<< "Setting AccelerationLimits to " << linearAcc << " " << angularAcc);
-  this->SlamAlgo->SetAccelerationLimits({linearAcc, angularAcc});
+  Eigen::Array2f accLim = {linearAcc, angularAcc};
+  this->SlamAlgo->SetAccelerationLimits(accLim);
   this->ParametersModificationTime.Modified();
 }
 
@@ -1706,28 +1735,18 @@ void vtkSlam::SetAccelerationLimits(float linearAcc, float angularAcc)
 void vtkSlam::SetVelocityLimits(float linearVel, float angularVel)
 {
   vtkDebugMacro(<< "Setting VelocityLimits to " << linearVel << " " << angularVel);
-  this->SlamAlgo->SetVelocityLimits({linearVel, angularVel});
+  Eigen::Array2f velLim = {linearVel, angularVel};
+  this->SlamAlgo->SetVelocityLimits(velLim);
   this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::SetTimeWindowDuration(float time)
+void vtkSlam::SetPoseLimits(float position, float orientation)
 {
-  // Change parameter value if it is modified
-  vtkDebugMacro(<< "Setting TimeWindowDuration to " << time);
-  if (this->TimeWindowDuration != time)
-  {
-    this->TimeWindowDuration = time;
-    this->ParametersModificationTime.Modified();
-  }
-
-  // Forward this parameter change to SLAM if Advanced Return Mode is enabled
-  if (this->AdvancedReturnMode)
-  {
-    this->SlamAlgo->SetTimeWindowDuration(this->TimeWindowDuration);
-    this->SlamAlgo->SetLoggingTimeout(std::max(this->LoggingTimeout, 1.1 * this->TimeWindowDuration));
-    this->ParametersModificationTime.Modified();
-  }
+  vtkDebugMacro(<< "Setting PoseLimits to " << position << " " << orientation);
+  Eigen::Array2f posLim = {position, orientation};
+  this->SlamAlgo->SetPoseLimits(posLim);
+  this->ParametersModificationTime.Modified();
 }
 
 //-----------------------------------------------------------------------------
@@ -1735,23 +1754,17 @@ void vtkSlam::SetLoggingTimeout(double loggingTimeout)
 {
   // Change parameter value if it is modified
   vtkDebugMacro(<< this->GetClassName() << " (" << this << "): setting LoggingTimeout to " << loggingTimeout);
-  if (this->LoggingTimeout != loggingTimeout)
+  if (this->SlamAlgo->GetLoggingTimeout() != loggingTimeout)
   {
-    this->LoggingTimeout = loggingTimeout;
+    // Forward this parameter change to SLAM
+    this->SlamAlgo->SetLoggingTimeout(loggingTimeout);
     this->ParametersModificationTime.Modified();
   }
 
   // If UsePoseGraph is enabled, check LoggingTimeout and return a warning if LoggingTimeout is 0
-  if (this->UsePoseGraph && this->LoggingTimeout <= 1e-6)
+  if (this->UsePoseGraph && loggingTimeout <= 1e-6)
     vtkWarningMacro(<< "Pose graph is required but the logging timeout is null : "
                        "no pose can be used to build the graph, please increase the logging timeout.");
-
-  // Forward this parameter change to SLAM
-  // If Advanced Return mode is enabled, use the max value
-  if (this->AdvancedReturnMode)
-    this->SlamAlgo->SetLoggingTimeout(std::max(this->LoggingTimeout, 1.1 * this->TimeWindowDuration));
-  else
-    this->SlamAlgo->SetLoggingTimeout(this->LoggingTimeout);
 }
 
 //-----------------------------------------------------------------------------

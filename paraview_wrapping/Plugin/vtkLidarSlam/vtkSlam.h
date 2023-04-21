@@ -490,15 +490,13 @@ public:
   // Motion constraints
   virtual void SetAccelerationLimits(float linearAcc, float angularAcc);
   virtual void SetVelocityLimits(float linearVel, float angularVel);
-
-  virtual void SetTimeWindowDuration(float time);
-  vtkCustomGetMacro(TimeWindowDuration, float)
+  virtual void SetPoseLimits(float position, float orientation);
 
   virtual void SetLoggingTimeout(double loggingTimeout);
   vtkCustomGetMacro(LoggingTimeout, double)
 
-  vtkCustomGetMacro(ConfidenceWindow, int)
-  vtkCustomSetMacro(ConfidenceWindow, int)
+  vtkGetMacro(ConfidenceWindow, unsigned int)
+  virtual void SetConfidenceWindow (unsigned int window);
 
   vtkCustomGetMacro(OverlapDerivativeThreshold, double)
   vtkCustomSetMacro(OverlapDerivativeThreshold, double)
@@ -606,12 +604,10 @@ private:
   std::string InitMapPrefix; ///< Path prefix of initial maps
   Eigen::Vector6d InitPose;  ///< Initial pose of the SLAM
 
-  // Internal variable to store overlap sampling ratio when advanced return mode is disabled.
-  float OverlapSamplingRatio = 0.25;
-  // Internal variable to store window time to estimate local velocity when advanced return mode is disabled.
-  float TimeWindowDuration = 0.5;
-  // Internal variable to store LoggingTimeout to control states kept in memory for pose graph or estimation of local velocity
-  double LoggingTimeout = 0;
+  // Internal variables to store confidence parameters when advanced
+  // return mode and failure detection are disabled.
+  float OverlapSamplingRatio = 0.25f;
+  unsigned int ConfidenceWindow = 10;
 
   // Boolean to decide if reset the maps before rebuild the maps
   bool ResetMaps = false;

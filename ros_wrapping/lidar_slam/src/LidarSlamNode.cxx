@@ -1117,11 +1117,22 @@ void LidarSlamNode::SetSlamParameters()
   // Motion limitations (hard constraints to detect failure)
   std::vector<float> acc;
   if (this->PrivNh.getParam("slam/confidence/motion_limits/acceleration", acc) && acc.size() == 2)
-    this->LidarSlam.SetAccelerationLimits(Eigen::Map<const Eigen::Array2f>(acc.data()));
+  {
+    Eigen::Array2f acc_array = Eigen::Array2f(acc.data());
+    this->LidarSlam.SetAccelerationLimits(acc_array);
+  }
   std::vector<float> vel;
   if (this->PrivNh.getParam("slam/confidence/motion_limits/velocity", vel) && vel.size() == 2)
-    this->LidarSlam.SetVelocityLimits(Eigen::Map<const Eigen::Array2f>(vel.data()));
-  SetSlamParam(float, "slam/confidence/motion_limits/time_window_duration", TimeWindowDuration)
+  {
+    Eigen::Array2f vel_array = Eigen::Array2f(vel.data());
+    this->LidarSlam.SetVelocityLimits(vel_array);
+  }
+  std::vector<float> pos;
+  if (this->PrivNh.getParam("slam/confidence/motion_limits/pose", pos) && pos.size() == 2)
+  {
+    Eigen::Array2f pos_array = Eigen::Array2f(pos.data());
+    this->LidarSlam.SetPoseLimits(pos_array);
+  }
 
   SetSlamParam(int, "slam/confidence/window", ConfidenceWindow)
   SetSlamParam(float, "slam/confidence/overlap/gap_threshold", OverlapDerivativeThreshold)
