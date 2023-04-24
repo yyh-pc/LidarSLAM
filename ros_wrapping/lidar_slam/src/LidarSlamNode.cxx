@@ -212,6 +212,9 @@ LidarSlamNode::~LidarSlamNode()
 //------------------------------------------------------------------------------
 void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
 {
+  if (!this->SlamEnabled)
+    return;
+
   if(cloudS_ptr->empty())
   {
     ROS_WARN_STREAM("Input point cloud sent by Lidar sensor driver is empty -> ignoring message");
@@ -261,6 +264,9 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
 //------------------------------------------------------------------------------
 void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
 {
+  if (!this->SlamEnabled)
+    return;
+
   if(cloudS_ptr->empty())
   {
     ROS_WARN_STREAM("Secondary input point cloud sent by Lidar sensor driver is empty -> ignoring message");
@@ -278,6 +284,9 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
 //------------------------------------------------------------------------------
 void LidarSlamNode::ImageCallback(const sensor_msgs::Image& imageMsg)
 {
+  if (!this->SlamEnabled)
+    return;
+
   #ifdef USE_CV_BRIDGE
   if (!this->UseExtSensor[LidarSlam::CAMERA])
     return;
@@ -316,6 +325,9 @@ void LidarSlamNode::ImageCallback(const sensor_msgs::Image& imageMsg)
 //------------------------------------------------------------------------------
 void LidarSlamNode::CameraInfoCallback(const sensor_msgs::CameraInfo& calibMsg)
 {
+  if (!this->SlamEnabled)
+    return;
+
   #ifdef USE_CV_BRIDGE
   // The intrinsic calibration must not changed so we can only use
   // the camera info until the camera is ready to be used
@@ -335,6 +347,9 @@ void LidarSlamNode::CameraInfoCallback(const sensor_msgs::CameraInfo& calibMsg)
 //------------------------------------------------------------------------------
 void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& gpsMsg)
 {
+  if (!this->SlamEnabled)
+    return;
+
   if (!this->UseExtSensor[LidarSlam::GPS])
     return;
 
@@ -392,8 +407,12 @@ int LidarSlamNode::BuildId(const std::vector<int>& ids)
 //------------------------------------------------------------------------------
 void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tagsInfo)
 {
+  if (!this->SlamEnabled)
+    return;
+
   if (!this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR])
     return;
+
   for (auto& tagInfo : tagsInfo.detections)
   {
     // Transform to apply to points represented in detector frame to express them in base frame
@@ -665,6 +684,18 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       ROS_WARN_STREAM("Resetting the SLAM internal state.");
       this->LidarSlam.Reset(true);
       this->SetSlamInitialState();
+      break;
+    }
+
+    // Enable/Disable the SLAM process
+    case lidar_slam::SlamCommand::SWITCH_ON_OFF:
+    {
+      if (this->SlamEnabled)
+        ROS_WARN_STREAM("Disabling the SLAM process");
+      else
+        ROS_WARN_STREAM("Enabling again the SLAM process");
+
+      this->SlamEnabled = !this->SlamEnabled;
       break;
     }
 

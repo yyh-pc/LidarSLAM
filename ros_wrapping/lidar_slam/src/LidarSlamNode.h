@@ -206,6 +206,7 @@ protected:
   // SLAM stuff
   LidarSlam::Slam LidarSlam;
   std::vector<CloudS::Ptr> Frames;
+  bool SlamEnabled = true;
 
   // ROS node handles, subscribers and publishers
   ros::NodeHandle &Nh, &PrivNh;

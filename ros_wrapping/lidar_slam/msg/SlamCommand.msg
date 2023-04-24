@@ -29,6 +29,8 @@ uint8 ENABLE_SLAM_MAP_UPDATE = 10
 
 # Reset the SLAM state. Clear the maps and the trajectory, set the current pose to origin.
 uint8 RESET_SLAM = 13
+# Enable/Disable the SLAM process
+uint8 SWITCH_ON_OFF = 14
 
 # Save/Load keypoints maps (edges, planes and blobs if used) to/from disk.
 # Use 'string_arg' to indicate path prefix of maps : "/path/to/slam_map_" will

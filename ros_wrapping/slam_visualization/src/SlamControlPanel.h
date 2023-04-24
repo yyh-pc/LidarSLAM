@@ -67,6 +67,12 @@ public Q_SLOTS:
    */
   void EnableMapUpdate();
 
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief Send a SWITCH_ON_OFF command to the slam node.
+   */
+  void SwitchOnOff();
+
 private:
   //----------------------------------------------------------------------------
   /*!

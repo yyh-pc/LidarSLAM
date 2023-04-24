@@ -58,11 +58,16 @@ void SlamControlPanel::CreateLayout()
   enableMapUpdateButton->setText("Enable map update");
   connect(enableMapUpdateButton, &QPushButton::clicked, this, &SlamControlPanel::EnableMapUpdate);
 
+  auto switchOnOffButton = new QPushButton;
+  switchOnOffButton->setText("Switch on/off");
+  connect(switchOnOffButton, &QPushButton::clicked, this, &SlamControlPanel::SwitchOnOff);
+
   auto commandLayout = new QVBoxLayout;
   commandLayout->addWidget(resetStateButton);
   commandLayout->addWidget(disableMapUpdateButton);
   commandLayout->addWidget(enableMapExpansionButton);
   commandLayout->addWidget(enableMapUpdateButton);
+  commandLayout->addWidget(switchOnOffButton);
 
   auto commandBox = new QGroupBox;
   commandBox->setLayout(commandLayout);
@@ -139,6 +144,12 @@ void SlamControlPanel::EnableMapExpansion()
 void SlamControlPanel::EnableMapUpdate()
 {
   this->SendCommand(lidar_slam::SlamCommand::ENABLE_SLAM_MAP_UPDATE);
+}
+
+//----------------------------------------------------------------------------
+void SlamControlPanel::SwitchOnOff()
+{
+  this->SendCommand(lidar_slam::SlamCommand::SWITCH_ON_OFF);
 }
 
 //----------------------------------------------------------------------------
