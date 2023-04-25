@@ -93,6 +93,7 @@ private:
   //----------------------------------------------------------------------------
 
   // UI widgets
+  QLabel* FailureValueLabel = nullptr;
   QLabel* OverlapValueLabel = nullptr;
   QLabel* ComplyMotionLimitsValueLabel = nullptr;
   QLabel* StdPositionErrorValueLabel = nullptr;

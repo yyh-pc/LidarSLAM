@@ -247,6 +247,11 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
 
   // Run SLAM : register new frame and update localization and map.
   this->LidarSlam.AddFrames(this->Frames);
+
+  // Check if SLAM failed
+  if (this->LidarSlam.HasFailed())
+    ROS_ERROR_STREAM("SLAM failed");
+
   this->Frames.clear();
 
   // Publish SLAM output as requested by user
@@ -918,6 +923,7 @@ void LidarSlamNode::PublishOutput()
     confidenceMsg.nb_matches = this->LidarSlam.GetTotalMatchedKeypoints();
     confidenceMsg.comply_motion_limits = this->LidarSlam.GetComplyMotionLimits();
     confidenceMsg.std_position_error = this->LidarSlam.GetPositionErrorStd();
+    confidenceMsg.failure = this->LidarSlam.HasFailed();
     this->Publishers[CONFIDENCE].publish(confidenceMsg);
   }
 }
@@ -1116,6 +1122,10 @@ void LidarSlamNode::SetSlamParameters()
   if (this->PrivNh.getParam("slam/confidence/motion_limits/velocity", vel) && vel.size() == 2)
     this->LidarSlam.SetVelocityLimits(Eigen::Map<const Eigen::Array2f>(vel.data()));
   SetSlamParam(float, "slam/confidence/motion_limits/time_window_duration", TimeWindowDuration)
+
+  SetSlamParam(int, "slam/confidence/window", ConfidenceWindow)
+  SetSlamParam(float, "slam/confidence/overlap/gap_threshold", OverlapDerivativeThreshold)
+  SetSlamParam(float, "slam/confidence/position_error/threshold", PositionErrorThreshold)
 
   // Keyframes
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)
