@@ -168,6 +168,21 @@ struct Parameters
   bool EnableExternalConstraints = false;
 };
 } // end of Optimization namespace
+
+// Parameters for recovery mode
+namespace Recovery
+{
+struct Parameters
+{
+  LidarSlam::MappingMode MapUpdate         = LidarSlam::MappingMode::NONE;
+  LidarSlam::EgoMotionMode EgoMotion       = LidarSlam::EgoMotionMode::NONE;
+  LidarSlam::UndistortionMode Undistortion = LidarSlam::UndistortionMode::NONE;
+  unsigned int ICPMaxIter                  = 20;
+  double MaxNeighborsDistance              = 5;
+  double InitSaturationDistance            = 4;
+};
+} // end of Recovery namespace
+
 // Parameters for loop closure
 namespace LoopClosure
 {
@@ -807,6 +822,21 @@ public:
   // check if SLAM has failed
   bool HasFailed() {return this->FailDetect.HasFailed();}
 
+  // In case of failure, the maps and trajectory
+  // are restored to an old state (duration seconds away)
+  // and the parameters are changed to be more robust to bigger motion
+  void StartRecovery(double duration = 5.);
+
+  // When the current frame is relocalized
+  // The parameters are restored to go on with the mapping process
+  void EndRecovery();
+
+  // Check if the SLAM is in recovery mode
+  bool IsRecovery() const {return this->RecoveryStorage != nullptr;}
+
+  GetMacro(FailureDetectionEnabled, bool)
+  SetMacro(FailureDetectionEnabled, bool)
+
 private:
 
   // ---------------------------------------------------------------------------
@@ -904,6 +934,10 @@ private:
   //     -The undistorted keypoints (expressed in BASE)
   // The oldest states are forgotten (cf. LoggingTimeout parameter)
   std::list<LidarState> LogStates;
+
+  // Store last timestamps of recovery
+  // to handle the logged states correctly
+  std::vector<double> RecoveryTimes;
 
   // ---------------------------------------------------------------------------
   //   Keypoints extraction
@@ -1173,6 +1207,9 @@ private:
   // Failure detector
   Confidence::FailDetector FailDetect;
 
+  // Store current parameters in case of recovery mode
+  std::shared_ptr<Recovery::Parameters> RecoveryStorage;
+
   // Parameters
 
   // Extrapolating a pose farther from this time ratio is forbidden and will abort.
@@ -1190,6 +1227,11 @@ private:
   // Downsampling accelerates the overlap computation, but may be less precise.
   // If 0, overlap won't be computed.
   float OverlapSamplingRatio = 0.f;
+
+  // Enable/Disable failure detection, if enabled,
+  // and a failure is detected, the frame will be skipped
+  // i.e. points are not added to the map and the trajectory is not updated
+  bool FailureDetectionEnabled = false;
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods
@@ -1299,6 +1341,11 @@ private:
   // a constant velocity during a sweep or using external measurements.
 
   // TODO LogStates should be a sensor in External Sensor to get all useful synchronization functions
+
+  // Get the trajectory section ([0, N]) between failures and recoveries
+  // from a timestamp. This allows to notify the discontinuities
+  // in the trajectory when interpolating
+  int GetTrajSection(double time) const;
 
   // Get the state logged which is the closest to the input time
   std::list<LidarState>::const_iterator GetClosestState(double time) const;

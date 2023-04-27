@@ -251,8 +251,77 @@ void Slam::Reset(bool resetLog)
     // Reset processing duration timers
     Utils::Timer::Reset();
   }
+
+  if (this->IsRecovery())
+    this->EndRecovery();
   this->MotionCheck.Reset();
   this->FailDetect.Reset();
+  this->RecoveryTimes.clear();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::StartRecovery(double duration)
+{
+  PRINT_INFO("LidarSlam : Starting recovery mode")
+  this->FailDetect.Reset();
+  // Store current parameters
+  this->RecoveryStorage = std::make_shared<Recovery::Parameters>();
+  this->RecoveryStorage->MapUpdate              = this->MapUpdate;
+  this->RecoveryStorage->EgoMotion              = this->EgoMotion;
+  this->RecoveryStorage->Undistortion           = this->Undistortion;
+  this->RecoveryStorage->ICPMaxIter             = this->GetLocalizationICPMaxIter();
+  this->RecoveryStorage->MaxNeighborsDistance   = this->GetLocalizationMaxNeighborsDistance();
+  this->RecoveryStorage->InitSaturationDistance = this->GetLocalizationInitSaturationDistance();
+
+  // Set recovery parameters (not real time,
+  // some frames might be dropped)
+  LidarSlam::Recovery::Parameters recovery;
+  this->SetEgoMotion(recovery.EgoMotion);
+  this->SetUndistortion(recovery.Undistortion);
+  this->SetMapUpdate(recovery.MapUpdate);
+  this->SetLocalizationICPMaxIter(recovery.ICPMaxIter);
+  this->SetLocalizationMaxNeighborsDistance(recovery.MaxNeighborsDistance);
+  this->SetLocalizationInitSaturationDistance(recovery.InitSaturationDistance);
+
+  // Recover previous trajectory
+  while (std::abs(this->LogStates.back().Time - this->CurrentTime) < duration)
+  {
+    if (this->LogStates.empty())
+      break;
+    this->LogStates.pop_back();
+  }
+
+  // Recompute the maps with inlier poses
+  this->UpdateMaps();
+
+  // Store timestamp to handle trajectory after recovery
+  this->RecoveryTimes.push_back(this->LogStates.back().Time);
+
+  // Next frames will be processed in recovery mode
+}
+
+//-----------------------------------------------------------------------------
+void Slam::EndRecovery()
+{
+  PRINT_INFO("LidarSlam : Ending recovery mode")
+  this->FailDetect.Reset();
+  // Reset parameters
+  this->SetEgoMotion(this->RecoveryStorage->EgoMotion);
+  this->SetUndistortion(this->RecoveryStorage->Undistortion);
+  this->SetMapUpdate(this->RecoveryStorage->MapUpdate);
+  LidarSlam::Recovery::Parameters recovery;
+  if (this->GetLocalizationICPMaxIter() != recovery.ICPMaxIter)
+    PRINT_WARNING("LidarSlam : ICP number of iterations is reset to " << this->RecoveryStorage->ICPMaxIter)
+  this->SetLocalizationICPMaxIter(this->RecoveryStorage->ICPMaxIter);
+  if (this->GetLocalizationMaxNeighborsDistance() != recovery.MaxNeighborsDistance)
+    PRINT_WARNING("LidarSlam : Maximum distance between neighbors is reset to " << this->RecoveryStorage->MaxNeighborsDistance)
+  this->SetLocalizationMaxNeighborsDistance(this->RecoveryStorage->MaxNeighborsDistance);
+  if (std::abs(this->GetLocalizationInitSaturationDistance() - recovery.InitSaturationDistance) > 1e-6)
+    PRINT_WARNING("LidarSlam : Initial saturation distance is reset to " << this->RecoveryStorage->InitSaturationDistance)
+  this->SetLocalizationInitSaturationDistance(this->RecoveryStorage->InitSaturationDistance);
+
+  // Free memory of param storage
+  this->RecoveryStorage.reset();
 }
 
 //-----------------------------------------------------------------------------
@@ -400,6 +469,10 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   IF_VERBOSE(3, Utils::Timer::Init("Confidence estimators computation"));
   this->EstimateOverlap();
   this->CheckMotionLimits();
+
+  // If in recovery mode stop the process here
+  if (this->IsRecovery())
+    return;
 
   // Check if the map is starting
   unsigned int nbMapKpts = 0;
@@ -1195,7 +1268,7 @@ void Slam::ComputeEgoMotion()
   this->Trelative = Eigen::Isometry3d::Identity();
 
   bool externalAvailable = false;
-  // Linearly extrapolate previous motion to estimate new pose
+  // Use external poses to estimate new pose
   if (!this->LogStates.empty() &&
       (this->EgoMotion == EgoMotionMode::EXTERNAL ||
        this->EgoMotion == EgoMotionMode::EXTERNAL_OR_MOTION_EXTRAPOLATION))
@@ -1219,25 +1292,35 @@ void Slam::ComputeEgoMotion()
   }
 
   // Linearly extrapolate previous motion to estimate new pose
-  if (this->LogStates.size() >= 2 && (
+  if (this->LogStates.size() >= 2 &&
       (this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION ||
-       this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION) ||
-      (this->EgoMotion == EgoMotionMode::EXTERNAL_OR_MOTION_EXTRAPOLATION &&
-       !externalAvailable)))
+       this->EgoMotion == EgoMotionMode::MOTION_EXTRAPOLATION_AND_REGISTRATION ||
+       (this->EgoMotion == EgoMotionMode::EXTERNAL_OR_MOTION_EXTRAPOLATION && !externalAvailable)))
   {
     // Estimate new Tworld with a constant velocity model
-    auto lastItSt = std::prev(this->LogStates.end());
-    const double t1 = lastItSt->Time;
-    const Eigen::Isometry3d& T1 = lastItSt->Isometry;
-    const double t0 = std::prev(lastItSt)->Time;
-    const Eigen::Isometry3d& T0 = std::prev(lastItSt)->Isometry;
-    if (std::abs(Utils::Normalize(this->CurrentTime, t0, t1)) > this->MaxExtrapolationRatio)
-      PRINT_WARNING("Unable to extrapolate scan pose from previous motion : extrapolation time is too far.")
+    // Get last pose (called #1)
+    const double t1 = this->LogStates.back().Time;
+    const Eigen::Isometry3d& T1 = this->LogStates.back().Isometry;
+    // Get second to last pose (called #0)
+    LidarState& prevLastState = *std::prev(std::prev(this->LogStates.end()));
+    // Check there wasn't any failure nor recovery in the last states
+    if (!this->RecoveryTimes.empty() &&
+        (prevLastState.Time <= this->RecoveryTimes.back() ||
+         this->LogStates.back().Time <= this->RecoveryTimes.back()))
+      PRINT_WARNING("SLAM has not fully recovered : unable to extrapolate scan pose from previous motion.")
     else
     {
-      // Estimate new Tworld with a linear extrapolation
-      Eigen::Isometry3d nextTworldEstimation = Interpolation::LinearInterpo({T0,t0}, {T1, t1}, this->CurrentTime);
-      this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
+      const double t0 = prevLastState.Time;
+      const Eigen::Isometry3d& T0 = prevLastState.Isometry;
+      // Check times
+      if (std::abs(Utils::Normalize(this->CurrentTime, t0, t1)) > this->MaxExtrapolationRatio)
+        PRINT_WARNING("Unable to extrapolate scan pose from previous motion : extrapolation time is too far.")
+      else
+      {
+        // Estimate new Tworld with a linear extrapolation
+        Eigen::Isometry3d nextTworldEstimation = Interpolation::LinearInterpo({T0,t0}, {T1, t1}, this->CurrentTime);
+        this->Trelative = this->Tworld.inverse() * nextTworldEstimation;
+      }
     }
   }
 
@@ -2317,6 +2400,20 @@ std::list<LidarState>::const_iterator Slam::GetClosestState(double queryTime) co
 }
 
 //-----------------------------------------------------------------------------
+int Slam::GetTrajSection(double time) const
+{
+  if (this->RecoveryTimes.empty())
+    return 0;
+
+  int trajSection = 0;
+  while (trajSection < this->RecoveryTimes.size() &&
+         time < this->RecoveryTimes[trajSection])
+    ++trajSection;
+
+  return trajSection;
+}
+
+//-----------------------------------------------------------------------------
 std::vector<PoseStamped> Slam::GetStatesWindow(std::list<LidarState>::const_iterator queryIt, unsigned int windowWidth) const
 {
   // Check times validity depending on chronology
@@ -2333,15 +2430,21 @@ std::vector<PoseStamped> Slam::GetStatesWindow(std::list<LidarState>::const_iter
   auto prevNeighIt = queryIt;
   auto nextNeighIt = queryIt;
 
+  // Get in which trajectory section the query is
+  // to only extract poses from the same section
+  int querySection = this->GetTrajSection(queryIt->Time);
+
   int chrono = 0;
   // Increase the window until the number of data is reached
   while (std::distance(prevNeighIt, nextNeighIt) < windowWidth - 1)
   {
     // Check the next oldest neighbor
     bool prevIsValid = prevNeighIt != this->LogStates.begin() &&
+                       querySection == this->GetTrajSection(std::prev(prevNeighIt)->Time) &&
                        checkTimes(std::prev(prevNeighIt)->Time, prevNeighIt->Time, chrono);
     // Check the next newest neighbor
     bool nextIsValid = std::next(nextNeighIt) != this->LogStates.end() &&
+                       querySection == this->GetTrajSection(std::next(nextNeighIt)->Time) &&
                        checkTimes(std::next(nextNeighIt)->Time, nextNeighIt->Time, chrono);
 
     // Break if none is valid
@@ -2392,6 +2495,7 @@ void Slam::UndistortWithLogStates(PointCloud::Ptr pcIn, PointCloud::Ptr pcOut,
 
   // Build vector to compute interpolation model with previous logstates
   auto lastStateIt = std::prev(this->LogStates.end());
+
   unsigned int nbRequiredData = Interpolation::ModelRequiredNbData.at(this->Interpolation);
   if (addTworld)
     --nbRequiredData; // Tworld will be added
@@ -2410,6 +2514,13 @@ void Slam::UndistortWithLogStates(PointCloud::Ptr pcIn, PointCloud::Ptr pcOut,
       // If times are not consistent, just keep last pose
       ctrlPoses = {ctrlPoses.back()};
 
+    // Check if Tworld and the ctrlPoses are in the same trajectory section
+    if (this->GetTrajSection(ctrlPoses.back().Time) != this->GetTrajSection(this->CurrentTime))
+    {
+      PRINT_WARNING("SLAM has not fully recovered, cannot undistort")
+      return;
+    }
+
     // Add Tworld to control poses
     ctrlPoses.emplace_back(this->Tworld, this->CurrentTime);
     // Update reference
@@ -2420,6 +2531,13 @@ void Slam::UndistortWithLogStates(PointCloud::Ptr pcIn, PointCloud::Ptr pcOut,
   {
     refFrameInv = lastStateIt->Isometry.inverse();
     refTime = lastStateIt->Time;
+  }
+
+  // Check interpolation data
+  if (ctrlPoses.size() < 2)
+  {
+    PRINT_WARNING("Not enough usable logged states, cannot undistort")
+    return;
   }
 
   // Put the logStates into the ref frame
