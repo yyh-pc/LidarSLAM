@@ -116,6 +116,9 @@ vtkSlam::vtkSlam()
 //-----------------------------------------------------------------------------
 void vtkSlam::Reset()
 {
+  if (this->SlamAlgo->IsRecovery())
+    vtkWarningMacro(<< "Getting out of recovery mode");
+
   this->SlamAlgo->Reset(true);
 
   // Init the SLAM state (map + pose)
@@ -125,14 +128,6 @@ void vtkSlam::Reset()
 
   // Init the output SLAM trajectory
   this->ResetTrajectory();
-
-  // Add the optional arrays to the trajectory
-  if (this->AdvancedReturnMode)
-  {
-    auto debugInfo = this->SlamAlgo->GetDebugInformation();
-    for (const auto& it : debugInfo)
-      this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>(it.first));
-  }
 
   // Refill sensor managers
   this->SetSensorData(this->ExtSensorFileName);
@@ -333,10 +328,7 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   this->SlamAlgo->AddFrame(pc);
   IF_VERBOSE(3, Utils::Timer::Init("vtkSlam : basic output conversions"));
 
-  // Update Trajectory with new SLAM pose
-  this->AddLastPosesToTrajectory();
-
-  // ===== SLAM frame and pose =====
+  // ===== SLAM frame =====
   // Output : Current undistorted LiDAR frame in world coordinates
   auto* slamFrame = vtkPolyData::GetData(outputVector, SLAM_FRAME_OUTPUT_PORT);
   slamFrame->ShallowCopy(input);
@@ -368,10 +360,6 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
         registeredPoints->SetPoint(i, pos);
     }
   }
-
-  // Output : SLAM Trajectory
-  auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
-  slamTrajectory->ShallowCopy(this->Trajectory);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : basic output conversions"));
 
@@ -480,14 +468,6 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
       }
     }
 
-    // General SLAM info (number of keypoints used in ICP and optimization, max variance, ...)
-    // Arrays added to trajectory output
-    auto debugInfo = this->SlamAlgo->GetDebugInformation();
-    for (const auto& it : debugInfo)
-    {
-      slamTrajectory->GetPointData()->GetArray(it.first.c_str())->InsertNextTuple1(it.second);
-    }
-
     // ICP keypoints matching results for ego-motion registration or localization steps
     // Arrays added to keypoints extracted from current frame outputs
     if (this->OutputCurrentKeypoints)
@@ -524,12 +504,48 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
     IF_VERBOSE(3, Utils::Timer::StopAndDisplay("vtkSlam : add advanced return arrays"));
   }
 
-  IF_VERBOSE(1, Utils::Timer::StopAndDisplay("vtkSlam"));
-
-  if (this->SlamAlgo->HasFailed())
+  // If SLAM had failed before
+  if (this->SlamAlgo->IsRecovery())
   {
-    vtkErrorMacro(<< "SLAM has failed");
+    // TMP : in the future, the user should have a look
+    // at the result to validate recovery
+    // Check if the SLAM can go on and pose has to be displayed
+    if (this->SlamAlgo->GetOverlapEstimation() > 0.2f &&
+        this->SlamAlgo->GetPositionErrorStd()  < 0.1f)
+    {
+      vtkWarningMacro(<< "Getting out of recovery mode");
+      // Frame is relocalized, reset params
+      this->SlamAlgo->EndRecovery();
+      this->AddLastPosesToTrajectory();
+    }
+    else
+      vtkWarningMacro(<< "Still waiting for recovery");
   }
+  // Checking failure and add or not the poses
+  else if (this->SlamAlgo->HasFailed())
+  {
+    vtkErrorMacro(<< "SLAM has failed : entering recovery mode :\n"
+                  << "\t -Maps will not be updated\n"
+                  << "\t -Egomotion and undistortion are disabled\n"
+                  << "\t -The number of ICP iterations is increased\n"
+                  << "\t -The maximum distance between a frame point and a map target point is increased");
+    // Enable recovery mode :
+    // Last frames are removed
+    // Maps are not updated
+    // Param are tuned to handle bigger motions
+    // Warning : real time is not ensured
+    this->SlamAlgo->StartRecovery(this->RecoveryTime);
+    // Remove newest trajectory poses
+    this->ResetTrajectory(this->SlamAlgo->GetLogStates().back().Time);
+  }
+  else
+    this->AddLastPosesToTrajectory();
+
+  // Output : SLAM Trajectory
+  auto* slamTrajectory = vtkPolyData::GetData(outputVector, SLAM_TRAJECTORY_OUTPUT_PORT);
+  slamTrajectory->ShallowCopy(this->Trajectory);
+
+  IF_VERBOSE(1, Utils::Timer::StopAndDisplay("vtkSlam"));
 
   return 1;
 }
@@ -1096,35 +1112,42 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
 }
 
 //-----------------------------------------------------------------------------
+vtkSmartPointer<vtkPolyData> vtkSlam::CreateInitTrajectory()
+{
+  vtkSmartPointer<vtkPolyData> traj = vtkSmartPointer<vtkPolyData>::New();
+  auto pts = vtkSmartPointer<vtkPoints>::New();
+  traj->SetPoints(pts);
+  auto cellArray = vtkSmartPointer<vtkCellArray>::New();
+  traj->SetLines(cellArray);
+  traj->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
+  traj->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
+  traj->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
+  traj->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
+  // Add debug arrays if required
+  auto debugInfo = this->SlamAlgo->GetDebugInformation();
+  if (this->AdvancedReturnMode)
+  {
+    for (const auto& it : debugInfo)
+      traj->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>(it.first, 1));
+  }
+  return traj;
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::ResetTrajectory(double startTime)
 {
   // By default reset the output SLAM trajectory
   // If startTime is set, reset the trajectory from the startTime
   if (startTime < 0)
   {
-    this->Trajectory = vtkSmartPointer<vtkPolyData>::New();
-    auto pts = vtkSmartPointer<vtkPoints>::New();
-    this->Trajectory->SetPoints(pts);
-    auto cellArray = vtkSmartPointer<vtkCellArray>::New();
-    this->Trajectory->SetLines(cellArray);
-    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
-    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
-    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
-    this->Trajectory->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
+    this->Trajectory = this->CreateInitTrajectory();
     return;
   }
-  // Create a temporary trajectory to save the trajectory before startTime
-  vtkNew<vtkPolyData> trajectoryTmp;
-  vtkNew<vtkPoints> pts;
-  trajectoryTmp->SetPoints(pts);
-  vtkNew<vtkCellArray> cellArray;
-  trajectoryTmp->SetLines(cellArray);
-  trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Time", 1));
-  trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(Quaternion)", 4));
-  trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Orientation(AxisAngle)", 4));
-  trajectoryTmp->GetPointData()->AddArray(Utils::CreateArray<vtkDoubleArray>("Covariance", 36));
+  // Create a temporary trajectory to save the trajectory before endTime
+  vtkSmartPointer<vtkPolyData> trajectoryTmp = this->CreateInitTrajectory();
 
-  auto arrayTime = this->Trajectory->GetPointData()->GetArray("Time");
+  auto pointData = this->Trajectory->GetPointData();
+  auto arrayTime = pointData->GetArray("Time");
   for (vtkIdType idx = 0; idx < arrayTime->GetNumberOfTuples(); ++idx)
   {
     if (*arrayTime->GetTuple(idx) < startTime)
@@ -1132,17 +1155,12 @@ void vtkSlam::ResetTrajectory(double startTime)
       double *translation = this->Trajectory->GetPoint(idx);
       trajectoryTmp->GetPoints()->InsertNextPoint(translation);
 
-      double *quaternion = this->Trajectory->GetPointData()->GetArray("Orientation(Quaternion)")->GetTuple(idx);
-      trajectoryTmp->GetPointData()->GetArray("Orientation(Quaternion)")->InsertNextTuple(quaternion);
 
-      double *angleAxis = this->Trajectory->GetPointData()->GetArray("Orientation(AxisAngle)")->GetTuple(idx);
-      trajectoryTmp->GetPointData()->GetArray("Orientation(AxisAngle)")->InsertNextTuple(angleAxis);
-
-      double *time = this->Trajectory->GetPointData()->GetArray("Time")->GetTuple(idx);
-      trajectoryTmp->GetPointData()->GetArray("Time")->InsertNextTuple(time);
-
-      double *covariance = this->Trajectory->GetPointData()->GetArray("Covariance")->GetTuple(idx);
-      trajectoryTmp->GetPointData()->GetArray("Covariance")->InsertNextTuple(covariance);
+      for (int idxArray = 0; idxArray < pointData->GetNumberOfArrays(); ++idxArray)
+      {
+        double *value = pointData->GetArray(idxArray)->GetTuple(idx);
+        trajectoryTmp->GetPointData()->GetArray(idxArray)->InsertNextTuple(value);
+      }
 
       // Add line linking 2 successive points
       vtkIdType nPoints = trajectoryTmp->GetNumberOfPoints();
@@ -1193,6 +1211,23 @@ void vtkSlam::AddPoseToTrajectory(const LidarSlam::LidarState& state)
     line->GetPointIds()->SetId(0, nPoints - 2);
     line->GetPointIds()->SetId(1, nPoints - 1);
     this->Trajectory->GetLines()->InsertNextCell(line);
+  }
+
+  if (this->AdvancedReturnMode)
+  {
+    // General SLAM info (number of keypoints used in ICP and optimization, max variance, ...)
+    // Arrays added to trajectory output
+    auto debugInfo = this->SlamAlgo->GetDebugInformation();
+    for (const auto& it : debugInfo)
+    {
+      auto point = this->Trajectory->GetPointData();
+      if (!point)
+        continue;
+      auto array = point->GetArray(it.first.c_str());
+      if (!array)
+        continue;
+      array->InsertNextTuple1(it.second);
+    }
   }
 }
 
@@ -1382,6 +1417,38 @@ void vtkSlam::EnableBlobs(bool enabled)
 }
 
 //-----------------------------------------------------------------------------
+void vtkSlam::SetFailureDetectionEnabled(bool faildetect)
+{
+  // If failure detection is being activated
+  if (faildetect)
+  {
+    // Enable overlap computation
+    this->SlamAlgo->SetOverlapSamplingRatio(this->OverlapSamplingRatio);
+    // Enable motion metrics and averages/derivatives computation
+    this->SlamAlgo->SetConfidenceWindow(this->ConfidenceWindow);
+  }
+  // If failure detection is being disabled
+  else
+  {
+    // End recovery mode
+    if (this->SlamAlgo->IsRecovery())
+    {
+      this->SlamAlgo->EndRecovery();
+      vtkWarningMacro(<< "Getting out of recovery mode");
+    }
+
+    if (!this->AdvancedReturnMode)
+    {
+      // Disable overlap computation
+      this->SlamAlgo->SetOverlapSamplingRatio(0.);
+      // Disable motion metrics and averages/derivatives computation
+      this->SlamAlgo->SetConfidenceWindow(0);
+    }
+  }
+  this->SlamAlgo->SetFailureDetectionEnabled(faildetect);
+}
+
+//-----------------------------------------------------------------------------
 void vtkSlam::SetAdvancedReturnMode(bool _arg)
 {
   vtkDebugMacro(<< "Setting AdvancedReturnMode to " << _arg);
@@ -1412,10 +1479,13 @@ void vtkSlam::SetAdvancedReturnMode(bool _arg)
       // Delete optional arrays
       for (const auto& it : debugInfo)
         this->Trajectory->GetPointData()->RemoveArray(it.first.c_str());
-      // Disable overlap computation
-      this->SlamAlgo->SetOverlapSamplingRatio(0.);
-      // Disable motion metrics and averages/derivatives computation
-      this->SlamAlgo->SetConfidenceWindow(0);
+      if (!this->SlamAlgo->GetFailureDetectionEnabled())
+      {
+        // Disable overlap computation
+        this->SlamAlgo->SetOverlapSamplingRatio(0.);
+        // Disable motion metrics and averages/derivatives computation
+        this->SlamAlgo->SetConfidenceWindow(0);
+      }
     }
 
     this->AdvancedReturnMode = _arg;
@@ -1463,6 +1533,11 @@ int vtkSlam::GetEgoMotion()
 //-----------------------------------------------------------------------------
 void vtkSlam::SetEgoMotion(int mode)
 {
+  if (this->SlamAlgo->IsRecovery())
+  {
+    vtkErrorMacro(<< "Cannot change ego motion in recovery mode! This param might be falsely set afterwards");
+    return;
+  }
   LidarSlam::EgoMotionMode egoMotion = static_cast<LidarSlam::EgoMotionMode>(mode);
   if (egoMotion != LidarSlam::EgoMotionMode::NONE                 &&
       egoMotion != LidarSlam::EgoMotionMode::MOTION_EXTRAPOLATION &&
@@ -1493,6 +1568,11 @@ int vtkSlam::GetUndistortion()
 //-----------------------------------------------------------------------------
 void vtkSlam::SetUndistortion(int mode)
 {
+  if (this->SlamAlgo->IsRecovery())
+  {
+    vtkErrorMacro(<< "Cannot change undistortion in recovery mode! This param might be falsely set afterwards");
+    return;
+  }
   LidarSlam::UndistortionMode undistortion = static_cast<LidarSlam::UndistortionMode>(mode);
   if (undistortion != LidarSlam::UndistortionMode::NONE &&
       undistortion != LidarSlam::UndistortionMode::ONCE &&
@@ -1589,6 +1669,11 @@ unsigned int vtkSlam::GetMapUpdate()
 //-----------------------------------------------------------------------------
 void vtkSlam::SetMapUpdate(unsigned int mode)
 {
+  if (this->SlamAlgo->IsRecovery())
+  {
+    vtkErrorMacro(<< "Cannot change map update in recovery mode! This param might be falsely set afterwards");
+    return;
+  }
   LidarSlam::MappingMode mapUpdate = static_cast<LidarSlam::MappingMode>(mode);
   if (mapUpdate != LidarSlam::MappingMode::NONE         &&
       mapUpdate != LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP &&

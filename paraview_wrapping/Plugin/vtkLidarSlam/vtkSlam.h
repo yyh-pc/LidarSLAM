@@ -504,6 +504,12 @@ public:
   vtkCustomGetMacro(PositionErrorThreshold, double)
   vtkCustomSetMacro(PositionErrorThreshold, double)
 
+  vtkGetMacro(RecoveryTime, float)
+  vtkSetMacro(RecoveryTime, float)
+
+  vtkCustomGetMacro(FailureDetectionEnabled, bool)
+  virtual void SetFailureDetectionEnabled(bool failDetect);
+
 protected:
   vtkSlam();
 
@@ -523,6 +529,9 @@ private:
 
   // Convert LiDAR calibration to laser id mapping
   std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
+
+  // Create polydata with trajectory arrays and points
+  vtkSmartPointer<vtkPolyData> CreateInitTrajectory();
 
   // Init/reset the output SLAM trajectory
   // If startTime is set, reset the trajectory from startTime
@@ -608,6 +617,9 @@ private:
   // return mode and failure detection are disabled.
   float OverlapSamplingRatio = 0.25f;
   unsigned int ConfidenceWindow = 10;
+
+  // In case of failure, duration to come back in time to previous state
+  float RecoveryTime = 1.f;
 
   // Boolean to decide if reset the maps before rebuild the maps
   bool ResetMaps = false;
