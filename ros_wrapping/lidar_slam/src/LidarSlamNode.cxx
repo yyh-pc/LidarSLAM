@@ -251,14 +251,42 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
   // Run SLAM : register new frame and update localization and map.
   this->LidarSlam.AddFrames(this->Frames);
 
-  // Check if SLAM failed
-  if (this->LidarSlam.HasFailed())
-    ROS_ERROR_STREAM("SLAM failed");
-
-  this->Frames.clear();
+  // TMP
+  // Check if SLAM has failed
+  if (this->LidarSlam.IsRecovery())
+  {
+    // TMP : in the future, the user should have a look
+    // at the result to validate recovery
+    // Check if the SLAM can go on and pose has to be displayed
+    if (this->LidarSlam.GetOverlapEstimation() > 0.2f &&
+        this->LidarSlam.GetPositionErrorStd()  < 0.1f)
+    {
+      ROS_WARN_STREAM("Getting out of recovery mode");
+      // Frame is relocalized, reset params
+      this->LidarSlam.EndRecovery();
+    }
+    else
+      ROS_WARN_STREAM("Still waiting for recovery");
+  }
+  else if (this->LidarSlam.HasFailed())
+  {
+    ROS_WARN_STREAM("SLAM has failed : entering recovery mode :\n"
+                    << "\t -Maps will not be updated\n"
+                    << "\t -Egomotion and undistortion are disabled\n"
+                    << "\t -The number of ICP iterations is increased\n"
+                    << "\t -The maximum distance between a frame point and a map target point is increased");
+    // Enable recovery mode :
+    // Last frames are removed
+    // Maps are not updated
+    // Param are tuned to handle bigger motions
+    // Warning : real time is not ensured
+    this->LidarSlam.StartRecovery(this->RecoveryTime);
+  }
 
   // Publish SLAM output as requested by user
   this->PublishOutput();
+
+  this->Frames.clear();
 }
 
 //------------------------------------------------------------------------------
@@ -267,7 +295,7 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
   if (!this->SlamEnabled)
     return;
 
-  if(cloudS_ptr->empty())
+  if (cloudS_ptr->empty())
   {
     ROS_WARN_STREAM("Secondary input point cloud sent by Lidar sensor driver is empty -> ignoring message");
     return;
@@ -665,6 +693,8 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     // Enable the agregation of keypoints to a fixed initial map
     case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_EXPANSION:
     {
+      if (this->LidarSlam.IsRecovery())
+        ROS_ERROR_STREAM("Cannot unable map expansion in recovery mode!");
       this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP);
       ROS_WARN_STREAM("Enabling SLAM maps expansion with new keypoints.");
       break;
@@ -673,6 +703,8 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     // Enable the update of the map with new keypoints
     case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_UPDATE:
     {
+      if (this->LidarSlam.IsRecovery())
+        ROS_ERROR_STREAM("Cannot unable map update in recovery mode!");
       this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::UPDATE);
       ROS_WARN_STREAM("Enabling SLAM maps update with new keypoints.");
       break;
@@ -954,7 +986,7 @@ void LidarSlamNode::PublishOutput()
     confidenceMsg.nb_matches = this->LidarSlam.GetTotalMatchedKeypoints();
     confidenceMsg.comply_motion_limits = this->LidarSlam.GetComplyMotionLimits();
     confidenceMsg.std_position_error = this->LidarSlam.GetPositionErrorStd();
-    confidenceMsg.failure = this->LidarSlam.HasFailed();
+    confidenceMsg.failure = this->LidarSlam.HasFailed() || this->LidarSlam.IsRecovery();
     this->Publishers[CONFIDENCE].publish(confidenceMsg);
   }
 }
@@ -1168,6 +1200,8 @@ void LidarSlamNode::SetSlamParameters()
   SetSlamParam(int, "slam/confidence/window", ConfidenceWindow)
   SetSlamParam(float, "slam/confidence/overlap/gap_threshold", OverlapDerivativeThreshold)
   SetSlamParam(float, "slam/confidence/position_error/threshold", PositionErrorThreshold)
+  this->RecoveryTime = this->PrivNh.param("slam/confidence/failure_detector/recovery_time", this->RecoveryTime);
+  SetSlamParam(bool,  "slam/confidence/failure_detector/enable", FailureDetectionEnabled)
 
   // Keyframes
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)

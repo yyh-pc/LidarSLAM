@@ -193,9 +193,8 @@ slam:
     #  - A negative value will log all incoming data, without any timeout.
     #  - A positive value will keep only most recent data, forgetting all previous data older than timeout seconds.
     # Logged data will be used for pose graph optimization, GPS antenna/LiDAR sensor calibration using GPS data
-    # and velocity/acceleration estimations.
-    # WARNING : the time window duration must be set lower than this value.
-    timeout: 0.  # [s]
+    # and when using the recovery mode : if the SLAM is lost, it will recover an older map from the logged information.
+    timeout: 1800.  # [s]
 
     # How to store pointclouds data during keypoints logging (if logging_timeout != 0):
     #  0) PCL pointcloud                    (in RAM,     no compression,      no overhead)
@@ -271,6 +270,10 @@ slam:
     position_error:              # Maximum error on position estimated from optimization covariance
       threshold: 0.15            # to consider SLAM is OK. If the error is g.t. this threshold,
                                  # a failure detection might be triggered
+
+    failure_detector:
+      enable: false              # Boolean to enable the failure detection
+      recovery_time: 1.          # [s] In case of failure, duration to come back in time to previous state
 
   # Keypoints maps, saved as downsampled voxel grids
   voxel_grid:
