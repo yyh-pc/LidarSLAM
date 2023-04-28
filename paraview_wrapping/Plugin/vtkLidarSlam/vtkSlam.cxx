@@ -153,9 +153,10 @@ void vtkSlam::OptimizeGraphWithIMU()
   if (initLidarStates.size() < 2)
     return;
   this->SlamAlgo->UpdateTrajectoryAndMapsWithIMU();
-  // Update trajectory from beginning with new poses after PGO.
-  this->ResetTrajectory();
+  // Update trajectory poses that have been optimized by the SLAM
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
+  // Keep old poses that have not been optimized
+  this->ResetTrajectory(lidarStates.front().Time);
   for (auto const& state: lidarStates)
     this->AddPoseToTrajectory(state);
 
@@ -170,8 +171,9 @@ void vtkSlam::OptimizeGraph()
   if (initLidarStates.size() < 2)
     return;
   this->SlamAlgo->OptimizeGraph();
-  // Update trajectory from the first timestamp of lidarStates with new poses after PGO.
+  // Update trajectory poses that have been optimized by the SLAM
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
+  // Keep old poses that have not been optimized
   this->ResetTrajectory(lidarStates.front().Time);
   for (auto const& state: lidarStates)
     this->AddPoseToTrajectory(state);
@@ -913,8 +915,9 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
   this->SlamAlgo->ResetStatePoses(trajectoryManager);
   PRINT_INFO("Trajectory successfully loaded.");
 
-  // Update trajectory from first timestamp of lidarStates
+  // Update trajectory poses that have been modified by the SLAM
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
+  // Keep old poses that have not been modified
   this->ResetTrajectory(lidarStates.front().Time);
   for (auto const& state: lidarStates)
     this->AddPoseToTrajectory(state);
@@ -1134,11 +1137,10 @@ vtkSmartPointer<vtkPolyData> vtkSlam::CreateInitTrajectory()
 }
 
 //-----------------------------------------------------------------------------
-void vtkSlam::ResetTrajectory(double startTime)
+void vtkSlam::ResetTrajectory(double endTime)
 {
   // By default reset the output SLAM trajectory
-  // If startTime is set, reset the trajectory from the startTime
-  if (startTime < 0)
+  if (endTime < 0)
   {
     this->Trajectory = this->CreateInitTrajectory();
     return;
@@ -1150,7 +1152,7 @@ void vtkSlam::ResetTrajectory(double startTime)
   auto arrayTime = pointData->GetArray("Time");
   for (vtkIdType idx = 0; idx < arrayTime->GetNumberOfTuples(); ++idx)
   {
-    if (*arrayTime->GetTuple(idx) < startTime)
+    if (*arrayTime->GetTuple(idx) < endTime)
     {
       double *translation = this->Trajectory->GetPoint(idx);
       trajectoryTmp->GetPoints()->InsertNextPoint(translation);
