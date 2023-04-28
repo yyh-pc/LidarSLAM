@@ -1017,21 +1017,6 @@ std::unordered_map<std::string, double> Slam::GetDebugInformation() const
   map["Confidence: overlap"]              = this->OverlapEstimation;
   map["Confidence: comply motion limits"] = this->ComplyMotionLimits;
 
-  if (this->FailDetect.GetOverlapDerivative() < FLT_MAX - 1)
-  {
-    map["Confidence: overlap averaged"]          = this->FailDetect.GetOverlapAverage();
-    map["Confidence: position error averaged"]   = this->FailDetect.GetPositionErrorAverage();
-    map["Confidence: overlap derivative"]        = this->FailDetect.GetOverlapDerivative();
-    map["Confidence: position error derivative"] = this->FailDetect.GetPositionErrorDerivative();
-  }
-  else
-  {
-    map["Confidence: overlap averaged"]          = 0.f;
-    map["Confidence: position error averaged"]   = 0.f;
-    map["Confidence: overlap derivative"]        = 0.f;
-    map["Confidence: position error derivative"] = 0.f;
-  }
-
   return map;
 }
 
