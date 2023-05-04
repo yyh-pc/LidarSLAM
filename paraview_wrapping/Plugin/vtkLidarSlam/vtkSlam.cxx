@@ -1783,7 +1783,7 @@ void vtkSlam::SetLoopDetector(int detector)
     vtkErrorMacro(<< "Invalid loop closure detector (" << detector << "), ignoring setting.");
     return;
   }
-  vtkDebugMacro(<< "Setting loop closure detector to " << loopClosureDetector);
+  vtkDebugMacro(<< "Setting loop closure detector to " << static_cast<int>(loopClosureDetector));
   if (this->SlamAlgo->GetLoopDetector() != loopClosureDetector)
   {
     this->SlamAlgo->SetLoopDetector(loopClosureDetector);
