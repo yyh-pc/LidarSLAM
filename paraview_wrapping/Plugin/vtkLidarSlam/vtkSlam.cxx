@@ -305,11 +305,13 @@ int vtkSlam::RequestData(vtkInformation* vtkNotUsed(request),
   this->IdentifyInputArrays(input, calib);
   std::vector<size_t> laserMapping = GetLaserIdMapping(calib);
 
+  auto arrayTime = input->GetPointData()->GetArray(this->TimeArrayName.c_str());
+  this->FrameTime = arrayTime->GetRange()[1];
+
   // Conversion vtkPolyData -> PCL pointcloud
   LidarSlam::Slam::PointCloud::Ptr pc(new LidarSlam::Slam::PointCloud);
   bool allPointsAreValid = this->PolyDataToPointCloud(input, pc, laserMapping);
 
-  auto arrayTime = input->GetPointData()->GetArray(this->TimeArrayName.c_str());
   // Get frame first point time in vendor format
   double* range = arrayTime->GetRange();
   double frameFirstPointTime = range[0] * this->TimeToSecondsFactor;
@@ -1157,11 +1159,15 @@ void vtkSlam::ResetTrajectory(double endTime)
       double *translation = this->Trajectory->GetPoint(idx);
       trajectoryTmp->GetPoints()->InsertNextPoint(translation);
 
-
-      for (int idxArray = 0; idxArray < pointData->GetNumberOfArrays(); ++idxArray)
+      for (vtkIdType idxArray = 0; idxArray < pointData->GetNumberOfArrays(); ++idxArray)
       {
-        double *value = pointData->GetArray(idxArray)->GetTuple(idx);
-        trajectoryTmp->GetPointData()->GetArray(idxArray)->InsertNextTuple(value);
+        char *fieldName = pointData->GetArray(idxArray)->GetName();
+        auto arrayTmp = trajectoryTmp->GetPointData()->GetArray(fieldName);
+        if (arrayTmp)
+        {
+          double *value = pointData->GetArray(idxArray)->GetTuple(idx);
+          arrayTmp->InsertNextTuple(value);
+        }
       }
 
       // Add line linking 2 successive points
@@ -1258,8 +1264,7 @@ bool vtkSlam::PolyDataToPointCloud(vtkPolyData* poly,
 
   // Loop over points data
   pc->reserve(nbPoints);
-  double frameEndTime = arrayTime->GetRange()[1];
-  pc->header.stamp = frameEndTime * (this->TimeToSecondsFactor * 1e6); // max time in microseconds
+  pc->header.stamp = this->FrameTime * (this->TimeToSecondsFactor * 1e6); // max time in microseconds
   bool allPointsAreValid = true;
   for (vtkIdType i = 0; i < nbPoints; i++)
   {
@@ -1273,7 +1278,7 @@ bool vtkSlam::PolyDataToPointCloud(vtkPolyData* poly,
       p.x = pos[0];
       p.y = pos[1];
       p.z = pos[2];
-      p.time = (arrayTime->GetTuple1(i) - frameEndTime) * this->TimeToSecondsFactor; // time in seconds
+      p.time = (arrayTime->GetTuple1(i) - this->FrameTime) * this->TimeToSecondsFactor; // time in seconds
       p.laser_id = useLaserIdMapping ? laserIdMapping[arrayLaserId->GetTuple1(i)] : arrayLaserId->GetTuple1(i);
       p.intensity = arrayIntensity->GetTuple1(i);
       pc->push_back(p);
@@ -1374,6 +1379,9 @@ void vtkSlam::EnableEdges(bool enabled)
       vtkWarningMacro(<< "No keypoint selected !");
   }
   this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::EDGE, enabled);
+  // Reset trajectory to add/remove confidence estimators related to edge keypoints
+  if (this->AdvancedReturnMode)
+    this->ResetTrajectory(this->FrameTime);
 }
 
 void vtkSlam::EnableIntensityEdges(bool enabled)
@@ -1388,6 +1396,9 @@ void vtkSlam::EnableIntensityEdges(bool enabled)
       vtkWarningMacro(<< "No keypoint selected !");
   }
   this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::INTENSITY_EDGE, enabled);
+  // Reset trajectory to add/remove confidence estimators related to intensity edge keypoints
+  if (this->AdvancedReturnMode)
+    this->ResetTrajectory(this->FrameTime);
 }
 
 void vtkSlam::EnablePlanes(bool enabled)
@@ -1402,6 +1413,9 @@ void vtkSlam::EnablePlanes(bool enabled)
       vtkWarningMacro(<< "No keypoint selected !");
   }
   this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::PLANE, enabled);
+  // Reset trajectory to add/remove confidence estimators related to plane keypoints
+  if (this->AdvancedReturnMode)
+    this->ResetTrajectory(this->FrameTime);
 }
 
 void vtkSlam::EnableBlobs(bool enabled)
@@ -1416,6 +1430,9 @@ void vtkSlam::EnableBlobs(bool enabled)
       vtkWarningMacro(<< "No keypoint selected !");
   }
   this->SlamAlgo->EnableKeypointType(LidarSlam::Keypoint::BLOB, enabled);
+  // Reset trajectory to add/remove confidence estimators related to blob keypoints
+  if (this->AdvancedReturnMode)
+    this->ResetTrajectory(this->FrameTime);
 }
 
 //-----------------------------------------------------------------------------

@@ -571,6 +571,8 @@ protected:
 
 private:
 
+  // Member to store the current time
+  double FrameTime = -1.;
   std::map<LidarSlam::Keypoint, vtkSmartPointer<vtkPolyData>> CacheMaps;
 
   // Polydata which represents the computed trajectory
