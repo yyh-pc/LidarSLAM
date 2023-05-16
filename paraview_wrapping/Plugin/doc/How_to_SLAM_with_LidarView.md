@@ -157,36 +157,21 @@ There are two ways to export aggregated scans:
 
 To visualize all frames as a single aggregated pointcloud, you need to instanciate several filters to aggregate all scans using the computed trajectory (sensor path estimated by SLAM):
 
-1. Select the **Trailing frame** entry and set the desired number of trailing frames (0 meaning only the last frame, and, for example, 10 displaying the current frame and the 10 previous ones). Be careful, a big number of trailing frames may lead to important processing duration and memory consumption. Click on **Apply**. You should now see all the frames aggregated in a non-sense way (all points being displayed using their coordinates relative to the sensor at the time of acquisition).
-
-2. Instantiate a **Temporal Transform Applier** filter using the **Trailing Frame** as point cloud entry, and the output SLAM **Trajectory** for trajectory entry. Depending on the number of trailing frames, the transformation and aggregation of pointclouds may be long. When it succeeds, you should now see all points being correctly registered. If the colors look strange, check that you are displaying the `intensity` array in the main toolbar.
+1. Instantiate a **Aggregate Points From Trajectory** filter using the **Frame** or the **Trailing Frame** as point cloud entry, and the output SLAM **Trajectory** for trajectory entry. Depending on the chosen number of frames, the transformation and aggregation of pointclouds may be long. When it succeeds, you should now see all points being correctly registered. All the frames or a chosen range of frames can be aggregated. For example, if you want to aggregate points from frame 100 to 500, but using only points from 1 frame out of 3, specify First Frame = 100, Last Frame = 500, Frame Stride = 3. The processed frames can be manually chosen with a **Aggregate Points From Trajectory Online** filter instead of **Aggregate Points From Trajectory**. By default, the points are filtered by a voxel grid defined by a leaf size. If the colors look strange, check that you are displaying the `intensity` array in the main toolbar.
 
 ![Aggregated frames](aggregated_frames.png)
 
-These first steps allow you to visualize all the aggregated points in LidarView. If you want to optionally downsample this point cloud and save it on disk, please follow these additional steps:
+This first step allow you to visualize all the aggregated points in LidarView. If you want to save it on disk, please follow this additional step:
 
-3. Instantiate a **Merge Blocks** filter on the output of the **Temporal Transform Applier**.
-
-   If you want to subsample the aggregated pointcloud by merging close points, make sure that the advanced properties of the filter are enabled by toggling the little gear wheel in the **Properties** panel. You can then specify the *Tolerance* and *Tolerance Is Absolute* parameters. For example, to aggregate all points but keeping only a single point per 5 cm cube, set *Tolerance* to 0.05 and enable *Tolerance Is Absolute*.
-
-   Click on **Apply**. The process can take some seconds. When it has finished, all points are now merged into a single (optionally downsampled) pointcloud.
-
-4. Instantiate an **Extract Surface** filter on the ouput of the **Merge Blocks**. This will convert the underlying structure of the pointcloud, allowing more available filters or file types for storage.
-
-5. As usual, save aggregated frames by selecting the desired output **Extract Surface**, hit `Ctrl+s`, and choose the output format (CSV, PLY, VTP) and name.
+2. As usual, save aggregated frames by selecting the desired output **Aggregate Points From Trajectory**, hit `Ctrl+s`, and choose the output format (LAS, CSV, PLY, VTP) and name.
 
 #### Directly aggregate all points in a LAS file
 
 This method directly appends points to a LAS file on disk, which has the advantage to avoid saturating the RAM.
 
-1. [Save the SLAM trajectory](#saving-trajectory) on disk as a `.poses` CSV file.
+1. Instantiate a **Aggregate Points From Trajectory** filter using the **Frame** as point cloud entry, and the output SLAM **Trajectory** for trajectory entry.
 
-2. Open a new LidarView session, then load your pcap recording.
-   Load the previously exported SLAM trajectory using **Advance** > **File** > **Open**.
-
-3. Instantiate a **Temporal Transform Applier** filter using the **Frame** as point cloud entry, and the output SLAM **Trajectory** for trajectory entry.
-
-4. Save the output of the **Temporal Transform Applier** by hitting `Ctrl+s`, selecting the **LAS point cloud file** format, and specifying the output file name before validating. A new dialog will appear to configure the LAS file writer, where you can modify the parameters to your needs. For example, if you want to aggregate points from frame 100 to 500, but using only points from 1 frame out of 3, specify *First Frame = 100*, *Last Frame = 500*, *Frame Stride = 3*.
+2. Save the output of the **Aggregate Points From Trajectory** by hitting `Ctrl+s`, selecting the **LAS point cloud file** format, and specifying the output file name before validating. A new dialog will appear to configure the LAS file writer, where you can modify the parameters to your needs. For example, if you want to aggregate points from frame 100 to 500, but using only points from 1 frame out of 3, specify *First Frame = 100*, *Last Frame = 500*, *Frame Stride = 3*.
 The export can be quite long (from a few seconds to several minutes) as each specified frame needs to be processed.
 
 ## SLAM parameters tuning
