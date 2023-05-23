@@ -1615,7 +1615,7 @@
           <PropertyWidgetDecorator type="CompositeDecorator">
             <Expression type="or">
               <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
-              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Failure detection" value="1" />
             </Expression>
           </PropertyWidgetDecorator>
         </Hints>
@@ -1637,7 +1637,7 @@
           <PropertyWidgetDecorator type="CompositeDecorator">
             <Expression type="or">
               <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
-              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Failure detection" value="1" />
             </Expression>
           </PropertyWidgetDecorator>
         </Hints>
@@ -1659,7 +1659,7 @@
           <PropertyWidgetDecorator type="CompositeDecorator">
             <Expression type="or">
               <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
-              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Failure detection" value="1" />
             </Expression>
           </PropertyWidgetDecorator>
         </Hints>
@@ -1681,7 +1681,7 @@
           <PropertyWidgetDecorator type="CompositeDecorator">
             <Expression type="or">
               <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
-              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Failure detection" value="1" />
             </Expression>
           </PropertyWidgetDecorator>
         </Hints>
@@ -1699,7 +1699,7 @@
           If too low, too many failure cases might be detected
         </Documentation>
          <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Failure detection" value="1" />
         </Hints>
       </IntVectorProperty>
 
@@ -1712,7 +1712,7 @@
           Threshold on overlap derivative to trigger on failure
         </Documentation>
          <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Failure detection" value="1" />
         </Hints>
       </DoubleVectorProperty>
 
@@ -1725,7 +1725,7 @@
           Threshold on position error to trigger on failure
         </Documentation>
          <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Failure detection" value="1" />
         </Hints>
       </DoubleVectorProperty>
 
@@ -1738,7 +1738,7 @@
           In case of failure, duration (in seconds) to come back in time to previous state
         </Documentation>
          <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Failure detection" value="1" />
         </Hints>
       </DoubleVectorProperty>
 
