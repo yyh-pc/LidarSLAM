@@ -1,18 +1,29 @@
 # How to SLAM with LidarView ?
 
-- [Installing LidarView or one of its derivative with SLAM support](#installing-lidarview-or-one-of-its-derivative-with-slam-support)
-- [Using SLAM in LidarView](#using-slam-in-lidarview)
-- [Main functionalities](#main-functionalities)
-- [Saving and exporting SLAM outputs](#saving-and-exporting-slam-outputs)
-  - [Saving trajectory](#saving-trajectory)
-  - [Saving keypoint maps](#saving-keypoint-maps)
-  - [Saving aggregated frames](#saving-aggregated-frames)
-    - [Aggregate scans then visualize and export them](#aggregate-scans-then-visualize-and-export-them)
-    - [Directly aggregate all points in a LAS file](#directly-aggregate-all-points-in-a-las-file)
-- [SLAM parameters tuning](#slam-parameters-tuning)
-  - [Environment type](#environment-type)
-  - [Mobile platform carrying the LiDAR sensor](#mobile-platform-carrying-the-lidar-sensor)
-  - [Increasing the processing speed](#increasing-the-processing-speed)
+- [How to SLAM with LidarView ?](#how-to-slam-with-lidarview-)
+  - [Installing LidarView or one of its derivative with SLAM support](#installing-lidarview-or-one-of-its-derivative-with-slam-support)
+  - [Using SLAM in LidarView](#using-slam-in-lidarview)
+  - [Main functionalities](#main-functionalities)
+    - [Reset](#reset)
+    - [Rebuild maps](#rebuild-maps)
+    - [Clear maps](#clear-maps)
+    - [2D mode](#2d-mode)
+  - [Saving and exporting SLAM outputs](#saving-and-exporting-slam-outputs)
+    - [Saving trajectory](#saving-trajectory)
+    - [Reload trajectory](#reload-trajectory)
+    - [Saving keypoint maps](#saving-keypoint-maps)
+    - [Saving aggregated frames](#saving-aggregated-frames)
+      - [Aggregate scans then visualize and export them](#aggregate-scans-then-visualize-and-export-them)
+      - [Directly aggregate all points in a LAS file](#directly-aggregate-all-points-in-a-las-file)
+  - [SLAM parameters tuning](#slam-parameters-tuning)
+    - [Environment type](#environment-type)
+    - [Mobile platform carrying the LiDAR sensor](#mobile-platform-carrying-the-lidar-sensor)
+    - [Increasing the processing speed](#increasing-the-processing-speed)
+  - [External sensors use](#external-sensors-use)
+  - [Using loop closure in LidarView](#using-loop-closure-in-lidarview)
+  - [SLAM evaluation](#slam-evaluation)
+    - [Confidence estimators](#confidence-estimators)
+    - [Failure detection](#failure-detection)
 
 This document presents some tips on how to use SLAM algorithm in LidarView, or one of its derived distribution. Even if this SLAM is embedded in a Paraview plugin and is therefore directly usable in Paraview, we will focus on its use in LidarView (as we consider here LiDAR data, LidarView  seems a better choice for most use-cases and display).
 
@@ -108,10 +119,6 @@ If empty first is selected, the maps will be reset before being rebuilt.
 
 This button allows to clear the maps but keeps the external sensors state and the trajectory unchanged.
 
-### Reload trajectory
-
-A trajectory can be saved (see next section) and a path field allows to reload it afterwards. This allows to do some trajectory modification tests (e.g. pose graph optimization) and to reset to a known state without running the whole data again.
-
 ### 2D mode
 
 This checkbox allows to perform the whole process in 2D, optimizing only x, y and yaw in the world frame.
@@ -125,6 +132,10 @@ Once SLAM has completed, it could be useful to save some results for later use.
 You can export the trajectory (for example as a `.csv` or `.poses` file) to avoid running the SLAM again. To save it, select the **Trajectory** output in the **Pipeline Browser** panel, then hit `Ctrl+s` (or **Advance** tab > **File** > **Save Data**), and choose the output format and name in the dialog window.
 
 Later, to load the trajectory back in LidarView, you can drag and drop the `.poses` file in LidarView, or **Advance** tab > **File** > **Open**.
+
+### Reload trajectory
+
+A trajectory can be saved (see next section) and a path field can be set to reload it afterwards. This allows to do some trajectory modification tests (e.g. pose graph optimization) and to reset to a known state without running the whole data again. This can also be used to compare or mix some trajectories acquired through different methods.
 
 ### Saving keypoint maps
 
@@ -294,3 +305,39 @@ To use loop closure in LidarView:
 4. Tune the loop closure parameters to fit your use case via **advanced settings**.
 
     ![LC advanced parameters](loop_closure_advanced.png)
+
+## SLAM evaluation
+
+### Confidence estimators
+
+Some confidence metrics have been implemented to evaluate the SLAM result:
+- Overlap estimation (between 0 and 1)
+- Motion limits compliance relatively to input thresholds
+- Error standard deviation based on covariance analysis
+- Number of keypoints matched
+
+To observe those metrics, you have to enable the *Advanced return mode* in the filter parameters. The trajectory filter output should now contain the metrics data and you can observe it as a color on trajectory points. Then, one interesting method is to display the metrics in another render view :
+- Click on the icon "Split horizontal axis"
+- In the new render view, choose *Line chart view*
+- Select the output of the SLAM filter named **Trajectory** (click on the eye at the left of the Trajectory object). You should see some curves representing the metrics.
+- In the display section (View -> Display), when working on the new renderview and having selected the Trajectory object, you should be able to select the metrics you want to observe.
+
+![confidence metrics](confidence_metrics.gif)
+
+### Failure detection
+
+Another feature has been developped to fuse the confidence estimators to trigger a failure. The failure cases that can be detected include :
+- Map doubling, due to an isolated high motion, a temporal big occlusion or to quick scene change (e.g. door crossing)
+- Lack of degree of liberty (e.g. corridor case)
+- Divergence due to a combination of external factors
+
+To enable this feature, you should turn on *Failure detection* in the SLAM filter parameters.
+
+In case a failure is detected, the filter enters a recovery mode. This mode fixes the map and the trajectory to an older state and automatically updates some of the parameters to allow a bigger motion and a longer computation time. The user should go back to a previous pose to try to be relocalized and get out of this mode to go on with his acquisition without breaking the map. He can also update the parameters for the specific trajectory section that has gone wrong.
+
+**/!\ Warning** : for now, going back to a previous pose includes orientation, so, mind your acquisition direction when looking for recovery.
+
+If this feature is disabled during recovery, the state is reset as before the recovery mode has been triggered. Therefore, if you see the SLAM is relocalized but the recovery mode is still on (the confidence thresholds have not been reached), you can disable the failure detection and reenable it later on to force going out of the recovery mode.
+
+**/!\ Warning** : in recovery mode, some of the parameters displayed in the filter interface are not excatly the ones used. Namely, the *map update mode*, the *ego-motion mode*, the *undistortion mode*, the *maximum number of ICP iterations*, the *maximum distance between nearest neighbors* and the *initial saturation distance* are changed.
+ If you change these parameters during the recovery mode, they will be reset as before the recovery mode after relocalization. Therefore, again, the parameters used will not be the ones displayed in the filter interface.
