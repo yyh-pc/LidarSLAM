@@ -1047,7 +1047,7 @@ void vtkSlam::IdentifyInputArrays(vtkPolyData* poly, vtkTable* calib)
     }
 
     // Test if LiDAR data is Hesai
-    else if (CheckAndSetScanArrays("Timestamp", "Intensity", "LaserID"))
+    else if (CheckAndSetScanArrays("timestamp", "intensity", "laser_id"))
     {
       this->TimeToSecondsFactor = 1.;
       CheckKEParameter("Hesai", MinNeighNb, > 4);
