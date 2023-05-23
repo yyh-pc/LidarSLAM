@@ -1,10 +1,18 @@
 # lidar_slam
 
-- [lidar_slam](#lidar_slam)
+- [lidar\_slam](#lidar_slam)
   - [LiDAR SLAM node](#lidar-slam-node)
     - [Description and basic usage](#description-and-basic-usage)
     - [More advanced usage](#more-advanced-usage)
-  -[Optional external sensors use](#optional-external-sensors-use)
+      - [Detailed pipeline](#detailed-pipeline)
+      - [Online configuration](#online-configuration)
+        - [Reset state](#reset-state)
+        - [Map update modes](#map-update-modes)
+        - [Save maps](#save-maps)
+        - [Set pose](#set-pose)
+        - [Switch ON/OFF the process](#switch-onoff-the-process)
+      - [Failure detection](#failure-detection)
+  - [Optional external sensors use](#optional-external-sensors-use)
     - [Optional GPS use](#optional-gps-use)
       - [Map (GPS) / Odom (SLAM) calibration](#map-gps--odom-slam-calibration)
       - [SLAM pose graph optimization (PGO) with GPS prior](#slam-pose-graph-optimization-pgo-with-gps-prior)
@@ -12,11 +20,11 @@
         - [Setting SLAM pose from GPS pose guess](#setting-slam-pose-from-gps-pose-guess)
         - [Running SLAM on same zone](#running-slam-on-same-zone)
     - [Optional landmarks use](#optional-landmarks-use)
-      -[Local optimization](#local-optimization)
-      -[Pose graph optimization](#pose-graph-optimization)
-    - [Optional camera use](#optional-camera-use)
+      - [Local optimization](#local-optimization)
+      - [Pose graph optimization](#pose-graph-optimization)
+    - [Optional Camera use](#optional-camera-use)
   - [About the published TF tree](#about-the-published-tf-tree)
-  - [Points aggregation](#points-aggregation)
+- [Points aggregation](#points-aggregation)
 
 Wrapping for Kitware LiDAR-only SLAM. It can also use GPS data to publish SLAM output pose as GPS coordinates, or to correct SLAM trajectory and map.
 
@@ -95,6 +103,11 @@ UTM/GPS conversion node can output SLAM pose as a *gps_common/GPSFix* message on
 
 #### Online configuration
 
+Some features are available online. Note that an interface for some of these features is available in the rviz visualization plugin.
+
+![rviz plugin buttons](doc/rviz_plugin_buttons.png)
+##### Reset state
+At any time, the SLAM state can be reset meaning the maps, the trajectory and the external sensors are cleaned and all the metrics are reset as for the first frame acquisition. Note that it disables the recovery mode as well.
 ##### Map update modes
 
 At any time, commands `lidar_slam/SlamCommand/DISABLE_SLAM_MAP_UPDATE`, `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_EXPANSION` and `lidar_slam/SlamCommand/ENABLE_SLAM_MAP_UPDATE` can be published to '*slam_command*' topic to change SLAM map update mode.
@@ -123,6 +136,41 @@ rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 17, string_arg: 
 
 ##### Set pose
 At any time, a pose message (`PoseWithCovarianceStamped`) can be sent through the topic `set_slam_pose` to reset the current pose
+
+##### Switch ON/OFF the process
+At any time, the SLAM can be switched ON/OFF using the command message :
+```bash
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 14"
+```
+This disables the sensor messages handling of the node.
+
+#### Failure detection
+
+Some metrics are available to evaluate the SLAM output. They include:
+* Overlap estimation of the current frame on the map. A gap of overlap between successive frames can be suspicious
+* The compliance of motion limits. The thresholds must be set by the user depending of the acquisition setup
+* The number of keypoints matched. A weak number of matches can be suspicious.
+* The standard deviation of the position error. This is derived from the covariance of the optimization output. It can be useful to detect a lack of degree of liberty. Warning, it is not robust to failure cases
+
+These metrics can be visualized on RVIZ using the visualization plugin.
+
+![rviz plugin confidence](doc/rviz_plugin_confidence.png)
+
+Another feature has been developped to fuse the confidence estimators to trigger a failure. The failure cases that can be detected include :
+- Map doubling, due to an isolated high motion, a temporal big occlusion or to quick scene change (e.g. door crossing)
+- Lack of degree of liberty (e.g. corridor case)
+- Divergence due to a combination of external factors
+
+To enable this feature, you should turn on *failure_detector/enable* in the SLAM parameters.
+
+In case a failure is detected, the filter enters a recovery mode. This mode fixes the map and the trajectory to an older state and automatically updates some of the parameters to allow a bigger motion and a longer computation time. The user should go back to a previous pose to try to be relocalized and get out of this mode to go on with his acquisition without breaking the map. He can also update the parameters for the specific trajectory section that has gone wrong.
+
+**/!\ Warning** : for now, going back to a previous pose includes orientation, so, mind your acquisition direction when looking for recovery.
+
+If this feature is disabled during recovery, the state is reset as before the recovery mode has been triggered. Therefore, if you see the SLAM is relocalized but the recovery mode is still on (the confidence thresholds have not been reached), you can disable the failure detection and reenable it later on to force going out of the recovery mode.
+
+**/!\ Warning** : in recovery mode, some of the parameters are modified. Namely, the *map update mode*, the *ego-motion mode*, the *undistortion mode*, the *maximum number of ICP iterations*, the *maximum distance between nearest neighbors* and the *initial saturation distance* are set to recovery values.
+ If you change these parameters during the recovery mode, they will be reset as **before** the recovery mode after relocalization.
 
 ## Optional external sensors use
 
