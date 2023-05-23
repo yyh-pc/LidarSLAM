@@ -212,6 +212,9 @@ LidarSlamNode::~LidarSlamNode()
 //------------------------------------------------------------------------------
 void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
 {
+  if (!this->SlamEnabled)
+    return;
+
   if(cloudS_ptr->empty())
   {
     ROS_WARN_STREAM("Input point cloud sent by Lidar sensor driver is empty -> ignoring message");
@@ -247,16 +250,52 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
 
   // Run SLAM : register new frame and update localization and map.
   this->LidarSlam.AddFrames(this->Frames);
-  this->Frames.clear();
+
+  // TMP
+  // Check if SLAM has failed
+  if (this->LidarSlam.IsRecovery())
+  {
+    // TMP : in the future, the user should have a look
+    // at the result to validate recovery
+    // Check if the SLAM can go on and pose has to be displayed
+    if (this->LidarSlam.GetOverlapEstimation() > 0.2f &&
+        this->LidarSlam.GetPositionErrorStd()  < 0.1f)
+    {
+      ROS_WARN_STREAM("Getting out of recovery mode");
+      // Frame is relocalized, reset params
+      this->LidarSlam.EndRecovery();
+    }
+    else
+      ROS_WARN_STREAM("Still waiting for recovery");
+  }
+  else if (this->LidarSlam.HasFailed())
+  {
+    ROS_WARN_STREAM("SLAM has failed : entering recovery mode :\n"
+                    << "\t -Maps will not be updated\n"
+                    << "\t -Egomotion and undistortion are disabled\n"
+                    << "\t -The number of ICP iterations is increased\n"
+                    << "\t -The maximum distance between a frame point and a map target point is increased");
+    // Enable recovery mode :
+    // Last frames are removed
+    // Maps are not updated
+    // Param are tuned to handle bigger motions
+    // Warning : real time is not ensured
+    this->LidarSlam.StartRecovery(this->RecoveryTime);
+  }
 
   // Publish SLAM output as requested by user
   this->PublishOutput();
+
+  this->Frames.clear();
 }
 
 //------------------------------------------------------------------------------
 void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
 {
-  if(cloudS_ptr->empty())
+  if (!this->SlamEnabled)
+    return;
+
+  if (cloudS_ptr->empty())
   {
     ROS_WARN_STREAM("Secondary input point cloud sent by Lidar sensor driver is empty -> ignoring message");
     return;
@@ -273,6 +312,9 @@ void LidarSlamNode::SecondaryScanCallback(const CloudS::Ptr cloudS_ptr)
 //------------------------------------------------------------------------------
 void LidarSlamNode::ImageCallback(const sensor_msgs::Image& imageMsg)
 {
+  if (!this->SlamEnabled)
+    return;
+
   #ifdef USE_CV_BRIDGE
   if (!this->UseExtSensor[LidarSlam::CAMERA])
     return;
@@ -311,6 +353,9 @@ void LidarSlamNode::ImageCallback(const sensor_msgs::Image& imageMsg)
 //------------------------------------------------------------------------------
 void LidarSlamNode::CameraInfoCallback(const sensor_msgs::CameraInfo& calibMsg)
 {
+  if (!this->SlamEnabled)
+    return;
+
   #ifdef USE_CV_BRIDGE
   // The intrinsic calibration must not changed so we can only use
   // the camera info until the camera is ready to be used
@@ -330,6 +375,9 @@ void LidarSlamNode::CameraInfoCallback(const sensor_msgs::CameraInfo& calibMsg)
 //------------------------------------------------------------------------------
 void LidarSlamNode::GpsCallback(const nav_msgs::Odometry& gpsMsg)
 {
+  if (!this->SlamEnabled)
+    return;
+
   if (!this->UseExtSensor[LidarSlam::GPS])
     return;
 
@@ -387,8 +435,12 @@ int LidarSlamNode::BuildId(const std::vector<int>& ids)
 //------------------------------------------------------------------------------
 void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tagsInfo)
 {
+  if (!this->SlamEnabled)
+    return;
+
   if (!this->UseExtSensor[LidarSlam::LANDMARK_DETECTOR])
     return;
+
   for (auto& tagInfo : tagsInfo.detections)
   {
     // Transform to apply to points represented in detector frame to express them in base frame
@@ -641,6 +693,8 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     // Enable the agregation of keypoints to a fixed initial map
     case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_EXPANSION:
     {
+      if (this->LidarSlam.IsRecovery())
+        ROS_ERROR_STREAM("Cannot unable map expansion in recovery mode!");
       this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::ADD_KPTS_TO_FIXED_MAP);
       ROS_WARN_STREAM("Enabling SLAM maps expansion with new keypoints.");
       break;
@@ -649,6 +703,8 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
     // Enable the update of the map with new keypoints
     case lidar_slam::SlamCommand::ENABLE_SLAM_MAP_UPDATE:
     {
+      if (this->LidarSlam.IsRecovery())
+        ROS_ERROR_STREAM("Cannot unable map update in recovery mode!");
       this->LidarSlam.SetMapUpdate(LidarSlam::MappingMode::UPDATE);
       ROS_WARN_STREAM("Enabling SLAM maps update with new keypoints.");
       break;
@@ -660,6 +716,18 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       ROS_WARN_STREAM("Resetting the SLAM internal state.");
       this->LidarSlam.Reset(true);
       this->SetSlamInitialState();
+      break;
+    }
+
+    // Enable/Disable the SLAM process
+    case lidar_slam::SlamCommand::SWITCH_ON_OFF:
+    {
+      if (this->SlamEnabled)
+        ROS_WARN_STREAM("Disabling the SLAM process");
+      else
+        ROS_WARN_STREAM("Enabling again the SLAM process");
+
+      this->SlamEnabled = !this->SlamEnabled;
       break;
     }
 
@@ -917,6 +985,8 @@ void LidarSlamNode::PublishOutput()
       confidenceMsg.covariance[i] = lastStates.back().Covariance(i);
     confidenceMsg.nb_matches = this->LidarSlam.GetTotalMatchedKeypoints();
     confidenceMsg.comply_motion_limits = this->LidarSlam.GetComplyMotionLimits();
+    confidenceMsg.std_position_error = this->LidarSlam.GetPositionErrorStd();
+    confidenceMsg.failure = this->LidarSlam.HasFailed() || this->LidarSlam.IsRecovery();
     this->Publishers[CONFIDENCE].publish(confidenceMsg);
   }
 }
@@ -1110,11 +1180,28 @@ void LidarSlamNode::SetSlamParameters()
   // Motion limitations (hard constraints to detect failure)
   std::vector<float> acc;
   if (this->PrivNh.getParam("slam/confidence/motion_limits/acceleration", acc) && acc.size() == 2)
-    this->LidarSlam.SetAccelerationLimits(Eigen::Map<const Eigen::Array2f>(acc.data()));
+  {
+    Eigen::Array2f acc_array = Eigen::Array2f(acc.data());
+    this->LidarSlam.SetAccelerationLimits(acc_array);
+  }
   std::vector<float> vel;
   if (this->PrivNh.getParam("slam/confidence/motion_limits/velocity", vel) && vel.size() == 2)
-    this->LidarSlam.SetVelocityLimits(Eigen::Map<const Eigen::Array2f>(vel.data()));
-  SetSlamParam(float, "slam/confidence/motion_limits/time_window_duration", TimeWindowDuration)
+  {
+    Eigen::Array2f vel_array = Eigen::Array2f(vel.data());
+    this->LidarSlam.SetVelocityLimits(vel_array);
+  }
+  std::vector<float> pos;
+  if (this->PrivNh.getParam("slam/confidence/motion_limits/pose", pos) && pos.size() == 2)
+  {
+    Eigen::Array2f pos_array = Eigen::Array2f(pos.data());
+    this->LidarSlam.SetPoseLimits(pos_array);
+  }
+
+  SetSlamParam(int, "slam/confidence/window", ConfidenceWindow)
+  SetSlamParam(float, "slam/confidence/overlap/gap_threshold", OverlapDerivativeThreshold)
+  SetSlamParam(float, "slam/confidence/position_error/threshold", PositionErrorThreshold)
+  this->RecoveryTime = this->PrivNh.param("slam/confidence/failure_detector/recovery_time", this->RecoveryTime);
+  SetSlamParam(bool,  "slam/confidence/failure_detector/enable", FailureDetectionEnabled)
 
   // Keyframes
   SetSlamParam(double, "slam/keyframes/distance_threshold", KfDistanceThreshold)

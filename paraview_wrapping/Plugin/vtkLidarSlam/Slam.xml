@@ -297,6 +297,19 @@
         </Documentation>
       </IntVectorProperty>
 
+      <IntVectorProperty name="Failure detection"
+                         command="SetFailureDetectionEnabled"
+                         number_of_elements="1"
+                         default_values="0">
+        <BooleanDomain name="bool" />
+        <Documentation>
+          Enable/Disable failure detection. In case it is enabled, and
+          a failure detection is triggered, the mapping and logging will be stopped
+          and the process will wait for a good registration result.
+          Thresholds for the failure detection are modifiable in confidence section.
+        </Documentation>
+      </IntVectorProperty>
+
       <IntVectorProperty name="Keypoint maps output mode"
                          command="SetOutputKeypointsMaps"
                          number_of_elements="1"
@@ -383,6 +396,7 @@
         <Property name="Elevation angles calibration" />
         <Property name="Time to seconds factor" />
         <Property name="Advanced return mode" />
+        <Property name="Failure detection" />
         <Property name="Keypoint maps output mode" />
         <Property name="Keypoints maps update step" />
         <Property name="Trajectory frequency" />
@@ -552,12 +566,13 @@
       <DoubleVectorProperty name="Logging timeout"
                             command="SetLoggingTimeout"
                             number_of_elements="1"
-                            default_values="0. "
+                            default_values="1800."
                             panel_visibility="advanced">
         <Documentation>
           Maximum duration in seconds on which to keep states in memory.
-          This duration must be increased if a pose graph optimization is planned.
-          The minimum number of logged states is 2, to be able to handle ego-motion and undistortion, independently of this timeout value.
+          This duration might be increased if a pose graph optimization is planned or if the failure detection is enabled.
+          It can be reduced to 0 if there are memory constraints.
+          In any case, a minimum number of states is stored, to be able to interpolate, independently of this timeout value.
         </Documentation>
       </DoubleVectorProperty>
 
@@ -1597,7 +1612,34 @@
           0 disables overlap computation.
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+          <PropertyWidgetDecorator type="CompositeDecorator">
+            <Expression type="or">
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+            </Expression>
+          </PropertyWidgetDecorator>
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Acceleration limits"
+                            command="SetAccelerationLimits"
+                            number_of_elements="2"
+                            default_values="1e3 1e3"
+                            panel_visibility="advanced">
+        <Documentation>
+          Acceleration thresholds to evaluate and discard pose.
+
+          translation acceleration: m/s^2
+
+          rotation acceleration: °/s^2
+        </Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="CompositeDecorator">
+            <Expression type="or">
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+            </Expression>
+          </PropertyWidgetDecorator>
         </Hints>
       </DoubleVectorProperty>
 
@@ -1614,45 +1656,101 @@
           rotation speed: °/s
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+          <PropertyWidgetDecorator type="CompositeDecorator">
+            <Expression type="or">
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+            </Expression>
+          </PropertyWidgetDecorator>
         </Hints>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Acceleration limits"
-                            command="SetAccelerationLimits"
+      <DoubleVectorProperty name="Pose limits"
+                            command="SetPoseLimits"
                             number_of_elements="2"
-                            default_values="1e3 1e3"
+                            default_values="1e6 1e6"
                             panel_visibility="advanced">
         <Documentation>
-          Acceleration threshold to evaluate and discard pose.
+          Pose thresholds to evaluate and discard pose.
 
-          translation acceleration: m/s^2
+          translation: m
 
-          rotation acceleration: °/s^2
+          rotation: °
         </Documentation>
         <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+          <PropertyWidgetDecorator type="CompositeDecorator">
+            <Expression type="or">
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+              <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+            </Expression>
+          </PropertyWidgetDecorator>
         </Hints>
       </DoubleVectorProperty>
 
-      <DoubleVectorProperty name="Time window duration"
-                            command="SetTimeWindowDuration"
-                            number_of_elements="1"
-                            default_values="0.5"
-                            panel_visibility="advanced">
+      <IntVectorProperty name="Window for average and derivative"
+                         command="SetConfidenceWindow"
+                         number_of_elements="1"
+                         default_values="10"
+                         panel_visibility="advanced">
         <Documentation>
-          Duration of the window on poses to estimate the velocity in seconds.
+          Number of frames onto which to perform an average on confidence
+          values and/or to compute the derivatives (including velocity/acceleration).
+          If too high, some failure cases might be not detected
+          If too low, too many failure cases might be detected
         </Documentation>
-        <Hints>
-          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Advanced return mode" value="1" />
+         <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+        </Hints>
+      </IntVectorProperty>
+
+      <DoubleVectorProperty name="Threshold on overlap gap"
+                         command="SetOverlapDerivativeThreshold"
+                         number_of_elements="1"
+                         default_values="0.04"
+                         panel_visibility="advanced">
+        <Documentation>
+          Threshold on overlap derivative to trigger on failure
+        </Documentation>
+         <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Threshold on position error"
+                         command="SetPositionErrorThreshold"
+                         number_of_elements="1"
+                         default_values="0.15"
+                         panel_visibility="advanced">
+        <Documentation>
+          Threshold on position error to trigger on failure
+        </Documentation>
+         <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty name="Recovery time"
+                         command="SetRecoveryTime"
+                         number_of_elements="1"
+                         default_values="1."
+                         panel_visibility="advanced">
+        <Documentation>
+          In case of failure, duration (in seconds) to come back in time to previous state
+        </Documentation>
+         <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" property="Enable failure detection" value="1" />
         </Hints>
       </DoubleVectorProperty>
 
       <PropertyGroup label="Confidence estimator parameters">
         <Property name="Overlap sampling ratio" />
-        <Property name="Velocity limits" />
         <Property name="Acceleration limits" />
-        <Property name="Time window duration" />
+        <Property name="Velocity limits" />
+        <Property name="Pose limits" />
+        <Property name="Window for average and derivative" />
+        <Property name="Threshold on overlap gap" />
+        <Property name="Threshold on position error" />
+        <Property name="Recovery time" />
       </PropertyGroup>
 
       <!-- ============================ Pose Graph Optimization ============================ -->

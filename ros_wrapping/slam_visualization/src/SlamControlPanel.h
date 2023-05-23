@@ -67,6 +67,12 @@ public Q_SLOTS:
    */
   void EnableMapUpdate();
 
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief Send a SWITCH_ON_OFF command to the slam node.
+   */
+  void SwitchOnOff();
+
 private:
   //----------------------------------------------------------------------------
   /*!
@@ -93,8 +99,10 @@ private:
   //----------------------------------------------------------------------------
 
   // UI widgets
+  QLabel* FailureValueLabel = nullptr;
   QLabel* OverlapValueLabel = nullptr;
   QLabel* ComplyMotionLimitsValueLabel = nullptr;
+  QLabel* StdPositionErrorValueLabel = nullptr;
   QLabel* ComputationTimeValueLabel = nullptr;
 
   // ROS interface

@@ -206,6 +206,7 @@ protected:
   // SLAM stuff
   LidarSlam::Slam LidarSlam;
   std::vector<CloudS::Ptr> Frames;
+  bool SlamEnabled = true;
 
   // ROS node handles, subscribers and publishers
   ros::NodeHandle &Nh, &PrivNh;
@@ -250,6 +251,10 @@ protected:
   bool LidarTimePosix = true;
   // Offset to apply to external sensors to get lidar time
   float SensorTimeOffset = 0.;
+
+  // Failure detector
+  // In case of failure, duration (in seconds) to come back in time to previous state
+  float RecoveryTime = 1.f;
 
   // Landmarks
   ros::Subscriber LandmarksSub;

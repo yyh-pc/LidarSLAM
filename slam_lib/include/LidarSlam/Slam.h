@@ -83,6 +83,7 @@
 #include "LidarSlam/PointCloudStorage.h"
 #include "LidarSlam/ExternalSensorManagers.h"
 #include "LidarSlam/State.h"
+#include "LidarSlam/ConfidenceEstimators.h"
 
 #include <Eigen/Geometry>
 
@@ -167,6 +168,21 @@ struct Parameters
   bool EnableExternalConstraints = false;
 };
 } // end of Optimization namespace
+
+// Parameters for recovery mode
+namespace Recovery
+{
+struct Parameters
+{
+  LidarSlam::MappingMode MapUpdate         = LidarSlam::MappingMode::NONE;
+  LidarSlam::EgoMotionMode EgoMotion       = LidarSlam::EgoMotionMode::NONE;
+  LidarSlam::UndistortionMode Undistortion = LidarSlam::UndistortionMode::NONE;
+  unsigned int ICPMaxIter                  = 20;
+  double MaxNeighborsDistance              = 5;
+  double InitSaturationDistance            = 4;
+};
+} // end of Recovery namespace
+
 // Parameters for loop closure
 namespace LoopClosure
 {
@@ -768,26 +784,58 @@ public:
   //   Confidence estimation
   // ---------------------------------------------------------------------------
 
+  // Matches
+  GetMacro(TotalMatchedKeypoints, int)
+
+  // Motion constraints
+  Eigen::Array2f GetPoseLimits() const {return this->MotionCheck.GetAccelerationLimits();}
+  void SetPoseLimits(Eigen::Array2f& lim) {this->MotionCheck.SetPoseLimits(lim);}
+
+  Eigen::Array2f GetVelocityLimits() const {return this->MotionCheck.GetVelocityLimits();}
+  void SetVelocityLimits(Eigen::Array2f& lim) {this->MotionCheck.SetVelocityLimits(lim);}
+
+  Eigen::Array2f GetAccelerationLimits() const {return this->MotionCheck.GetAccelerationLimits();}
+  void SetAccelerationLimits(Eigen::Array2f& lim) {this->MotionCheck.SetAccelerationLimits(lim);}
+
+  GetMacro(ComplyMotionLimits, bool)
+
+  unsigned int GetConfidenceWindow() const {return this->FailDetect.GetWindowSize();}
+  void SetConfidenceWindow(int window) {this->MotionCheck.SetWindowSize(window);
+                                        this->FailDetect.SetWindowSize(window);}
+
   // Overlap
   GetMacro(OverlapSamplingRatio, float)
   void SetOverlapSamplingRatio(float _arg);
 
   GetMacro(OverlapEstimation, float)
 
-  // Matches
-  GetMacro(TotalMatchedKeypoints, int)
+  float GetOverlapDerivativeThreshold() const {return this->FailDetect.GetOverlapDerivativeThreshold();}
+  void SetOverlapDerivativeThreshold(float thresh) {this->FailDetect.SetOverlapDerivativeThreshold(thresh);}
 
-  // Motion constraints
-  GetMacro(AccelerationLimits, Eigen::Array2f)
-  SetMacro(AccelerationLimits, const Eigen::Array2f&)
+  // Position error
+  float GetPositionErrorThreshold() const {return this->FailDetect.GetPositionErrorThreshold();}
+  void SetPositionErrorThreshold(float thresh) {this->FailDetect.SetPositionErrorThreshold(thresh);}
 
-  GetMacro(VelocityLimits, Eigen::Array2f)
-  SetMacro(VelocityLimits, const Eigen::Array2f&)
+  float GetPositionErrorStd() const;
 
-  GetMacro(TimeWindowDuration, float)
-  SetMacro(TimeWindowDuration, float)
+  // Fuse confidence estimators to
+  // check if SLAM has failed
+  bool HasFailed() {return this->FailDetect.HasFailed();}
 
-  GetMacro(ComplyMotionLimits, bool)
+  // In case of failure, the maps and trajectory
+  // are restored to an old state (duration seconds away)
+  // and the parameters are changed to be more robust to bigger motion
+  void StartRecovery(double duration = 5.);
+
+  // When the current frame is relocalized
+  // The parameters are restored to go on with the mapping process
+  void EndRecovery();
+
+  // Check if the SLAM is in recovery mode
+  bool IsRecovery() const {return this->RecoveryStorage != nullptr;}
+
+  GetMacro(FailureDetectionEnabled, bool)
+  SetMacro(FailureDetectionEnabled, bool)
 
 private:
 
@@ -862,8 +910,8 @@ private:
   // It is used to reset the pose in case of failure
   Eigen::Isometry3d TworldInit = Eigen::Isometry3d::Identity();
 
-  // Reflect the success of one SLAM iteration computation (used to log or not the state).
-  bool Valid = true;
+  // Reflect the success of the optimization for current input frames
+  bool OptimizationValid = true;
   // Store the keyframe information
   bool IsKeyFrame = true;
 
@@ -886,6 +934,10 @@ private:
   //     -The undistorted keypoints (expressed in BASE)
   // The oldest states are forgotten (cf. LoggingTimeout parameter)
   std::list<LidarState> LogStates;
+
+  // Store last timestamps of recovery
+  // to handle the logged states correctly
+  std::vector<double> RecoveryTimes;
 
   // ---------------------------------------------------------------------------
   //   Keypoints extraction
@@ -1146,11 +1198,17 @@ private:
   // Number of matches for processed frame
   unsigned int TotalMatchedKeypoints = 0;
 
+  // Helper to check the motion and compare it
+  // to input limits
+  Confidence::MotionChecker MotionCheck;
   // Check motion limitations compliance
   bool ComplyMotionLimits = true;
 
-  // Previous computed velocity (for acceleration computation)
-  Eigen::Array2f PreviousVelocity;
+  // Failure detector
+  Confidence::FailDetector FailDetect;
+
+  // Store current parameters in case of recovery mode
+  std::shared_ptr<Recovery::Parameters> RecoveryStorage;
 
   // Parameters
 
@@ -1170,18 +1228,10 @@ private:
   // If 0, overlap won't be computed.
   float OverlapSamplingRatio = 0.f;
 
-  // Motion limitations
-  // Local velocity thresholds in BASE
-  Eigen::Array2f VelocityLimits     = {FLT_MAX, FLT_MAX};
-  // Local acceleration thresholds in BASE
-  Eigen::Array2f AccelerationLimits = {FLT_MAX, FLT_MAX};
-
-  // Duration on which to estimate the local velocity
-  // This window is used to smooth values to get a more accurate velocity estimation
-  // If 0, motion limits won't be checked.
-  // WARNING : the logging time out must be greater
-  // in order to comply with this required value.
-  float TimeWindowDuration = 0.f;
+  // Enable/Disable failure detection, if enabled,
+  // and a failure is detected, the frame will be skipped
+  // i.e. points are not added to the map and the trajectory is not updated
+  bool FailureDetectionEnabled = false;
 
   // ---------------------------------------------------------------------------
   //   Main sub-problems and methods
@@ -1211,8 +1261,10 @@ private:
   // and add points to the maps if we are dealing with a new keyframe.
   void UpdateMapsUsingTworld();
 
-  // Check if the current frame is a keyframe or not
-  bool CheckKeyFrame();
+  // Check if a new keyframe is needed or not
+  // This is based on the motion that has been performed
+  // and if a tag manager requires one
+  bool NeedNewKeyFrame();
 
   // Log current frame processing results : pose, covariance and keypoints.
   void LogCurrentFrameState();
@@ -1289,6 +1341,11 @@ private:
   // a constant velocity during a sweep or using external measurements.
 
   // TODO LogStates should be a sensor in External Sensor to get all useful synchronization functions
+
+  // Get the trajectory section ([0, N]) between failures and recoveries
+  // from a timestamp. This allows to notify the discontinuities
+  // in the trajectory when interpolating
+  int GetTrajSection(double time) const;
 
   // Get the state logged which is the closest to the input time
   std::list<LidarState>::const_iterator GetClosestState(double time) const;

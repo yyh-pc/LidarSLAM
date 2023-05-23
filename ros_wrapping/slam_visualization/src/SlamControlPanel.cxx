@@ -58,17 +58,27 @@ void SlamControlPanel::CreateLayout()
   enableMapUpdateButton->setText("Enable map update");
   connect(enableMapUpdateButton, &QPushButton::clicked, this, &SlamControlPanel::EnableMapUpdate);
 
+  auto switchOnOffButton = new QPushButton;
+  switchOnOffButton->setText("Switch on/off");
+  connect(switchOnOffButton, &QPushButton::clicked, this, &SlamControlPanel::SwitchOnOff);
+
   auto commandLayout = new QVBoxLayout;
   commandLayout->addWidget(resetStateButton);
   commandLayout->addWidget(disableMapUpdateButton);
   commandLayout->addWidget(enableMapExpansionButton);
   commandLayout->addWidget(enableMapUpdateButton);
+  commandLayout->addWidget(switchOnOffButton);
 
   auto commandBox = new QGroupBox;
   commandBox->setLayout(commandLayout);
   commandBox->setTitle("Commands");
 
   // Confidence
+  auto failureLabel = new QLabel{ "SLAM has failed: " };
+  this->FailureValueLabel = new QLabel;
+  this->FailureValueLabel->setTextFormat(Qt::TextFormat::PlainText);
+  failureLabel->setBuddy(this->FailureValueLabel);
+
   auto overlapLabel = new QLabel{ "Overlap:" };
   this->OverlapValueLabel = new QLabel;
   this->OverlapValueLabel->setTextFormat(Qt::TextFormat::PlainText);
@@ -79,18 +89,27 @@ void SlamControlPanel::CreateLayout()
   this->ComplyMotionLimitsValueLabel->setTextFormat(Qt::TextFormat::PlainText);
   complyMotionLimitsLabel->setBuddy(this->ComplyMotionLimitsValueLabel);
 
+  auto stdPositionErrorValueLabel = new QLabel{ "Position error estimated: " };
+  this->StdPositionErrorValueLabel = new QLabel;
+  this->StdPositionErrorValueLabel->setTextFormat(Qt::TextFormat::PlainText);
+  stdPositionErrorValueLabel->setBuddy(this->ComplyMotionLimitsValueLabel);
+
   auto computationTimeLabel = new QLabel{ "Frame computation time: " };
   this->ComputationTimeValueLabel = new QLabel;
   this->ComputationTimeValueLabel->setTextFormat(Qt::TextFormat::PlainText);
   computationTimeLabel->setBuddy(this->ComputationTimeValueLabel);
 
   auto confidenceLayout = new QGridLayout;
-  confidenceLayout->addWidget(overlapLabel, 0, 0, Qt::AlignLeft);
-  confidenceLayout->addWidget(this->OverlapValueLabel, 0, 1, Qt::AlignRight);
-  confidenceLayout->addWidget(complyMotionLimitsLabel, 1, 0, Qt::AlignLeft);
-  confidenceLayout->addWidget(this->ComplyMotionLimitsValueLabel, 1, 1, Qt::AlignRight);
-  confidenceLayout->addWidget(computationTimeLabel, 2, 0, Qt::AlignLeft);
-  confidenceLayout->addWidget(this->ComputationTimeValueLabel, 2, 1, Qt::AlignRight);
+  confidenceLayout->addWidget(failureLabel, 1, 0, Qt::AlignLeft);
+  confidenceLayout->addWidget(this->FailureValueLabel, 1, 1, Qt::AlignRight);
+  confidenceLayout->addWidget(overlapLabel, 2,0, Qt::AlignLeft);
+  confidenceLayout->addWidget(this->OverlapValueLabel, 2, 1, Qt::AlignRight);
+  confidenceLayout->addWidget(complyMotionLimitsLabel, 3, 0, Qt::AlignLeft);
+  confidenceLayout->addWidget(this->ComplyMotionLimitsValueLabel, 3, 1, Qt::AlignRight);
+  confidenceLayout->addWidget(stdPositionErrorValueLabel, 4, 0, Qt::AlignLeft);
+  confidenceLayout->addWidget(this->StdPositionErrorValueLabel, 4, 1, Qt::AlignRight);
+  confidenceLayout->addWidget(computationTimeLabel, 5, 0, Qt::AlignLeft);
+  confidenceLayout->addWidget(this->ComputationTimeValueLabel, 5, 1, Qt::AlignRight);
 
   auto confidenceBox = new QGroupBox;
   confidenceBox->setTitle("Confidence estimator");
@@ -128,6 +147,12 @@ void SlamControlPanel::EnableMapUpdate()
 }
 
 //----------------------------------------------------------------------------
+void SlamControlPanel::SwitchOnOff()
+{
+  this->SendCommand(lidar_slam::SlamCommand::SWITCH_ON_OFF);
+}
+
+//----------------------------------------------------------------------------
 void SlamControlPanel::SendCommand(
   lidar_slam::SlamCommand::_command_type command, lidar_slam::SlamCommand::_string_arg_type arg)
 {
@@ -140,15 +165,25 @@ void SlamControlPanel::SendCommand(
 //----------------------------------------------------------------------------
 void SlamControlPanel::SlamConfidenceCallback(const lidar_slam::ConfidenceConstPtr& confidence)
 {
+  QPalette palette1 = this->FailureValueLabel->palette();
+  palette1.setColor(this->FailureValueLabel->foregroundRole(),
+    confidence->failure ? Qt::red : Qt::black);
+
+  this->FailureValueLabel->setPalette(palette1);
+  this->FailureValueLabel->setText(confidence->failure ? "Yes" : "No");
+
   this->OverlapValueLabel->setText(
     QString::number(static_cast<int>(confidence->overlap * 100)) + '%');
 
-  QPalette palette = this->ComplyMotionLimitsValueLabel->palette();
-  palette.setColor(this->ComplyMotionLimitsValueLabel->foregroundRole(),
+  QPalette palette2 = this->ComplyMotionLimitsValueLabel->palette();
+  palette2.setColor(this->ComplyMotionLimitsValueLabel->foregroundRole(),
     confidence->comply_motion_limits ? Qt::black : Qt::red);
 
-  this->ComplyMotionLimitsValueLabel->setPalette(palette);
+  this->ComplyMotionLimitsValueLabel->setPalette(palette2);
   this->ComplyMotionLimitsValueLabel->setText(confidence->comply_motion_limits ? "Yes" : "No");
+
+  this->StdPositionErrorValueLabel->setText(
+    QString::number(confidence->std_position_error) + " m");
 
   this->ComputationTimeValueLabel->setText(
     QString::number(confidence->computation_time * 1000.0) + " ms");

@@ -17,12 +17,137 @@
 //==============================================================================
 
 #include <LidarSlam/ConfidenceEstimators.h>
+#include <LidarSlam/Utilities.h>
 
 namespace LidarSlam
 {
 namespace Confidence
 {
+//-----------------------------------------------------------------------------
+// Estimator functions
+//-----------------------------------------------------------------------------
 
+//-----------------------------------------------------------------------------
+void Estimator::SetWindowSize(unsigned int size)
+{
+  this->Values.SetMaxWindowSize(size);
+  this->Averages.SetMaxWindowSize(size);
+}
+
+//-----------------------------------------------------------------------------
+void Estimator::Reset()
+{
+  this->Values.Clear();
+  this->Averages.Clear();
+  this->Derivative = FLT_MAX;
+}
+
+//-----------------------------------------------------------------------------
+void Estimator::AddValue(float value, double timestamp)
+{
+  this->Values.AddValue(value, timestamp);
+  this->Derivative = FLT_MAX;
+  if (this->Average())
+    this->Derivate();
+}
+
+//-----------------------------------------------------------------------------
+bool Estimator::Average()
+{
+  if (!this->Values.Full())
+    return false;
+
+  this->Averages.AddValue(this->Values.Sum() / this->Values.Size(), this->Values.Back().Time);
+
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+bool Estimator::Derivate()
+{
+  if (!this->Averages.Full())
+    return false;
+
+  this->Derivative = (this->Averages.Back().Value - this->Averages.Front().Value) /
+                     (this->Averages.Back().Time - this->Averages.Front().Time);
+
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+// FailDetector functions
+//-----------------------------------------------------------------------------
+void FailDetector::Reset()
+{
+  this->LocalizationValid = true;
+  this->CounterUnvalidity = 0;
+  this->OverlapEst.Reset();
+  this->PositionErrorEst.Reset();
+  this->SuspiciousMotion.Clear();
+}
+
+//-----------------------------------------------------------------------------
+void FailDetector::SetWindowSize(unsigned int size)
+{
+  this->OverlapEst.SetWindowSize(size);
+  this->PositionErrorEst.SetWindowSize(size);
+  this->SuspiciousMotion.SetMaxWindowSize(size);
+}
+
+//-----------------------------------------------------------------------------
+void FailDetector::AddConfidence(float overlap, float positionError,
+                                 bool goodMotion, bool localizationValid,
+                                 double timestamp)
+{
+  this->OverlapEst.AddValue(overlap, timestamp);
+  this->PositionErrorEst.AddValue(positionError, timestamp);
+  if (!goodMotion || !localizationValid)
+    ++this->CounterUnvalidity;
+  else
+    this->CounterUnvalidity = 0;
+  this->SuspiciousMotion.AddValue(!goodMotion);
+  this->LocalizationValid = localizationValid;
+}
+
+//-----------------------------------------------------------------------------
+bool FailDetector::HasFailed()
+{
+  // Check divergence
+  if (this->CounterUnvalidity > this->MaxUnvalidityNb)
+  {
+    PRINT_WARNING("Failure : SLAM might be diverging");
+    return true;
+  }
+
+  float ovpDer = this->OverlapEst.GetDerivative();
+  if (std::abs(ovpDer - FLT_MAX) < 1e-4)
+    return false;
+
+  // Check bad local minimum
+  if (this->SuspiciousMotion.Sum() &&
+      -ovpDer > this->OverlapDerivativeThreshold)
+  {
+    PRINT_WARNING("Failure : bad local minimum found, the map might be corrupted");
+    return true;
+  }
+
+  float posErDer =  this->PositionErrorEst.GetDerivative();
+  if (std::abs(posErDer - FLT_MAX) < 1e-4)
+    return false;
+
+  // Check missing degree of liberty
+  if (this->SuspiciousMotion.Sum() &&
+      this->PositionErrorEst.GetAverage() > this->PositionErrorThreshold)
+  {
+    PRINT_WARNING("Failure : missing degree of liberty constraint (e.g. corridor or field contexts)");
+    return true;
+  }
+
+  return false;
+}
+
+//-----------------------------------------------------------------------------
+// LCP function
 //-----------------------------------------------------------------------------
 float LCPEstimator(PointCloud::ConstPtr cloud,
                    const std::map<Keypoint, std::shared_ptr<RollingGrid>>& maps,
@@ -68,6 +193,136 @@ float LCPEstimator(PointCloud::ConstPtr cloud,
     lcp += bestProba;
   }
   return lcp / nbPoints;
+}
+
+//-----------------------------------------------------------------------------
+MotionChecker::MotionChecker()
+{
+  this->Poses.SetMaxWindowSize(10);
+  this->Poses.SetMaxWindowDuration(FLT_MAX);
+}
+
+//-----------------------------------------------------------------------------
+void MotionChecker::Reset()
+{
+  this->Poses.Clear();
+  this->Pose.Zero();
+  this->Velocity.Zero();
+  this->Acceleration.Zero();
+  this->PrevMotionDirection.Zero();
+}
+
+//-----------------------------------------------------------------------------
+Eigen::Array2f MotionChecker::GetMotion(const Eigen::Isometry3d& TWindow)
+{
+  // Compute angular part
+  float angle = Eigen::AngleAxisd(TWindow.linear()).angle();
+  // Rotation angle in [0, pi]
+  if (angle > M_PI)
+    angle = 2 * M_PI - angle;
+  angle = Utils::Rad2Deg(angle);
+  // Compute linear part
+  float distance = TWindow.translation().norm();
+
+  return {distance, angle};
+}
+
+//-----------------------------------------------------------------------------
+void MotionChecker::SetNewPose(const Eigen::Isometry3d& pose, double time)
+{
+  if (this->Poses.Empty())
+  {
+    // Disable all motion constraints
+    this->Pose.Zero();
+    this->Velocity.Zero();
+    this->Acceleration.Zero();
+    this->PrevMotionDirection.Zero();
+    // Add new pose to stored values
+    this->Poses.AddValue(pose, time);
+    return;
+  }
+
+  // Compute motion between the two last poses
+  Eigen::Isometry3d TWindow = this->Poses.Back().Value.inverse() * pose;
+
+  this->ChangeDirection = this->PrevMotionDirection.norm() > 1e-6 &&
+                          TWindow.translation().dot(this->PrevMotionDirection) < -0.1; // margin for stops
+  this->PrevMotionDirection = TWindow.translation().normalized();
+
+  this->Pose = this->GetMotion(TWindow);
+  // Add new pose into stored values for next inputs
+  this->Poses.AddValue(pose, time);
+
+  if (!this->Poses.Full())
+  {
+    // Disable velocity/acceleration constraints
+    this->Velocity.Zero();
+    this->Acceleration.Zero();
+    return;
+  }
+
+  // Compute motion between the two bounds of the window
+  TWindow = this->Poses.Front().Value.inverse() * pose;
+  Eigen::Array2f motion = this->GetMotion(TWindow);
+  double deltaTime      = std::abs(time - this->Poses.Front().Time);
+
+  // Compute velocity
+  // Store previous one for acceleration
+  Eigen::Array2f prevVel = this->Velocity;
+  this->Velocity = {motion(0) / deltaTime, motion(1) / deltaTime};
+
+  // Do not compute acceleration if there is no previous velocity
+  if (prevVel[0] > FLT_MAX - 1)
+  {
+    this->Acceleration.Zero();
+    return;
+  }
+
+  // Compute local acceleration in BASE
+  this->Acceleration = (this->Velocity - prevVel) / deltaTime;
+
+  if (this->Verbose)
+  {
+    SET_COUT_FIXED_PRECISION(3)
+    PRINT_INFO("Pose         = " << this->Pose[0] << " m,  "
+                                 << this->Pose[1] << " °");
+    PRINT_INFO("Velocity     = " << this->Velocity[0] << " m/s,  "
+                                 << this->Velocity[1] << " °/s");
+    PRINT_INFO("Acceleration = " << this->Acceleration[0] << " m/s2, "
+                                 << this->Acceleration[1] << " °/s2");
+    if (this->ChangeDirection) { PRINT_INFO("Changing direction"); }
+    else { PRINT_INFO("Keeping direction"); }
+    RESET_COUT_FIXED_PRECISION
+  }
+}
+
+//-----------------------------------------------------------------------------
+bool MotionChecker::isMotionValid()
+{
+  if (this->ChangeDirection)
+    return false;
+
+  // Check if metrics have been computed
+  if (this->Acceleration[0] > FLT_MAX - 1)
+  {
+    PRINT_WARNING("Motion validity could not be checked");
+    return true;
+  }
+
+  // Check pose compliance
+  bool complyPoseLimits = this->Pose[0] < FLT_MAX - 1 ? (this->Pose.abs() < this->PoseLimits).all()
+                                                      : true;
+  // Check velocity compliance
+  bool complyVelocityLimits = this->Velocity[0] < FLT_MAX - 1 ? (this->Velocity.abs() < this->VelocityLimits).all()
+                                                              : true;
+  // Check acceleration compliance
+  bool complyAccelerationLimits = this->Acceleration[0] < FLT_MAX - 1 ? (this->Acceleration.abs() < this->AccelerationLimits).all()
+                                                                      : true;
+
+  // Check limits
+  return complyPoseLimits     &&
+         complyVelocityLimits &&
+         complyAccelerationLimits;
 }
 
 } // end of Confidence namespace

@@ -490,12 +490,25 @@ public:
   // Motion constraints
   virtual void SetAccelerationLimits(float linearAcc, float angularAcc);
   virtual void SetVelocityLimits(float linearVel, float angularVel);
-
-  virtual void SetTimeWindowDuration(float time);
-  vtkCustomGetMacro(TimeWindowDuration, float)
+  virtual void SetPoseLimits(float position, float orientation);
 
   virtual void SetLoggingTimeout(double loggingTimeout);
   vtkCustomGetMacro(LoggingTimeout, double)
+
+  vtkGetMacro(ConfidenceWindow, unsigned int)
+  virtual void SetConfidenceWindow (unsigned int window);
+
+  vtkCustomGetMacro(OverlapDerivativeThreshold, double)
+  vtkCustomSetMacro(OverlapDerivativeThreshold, double)
+
+  vtkCustomGetMacro(PositionErrorThreshold, double)
+  vtkCustomSetMacro(PositionErrorThreshold, double)
+
+  vtkGetMacro(RecoveryTime, float)
+  vtkSetMacro(RecoveryTime, float)
+
+  vtkCustomGetMacro(FailureDetectionEnabled, bool)
+  virtual void SetFailureDetectionEnabled(bool failDetect);
 
 protected:
   vtkSlam();
@@ -517,9 +530,12 @@ private:
   // Convert LiDAR calibration to laser id mapping
   std::vector<size_t> GetLaserIdMapping(vtkTable* calib);
 
+  // Create polydata with trajectory arrays and points
+  vtkSmartPointer<vtkPolyData> CreateInitTrajectory();
+
   // Init/reset the output SLAM trajectory
-  // If startTime is set, reset the trajectory from startTime
-  void ResetTrajectory(double startTime = -1.);
+  // If endTime is set, remove the newest poses after endTime
+  void ResetTrajectory(double endTime = -1.);
 
   // Add a SLAM pose and covariance in WORLD coordinates to Trajectory.
   void AddPoseToTrajectory(const LidarSlam::LidarState& state);
@@ -555,6 +571,8 @@ protected:
 
 private:
 
+  // Member to store the current time
+  double FrameTime = -1.;
   std::map<LidarSlam::Keypoint, vtkSmartPointer<vtkPolyData>> CacheMaps;
 
   // Polydata which represents the computed trajectory
@@ -597,12 +615,13 @@ private:
   std::string InitMapPrefix; ///< Path prefix of initial maps
   Eigen::Vector6d InitPose;  ///< Initial pose of the SLAM
 
-  // Internal variable to store overlap sampling ratio when advanced return mode is disabled.
-  float OverlapSamplingRatio = 0.25;
-  // Internal variable to store window time to estimate local velocity when advanced return mode is disabled.
-  float TimeWindowDuration = 0.5;
-  // Internal variable to store LoggingTimeout to control states kept in memory for pose graph or estimation of local velocity
-  double LoggingTimeout = 0;
+  // Internal variables to store confidence parameters when advanced
+  // return mode and failure detection are disabled.
+  float OverlapSamplingRatio = 0.25f;
+  unsigned int ConfidenceWindow = 10;
+
+  // In case of failure, duration to come back in time to previous state
+  float RecoveryTime = 1.f;
 
   // Boolean to decide if reset the maps before rebuild the maps
   bool ResetMaps = false;
