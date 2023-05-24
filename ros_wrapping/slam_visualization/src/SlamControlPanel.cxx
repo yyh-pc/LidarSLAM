@@ -80,6 +80,20 @@ void SlamControlPanel::CreateLayout()
   trajLayout->addWidget(this->SaveTrajButton);
   trajLayout->addWidget(trajPathEdit);
 
+  // Save maps
+  this->SaveMapsButton = new QPushButton;
+  this->SaveMapsButton->setText("Save maps");
+  this->SaveMapsButton->setDisabled(true);
+  connect(this->SaveMapsButton, &QPushButton::clicked, this, &SlamControlPanel::SaveMaps);
+
+  auto mapsPathEdit = new QLineEdit;
+  connect(mapsPathEdit, &QLineEdit::textChanged, this, &SlamControlPanel::SetMapsPath);
+
+  // Create maps space with a button and a line edit to set a path
+  auto mapsLayout = new QHBoxLayout;
+  mapsLayout->addWidget(this->SaveMapsButton);
+  mapsLayout->addWidget(mapsPathEdit);
+
   // Create the whole command space
   auto commandLayout = new QVBoxLayout;
   commandLayout->addWidget(resetStateButton);
@@ -88,6 +102,7 @@ void SlamControlPanel::CreateLayout()
   commandLayout->addWidget(enableMapUpdateButton);
   commandLayout->addWidget(switchOnOffButton);
   commandLayout->addLayout(trajLayout);
+  commandLayout->addLayout(mapsLayout);
 
   auto commandBox = new QGroupBox;
   commandBox->setLayout(commandLayout);
@@ -183,6 +198,19 @@ void SlamControlPanel::SetTrajPath(const QString &text)
 {
   this->SaveTrajButton->setDisabled(false);
   this->TrajectoryPath = text.toStdString();
+}
+
+//----------------------------------------------------------------------------
+void SlamControlPanel::SaveMaps()
+{
+  this->SendCommand(lidar_slam::SlamCommand::SAVE_FILTERED_KEYPOINTS_MAPS, this->MapsPath);
+}
+
+//----------------------------------------------------------------------------
+void SlamControlPanel::SetMapsPath(const QString &text)
+{
+  this->SaveMapsButton->setDisabled(false);
+  this->MapsPath = text.toStdString();
 }
 
 //----------------------------------------------------------------------------

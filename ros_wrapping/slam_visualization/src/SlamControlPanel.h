@@ -86,6 +86,18 @@ public Q_SLOTS:
    */
   void SetTrajPath(const QString &text);
 
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief Send a SAVE_TRAJECTORY command to the slam node.
+   */
+  void SaveMaps();
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief Set the path to save the trajectory
+   */
+  void SetMapsPath(const QString &text);
+
 private:
   //----------------------------------------------------------------------------
   /*!
@@ -118,6 +130,7 @@ private:
   QLabel* StdPositionErrorValueLabel = nullptr;
   QLabel* ComputationTimeValueLabel = nullptr;
   QPushButton* SaveTrajButton = nullptr;
+  QPushButton* SaveMapsButton = nullptr;
 
   // ROS interface
   ros::NodeHandle Nh;
@@ -126,6 +139,7 @@ private:
 
   // Path storage
   std::string TrajectoryPath;
+  std::string MapsPath;
 };
 
 } // namespace lidar_visualization.
