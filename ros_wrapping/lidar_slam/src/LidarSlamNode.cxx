@@ -223,6 +223,8 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
     return;
   }
 
+  this->MainLidarId = cloudS_ptr->header.frame_id;
+
   this->StartTime = ros::Time::now().toSec();
 
   if (!this->LidarTimePosix)
@@ -787,10 +789,66 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       break;
     }
 
+    // Save current trajectory tracking base frame
+    case lidar_slam::SlamCommand::SAVE_TRAJECTORY:
+    {
+      if (msg.string_arg.empty())
+      {
+        ROS_ERROR_STREAM("No path is specified, the trajectory cannot be saved");
+        return;
+      }
+      std::list<LidarSlam::LidarState> states = this->LidarSlam.GetLogStates();
+      if (states.empty())
+      {
+        ROS_WARN_STREAM("No current trajectory logged, nothing will be saved");
+        return;
+      }
+      ROS_INFO_STREAM("Saving current trajectory of base frame as " << msg.string_arg);
+      std::ofstream fout(msg.string_arg);
+      fout << this->TrackingFrameId << "\n";
+      fout << "t,x,y,z,x0,y0,z0,x1,y1,z1,x2,y2,z2\n";
+      for (auto& s : states)
+        fout << s;
+      fout.close();
+      break;
+    }
+
+    // Save current trajectory tracking Lidar
+    case lidar_slam::SlamCommand::SAVE_LIDAR_TRAJECTORY:
+    {
+      if (msg.string_arg.empty())
+      {
+        ROS_ERROR_STREAM("No path is specified, the trajectory cannot be saved");
+        return;
+      }
+      Eigen::Isometry3d baseToLidar;
+      if (!Utils::Tf2LookupTransform(baseToLidar, this->TfBuffer, this->TrackingFrameId, this->MainLidarId))
+      {
+        ROS_ERROR_STREAM("No transform from base to Lidar : cannot save Lidar trajectory.");
+        return;
+      }
+      std::list<LidarSlam::LidarState> states = this->LidarSlam.GetLogStates();
+      if (states.empty())
+      {
+        ROS_WARN_STREAM("No current trajectory logged, nothing will be saved");
+        return;
+      }
+      ROS_INFO_STREAM("Saving current trajectory of the Lidar sensor as " << msg.string_arg);
+      std::ofstream fout(msg.string_arg);
+      fout << this->MainLidarId << "\n";
+      fout << "t,x,y,z,x0,y0,z0,x1,y1,z1,x2,y2,z2\n";
+      for (auto& s : states)
+      {
+        s.Isometry = s.Isometry * baseToLidar;
+        fout << s;
+      }
+      fout.close();
+      break;
+    }
     // Save SLAM keypoints maps to PCD files
     case lidar_slam::SlamCommand::SAVE_KEYPOINTS_MAPS:
     {
-      ROS_INFO_STREAM("Saving keypoints maps to PCD.");
+      ROS_INFO_STREAM("Saving keypoint maps as PCD files in " << msg.string_arg);
       if (this->LidarSlam.GetMapUpdate() == LidarSlam::MappingMode::NONE)
         ROS_WARN_STREAM("The initially loaded maps were not modified but are saved anyway.");
       int pcdFormatInt = this->PrivNh.param("maps/export_pcd_format", static_cast<int>(LidarSlam::PCDFormat::BINARY_COMPRESSED));

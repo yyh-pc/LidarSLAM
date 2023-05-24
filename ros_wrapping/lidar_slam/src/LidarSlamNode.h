@@ -243,6 +243,7 @@ protected:
   // TF stuff
   std::string OdometryFrameId = "odom";       ///< Frame in which SLAM odometry and maps are expressed.
   std::string TrackingFrameId = "base_link";  ///< Frame to track (ensure a valid TF tree is published).
+  std::string MainLidarId;
   std::string GpsFrameId = "GPS"; ///< Frame to represent GPS positions.
   ros::Time GpsLastTime;
   tf2_ros::Buffer TfBuffer;
