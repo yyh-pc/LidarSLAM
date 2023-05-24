@@ -94,6 +94,20 @@ void SlamControlPanel::CreateLayout()
   mapsLayout->addWidget(this->SaveMapsButton);
   mapsLayout->addWidget(mapsPathEdit);
 
+  // Calibrate with external poses
+  this->CalibrateButton = new QPushButton;
+  this->CalibrateButton->setText("Calibrate");
+  this->CalibrateButton->setDisabled(true);
+  connect(this->CalibrateButton, &QPushButton::clicked, this, &SlamControlPanel::Calibrate);
+
+  auto posesPathEdit = new QLineEdit;
+  connect(posesPathEdit, &QLineEdit::textChanged, this, &SlamControlPanel::SetPosesPath);
+
+  // Create poses space with a button and a line edit to set a path
+  auto calibrateLayout = new QHBoxLayout;
+  calibrateLayout->addWidget(this->CalibrateButton);
+  calibrateLayout->addWidget(posesPathEdit);
+
   // Create the whole command space
   auto commandLayout = new QVBoxLayout;
   commandLayout->addWidget(resetStateButton);
@@ -103,6 +117,7 @@ void SlamControlPanel::CreateLayout()
   commandLayout->addWidget(switchOnOffButton);
   commandLayout->addLayout(trajLayout);
   commandLayout->addLayout(mapsLayout);
+  commandLayout->addLayout(calibrateLayout);
 
   auto commandBox = new QGroupBox;
   commandBox->setLayout(commandLayout);
@@ -211,6 +226,19 @@ void SlamControlPanel::SetMapsPath(const QString &text)
 {
   this->SaveMapsButton->setDisabled(false);
   this->MapsPath = text.toStdString();
+}
+
+//----------------------------------------------------------------------------
+void SlamControlPanel::Calibrate()
+{
+  this->SendCommand(lidar_slam::SlamCommand::CALIBRATE_WITH_POSES, this->PosesPath);
+}
+
+//----------------------------------------------------------------------------
+void SlamControlPanel::SetPosesPath(const QString &text)
+{
+  this->CalibrateButton->setDisabled(false);
+  this->PosesPath = text.toStdString();
 }
 
 //----------------------------------------------------------------------------
