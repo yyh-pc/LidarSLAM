@@ -20,6 +20,7 @@
 #define SLAM_CONTROL_PANEL_H
 
 #include <QLabel>
+#include <QPushButton>
 #include <lidar_slam/Confidence.h>
 #include <lidar_slam/SlamCommand.h>
 #include <ros/node_handle.h>
@@ -73,6 +74,18 @@ public Q_SLOTS:
    */
   void SwitchOnOff();
 
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief Send a SAVE_TRAJECTORY command to the slam node.
+   */
+  void SaveTraj();
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief Set the path to save the trajectory
+   */
+  void SetTrajPath(const QString &text);
+
 private:
   //----------------------------------------------------------------------------
   /*!
@@ -104,11 +117,15 @@ private:
   QLabel* ComplyMotionLimitsValueLabel = nullptr;
   QLabel* StdPositionErrorValueLabel = nullptr;
   QLabel* ComputationTimeValueLabel = nullptr;
+  QPushButton* SaveTrajButton = nullptr;
 
   // ROS interface
   ros::NodeHandle Nh;
   ros::Publisher CommandPublisher;
   ros::Subscriber ConfidenceSubscriber;
+
+  // Path storage
+  std::string TrajectoryPath;
 };
 
 } // namespace lidar_visualization.

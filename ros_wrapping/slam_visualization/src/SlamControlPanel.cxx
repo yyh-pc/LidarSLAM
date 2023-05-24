@@ -20,7 +20,7 @@
 
 #include <QGridLayout>
 #include <QGroupBox>
-#include <QPushButton>
+#include <QLineEdit>
 #include <QVBoxLayout>
 #include <pluginlib/class_list_macros.hpp>
 
@@ -41,33 +41,53 @@ SlamControlPanel::SlamControlPanel(QWidget* parent)
 //----------------------------------------------------------------------------
 void SlamControlPanel::CreateLayout()
 {
+  // Reset the SLAM process
   auto resetStateButton = new QPushButton;
   resetStateButton->setText("Reset state");
   connect(resetStateButton, &QPushButton::clicked, this, &SlamControlPanel::ResetSlamState);
 
+  // Disable the update of the maps, they will remain the same
   auto disableMapUpdateButton = new QPushButton;
   disableMapUpdateButton->setText("Disable map update");
   connect(disableMapUpdateButton, &QPushButton::clicked, this, &SlamControlPanel::DisableMapUpdate);
 
+  // Enable the expansion of the maps, keeping the initial one
   auto enableMapExpansionButton = new QPushButton;
   enableMapExpansionButton->setText("Enable map expansion");
-  connect(
-    enableMapExpansionButton, &QPushButton::clicked, this, &SlamControlPanel::EnableMapExpansion);
+  connect(enableMapExpansionButton, &QPushButton::clicked, this, &SlamControlPanel::EnableMapExpansion);
 
+  // Enable the complete update of the maps
   auto enableMapUpdateButton = new QPushButton;
   enableMapUpdateButton->setText("Enable map update");
   connect(enableMapUpdateButton, &QPushButton::clicked, this, &SlamControlPanel::EnableMapUpdate);
 
+  // Turn on/off the SLAM process
   auto switchOnOffButton = new QPushButton;
   switchOnOffButton->setText("Switch on/off");
   connect(switchOnOffButton, &QPushButton::clicked, this, &SlamControlPanel::SwitchOnOff);
 
+  // Save trajectory
+  this->SaveTrajButton = new QPushButton;
+  this->SaveTrajButton->setText("Save trajectory");
+  this->SaveTrajButton->setDisabled(true);
+  connect(this->SaveTrajButton, &QPushButton::clicked, this, &SlamControlPanel::SaveTraj);
+
+  auto trajPathEdit = new QLineEdit;
+  connect(trajPathEdit, &QLineEdit::textChanged, this, &SlamControlPanel::SetTrajPath);
+
+  // Create trajectory space with a button and a line edit to set a path
+  auto trajLayout = new QHBoxLayout;
+  trajLayout->addWidget(this->SaveTrajButton);
+  trajLayout->addWidget(trajPathEdit);
+
+  // Create the whole command space
   auto commandLayout = new QVBoxLayout;
   commandLayout->addWidget(resetStateButton);
   commandLayout->addWidget(disableMapUpdateButton);
   commandLayout->addWidget(enableMapExpansionButton);
   commandLayout->addWidget(enableMapUpdateButton);
   commandLayout->addWidget(switchOnOffButton);
+  commandLayout->addLayout(trajLayout);
 
   auto commandBox = new QGroupBox;
   commandBox->setLayout(commandLayout);
@@ -150,6 +170,19 @@ void SlamControlPanel::EnableMapUpdate()
 void SlamControlPanel::SwitchOnOff()
 {
   this->SendCommand(lidar_slam::SlamCommand::SWITCH_ON_OFF);
+}
+
+//----------------------------------------------------------------------------
+void SlamControlPanel::SaveTraj()
+{
+  this->SendCommand(lidar_slam::SlamCommand::SAVE_TRAJECTORY, this->TrajectoryPath);
+}
+
+//----------------------------------------------------------------------------
+void SlamControlPanel::SetTrajPath(const QString &text)
+{
+  this->SaveTrajButton->setDisabled(false);
+  this->TrajectoryPath = text.toStdString();
 }
 
 //----------------------------------------------------------------------------
