@@ -179,14 +179,32 @@ protected:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief Get and fill landmarks managers with absolute pose information
-   *        provided by the user in a csv file.
-   *        The fields must be : idx, x, y, z, roll, pitch, yaw, cov0, ..., cov35
+   * @brief Get and fill a vector of sentences (sentence = vector of strings)
+   *        provided in a csv file.
    *        The delimiters can be "," ";" " " "/t"
-   *        /!\ order matters
-   *        A header line can be added
+   *        /!\ the order of fields matters
+   *        A header line can be added but won't be used to fill each sentence
    */
-  void LoadLandmarks(const std::string& path);
+  std::vector<std::vector<std::string>> ReadCSV(const std::string& path,
+                                                unsigned int nbFields,
+                                                unsigned int nbHeaderLines);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief Helper to get and fill landmarks managers with absolute pose information
+   *        provided in a csv file.
+   *        The fields of the file must be : idx, x, y, z, roll, pitch, yaw, cov0, ..., cov35
+   *        /!\ order matters
+   */
+  void ReadTags(const std::string& path);
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief Helper to get and store pose measurements
+   *        provided in a csv file.
+   *        The fields of the file must be : time, x, y, z, rot(0,0), rot(1,0), rot(2,0), ..., rot(3, 3)
+   *        /!\ order matters
+   */
+  std::string ReadPoses(const std::string& path);
 
   //----------------------------------------------------------------------------
   /*!

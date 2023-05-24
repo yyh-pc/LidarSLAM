@@ -32,6 +32,8 @@
 
 #define BOLD_GREEN(s) "\033[1;32m" << s << "\033[0m"
 
+std::vector<std::string> DELIMITERS = {";", ",", " ", "\t"};
+
 enum Output
 {
   POSE_ODOM,                 // Publish SLAM pose as an Odometry msg on 'slam_odom' topic (default : true).
@@ -493,85 +495,89 @@ void LidarSlamNode::TagCallback(const apriltag_ros::AprilTagDetectionArray& tags
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::LoadLandmarks(const std::string& path)
+std::vector<std::vector<std::string>> LidarSlamNode::ReadCSV(const std::string& path,
+                                                             unsigned int nbFields,
+                                                             unsigned int nbHeaderLines)
 {
   // Check the file
   if (path.substr(path.find_last_of(".") + 1) != "csv")
   {
-    ROS_ERROR_STREAM("The landmarks file is not csv : landmarks absolute constraint can not be used");
-    return;
+    ROS_ERROR_STREAM("The file is not CSV! Cancel loading");
+    return {};
   }
 
   std::ifstream lmFile(path);
   if (lmFile.fail())
   {
-    ROS_ERROR_STREAM("The landmarks csv file " << path << " was not found : landmarks absolute constraint can not be used");
-    return;
+    ROS_ERROR_STREAM("The CSV file " << path << " was not found!");
+    return {};
   }
 
-  const unsigned int fieldsNumber = 43;
   // Check which delimiter is used
   std::string lmStr;
-  std::vector<std::string> delimiters = {";", ",", " ", "\t"};
   std::string delimiter;
-  getline (lmFile, lmStr);
   std::vector<std::string> fields;
 
-  for (const auto& del : delimiters)
+  // Get the first data line (after header)
+  for (int i = 0; i <= nbHeaderLines; ++i)
+    std::getline(lmFile, lmStr);
+
+  for (const auto& del : DELIMITERS)
   {
     fields.clear();
     size_t pos = 0;
-    std::string headerLine = lmStr;
-    pos = headerLine.find(del);
+    std::string firstLine = lmStr;
+    pos = firstLine.find(del);
     while (pos != std::string::npos)
     {
-      fields.push_back(headerLine.substr(0, pos));
-      headerLine.erase(0, pos + del.length());
-      pos = headerLine.find(del);
+      fields.push_back(firstLine.substr(0, pos));
+      firstLine.erase(0, pos + del.length());
+      pos = firstLine.find(del);
     }
     // If there is some element after the last delimiter, add it
-    if (!headerLine.substr(0, pos).empty())
-      fields.push_back(headerLine.substr(0, pos));
+    if (!firstLine.substr(0, pos).empty())
+      fields.push_back(firstLine.substr(0, pos));
     // Check that the number of fields is correct
-    if (fields.size() == fieldsNumber)
+    if (fields.size() == nbFields)
     {
       delimiter = del;
       break;
     }
   }
-  if (fields.size() != fieldsNumber)
+  if (fields.size() != nbFields)
   {
-    ROS_WARN_STREAM("The landmarks csv file is ill formed : " << fields.size() << " fields were found (" << fieldsNumber
-                    << " expected), landmarks absolute poses will not be used");
-    return;
+    ROS_WARN_STREAM("The CSV file is ill formed : " << fields.size() << " fields were found (" << nbFields
+                    << " expected), the loading is cancelled");
+    return {};
   }
 
-  int lineIdx = 1;
-  int ntags = 0;
+  std::vector<std::vector<std::string>> lines;
+
+  int lineIdx = nbHeaderLines;
   do
   {
     size_t pos = 0;
-    std::vector<std::string> lm;
+    std::vector<std::string> sentence;
     while ((pos = lmStr.find(delimiter)) != std::string::npos)
     {
       // Remove potential extra spaces after the delimiter
       unsigned int charIdx = 0;
       while (charIdx < lmStr.size() && lmStr[charIdx] == ' ')
         ++charIdx;
-      lm.push_back(lmStr.substr(charIdx, pos));
+      sentence.push_back(lmStr.substr(charIdx, pos));
       lmStr.erase(0, pos + delimiter.length());
     }
-    lm.push_back(lmStr.substr(0, pos));
-    if (lm.size() != fieldsNumber)
+    sentence.push_back(lmStr.substr(0, pos));
+    if (sentence.size() != nbFields)
     {
-      ROS_WARN_STREAM("landmark on line " + std::to_string(lineIdx) + " is not correct -> Skip");
+      ROS_WARN_STREAM("data on line " + std::to_string(lineIdx) + " of the CSV file is not correct -> Skip");
       ++lineIdx;
       continue;
     }
 
     // Check numerical values in the studied line
     bool numericalIssue = false;
-    for (std::string field : lm)
+    for (std::string field : sentence)
     {
       try
       {
@@ -585,36 +591,86 @@ void LidarSlamNode::LoadLandmarks(const std::string& path)
     }
     if (numericalIssue)
     {
-      // if this is the first line, it might be a header line,
-      // else, print a warning
-      if (lineIdx > 1)
-        ROS_WARN_STREAM("landmark on line " + std::to_string(lineIdx) + " contains a not numerical value -> Skip");
+      ROS_WARN_STREAM("Data on line " + std::to_string(lineIdx) + " contains a not numerical value -> Skip");
       ++lineIdx;
       continue;
     }
 
+    lines.push_back(sentence);
+    ++lineIdx;
+  }
+  while (std::getline(lmFile, lmStr));
+
+  lmFile.close();
+  return lines;
+}
+
+//------------------------------------------------------------------------------
+std::string LidarSlamNode::ReadPoses(const std::string& path)
+{
+  std::vector<std::vector<std::string>> lines = this->ReadCSV(path, 13, 2);
+  if (lines.empty())
+  {
+    ROS_ERROR_STREAM("Cannot read file :" << path << ", poses are not loaded");
+    return "";
+  }
+
+  // Get frame ID
+  std::ifstream lmFile(path);
+  std::string frameID;
+  std::getline(lmFile, frameID);
+  for (const auto& del : DELIMITERS)
+  {
+    if (frameID.find(del) != std::string::npos)
+    {
+      ROS_ERROR_STREAM("Frame ID is not specified in the first line of the CSV file, stop loading");
+      return "";
+    }
+  }
+
+  for (auto& l : lines)
+  {
+    // Build pose measurement
+    LidarSlam::ExternalSensors::PoseMeasurement poseMeas;
+    // Time
+    poseMeas.Time = std::stod(l[0]);
+    // Translation
+    for (int i = 0; i < 3; ++i)
+      poseMeas.Pose(i, 3) = std::stof(l[i + 1]);
+    // Rotation (format is col major to represent the orientation axis)
+    for (int i = 0; i < 3; ++i)
+    {
+      for (int j = 0; j < 3; ++j)
+        poseMeas.Pose.linear()(i, j) = std::stof(l[i + j*3 + 4]);
+    }
+    this->LidarSlam.AddPoseMeasurement(poseMeas);
+  }
+  return frameID;
+}
+
+//------------------------------------------------------------------------------
+void LidarSlamNode::ReadTags(const std::string& path)
+{
+  std::vector<std::vector<std::string>> lines = this->ReadCSV(path, 43, 1);
+  for (auto& l : lines)
+  {
     // Build measurement
     // Set landmark id
-    int id = std::stoi(lm[0]);
+    int id = std::stoi(l[0]);
     // Fill pose
     Eigen::Vector6d absolutePose;
-    absolutePose << std::stof(lm[1]), std::stof(lm[2]), std::stof(lm[3]), std::stof(lm[4]), std::stof(lm[5]), std::stof(lm[6]);
+    absolutePose << std::stof(l[1]), std::stof(l[2]), std::stof(l[3]), std::stof(l[4]), std::stof(l[5]), std::stof(l[6]);
     // Fill covariance
     Eigen::Matrix6d absolutePoseCovariance;
     for (int i = 0; i < 6; ++i)
     {
       for (int j = 0; j < 6; ++j)
-        absolutePoseCovariance(i, j) = std::stof(lm[7 + 6 * i + j]);
+        absolutePoseCovariance(i, j) = std::stof(l[7 + 6 * i + j]);
     }
     // Add a new landmark manager for absolute constraint computing
     this->LidarSlam.AddLandmarkManager(id, absolutePose, absolutePoseCovariance);
     ROS_INFO_STREAM("Tag #" << id << " initialized to \n" << absolutePose.transpose());
-    ++ntags;
-    ++lineIdx;
   }
-  while (getline (lmFile, lmStr));
-
-  lmFile.close();
 }
 
 //------------------------------------------------------------------------------
@@ -791,7 +847,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
         if (!msg.string_arg.empty())
         {
           ROS_INFO_STREAM("Loading the absolute landmark poses");
-          this->LoadLandmarks(msg.string_arg);
+          this->ReadTags(msg.string_arg);
         }
         else if (this->LidarSlam.GetLandmarkConstraintLocal())
           ROS_WARN_STREAM("No absolute landmark poses are supplied : the last estimated poses will be used");
@@ -835,6 +891,38 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       onOff= this->UseExtSensor[sensor]? "Disabling " : "Enabling ";
       ROS_INFO_STREAM(onOff << LidarSlam::ExternalSensorNames.at(sensor));
       this->UseExtSensor[sensor] = !this->UseExtSensor[sensor];
+      break;
+    }
+
+    case lidar_slam::SlamCommand::CALIBRATE_WITH_POSES:
+    {
+      if (msg.string_arg.empty())
+      {
+        ROS_WARN_STREAM("Cannot calibrate with poses, no file provided");
+        return;
+      }
+      // Clear current pose manager
+      this->LidarSlam.ResetSensor(true, LidarSlam::ExternalSensor::POSE);
+      // Fill external pose manager with poses from a CSV file
+      std::string frameId = this->ReadPoses(msg.string_arg);
+      if (frameId.empty())
+        return;
+      // Calibrate the external poses with current SLAM trajectory
+      this->LidarSlam.CalibrateWithExtPoses();
+      // Get the calibration
+      Eigen::Isometry3d calibration = this->LidarSlam.GetPoseCalibration();
+
+      //Publish new static TF
+      geometry_msgs::TransformStamped tfStamped;
+      tfStamped.header.stamp = ros::Time(ros::Time::now().toSec());
+      tfStamped.header.frame_id = this->OdometryFrameId;
+      tfStamped.child_frame_id = frameId;
+      tfStamped.transform = Utils::IsometryToTfMsg(calibration);
+      this->StaticTfBroadcaster.sendTransform(tfStamped);
+
+      ROS_INFO_STREAM("Calibration estimated to :\n" << calibration.matrix());
+      // Clean the pose manager in the SLAM
+      this->LidarSlam.ResetSensor(true, LidarSlam::ExternalSensor::POSE);
       break;
     }
 
@@ -1276,7 +1364,7 @@ void LidarSlamNode::SetSlamInitialState()
   if (!lmpath.empty())
   {
     ROS_INFO_STREAM("Loading initial landmarks info from CSV.");
-    this->LoadLandmarks(lmpath);
+    this->ReadTags(lmpath);
     this->LidarSlam.SetLandmarkConstraintLocal(false);
   }
   else
