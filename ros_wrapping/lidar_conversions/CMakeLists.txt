@@ -56,9 +56,13 @@ target_link_libraries(ouster_conversion_node ${catkin_LIBRARIES})
 add_executable(robosense_conversion_node src/RobosenseToLidarNode.cxx)
 target_link_libraries(robosense_conversion_node ${catkin_LIBRARIES})
 
+# Livox mid100 Lidar
+add_executable(livox_conversion_node src/LivoxToLidarNode.cxx)
+target_link_libraries(livox_conversion_node ${catkin_LIBRARIES})
+
 #############
 ## Install ##
 #############
 
-install(TARGETS velodyne_conversion_node robosense_conversion_node ouster_conversion_node
+install(TARGETS velodyne_conversion_node robosense_conversion_node ouster_conversion_node livox_conversion_node
         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
