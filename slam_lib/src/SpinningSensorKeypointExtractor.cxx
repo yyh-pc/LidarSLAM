@@ -476,14 +476,27 @@ void SpinningSensorKeypointExtractor::AddKptsUsingCriterion (Keypoint k,
     if (this->IsScanLineAlmostEmpty(Npts))
       continue;
 
+    // Initialize original index locations
+    // Remove indices corresponding to negative values
+    // and indices corresponding to values beside threshold
+    std::vector<size_t> sortedValuesIndices;
+    sortedValuesIndices.reserve(values[scanlineIdx].size());
+    for (int idx = 0; idx < values[scanlineIdx].size(); ++idx)
+    {
+      if (values[scanlineIdx][idx] > 0 &&
+          (threshIsMax  && values[scanlineIdx][idx] < threshold ||
+           !threshIsMax && values[scanlineIdx][idx] > threshold))
+        sortedValuesIndices.emplace_back(idx);
+    }
+
     // If threshIsMax : ascending order (lowest first)
     // If threshIsMin : descending order (greatest first)
-    std::vector<size_t> sortedValuesIndices = Utils::SortIdx(values[scanlineIdx], threshIsMax);
+    Utils::SortIdx(values[scanlineIdx], sortedValuesIndices, threshIsMax, this->MaxPoints);
 
     for (const auto& index: sortedValuesIndices)
     {
-      // If the point was already picked, or is invalid, continue
-      if (this->Label[scanlineIdx][index][k] || values[scanlineIdx][index] < 0)
+      // If the point was already picked, continue
+      if (this->Label[scanlineIdx][index][k])
         continue;
 
       // Check criterion threshold
@@ -514,8 +527,10 @@ void SpinningSensorKeypointExtractor::ComputePlanes()
 void SpinningSensorKeypointExtractor::ComputeEdges()
 {
   this->AddKptsUsingCriterion(Keypoint::EDGE, this->DepthGap, this->EdgeDepthGapThreshold, false, 1);
-  this->AddKptsUsingCriterion(Keypoint::EDGE, this->Angles, this->EdgeSinAngleThreshold, false, 2);
-  this->AddKptsUsingCriterion(Keypoint::EDGE, this->SpaceGap, this->EdgeDepthGapThreshold, false, 3);
+  if (this->Keypoints[Keypoint::EDGE].Size() < this->MaxPoints)
+    this->AddKptsUsingCriterion(Keypoint::EDGE, this->Angles, this->EdgeSinAngleThreshold, false, 2);
+  if (this->Keypoints[Keypoint::EDGE].Size() < this->MaxPoints)
+    this->AddKptsUsingCriterion(Keypoint::EDGE, this->SpaceGap, this->EdgeDepthGapThreshold, false, 3);
 }
 
 //-----------------------------------------------------------------------------

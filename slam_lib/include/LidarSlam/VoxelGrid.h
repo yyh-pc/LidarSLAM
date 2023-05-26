@@ -48,6 +48,8 @@ public:
   SetMacro(Dimensions, const std::vector<Eigen::Array3i>&)
   GetMacro(Dimensions, std::vector<Eigen::Array3i>)
 
+  int Size() {return this->Npoints;}
+
   //============================================================================
 
   //! Get up to maxNbPoints points in the grid.

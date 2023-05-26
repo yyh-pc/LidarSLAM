@@ -96,26 +96,34 @@ namespace Utils
 
 //------------------------------------------------------------------------------
 /*!
- * @brief Sort a vector and return sorted indices
+ * @brief Fill a vector of indices corresponding to sorted values
  * @param v The vector to sort
- * @param ascending If true, sort in ascending (increasing) order
- * @return The sorted indices such that the first index is the biggest input
- *         value and the last the smallest.
+ * @param indices The indices vector to fill
+ * @param ascending (optional) If true, sort in ascending (increasing) order
+ * @param maxSortedNb (optional) If > 0, the indices only contains the maxSortedNb first sorted elements
+ * @return Nothing
  */
 template<typename T>
-std::vector<size_t> SortIdx(const std::vector<T>& v, bool ascending=true)
+void SortIdx(const std::vector<T>& v, std::vector<size_t>& indices, bool ascending=true, int maxSortedNb = -1)
 {
-  // Initialize original index locations
-  std::vector<size_t> idx(v.size());
-  std::iota(idx.begin(), idx.end(), 0);
+  // If indices supplied is empty, fill it
+  if (indices.empty())
+  {
+    // Initialize original index locations
+    std::vector<size_t> indices(v.size());
+    std::iota(indices.begin(), indices.end(), 0);
+  }
+
+  if (maxSortedNb < 0 || maxSortedNb > indices.size())
+    maxSortedNb = indices.size();
 
   // Sort indices based on comparing values in v
   if (ascending)
-    std::sort(idx.begin(), idx.end(), [&v](size_t i1, size_t i2) { return v[i1] < v[i2]; });
+    std::partial_sort(indices.begin(), indices.begin() + maxSortedNb, indices.end(), [&v](size_t i1, size_t i2) { return v[i1] < v[i2]; });
   else
-    std::sort(idx.begin(), idx.end(), [&v](size_t i1, size_t i2) { return v[i1] > v[i2]; });
+    std::partial_sort(indices.begin(), indices.begin() + maxSortedNb, indices.end(), [&v](size_t i1, size_t i2) { return v[i1] > v[i2]; });
 
-  return idx;
+  indices.resize(maxSortedNb);
 }
 
 //------------------------------------------------------------------------------
