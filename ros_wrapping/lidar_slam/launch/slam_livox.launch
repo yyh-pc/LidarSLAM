@@ -2,6 +2,7 @@
 
   <!-- General args -->
   <arg name="replay" default="true" doc="Whether to process live or replayed data"/>
+  <arg name="pointcloud2" default="true" doc="True if pointcloud message is in pointcloud2 format"/>
   <arg name="outdoor" default="true" doc="Decide which set of parameters to use."/>
   <arg name="rviz" default="true" doc="Visualize results with RViz."/>
   <arg name="tags_topic" default="tag_detections" doc="topic from which to get the tag measurements."/>
@@ -19,6 +20,7 @@
 
   <!-- Livox points conversion -->
   <node name="livox_conversion" pkg="lidar_conversions" type="livox_conversion_node" output="screen">
+  <param name="pointcloud2" value="$(arg pointcloud2)"/>
   </node>
 
   <!-- LiDAR SLAM : compute TF slam_init -> Livox -->

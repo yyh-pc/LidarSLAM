@@ -20,7 +20,7 @@
 
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
-#include <velodyne_point.h>
+#include <lidar_conversions/CustomMsg.h>
 #include <LidarSlam/LidarPoint.h>
 
 namespace lidar_conversions
@@ -37,7 +37,7 @@ class LivoxToLidarNode
 {
 public:
   using PointL = pcl::PointXYZI;
-  using CloudL = pcl::PointCloud<PointL>;  ///< Pointcloud published by velodyne driver
+  using CloudL = pcl::PointCloud<PointL>;  ///< Pointcloud published by livox driver
   using PointS = LidarSlam::LidarPoint;
   using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM
 
@@ -51,10 +51,17 @@ public:
 
   //----------------------------------------------------------------------------
   /*!
-   * @brief New lidar frame callback, converting and publishing Velodyne PointCloud as SLAM LidarPoint.
-   * @param cloud New Lidar Frame, published by velodyne_pointcloud/transform_node.
+   * @brief New lidar frame callback, converting and publishing Livox PointCloud as SLAM LidarPoint.
+   * @param cloud New Lidar Frame, published by livox driver.
    */
-  void Callback(const CloudL& cloud);
+  void PointCloud2Callback(const CloudL& cloud);
+
+  //----------------------------------------------------------------------------
+  /*!
+   * @brief New lidar frame callback with Custom Livox message (used for horizon), converting and publishing Livox PointCloud as SLAM LidarPoint.
+   * @param cloud New Lidar Frame, published by livox driver.
+   */
+  void LivoxCustomMsgCallback(const CustomMsg& cloudLmsg);
 
 private:
 
@@ -66,6 +73,8 @@ private:
   ros::Publisher Talker;
 
   int DeviceId = 0;  ///< LiDAR device identifier to set for each point.
+
+  bool IsPcl2 = true;
 };
 
 }  // end of namespace lidar_conversions

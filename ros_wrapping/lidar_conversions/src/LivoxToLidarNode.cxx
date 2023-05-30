@@ -35,14 +35,20 @@ LivoxToLidarNode::LivoxToLidarNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh
   // Init ROS publisher
   this->Talker = nh.advertise<CloudS>("lidar_points", 1);
 
+  //  Get LiDAR id
+  this->PrivNh.param("pointcloud2", this->IsPcl2, this->IsPcl2);
+
   // Init ROS subscriber
-  this->Listener = nh.subscribe("livox/lidar", 1, &LivoxToLidarNode::Callback, this);
+  if (this->IsPcl2)
+    this->Listener = nh.subscribe("livox/lidar", 1, &LivoxToLidarNode::PointCloud2Callback, this);
+  else
+    this->Listener = nh.subscribe("livox/lidar", 1, &LivoxToLidarNode::LivoxCustomMsgCallback, this);
 
   ROS_INFO_STREAM(BOLD_GREEN("Livox data converter is ready !"));
 }
 
 //------------------------------------------------------------------------------
-void LivoxToLidarNode::Callback(const CloudL& cloudL)
+void LivoxToLidarNode::PointCloud2Callback(const CloudL& cloudL)
 {
   // If input cloud is empty, ignore it
   if (cloudL.empty())
@@ -78,6 +84,36 @@ void LivoxToLidarNode::Callback(const CloudL& cloudL)
     slamPoint.time = prevTime + 0.1/300000.; // Supposing 10 Hz and 300 000 points
     prevTime = slamPoint.time;
 
+    cloudS.push_back(slamPoint);
+  }
+
+  this->Talker.publish(cloudS);
+}
+
+//------------------------------------------------------------------------------
+void LivoxToLidarNode::LivoxCustomMsgCallback(const CustomMsg& cloudLmsg)
+{
+  // Init SLAM pointcloud
+  CloudS cloudS;
+  cloudS.reserve(cloudLmsg.point_num);
+  cloudS.header.stamp = cloudLmsg.timebase * 1e-3; // microseconds
+  cloudS.header.frame_id = cloudLmsg.header.frame_id;
+  cloudS.header.seq = cloudLmsg.header.seq;
+
+  // Build SLAM pointcloud
+  for (int i = 0; i < cloudLmsg.point_num; ++i)
+  {
+    PointS slamPoint;
+    slamPoint.x = cloudLmsg.points[i].x;
+    slamPoint.y = cloudLmsg.points[i].y;
+    slamPoint.z = cloudLmsg.points[i].z;
+    if (slamPoint.getVector3fMap().norm() < 1e-6)
+      continue;
+    slamPoint.intensity = cloudLmsg.points[i].reflectivity;
+    slamPoint.laser_id = cloudLmsg.points[i].line;
+    slamPoint.device_id = cloudLmsg.lidar_id;
+
+    slamPoint.time = double(cloudLmsg.points[i].offset_time) * 1e-9; // seconds
     cloudS.push_back(slamPoint);
   }
 
