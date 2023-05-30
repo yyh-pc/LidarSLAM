@@ -45,10 +45,11 @@ struct LineFitting
   using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
 
-  //! Fitting using very local line and check if this local line is consistent
-  //! in a more global neighborhood
+  //! Fitting using very local line and check if this local
+  //! line is consistent in a more global neighborhood.
+  //! Warning : this implies factorial calculations relatively to the points number
   bool FitLineAndCheckConsistency(const PointCloud& cloud,
-                                 const std::vector<int>& indices);
+                                  const std::vector<int>& indices);
 
   //! Compute the squared distance of a point to the fitted line
   inline float DistanceToPoint(Eigen::Vector3f const& point) const;

@@ -291,29 +291,37 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
 
       // Fill left and right neighbors
       // Those points must be more numerous than MinNeighNb and occupy more space than MinNeighRadius
-      std::vector<int> leftNeighbors;
-      int idxNeigh = 1;
-      float lineLength = 0.f;
-      while ((int(leftNeighbors.size()) < this->MinNeighNb
-              || lineLength < this->MinNeighRadius)
-              && int(leftNeighbors.size()) < Npts)
+      auto GetNeighbors = [&](bool right) -> std::vector<int>
       {
-        leftNeighbors.push_back((index - idxNeigh + Npts) % Npts);
-        lineLength = (scanLineCloud[leftNeighbors.back()].getVector3fMap() - scanLineCloud[leftNeighbors.front()].getVector3fMap()).norm();
-        ++idxNeigh;
-      }
+        std::vector<int> neighbors;
+        neighbors.reserve(this->MinNeighNb);
+        int plusOrMinus = right? 1 : -1;
+        int idxNeigh = 1;
+        float lineLength = 0.f;
+        while ((int(neighbors.size()) < this->MinNeighNb
+                || lineLength < this->MinNeighRadius)
+                && int(neighbors.size()) < Npts)
+        {
+          neighbors.emplace_back((index + plusOrMinus * idxNeigh + Npts) % Npts); // +Npts to avoid negative values
+          lineLength = (scanLineCloud[neighbors.back()].getVector3fMap() - scanLineCloud[neighbors.front()].getVector3fMap()).norm();
+          ++idxNeigh;
+        }
 
-      std::vector<int> rightNeighbors;
-      idxNeigh = 1;
-      lineLength = 0.f;
-      while ((int(rightNeighbors.size()) < this->MinNeighNb
-             || lineLength < this->MinNeighRadius)
-            && int(rightNeighbors.size()) < Npts)
-      {
-        rightNeighbors.push_back((index + idxNeigh) % Npts);
-        lineLength = (scanLineCloud[rightNeighbors.back()].getVector3fMap() - scanLineCloud[rightNeighbors.front()].getVector3fMap()).norm();
-        ++idxNeigh;
-      }
+        // Sample the neighborhood to limit computation time
+        if (neighbors.size() > this->MinNeighNb)
+        {
+          int step = neighbors.size() / this->MinNeighNb;
+          std::vector<int> newIndices;
+          newIndices.reserve(neighbors.size() / step);
+          for (int i = 0; i < neighbors.size(); i = i + step)
+            newIndices.emplace_back(neighbors[i]);
+          neighbors = newIndices;
+        }
+        return neighbors;
+      };
+
+      std::vector<int> leftNeighbors  = GetNeighbors(false);
+      std::vector<int> rightNeighbors = GetNeighbors(true);
 
       const auto& rightPt = scanLineCloud[rightNeighbors.front()].getVector3fMap();
       const auto& leftPt = scanLineCloud[leftNeighbors.front()].getVector3fMap();
