@@ -281,7 +281,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
           continue;
         if (azimuthMinRad < azimuthMaxRad &&
             (azimuth < azimuthMinRad ||
-             azimuth > azimuthMaxRad ))
+             azimuth > azimuthMaxRad))
           continue;
 
         if (azimuthMinRad > azimuthMaxRad &&
@@ -515,7 +515,8 @@ void SpinningSensorKeypointExtractor::AddKptsUsingCriterion (Keypoint k,
         break;
 
       // The points with the lowest weight have priority for extraction
-      float weight = threshIsMax? weightBasis + values[scanlineIdx][index] / threshold : weightBasis - values[scanlineIdx][index] / values[scanlineIdx][0];
+      float weight = threshIsMax? weightBasis + values[scanlineIdx][index] / threshold
+                                : weightBasis - values[scanlineIdx][index] / values[scanlineIdx][0];
 
       // Indicate the type of the keypoint to debug and to exclude double edges
       this->Label[scanlineIdx][index].set(k);
