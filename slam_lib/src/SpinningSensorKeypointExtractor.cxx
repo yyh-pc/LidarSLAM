@@ -550,10 +550,20 @@ void SpinningSensorKeypointExtractor::ComputeIntensityEdges()
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::ComputeBlobs()
 {
+  std::random_device rd;  // Will be used to obtain a seed for the random number engine
+  std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+  std::uniform_real_distribution<> dis(0.0, 1.0);
+
   for (unsigned int scanLine = 0; scanLine < this->NbLaserRings; ++scanLine)
   {
     for (unsigned int index = 0; index < this->ScanLines[scanLine]->size(); ++index)
+    {
+      // Random sampling to decrease keypoints extraction
+      // computation time
+      if (this->InputSamplingRatio < 1.f && dis(gen) > this->InputSamplingRatio)
+        continue;
       this->Keypoints[Keypoint::BLOB].AddPoint(this->ScanLines[scanLine]->at(index));
+    }
   }
 }
 
