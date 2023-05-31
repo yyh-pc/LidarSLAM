@@ -269,7 +269,7 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
       float centralDepth = centralPoint.norm();
 
       // Check distance to sensor
-      if (centralDepth < this->MinDistanceToSensor)
+      if (centralDepth < this->MinDistanceToSensor || centralDepth > this->MaxDistanceToSensor)
         continue;
 
       // Check azimuth angle

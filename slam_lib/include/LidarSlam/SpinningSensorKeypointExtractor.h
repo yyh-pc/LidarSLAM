@@ -90,6 +90,9 @@ public:
   GetMacro(MinDistanceToSensor, float)
   SetMacro(MinDistanceToSensor, float)
 
+  GetMacro(MaxDistanceToSensor, float)
+  SetMacro(MaxDistanceToSensor, float)
+
   GetMacro(AzimuthMin, float)
   SetMacro(AzimuthMin, float)
 
@@ -206,6 +209,9 @@ private:
 
   // Minimal point/sensor sensor to consider a point as valid
   float MinDistanceToSensor = 1.5;  // [m]
+
+  // Maximal point/sensor sensor to consider a point as valid
+  float MaxDistanceToSensor = 200.;  // [m]
 
   // Minimum angle between laser beam and surface to consider a point as valid
   float MinBeamSurfaceAngle = 10; // [°]
