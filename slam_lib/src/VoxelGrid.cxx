@@ -28,9 +28,9 @@ namespace LidarSlam
 //------------------------------------------------------------------------------
 void VoxelGrid::Init(const Eigen::Vector3f& ptMin, const Eigen::Vector3f& ptMax, float res, int maxPoints)
 {
+  this->VoxelResolution = res;
   this->Dimensions[0] = this->Point2Voxel(ptMin);
   this->Dimensions[1] = this->Point2Voxel(ptMax);
-  this->VoxelResolution = res;
   if (maxPoints)
     this->Voxels.reserve(maxPoints);
 }
