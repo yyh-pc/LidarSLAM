@@ -78,6 +78,8 @@ target_link_libraries(robosense_conversion_node ${catkin_LIBRARIES})
 add_executable(livox_conversion_node src/LivoxToLidarNode.cxx)
 target_link_libraries(livox_conversion_node ${catkin_LIBRARIES})
 
+add_dependencies(livox_conversion_node lidar_conversions_generate_messages_cpp)
+
 #############
 ## Install ##
 #############

@@ -126,6 +126,9 @@ add_executable(lidar_slam_node
   src/LidarSlamNode_main.cxx
 )
 
+# See here : https://answers.ros.org/question/173342/compile-twice-to-see-custom-message/
+add_dependencies(lidar_slam_node lidar_slam_generate_messages_cpp)
+
 if(cv_bridge_FOUND)
   message("ROS wrapping : cv_bridge was found, camera interface is built")
   list(APPEND optional_INCLUDE_DIRS ${cv_bridge_INCLUDE_DIRS})
