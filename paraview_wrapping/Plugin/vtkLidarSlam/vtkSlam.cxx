@@ -1110,8 +1110,9 @@ std::vector<size_t> vtkSlam::GetLaserIdMapping(vtkTable* calib)
     std::vector<double> verticalAngle(array->GetNumberOfTuples());
     for (vtkIdType i = 0; i < array->GetNumberOfTuples(); ++i)
       verticalAngle[i] = array->GetTuple1(i);
-    auto sortedLaserIds = Utils::SortIdx(verticalAngle);
-    laserIdMapping = Utils::SortIdx(sortedLaserIds);
+    std::vector<size_t> sortedLaserIds;
+    Utils::SortIdx(verticalAngle, sortedLaserIds);
+    Utils::SortIdx(sortedLaserIds, laserIdMapping);
   }
   return laserIdMapping;
 }

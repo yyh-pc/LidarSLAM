@@ -2436,6 +2436,18 @@
         </Documentation>
       </DoubleVectorProperty>
 
+      <DoubleVectorProperty name="Max distance to sensor"
+                            command="SetMaxDistanceToSensor"
+                            number_of_elements="1"
+                            default_values="200"
+                            panel_visibility="advanced">
+        <Documentation>
+          Maximum distance in meters between a point and the sensor to be processed for
+          the keypoint extraction. In other words, all points too far from the
+          sensor are automatically rejected.
+        </Documentation>
+      </DoubleVectorProperty>
+
       <DoubleVectorProperty name="Min azimuth angle"
                             command="SetAzimuthMin"
                             number_of_elements="1"

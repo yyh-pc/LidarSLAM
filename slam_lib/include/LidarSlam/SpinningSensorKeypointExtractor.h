@@ -45,10 +45,11 @@ struct LineFitting
   using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
 
-  //! Fitting using very local line and check if this local line is consistent
-  //! in a more global neighborhood
+  //! Fitting using very local line and check if this local
+  //! line is consistent in a more global neighborhood.
+  //! Warning : this implies factorial calculations relatively to the points number
   bool FitLineAndCheckConsistency(const PointCloud& cloud,
-                                 const std::vector<int>& indices);
+                                  const std::vector<int>& indices);
 
   //! Compute the squared distance of a point to the fitted line
   inline float DistanceToPoint(Eigen::Vector3f const& point) const;
@@ -88,6 +89,9 @@ public:
 
   GetMacro(MinDistanceToSensor, float)
   SetMacro(MinDistanceToSensor, float)
+
+  GetMacro(MaxDistanceToSensor, float)
+  SetMacro(MaxDistanceToSensor, float)
 
   GetMacro(AzimuthMin, float)
   SetMacro(AzimuthMin, float)
@@ -205,6 +209,9 @@ private:
 
   // Minimal point/sensor sensor to consider a point as valid
   float MinDistanceToSensor = 1.5;  // [m]
+
+  // Maximal point/sensor sensor to consider a point as valid
+  float MaxDistanceToSensor = 200.;  // [m]
 
   // Minimum angle between laser beam and surface to consider a point as valid
   float MinBeamSurfaceAngle = 10; // [°]

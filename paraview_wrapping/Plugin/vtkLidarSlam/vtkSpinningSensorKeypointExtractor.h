@@ -62,6 +62,8 @@ public:
 
   vtkCustomSetMacro(MinDistanceToSensor, float)
 
+  vtkCustomSetMacro(MaxDistanceToSensor, float)
+
   vtkCustomSetMacro(AzimuthMin, float)
 
   vtkCustomSetMacro(AzimuthMax, float)

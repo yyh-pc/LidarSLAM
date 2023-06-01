@@ -160,7 +160,7 @@ public:
   void SetWindowSize(unsigned int size);
 
   float GetOverlapDerivativeThreshold() const {return this->OverlapDerivativeThreshold;}
-  void SetOverlapDerivativeThreshold(float overlapThresh) {std::abs(this->OverlapDerivativeThreshold = overlapThresh);}
+  void SetOverlapDerivativeThreshold(float overlapThresh) {this->OverlapDerivativeThreshold = std::abs(overlapThresh);}
 
   float GetPositionErrorThreshold() const {return this->PositionErrorThreshold;}
   void SetPositionErrorThreshold(float posErrorThresh) {this->PositionErrorThreshold = posErrorThresh;}

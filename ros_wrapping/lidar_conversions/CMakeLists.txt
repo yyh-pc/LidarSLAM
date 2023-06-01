@@ -18,6 +18,22 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   pcl_conversions
   sensor_msgs
+  message_generation
+  std_msgs
+)
+
+# Generate messages in the 'msg' folder
+add_message_files(
+  FILES
+  CustomMsg.msg
+  CustomPoint.msg
+)
+
+# Generate added messages and services with any dependencies listed here
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  sensor_msgs
 )
 
 catkin_package(
@@ -26,6 +42,8 @@ catkin_package(
     pcl_ros
     pcl_conversions
     sensor_msgs
+    message_runtime
+    std_msgs
 )
 
 ###########
@@ -56,9 +74,15 @@ target_link_libraries(ouster_conversion_node ${catkin_LIBRARIES})
 add_executable(robosense_conversion_node src/RobosenseToLidarNode.cxx)
 target_link_libraries(robosense_conversion_node ${catkin_LIBRARIES})
 
+# Livox mid100 Lidar
+add_executable(livox_conversion_node src/LivoxToLidarNode.cxx)
+target_link_libraries(livox_conversion_node ${catkin_LIBRARIES})
+
+add_dependencies(livox_conversion_node lidar_conversions_generate_messages_cpp)
+
 #############
 ## Install ##
 #############
 
-install(TARGETS velodyne_conversion_node robosense_conversion_node ouster_conversion_node
+install(TARGETS velodyne_conversion_node robosense_conversion_node ouster_conversion_node livox_conversion_node
         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
