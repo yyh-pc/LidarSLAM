@@ -55,6 +55,17 @@ struct LidarState
   // Keypoints extracted at current pose and expressed in BASE coordinates
   std::map<Keypoint, PCStoragePtr> RawKeypoints;
   bool IsKeyFrame = true;
+  friend std::ostream& operator<<(std::ostream& os, const LidarState& state)
+  {
+    os << std::fixed << std::setprecision(9) << state.Time << std::scientific << ",";
+    Eigen::Vector3d t = state.Isometry.translation();
+    os << t(0) << "," << t(1) << "," << t(2) << ",";
+    Eigen::Matrix3d rot = state.Isometry.linear();
+    os << rot(0,0) << "," << rot(1,0) << "," << rot(2,0) << ","
+       << rot(0,1) << "," << rot(1,1) << "," << rot(2,1) << ","
+       << rot(0,2) << "," << rot(1,2) << "," << rot(2,2) << "\n";
+    return os;
+  }
 };
 
 struct PoseStamped

@@ -28,10 +28,14 @@ uint8 ENABLE_SLAM_MAP_EXPANSION = 9
 uint8 ENABLE_SLAM_MAP_UPDATE = 10
 
 # Reset the SLAM state. Clear the maps and the trajectory, set the current pose to origin.
-uint8 RESET_SLAM = 13
+uint8 RESET_SLAM = 12
 # Enable/Disable the SLAM process
-uint8 SWITCH_ON_OFF = 14
+uint8 SWITCH_ON_OFF = 13
 
+# Save the current trajectory tracking base frame as csv file
+uint8 SAVE_TRAJECTORY = 14
+# Save the current trajectory tracking the main Lidar frame as csv file
+uint8 SAVE_LIDAR_TRAJECTORY = 15
 # Save/Load keypoints maps (edges, planes and blobs if used) to/from disk.
 # Use 'string_arg' to indicate path prefix of maps : "/path/to/slam_map_" will
 # save/load to "/path/to/slam_map_edges.pcd", "/path/to/slam_map_planes.pcd"
@@ -59,3 +63,13 @@ uint8 OPTIMIZE_GRAPH = 20
 #   * GPS : "3"
 #   * CAMERA : "5"
 uint8 SWITCH_SENSOR = 25
+
+# Launch a calibration process using the current SLAM trajectory
+# and a file containing an external trajectory captured at the same time
+# The file should be a csv file with fields time,x,y,z,rot(0,0),rot(1,0), ... , rot(2,2)
+# and the first line should contain the ID of the frame tracked in the file's trajectory
+# It publishes a static TF between the base frame and the
+# frame tracked by the external trajectory
+# Only an overlapping part of trajectories is necessary to compute
+# the calibration
+uint8 CALIBRATE_WITH_POSES = 30

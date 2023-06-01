@@ -553,7 +553,14 @@ private:
   void PointCloudToPolyData(LidarSlam::Slam::PointCloud::Ptr pc,
                             vtkPolyData* poly) const;
 
-  Eigen::Isometry3d GetCalibrationMatrix(const std::string& fileName) const;
+  // Fill calibration arg with the calibration supplied in fileName file
+  // Filename must be a .mat file with matrix saved as numbers spaced by empty char
+  // Example :
+  // 0.707107 0.640856 0.298836 -0.043362
+  // -0.707107 0.640856 0.298836 0.032025
+  // 0.000000 -0.422618 0.906308 -0.072949
+  // 0.000000 0.000000 0.000000 1.000000
+  bool GetCalibrationMatrix(const std::string& fileName, Eigen::Isometry3d& calibration) const;
 
   // ---------------------------------------------------------------------------
   //   Member attributes

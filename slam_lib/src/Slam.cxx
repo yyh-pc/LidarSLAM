@@ -3104,11 +3104,27 @@ void Slam::AddPoseMeasurement(const ExternalSensors::PoseMeasurement& pm)
 }
 
 //-----------------------------------------------------------------------------
+Eigen::Isometry3d Slam::GetPoseCalibration() const
+{
+  if (!this->PoseManager)
+    return Eigen::Isometry3d::Identity();
+  return this->PoseManager->GetCalibration();
+}
+
+//-----------------------------------------------------------------------------
 void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
 {
   if (!this->PoseManager)
     this->InitPoseSensor();
   this->PoseManager->SetCalibration(calib);
+}
+
+//-----------------------------------------------------------------------------
+bool Slam::CalibrateWithExtPoses()
+{
+  if (!this->PoseManager)
+    return false;
+  return this->PoseManager->ComputeCalibration(this->LogStates);
 }
 
 // RGB camera
@@ -3130,6 +3146,47 @@ void Slam::ResetSensors(bool emptyMeasurements)
   if (emptyMeasurements && this->PoseManager)
     // Break link between IMU and Pose managers
     this->InitPoseSensor();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::ResetSensor(bool emptyMeasurements, ExternalSensor sensor)
+{
+  switch(sensor)
+  {
+    case ExternalSensor::WHEEL_ODOM:
+    {
+      if (this->WheelOdomManager)
+        this->WheelOdomManager->Reset(emptyMeasurements);
+      break;
+    }
+    case ExternalSensor::IMU:
+    {
+      if (this->ImuManager)
+        this->ImuManager->Reset(emptyMeasurements);
+      break;
+    }
+    case ExternalSensor::LANDMARK_DETECTOR:
+    {
+      for (auto& idLm : this->LandmarksManagers)
+        idLm.second.Reset(emptyMeasurements);
+      break;
+    }
+    case ExternalSensor::POSE:
+    {
+      if (this->PoseManager)
+        this->PoseManager->Reset(emptyMeasurements);
+      if (emptyMeasurements && this->PoseManager)
+        // Break link between IMU and Pose managers
+        this->InitPoseSensor();
+      break;
+    }
+    case ExternalSensor::CAMERA:
+    {
+      if (this->CameraManager)
+        this->CameraManager->Reset(emptyMeasurements);
+      break;
+    }
+  }
 }
 
 //-----------------------------------------------------------------------------

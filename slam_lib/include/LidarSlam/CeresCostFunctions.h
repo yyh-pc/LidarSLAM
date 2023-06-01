@@ -106,6 +106,25 @@ Eigen::Matrix<T, 6, 1> IsometryToXYZRPY(const Eigen::Transform<T, 3, Eigen::Isom
   return xyzrpy;
 }
 
+//------------------------------------------------------------------------------
+template <typename T>
+Eigen::Transform<T, 3, Eigen::Isometry> XYZQuatToIsometry(const T& x, const T& y, const T& z, const T& qx, const T& qy, const T& qz, const T& qw)
+{
+  return Eigen::Translation<T, 3>(x, y, z) * Eigen::Quaternion<T>(qw, qx, qy, qz).normalized();
+}
+
+//------------------------------------------------------------------------------
+template <typename T>
+Eigen::Matrix<T, 7, 1> IsometryToXYZQuat(const Eigen::Transform<T, 3, Eigen::Isometry>& transform)
+{
+  Eigen::Matrix<T, 7, 1> xyzQuat;
+  xyzQuat.head(3) = transform.translation();
+  Eigen::Quaternion<T> quat(transform.linear());
+  xyzQuat.tail(4) << quat.x(), quat.y(), quat.z(), quat.w();
+  xyzQuat.tail(4).normalize();
+  return xyzQuat;
+}
+
 } // end of anonymous namespace
 } // end of Utils namespace
 
@@ -625,6 +644,56 @@ private:
   Eigen::Matrix3f Intrinsic;
 };
 
+//------------------------------------------------------------------------------
+/**
+ * \class CalibResidual
+ * \brief Residual corresponding to a comparison between 2 poses (pose1 and pose2)
+ * representing RELATIVE motion of two frames rigidly linked with unknown calibration offset
+ * In the same global referential frame : absPose1 = absPose2 * Calib
+ * Therefore : residual = pose6D(Calib * transform(pose1) * Calib^-1) - pose2
+ *
+ * This function takes one 7D parameters block :
+ *   - 3 first parameters to encode translation : X, Y, Z
+ *   - 4 last parameters to encode rotation with quaternions : qX, qY, qZ, qW
+ *
+ * It outputs a 7D residual block.
+ */
+struct CalibResidual
+{
+  CalibResidual(const Eigen::Isometry3d& pose1, const Eigen::Isometry3d& pose2)
+              : Pose1Isometry(pose1)
+  {
+    this->Pose2.head<3>() = pose2.translation();
+    Eigen::Quaterniond quat(pose2.linear());
+    this->Pose2.tail<4>() << quat.x(), quat.y(), quat.z(), quat.w();
+  }
+
+  template <typename T>
+  bool operator()(const T* const w, T* residual) const
+  {
+    using Vector7T = Eigen::Matrix<T, 7, 1>;
+    using Isometry3T = Eigen::Transform<T, 3, Eigen::Isometry>;
+
+    Isometry3T calibIsometry = Utils::XYZQuatToIsometry(w[0], w[1], w[2], w[3], w[4], w[5], w[6]);
+    // Transform pose1 to get pose 2 equivalent
+    Vector7T pose1Transformed = Utils::IsometryToXYZQuat(calibIsometry * this->Pose1Isometry.cast<T>() * calibIsometry.inverse());
+
+    // Compute residual
+    Eigen::Map<Vector7T> residualVec(residual);
+    residualVec = pose1Transformed - this->Pose2.cast<T>();
+
+    return true;
+  }
+
+  // Factory to ease the construction of the auto-diff residual object
+  RESIDUAL_FACTORY(CalibResidual, 7, 7)
+
+private:
+  // Poses corresponding to RELATIVE motions of two rigidly
+  // linked frames that move together in a global frame
+  const Eigen::Isometry3d Pose1Isometry;
+  Eigen::Matrix<double, 7, 1> Pose2;
+};
 
 //------------------------------------------------------------------------------
 /**

@@ -94,6 +94,29 @@ Eigen::Vector6d IsometryToRPYXYZ(const Eigen::Isometry3d& transform)
 }
 
 //------------------------------------------------------------------------------
+Eigen::Isometry3d XYZQuatToIsometry(double x, double y, double z, double qx, double qy, double qz, double qw)
+{
+  return Eigen::Translation3d(x, y, z) * Eigen::Quaterniond(qw, qx, qy, qz).normalized();
+}
+
+//------------------------------------------------------------------------------
+Eigen::Isometry3d XYZQuatToIsometry(const Eigen::Vector7d& xyzQuat)
+{
+  return XYZQuatToIsometry(xyzQuat.x(), xyzQuat.y(), xyzQuat.z(), xyzQuat(3), xyzQuat(4), xyzQuat(5), xyzQuat(6));
+}
+
+//------------------------------------------------------------------------------
+Eigen::Vector7d IsometryToXYZQuat(const Eigen::Isometry3d& transform)
+{
+  Eigen::Vector7d out;
+  out.head(3) = transform.translation();
+  Eigen::Quaterniond quat(transform.linear());
+  out.tail(4) << quat.x(), quat.y(), quat.z(), quat.w();
+  out.tail(4).normalize();
+  return out;
+}
+
+//------------------------------------------------------------------------------
 std::string Capitalize(std::string st)
 {
   st[0] = std::toupper(st[0]);

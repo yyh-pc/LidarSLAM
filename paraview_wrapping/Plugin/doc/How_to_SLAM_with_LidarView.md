@@ -243,7 +243,7 @@ To increase the processing speed, consider also tweaking these parameters:
 ## External sensors use
 
 External sensor information (wheel odometer OR IMU OR external poses) can be used in the SLAM process.
-They must be provided in a CSV file and come with a calibration matrix file (see below).
+They must be provided in a CSV file and can come with a calibration matrix file (see below).
 The possible fields of the CSV file are :
 
 - *time*: Posix time, in seconds, synchronized with the Lidar frame timestamps or at least to the packets reception time -> mandatory
@@ -257,7 +257,8 @@ The possible fields of the CSV file are :
 - *x/y/z/roll/pitch/yaw*: Absolute pose measurements in meters and radians (YXZ order) -> optional
 
 The calibration file must lay in the same directory as the CSV file and must be named *calibration_external_sensor.mat*. This calibration file must contain the 4x4 calibration matrix representing the transform from external poses sensor to Base frame (i.e. the tracked frame).
-If the calibration file is not provided, the information is supposed to be represented in **BASE** frame.
+If the calibration file is not provided, the calibration is estimated using the current SLAM
+trajectory and the loaded poses. If it is not possible (no current trajectory or no loaded poses), the calibration is set to identity, i.e. the information is supposed to be represented in **BASE** frame.
 
 **Example** :
 ```

@@ -8,9 +8,11 @@
       - [Online configuration](#online-configuration)
         - [Reset state](#reset-state)
         - [Map update modes](#map-update-modes)
+        - [Save the current trajectory](#save-the-current-trajectory)
         - [Save maps](#save-maps)
         - [Set pose](#set-pose)
         - [Switch ON/OFF the process](#switch-onoff-the-process)
+        - [Calibrate with external pose sensor](#calibrate-with-external-pose-sensor)
       - [Failure detection](#failure-detection)
   - [Optional external sensors use](#optional-external-sensors-use)
     - [Optional GPS use](#optional-gps-use)
@@ -122,6 +124,31 @@ Example :
 rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 9"
 ```
 
+##### Save the current trajectory
+At any time, the logged poses can be saved in a trajectory CSV file. This file contains several fields to represent the time and the transformation:
+* Time (in seconds)
+* X
+* Y
+* Z
+* rot(0,0)
+* rot(1,0)
+* ...
+* rot(3,3)
+
+**WARNING** Note that the rotation is represented in column major.
+
+The first line of the file contains the frame ID of the pose that is tracked.
+The second line is a header line with the field names.
+
+One can save the trajectory of the base frame :
+```bash
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 14, string_arg: /path/to/traj/traj.csv}"
+```
+or the trajectory of the LiDAR sensor :
+```bash
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 15, string_arg: /path/to/traj/traj.csv}"
+```
+
 ##### Save maps
 
 The current maps can be saved as PCD at any time publishing the command `SAVE_KEYPOINTS_MAPS` (to save the whole maps) or the command `SAVE_FILTERED_KEYPOINTS_MAPS` (to remove the potential moving objects) to `slam_command` topic:
@@ -140,9 +167,18 @@ At any time, a pose message (`PoseWithCovarianceStamped`) can be sent through th
 ##### Switch ON/OFF the process
 At any time, the SLAM can be switched ON/OFF using the command message :
 ```bash
-rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 14"
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "command: 13"
 ```
 This disables the sensor messages handling of the node.
+
+##### Calibrate with external pose sensor
+Another command allows to find the calibration transform between the current tracked pose and the pose tracked by an external sensor and stored in a CSV file. This CSV file must have the same format as the one described in [this section](#save-the-current-trajectory).
+
+```bash
+rostopic pub -1 /slam_command lidar_slam/SlamCommand "{command: 30, string_arg: /path/to/external/poses.csv}"
+```
+
+This command allows to estimate the calibration and to send a static TF transform between the base frame and the frame specified in the CSV file.
 
 #### Failure detection
 

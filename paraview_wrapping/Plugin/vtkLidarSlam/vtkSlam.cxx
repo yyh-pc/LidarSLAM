@@ -564,11 +564,11 @@ void vtkSlam::SetImuGravity(double x, double y, double z)
 }
 
 //-----------------------------------------------------------------------------
-Eigen::Isometry3d vtkSlam::GetCalibrationMatrix(const std::string& fileName) const
+bool vtkSlam::GetCalibrationMatrix(const std::string& fileName, Eigen::Isometry3d& calibration) const
 {
   // Look for file
   std::ifstream fin (fileName);
-  Eigen::Isometry3d base2Sensor = Eigen::Isometry3d::Identity();
+  calibration = Eigen::Isometry3d::Identity();
   if (fin.is_open())
   {
     // Parse elements
@@ -579,28 +579,27 @@ Eigen::Isometry3d vtkSlam::GetCalibrationMatrix(const std::string& fileName) con
       fin >> elementString;
       try
       {
-        base2Sensor.matrix()(i) = std::stof(elementString);
+        calibration.matrix()(i) = std::stof(elementString);
       }
       catch (...)
       {
-        vtkErrorMacro(<< "Calibration file not well formed"
-                      << " -> calibration is set to identity");
-        base2Sensor = Eigen::Isometry3d::Identity();
-        break;
+        vtkWarningMacro(<< "Calibration file not well formed"
+                        << " -> calibration is set to identity");
+        calibration = Eigen::Isometry3d::Identity();
+        return false;
       }
       ++i;
     }
-    base2Sensor.matrix().transposeInPlace();
+    calibration.matrix().transposeInPlace();
   }
   else
   {
-    vtkErrorMacro(<< "Could not find calibration file : "
-                  << fileName
-                  << " -> calibration is set to identity");
+    vtkWarningMacro(<< "No calibration file named "
+                    << fileName << " was found");
+    return false;
   }
-  vtkDebugMacro(<< "Calibration set to :\n"
-                << base2Sensor.matrix() << std::endl);
-  return base2Sensor;
+
+  return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -643,7 +642,8 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   boost::filesystem::path path(fileName);
   std::string calibFileName = (path.parent_path() / "calibration_external_sensor.mat").string();
   // Set calibration
-  Eigen::Isometry3d base2Sensor = this->GetCalibrationMatrix(calibFileName);
+  Eigen::Isometry3d base2Sensor;
+  bool calibrationSupplied = this->GetCalibrationMatrix(calibFileName, base2Sensor);
 
   bool extSensorFit = false;
 
@@ -770,6 +770,15 @@ void vtkSlam::SetSensorData(const std::string& fileName)
 
     PRINT_INFO("Pose data successfully loaded")
     extSensorFit = true;
+
+    bool calibrationEstimated = this->SlamAlgo->CalibrateWithExtPoses();
+    if (!calibrationSupplied && !calibrationEstimated)
+      vtkWarningMacro(<< this->GetClassName() << " (" << this
+                      << "): Calibration was not supplied for the external poses sensor, "
+                      << "and could not be estimated. It is set to identity.");
+    else if (calibrationEstimated)
+      vtkWarningMacro(<< "Calibration of the external poses sensor has been estimated using the trajectory provided to\n"
+                      << SlamAlgo->GetPoseCalibration().matrix());
   }
 
   if (!extSensorFit)
@@ -1664,7 +1673,7 @@ void vtkSlam::SetBaseToLidarTransform(std::string filename)
   if (filename.empty())
     baseToLidar = Eigen::Isometry3d::Identity();
   else
-    baseToLidar = this->GetCalibrationMatrix(filename);
+    this->GetCalibrationMatrix(filename, baseToLidar);
   vtkDebugMacro(<< "Setting BaseToLidarTransform to \n" << baseToLidar.matrix() << "\n");
   this->SlamAlgo->SetBaseToLidarOffset(baseToLidar);
   this->ParametersModificationTime.Modified();

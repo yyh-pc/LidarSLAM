@@ -385,6 +385,7 @@ protected:
   // Weight to apply to sensor info when used in local optimization
   double Weight = 0.;
   // Calibration transform with base_link and the sensor
+  // Sensor = Base * Calib
   Eigen::Isometry3d Calibration = Eigen::Isometry3d::Identity();
   // Time offset to make external sensors/Lidar correspondance
   // time_lidar = time_ext + offset
@@ -650,6 +651,17 @@ public:
 
   // Get pose at a specific timestamp
   Eigen::Isometry3d GetPose(double time = -1);
+
+  // Tool function to fill the poseMeasurements vector with poses synchronized with the input states
+  // The poseMeasurements output has the same size as states,
+  // but some poses can be empty if no synchronization was found
+  // The output poses track the ext pose sensor and are represented in the ext pose sensor reference frame
+  // It returns the first index in poseMeasurements for which a synchronized pose was found
+  int ComputeEquivalentTrajectory(const std::list<LidarState>& states,
+                                  std::vector<PoseMeasurement>& poseMeasurements);
+
+  // Compute calibration using the poses and the SLAM trajectory
+  bool ComputeCalibration(const std::list<LidarState>& states);
 
 protected:
   double PrevLidarTime = -1.;
