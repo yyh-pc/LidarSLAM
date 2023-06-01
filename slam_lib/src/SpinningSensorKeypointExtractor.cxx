@@ -241,8 +241,8 @@ void SpinningSensorKeypointExtractor::ComputeCurvature()
   while (azimuthMaxRad < 0)
     azimuthMaxRad += 2 * M_PI;
 
-  std::random_device rd;  // Will be used to obtain a seed for the random number engine
-  std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+  // Init random distribution
+  std::mt19937 gen(2023); // Fix seed for deterministic processes
   std::uniform_real_distribution<> dis(0.0, 1.0);
 
   // loop over scans lines
@@ -551,8 +551,8 @@ void SpinningSensorKeypointExtractor::ComputeIntensityEdges()
 //-----------------------------------------------------------------------------
 void SpinningSensorKeypointExtractor::ComputeBlobs()
 {
-  std::random_device rd;  // Will be used to obtain a seed for the random number engine
-  std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+  // Init random distribution
+  std::mt19937 gen(2023); // Fix seed for deterministic processes
   std::uniform_real_distribution<> dis(0.0, 1.0);
 
   for (unsigned int scanLine = 0; scanLine < this->NbLaserRings; ++scanLine)
