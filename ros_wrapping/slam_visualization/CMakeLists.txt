@@ -55,6 +55,9 @@ target_link_libraries(${PROJECT_NAME}
         ${rviz_LIBRARIES}
         ${QT_LIBRARIES})
 
+# To be sure to compile the lidar_slam interfaces before the project
+add_dependencies(${PROJECT_NAME} lidar_slam_generate_messages_cpp)
+
 #############
 ## Install ##
 #############

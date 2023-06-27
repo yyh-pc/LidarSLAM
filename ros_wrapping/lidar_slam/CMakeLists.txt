@@ -16,6 +16,8 @@ if (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
+option(BUILD_SLAM_LIB "Build the SLAM library before the ROS package" ON)
+
 # Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -66,9 +68,8 @@ generate_messages(
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
-catkin_package(
-  LIBRARIES LidarSlam
-  CATKIN_DEPENDS
+
+set(catkin_dependencies
   roscpp
   tf2_ros
   pcl_ros
@@ -81,9 +82,21 @@ catkin_package(
   apriltag_ros
 )
 
-###########
-## Build ##
-###########
+if (BUILD_SLAM_LIB)
+  # Export LidarSlam lib if built at the same time than ROS package
+  catkin_package (
+    LIBRARIES LidarSlam
+    CATKIN_DEPENDS ${catkin_dependencies}
+  )
+else()
+  catkin_package (
+    CATKIN_DEPENDS ${catkin_dependencies}
+  )
+endif()
+
+###############################################
+##        Set superbuild dependencies        ##
+###############################################
 
 # If lib_name has been installed with the superbuild, set lib_name_DIR to install_path
 function(SET_SB_LIB lib_name lib_install_path)
@@ -115,10 +128,23 @@ if (SUPERBUILD_INSTALL_DIR)
     message(FATAL_ERROR "PCL was built within the superbuild : this would cause runtime issues so the process is aborted.
     Rebuild the superbuild from scratch without PCL (`-DINSTALL_PCL=OFF`) and rebuild the ROS package afterwards.")
   endif()
+  if (NOT BUILD_SLAM_LIB)
+    SET_SB_LIB(LidarSlam "${SUPERBUILD_INSTALL_DIR}/lib/cmake/LidarSlam")
+  endif()
 endif()
 
-# Build LidarSlam lib which lies in parent directory
-add_subdirectory(../.. ${CMAKE_BINARY_DIR}/slam)
+###########
+## Build ##
+###########
+
+# Build the LidarSlam library or use an external one
+if (BUILD_SLAM_LIB)
+  add_subdirectory(../.. ${CMAKE_BINARY_DIR}/slam)
+  set(LidarSlam_target LidarSlam)
+else()
+  find_package(LidarSlam REQUIRED)
+  set(LidarSlam_target LidarSlam::LidarSlam)
+endif()
 
 # Add LiDAR SLAM ROS node
 add_executable(lidar_slam_node
@@ -140,7 +166,7 @@ else()
 endif()
 
 target_link_libraries(lidar_slam_node
-  LidarSlam
+  ${LidarSlam_target}
   ${catkin_LIBRARIES}
   ${optional_LIBRARIES}
 )
@@ -155,8 +181,11 @@ add_executable(aggregation_node
   src/AggregationNode.cxx
 )
 
+# Compile the lidar_slam interfaces before the node
+add_dependencies(aggregation_node lidar_slam_generate_messages_cpp)
+
 target_link_libraries(aggregation_node
-  LidarSlam
+  ${LidarSlam_target}
   ${catkin_LIBRARIES}
 )
 

@@ -45,6 +45,9 @@ target_link_libraries(lidar_slam_test_node
   ${catkin_LIBRARIES}
 )
 
+# To be sure to compile the lidar_slam interfaces before the project
+add_dependencies(lidar_slam_test_node lidar_slam_generate_messages_cpp)
+
 #############
 ## Install ##
 #############
