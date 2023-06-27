@@ -146,14 +146,18 @@ For Ouster usage, the driver can be found in this [git repo](https://github.com/
 
 ### Installation
 
-Clone this git repo directly into your workspace under the src directory
-git clone https://gitlab.kitware.com/keu-computervision/slam.git src/slam --recursive
+Clone this git repo directly into your catkin workspace (called **catkin_ws** in the following), under the src directory
+
+ ```bash
+ mkdir catkin_ws && cd catkin_ws
+ git clone https://gitlab.kitware.com/keu-computervision/slam.git src/slam --recursive
+```
 
 **NOTE** : Boost, g2o and PCL dependencies can be resolved wih ROS packages.
 **WARNING** : Be sure to use the same PCL library dependency for ROS basic tools and slam library to avoid compilation errors and/or segfaults.
 
 #### With system dependencies
-Run `catkin_make -DCMAKE_BUILD_TYPE=RelWithDebInfo` or `catkin_make -DCMAKE_BUILD_TYPE=Release` (to turn on optimizations, highly recommended when using Eigen). The same can be done with `catkin build`. It will automatically build *LidarSlam* lib before ROS packages.
+Run `catkin_make --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo` or `catkin_make --cmake-args -DCMAKE_BUILD_TYPE=Release` (to turn on optimizations, highly recommended when using Eigen). The same can be done with `catkin build`. By default, this will build *LidarSlam* lib before ROS packages. If you want to use your system LidarSlam, you need to set the cmake variable BUILD_SLAM_LIB to OFF : `catkin_make --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_SLAM_LIB=OFF`
 
 #### With local dependencies
 As with Core SLAM lib, you can use local dependencies for Slam lib by passing them to catkin.
@@ -165,6 +169,12 @@ Example for Ceres and g2o :
  catkin build -j -DCMAKE_BUILD_TYPE=Release --cmake-args -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
  ```
 
+If you want to use a local version of LidarSlam library you can specify to the package not to build it and supply the path to the LidarSlam cmake file :
+
+ ```bash
+ catkin build -j --cmake-args -DCMAKE_BUILD_TYPE=Release -DBUILD_SLAM_LIB=OFF -DLidarSlam_DIR=path/to/LidarSlam.cmake
+```
+
 #### With Superbuild
 The [superbuild](https://gitlab.kitware.com/keu-computervision/slam-superbuild/) can also download and install the required dependencies.
 
@@ -172,10 +182,8 @@ The [superbuild](https://gitlab.kitware.com/keu-computervision/slam-superbuild/)
 
 **WARNING** The superbuild must be installed outside of catkin workspace.
 
-Example :
+Example in parent directory of your catkin workspace (e.g. catkin_ws/..) :
  ```bash
- # Clone project
- git clone https://gitlab.kitware.com/keu-computervision/slam.git catkin_ws/src/slam --recursive
  # Build Superbuild
  mkdir SB-build && cd SB-build
  cmake ../catkin_ws/src/slam/slam-superbuild -GNinja -DCMAKE_BUILD_TYPE=Release -DINSTALL_PCL=OFF
@@ -186,6 +194,17 @@ Example :
   OR
  catkin build -j -DCMAKE_BUILD_TYPE=Release --cmake-args -DSUPERBUILD_INSTALL_DIR=absolute/path/to/superbuild/install
 ```
+
+The default behavior is that the ROS wrapping builds the SLAM library, but the superbuild can also install the SLAM library.
+It is possible to use the superbuild one by setting the BUILD_SLAM_SHARED_LIB variable to ON in superbuild build and BUILD_SLAM_LIB to OFF in ROS wrapping build.
+
+Example :
+ ```bash
+ mkdir SB-build && cd SB-build
+ cmake ../catkin_ws/src/slam/slam-superbuild -GNinja -DCMAKE_BUILD_TYPE=Release -DINSTALL_PCL=OFF -DBUILD_SLAM_SHARED_LIB=ON
+ cmake --build . -j
+ cd ../catkin_ws
+ catkin build -j --cmake-args -DCMAKE_BUILD_TYPE=Release -DSUPERBUILD_INSTALL_DIR=absolute/path/to/superbuild/install -DBUILD_SLAM_LIB=OFF
 
 ### Live usage
 
