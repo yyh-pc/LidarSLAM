@@ -164,9 +164,9 @@ As with Core SLAM lib, you can use local dependencies for Slam lib by passing th
 
 Example for Ceres and g2o :
  ```bash
- catkin_make -j -DCMAKE_BUILD_TYPE=Release --cmake-args -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
+ catkin_make -j --cmake-args -DCMAKE_BUILD_TYPE=Release  -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
   OR
- catkin build -j -DCMAKE_BUILD_TYPE=Release --cmake-args -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
+ catkin build -j --cmake-args -DCMAKE_BUILD_TYPE=Release -DCeres_DIR=path/to/CeresConfig.cmake -Dg2o_DIR=path/to/g2oConfig.cmake
  ```
 
 If you want to use a local version of LidarSlam library you can specify to the package not to build it and supply the path to the LidarSlam cmake file :
@@ -190,9 +190,9 @@ Example in parent directory of your catkin workspace (e.g. catkin_ws/..) :
  cmake --build . -j
  # Build Slam ROS package
  cd ../catkin_ws
- catkin_make -j -DCMAKE_BUILD_TYPE=Release --cmake-args -DSUPERBUILD_INSTALL_DIR=absolute/path/to/superbuild/install
+ catkin_make -j --cmake-args -DCMAKE_BUILD_TYPE=Release -DSUPERBUILD_INSTALL_DIR=absolute/path/to/superbuild/install
   OR
- catkin build -j -DCMAKE_BUILD_TYPE=Release --cmake-args -DSUPERBUILD_INSTALL_DIR=absolute/path/to/superbuild/install
+ catkin build -j --cmake-args -DCMAKE_BUILD_TYPE=Release -DSUPERBUILD_INSTALL_DIR=absolute/path/to/superbuild/install
 ```
 
 The default behavior is that the ROS wrapping builds the SLAM library, but the superbuild can also install the SLAM library.
