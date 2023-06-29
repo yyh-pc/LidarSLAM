@@ -354,15 +354,34 @@ public:
   // the computation time if this function is to be called on successive timestamps.
   Eigen::Isometry3d GetTworld(double time = -1., bool trackTime = false);
 
-  // Set world transform with an initial guess (usually from GPS after calibration).
-  void SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess);
+  // Set current pose and notify a discontinuity in the trajectory
+  // For interpolations/extrapolations and IMU preintegration
+  // WARNING : this function may break the map, a reset might be needed
+  // before calling this function
+  void SetTworld(const Eigen::Isometry3d& pose);
 
-  // Initialize pose using pose measurements
-  // This allows to represent the maps and the trajectory of Lidar
-  // in an external frame (not first Lidar frame)
-  // the time of the synchronized pose is input so no Lidar frame needs
-  // to have been loaded to use this function
-  bool InitTworldWithPoseMeasurement(double time = -1);
+  // Change the reference frame of the Lidar trajectory and maps
+  // odom <- odom * transform
+  // This can allow to recenter the trajectory to origin and to limit
+  // errors due to numbers precision
+  // It can also be used to place the Lidar in a map initially
+  void TransformOdom(const Eigen::Isometry3d& transform);
+
+  // Make TworldInit the first logged pose
+  // This is useful to keep a consistent map
+  // even after the logged poses have been updated
+  // and allow to keep odom frame consistent after PGO
+  // WARNING : the maps are not updated with the new trajectory
+  void ResetTrajWithTworldInit();
+
+  // Move odom to reference frame of external pose measurements:
+  // the whole trajectory is moved rigidly.
+  // As the trajectory may have drifted, a time is required to choose
+  // which poses to superimpose to derive the reference frames offset.
+  // If no time is input, the last logged state is used.
+  // If no Lidar frames are logged, the external pose
+  // at time is used as initial SLAM pose
+  bool MoveOdomToExtPosesRefFrame(double time = -1);
 
   // Save keypoints maps to disk for later use
   // Keypoints maps are rebuilt to recover removed points if the time threshold (DecayingThreshold) is set
@@ -912,8 +931,11 @@ private:
   // This pose is the pose of BASE in WORLD coordinates, at the time
   // corresponding to the timestamp in the header of input Lidar scan.
   Eigen::Isometry3d Tworld = Eigen::Isometry3d::Identity();
-  // Variable to store initial Tworld value (might be set by SetWorldTransformFromGuess)
+  // Variable to store the oldest logged pose
+  // before logging, it is set to the first pose that is found
+  // (set from outside or set using the external poses)
   // It is used to reset the pose in case of failure
+  // or to keep the odom frame link in case of PGO
   Eigen::Isometry3d TworldInit = Eigen::Isometry3d::Identity();
 
   // Reflect the success of the optimization for current input frames

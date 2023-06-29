@@ -843,14 +843,13 @@ bool Slam::OptimizeGraph()
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
+  IF_VERBOSE(3, Utils::Timer::Init("PGO : maps and trajectory update"));
+  // Replace Lidar SLAM poses in odom frame
+  this->ResetTrajWithTworldInit();
   // Update the maps from the beginning using the new trajectory
   // Points older than the first logged state remain untouched
-  IF_VERBOSE(3, Utils::Timer::Init("PGO : maps update"));
   this->UpdateMaps();
-  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : maps update"));
-
-  // The last pose has to be updated with new optimized pose
-  this->SetWorldTransformFromGuess(this->LogStates.back().Isometry);
+  IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : maps and trajectory update"));
 
   IF_VERBOSE(1, Utils::Timer::StopAndDisplay("Pose graph optimization"));
 
@@ -877,22 +876,71 @@ bool Slam::IsPGOConstraintEnabled(PGOConstraint constraint) const
 }
 
 //-----------------------------------------------------------------------------
-void Slam::SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess)
+void Slam::SetTworld(const Eigen::Isometry3d& pose)
 {
-  // Store pose in case of reinitialization need
-  this->TworldInit = poseGuess;
   // Set current pose
-  this->Tworld = poseGuess;
+  this->Tworld = pose;
 
   // Ego-Motion estimation is not valid anymore since we imposed a discontinuity.
-  // We reset previous pose so that previous ego-motion extrapolation results in Identity matrix.
-  // We reset current frame keypoints so that ego-motion registration will be skipped for next frame.
-  if (!this->LogStates.empty())
-    this->LogStates.back().Isometry = this->Tworld;
+  // The new pose is added to logged states with unvalidated time so no inter/extra-polation is possible.
+  LidarState state;
+  state.Isometry = this->Tworld;
+  state.Time = 0; // unvalid time to avoid interpolations/extrapolations
+  state.Index = UINT_MAX;
+  state.IsKeyFrame = false; // this will be removed as soon as it is not needed anymore
+  this->LogStates.emplace_back(state);
+  // Reset TworldInit if it has changed
+  this->TworldInit = this->LogStates.front().Isometry;
+  // Current frame keypoints are reset so that ego-motion registration is skipped for next frame if required
   for (auto k : this->UsableKeypoints)
     this->CurrentRawKeypoints[k].reset(new PointCloud);
+
+  // Reset Imu base pose to notify the discontinuity
   if (this->ImuManager)
     this->ImuManager->SetInitBasePose(this->Tworld);
+}
+
+//-----------------------------------------------------------------------------
+void Slam::TransformOdom(const Eigen::Isometry3d& offset)
+{
+  // Store inverse of transform to limit computations
+  Eigen::Isometry3d offsetInv = offset.inverse();
+
+  // Transform current TworldInit
+  this->TworldInit = offsetInv * this->TworldInit;
+
+  // Transform all poses in new odom frame
+  // odom_new = odom * offset
+  // offset * T_base_new = T_base
+  // T_base_new = offset^-1 * T_base
+  for (auto& s : this->LogStates)
+  {
+    // Rotate covariance
+    Eigen::Vector6d initPose = Utils::IsometryToXYZRPY(s.Isometry);
+    CeresTools::RotateCovariance(initPose, s.Covariance, offsetInv, true); // new = offsetInv * init
+    // Transform pose
+    s.Isometry = offsetInv * s.Isometry;
+  }
+  // Reset Tworld
+  this->Tworld = this->LogStates.empty()? this->TworldInit
+                                        : Eigen::Isometry3d(this->LogStates.back().Isometry);
+
+  // Transform the maps
+  for (auto k : this->UsableKeypoints)
+  {
+    PointCloud::Ptr keypoints = this->LocalMaps[k]->Get();
+    pcl::transformPointCloud(*keypoints, *keypoints, offsetInv.matrix());
+    this->LocalMaps[k]->Reset();
+    this->LocalMaps[k]->Add(keypoints);
+  }
+}
+
+//----------------------------------------------------------------
+void Slam::ResetTrajWithTworldInit()
+{
+  // We update odom frame so Tworld becomes TworldInit in this new frame
+  // offset * TworldInit = T_base
+  this->TransformOdom(this->LogStates.front().Isometry * this->TworldInit.inverse());
 }
 
 //-----------------------------------------------------------------------------
@@ -1188,18 +1236,18 @@ void Slam::ExtractKeypoints()
 }
 
 //-----------------------------------------------------------------------------
-bool Slam::InitTworldWithPoseMeasurement(double time)
+bool Slam::MoveOdomToExtPosesRefFrame(double time)
 {
   // Compute synchronized pose
   if (!this->PoseManager)
   {
-    PRINT_WARNING("No external pose manager : Lidar pose not initialized")
+    PRINT_WARNING("No external pose manager : SLAM trajectory and pose are not updated")
     return false;
   }
 
   if (time < 0 && this->LogStates.empty())
   {
-    PRINT_WARNING("No indicated time and LogStates is empty : Lidar pose not initialized")
+    PRINT_WARNING("No indicated time and LogStates is empty : SLAM trajectory and pose are not updated")
     return false;
   }
 
@@ -1209,7 +1257,7 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
     ExternalSensors::PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
     if (!this->PoseManager->ComputeSynchronizedMeasureBase(time, synchMeas))
     {
-      PRINT_WARNING("Cannot find synchronized pose measurement : Lidar pose not initialized")
+      PRINT_WARNING("Cannot find a pose measurement for the input time : SLAM trajectory and pose are not updated")
       return false;
     }
     this->TworldInit = synchMeas.Pose;
@@ -1226,7 +1274,7 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
     ExternalSensors::PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
     if (!this->PoseManager->ComputeSynchronizedMeasureBase(itSt->Time, synchMeas))
     {
-      PRINT_WARNING("Cannot find synchronized pose measurement : Lidar pose not initialized")
+      PRINT_WARNING("Cannot find a pose measurement for the input time : SLAM trajectory and pose are not updated")
       return false;
     }
 
@@ -1248,7 +1296,7 @@ bool Slam::InitTworldWithPoseMeasurement(double time)
     this->UpdateMaps(true);
   }
 
-  PRINT_VERBOSE(1, "Pose initialized with external pose measurement");
+  PRINT_VERBOSE(1, "SLAM pose is now represented in the external poses reference frame");
   return true;
 }
 
@@ -1648,6 +1696,8 @@ void Slam::LogCurrentFrameState()
     ++itSt;
     this->LogStates.pop_front();
   }
+  // Link TworldInit to the oldest logged pose
+  this->TworldInit = this->LogStates.front().Isometry;
 }
 
 //-----------------------------------------------------------------------------
@@ -3085,7 +3135,6 @@ bool Slam::CalibrateWithGps()
 
   // Update the maps and the pose with the new trajectory
   this->UpdateMaps();
-  this->SetWorldTransformFromGuess(this->LogStates.back().Isometry);
 
   // Set refined offset : first Lidar pose + initial offset
   firstInverse.translation() += offset.translation();
