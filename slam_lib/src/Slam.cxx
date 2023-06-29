@@ -409,10 +409,8 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   // 2) To ensure a fix reference point, the global optimization must refine
   // poses relatively to starting point, i.e, last pose can have changed.
   // If LogStates empty, do not modify Tworld (must be identity after Reset)
-  if (!this->LogStates.empty())
-    this->Tworld = this->LogStates.back().Isometry;
-  else
-    this->Tworld = this->TworldInit;
+  this->Tworld = this->LogStates.empty()? this->TworldInit
+                                        : Eigen::Isometry3d(this->LogStates.back().Isometry);
 
   // Create UsableKeypointTypes for new frame
   // The keypoints cannot be chosen while processing a frame
@@ -1519,7 +1517,8 @@ void Slam::Localization()
 
   // Reset state to previous one to avoid instability
   if (!this->OptimizationValid)
-    this->Tworld = this->LogStates.empty()? this->TworldInit : Eigen::Isometry3d(this->LogStates.back().Isometry);
+    this->Tworld = this->LogStates.empty()? this->TworldInit
+                                          : Eigen::Isometry3d(this->LogStates.back().Isometry);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Localization : whole ICP-LM loop"));
 
