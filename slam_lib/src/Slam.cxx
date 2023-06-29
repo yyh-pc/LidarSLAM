@@ -846,6 +846,7 @@ bool Slam::OptimizeGraph()
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : optimization"));
 
   // Update the maps from the beginning using the new trajectory
+  // Points older than the first logged state remain untouched
   IF_VERBOSE(3, Utils::Timer::Init("PGO : maps update"));
   this->UpdateMaps();
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : maps update"));
