@@ -124,7 +124,12 @@ void vtkSlam::Reset()
   // Init the SLAM state (map + pose)
   if (!this->InitMapPrefix.empty())
     this->SlamAlgo->LoadMapsFromPCD(this->InitMapPrefix);
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
+  // Setting initial SLAM pose is equivalent to move odom frame
+  // so the first pose corresponds to the input in this new frame
+  // T_base = offset * T_base_new
+  // offset = T_base * T_base_new^-1
+  // T_base is identity at initialization
+  this->SlamAlgo->TransformOdom(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose).inverse());
 
   // Init the output SLAM trajectory
   this->ResetTrajectory();
@@ -263,7 +268,9 @@ void vtkSlam::SetInitialPoseTranslation(double x, double y, double z)
   this->InitPose.x() = x;
   this->InitPose.y() = y;
   this->InitPose.z() = z;
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
+  // Setting initial SLAM pose is equivalent to move odom frame
+  // so the first pose corresponds to the input in this new frame
+  this->SlamAlgo->TransformOdom(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose).inverse());
   this->ParametersModificationTime.Modified();
 }
 
@@ -274,7 +281,9 @@ void vtkSlam::SetInitialPoseRotation(double roll, double pitch, double yaw)
   this->InitPose(3) = roll;
   this->InitPose(4) = pitch;
   this->InitPose(5) = yaw;
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
+  // Setting initial SLAM pose is equivalent to move odom frame
+  // so the first pose corresponds to the input in this new frame
+  this->SlamAlgo->TransformOdom(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose).inverse());
   this->ParametersModificationTime.Modified();
 }
 
