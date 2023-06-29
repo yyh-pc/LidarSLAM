@@ -678,14 +678,15 @@ void LidarSlamNode::ReadTags(const std::string& path)
 //------------------------------------------------------------------------------
 void LidarSlamNode::SetPoseCallback(const geometry_msgs::PoseWithCovarianceStamped& msg)
 {
-  // Get transform between msg frame and odometry frame
-  Eigen::Isometry3d msgFrameToOdom;
-  if (Utils::Tf2LookupTransform(msgFrameToOdom, this->TfBuffer, msg.header.frame_id, this->OdometryFrameId, msg.header.stamp))
+  // Get offset between Lidar SLAM ref frame (odom)
+  // and pose message reference frame (msg.header.frame_id)
+  Eigen::Isometry3d offset;
+  if (Utils::Tf2LookupTransform(offset, this->TfBuffer, this->OdometryFrameId, msg.header.frame_id, msg.header.stamp))
   {
     // Compute pose in odometry frame and set SLAM pose
-    Eigen::Isometry3d odomToBase = msgFrameToOdom.inverse() * Utils::PoseMsgToIsometry(msg.pose.pose);
-    this->LidarSlam.SetWorldTransformFromGuess(odomToBase);
-    ROS_WARN_STREAM("SLAM pose set to :\n" << odomToBase.matrix());
+    Eigen::Isometry3d poseInOdom = offset * Utils::PoseMsgToIsometry(msg.pose.pose);
+    this->LidarSlam.SetTworld(poseInOdom);
+    ROS_WARN_STREAM("SLAM pose set to :\n" << poseInOdom.matrix());
     // TODO: properly deal with covariance: rotate it, pass it to SLAM, notify trajectory jump?
   }
 }
@@ -735,7 +736,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       // Warning : this hypothesis can be totally wrong and lead to bad registrations
       Eigen::Isometry3d pose = this->LidarSlam.GetLogStates().front().Isometry;
       pose.translation() = position;
-      this->LidarSlam.SetWorldTransformFromGuess(pose);
+      this->LidarSlam.SetTworld(pose);
       ROS_WARN_STREAM("SLAM pose set from GPS pose to :\n" << pose.matrix());
       break;
     }
@@ -1429,12 +1430,17 @@ void LidarSlamNode::SetSlamInitialState()
     this->LidarSlam.SetLandmarkConstraintLocal(true);
 
   // Set initial SLAM pose if requested
+  // Setting initial SLAM pose is equivalent to move odom frame
+  // so the first pose corresponds to the input in this new frame
+  // T_base = offset * T_base_new
+  // offset = T_base * T_base_new^-1
+  // T_base is identity at initialization
   std::vector<double> initialPose;
   if (this->PrivNh.getParam("maps/initial_pose", initialPose) && initialPose.size() == 6)
   {
-    Eigen::Isometry3d poseTransform = LidarSlam::Utils::XYZRPYtoIsometry(initialPose.data());
-    this->LidarSlam.SetWorldTransformFromGuess(poseTransform);
-    ROS_INFO_STREAM("Setting initial SLAM pose to:\n" << poseTransform.matrix());
+    Eigen::Isometry3d initialTransform = LidarSlam::Utils::XYZRPYtoIsometry(initialPose.data());
+    this->LidarSlam.TransformOdom(initialTransform.inverse());
+    ROS_INFO_STREAM("Setting initial SLAM pose to:\n" << initialTransform.matrix());
   }
 }
 
