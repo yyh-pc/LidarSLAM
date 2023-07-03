@@ -755,7 +755,7 @@ bool PoseManager::ComputeCalibration(const std::list<LidarState>& states)
   residuals.reserve(states.size()); // reserve max size
 
   Eigen::Vector7d calibXYZQuat = Utils::IsometryToXYZQuat(this->Calibration);
-  int idxPose = 0;
+  int idxPose = startIdxPose;
   for (auto it = itStart; it != states.end(); ++it)
   {
     PoseMeasurement& synchMeas = poseMeasurements[idxPose];
