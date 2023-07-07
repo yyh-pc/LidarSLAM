@@ -275,6 +275,10 @@ protected:
   // In case of failure, duration (in seconds) to come back in time to previous state
   float RecoveryTime = 1.f;
 
+  // Boolean to signal the trajectory was planar and a
+  // degree of liberty is missing when looking for a calibration
+  bool PlanarTrajectory = false;
+
   // Landmarks
   ros::Subscriber LandmarksSub;
   bool PublishTags = false;

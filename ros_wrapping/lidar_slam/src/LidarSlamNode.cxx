@@ -967,7 +967,7 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       if (frameId.empty())
         return;
       // Calibrate the external poses with current SLAM trajectory
-      this->LidarSlam.CalibrateWithExtPoses();
+      this->LidarSlam.CalibrateWithExtPoses(this->PlanarTrajectory);
       // Get the calibration
       Eigen::Isometry3d calibration = this->LidarSlam.GetPoseCalibration();
 
@@ -1314,6 +1314,7 @@ void LidarSlamNode::SetSlamParameters()
   this->PublishTags    = this->PrivNh.param("external_sensors/landmark_detector/publish_tags", false);
   SetSlamParam(float,   "external_sensors/camera/weight", CameraWeight)
   SetSlamParam(float,   "external_sensors/camera/saturation_distance", CameraSaturationDistance)
+  this->PlanarTrajectory = this->PrivNh.param("external_sensors/calibration/planar_trajectory", this->PlanarTrajectory);
 
   // Graph parameters
   SetSlamParam(std::string, "graph/g2o_file_name", G2oFileName)
