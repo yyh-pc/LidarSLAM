@@ -725,7 +725,7 @@ int PoseManager::ComputeEquivalentTrajectory(const std::list<LidarState>& states
 }
 
 // ---------------------------------------------------------------------------
-bool PoseManager::ComputeCalibration(const std::list<LidarState>& states)
+bool PoseManager::ComputeCalibration(const std::list<LidarState>& states, bool planarTrajectory)
 {
   if (states.size() <= 2)
   {
@@ -800,6 +800,35 @@ bool PoseManager::ComputeCalibration(const std::list<LidarState>& states)
     PRINT_INFO(summary.BriefReport());
   if (this->Verbose)
     PRINT_INFO("External pose calibration estimated to : \n" << this->Calibration.matrix());
+
+  // If the trajectories are planar (vehicle case)
+  // An uncertainty remains in translation (z world axes).
+  // So we remove the translation on this direction to get rid of numerical issues
+  if (planarTrajectory)
+  {
+    // Compute direction of less translation variance (eq. normal)
+    pcl::PointCloud<pcl::PointXYZ> positions;
+    for (auto it = itStart; it != states.end(); ++it)
+    {
+      pcl::PointXYZ point;
+      point.getVector3fMap() = (refSLAMInv * it->Isometry).translation().cast<float>();
+      positions.push_back(point);
+    }
+    std::vector<int> indices(positions.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    Eigen::Vector3d centroid;
+    Eigen::Matrix3d eigenVectors;
+    Eigen::Vector3d eigenValues;
+    Utils::ComputeMeanAndPCA(positions, indices, centroid, eigenVectors, eigenValues);
+    Eigen::Vector3d trajNormal = eigenVectors.col(0);
+    // Represent the trajectory normal into base frame
+    // We use the first synchronized base pose but
+    // if it is a planar trajectory trajNormal should be the same in all
+    // base poses (it should be the only rotation axis)
+    trajNormal = itStart->Isometry.linear().inverse() * trajNormal;
+    this->Calibration.translation() = this->Calibration.translation() -
+                                      this->Calibration.translation().dot(trajNormal) * trajNormal;
+  }
 
   return true;
 }

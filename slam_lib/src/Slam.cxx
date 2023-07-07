@@ -3218,11 +3218,11 @@ void Slam::SetPoseCalibration(const Eigen::Isometry3d& calib)
 }
 
 //-----------------------------------------------------------------------------
-bool Slam::CalibrateWithExtPoses()
+bool Slam::CalibrateWithExtPoses(bool planarTrajectory)
 {
   if (!this->PoseManager)
     return false;
-  return this->PoseManager->ComputeCalibration(this->LogStates);
+  return this->PoseManager->ComputeCalibration(this->LogStates, planarTrajectory);
 }
 
 // RGB camera
