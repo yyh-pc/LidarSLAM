@@ -760,7 +760,8 @@ bool PoseManager::ComputeCalibration(const std::list<LidarState>& states, bool p
   std::vector<CeresTools::Residual> residuals;
   residuals.reserve(states.size()); // reserve max size
 
-  Eigen::Vector7d calibXYZQuat = Utils::IsometryToXYZQuat(this->Calibration);
+  Eigen::Vector7d calibXYZQuat;
+  calibXYZQuat << 0, 0, 0, 0, 0, 0, 1;
   int idxPose = startIdxPose;
   for (auto it = itStart; it != states.end(); ++it)
   {
@@ -795,7 +796,7 @@ bool PoseManager::ComputeCalibration(const std::list<LidarState>& states, bool p
   // Run optimization
   ceres::Solver::Summary summary;
   ceres::Solve(LMoptions, &problem, &summary);
-  this->Calibration = Utils::XYZQuatToIsometry(calibXYZQuat);
+  this->Calibration = this->Calibration * Utils::XYZQuatToIsometry(calibXYZQuat);
   if (this->Verbose)
     PRINT_INFO(summary.BriefReport());
   if (this->Verbose)
