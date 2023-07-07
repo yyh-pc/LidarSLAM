@@ -110,6 +110,23 @@
 
       <!--~~~~~~~~~~~~~~~~~~~~~~~~~ Inputs options ~~~~~~~~~~~~~~~~~~~~~~~~~~-->
 
+      <!--This is placed before external sensor file for update order issue-->
+      <IntVectorProperty name="Planar trajectory"
+                         command="SetPlanarTrajectory"
+                         number_of_elements="1"
+                         default_values="0"
+                         panel_visibility="advanced">
+        <BooleanDomain name="bool" />
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility" inverse="1" property="External sensors data file" value="" />
+        </Hints>
+        <Documentation>
+          If checked, the automatic calibration between external poses and the tracked frame
+          will not take the world z axis into account because of the missing degree of liberty.
+          If the calibration is provided, or if the sensor file does not contain external poses, this option has no effect.
+        </Documentation>
+      </IntVectorProperty>
+
       <!-- Sensor data file must be csv.
            A field time is necessary with same reference as Lidar data or TCP/UDP packets
            Possible sensor fields are :
@@ -391,6 +408,7 @@
         <Property name="Rebuild maps" />
         <Property name="Clear maps" />
         <Property name="External sensors data file" />
+        <Property name="Planar trajectory" />
         <Property name="Reload trajectory" />
         <Property name="Auto detect input arrays" />
         <Property name="Time array" />

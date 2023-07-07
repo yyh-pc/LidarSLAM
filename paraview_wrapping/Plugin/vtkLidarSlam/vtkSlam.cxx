@@ -680,7 +680,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   std::string calibFileName = (path.parent_path() / "calibration_external_sensor.mat").string();
   // Set calibration
   Eigen::Isometry3d base2Sensor;
-  bool calibrationSupplied = this->GetCalibrationMatrix(calibFileName, base2Sensor);
+  this->CalibrationSupplied = this->GetCalibrationMatrix(calibFileName, base2Sensor);
 
   bool extSensorFit = false;
 
@@ -837,9 +837,9 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     extSensorFit = true;
 
     bool calibrationEstimated = false;
-    if (!calibrationSupplied)
-      calibrationEstimated = this->SlamAlgo->CalibrateWithExtPoses();
-    if (!calibrationSupplied && !calibrationEstimated)
+    if (!this->CalibrationSupplied)
+      calibrationEstimated = this->SlamAlgo->CalibrateWithExtPoses(this->PlanarTrajectory);
+    if (!this->CalibrationSupplied && !calibrationEstimated)
       vtkWarningMacro(<< this->GetClassName() << " (" << this
                       << "): Calibration was not supplied for the external poses sensor, "
                       << "and could not be estimated. It is set to identity.");
@@ -2021,6 +2021,26 @@ void vtkSlam::SetLoopRevisitedIdx(unsigned int loopClosureRevisitedIdx)
   if (this->SlamAlgo->GetLoopRevisitedIdx() != loopClosureRevisitedIdx)
   {
     this->SlamAlgo->SetLoopRevisitedIdx(loopClosureRevisitedIdx);
+    this->ParametersModificationTime.Modified();
+  }
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetPlanarTrajectory(bool planarTraj)
+{
+  if (planarTraj != this->PlanarTrajectory)
+  {
+    this->PlanarTrajectory = planarTraj;
+    vtkDebugMacro(<< "Setting planarTrajectory argument to " << planarTraj);
+    bool calibrationEstimated = false;
+    if (!this->CalibrationSupplied && this->SlamAlgo->PoseHasData())
+    {
+      // Estimate calibration with new planarTraj value
+      // Reset calibration, do not trust previous one
+      if (this->SlamAlgo->CalibrateWithExtPoses(this->PlanarTrajectory))
+        vtkWarningMacro(<< "Calibration of the external poses sensor has been estimated using the trajectory provided to\n"
+                        << SlamAlgo->GetPoseCalibration().matrix());
+    }
     this->ParametersModificationTime.Modified();
   }
 }

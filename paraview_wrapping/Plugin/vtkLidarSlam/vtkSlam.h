@@ -186,6 +186,9 @@ public:
   vtkGetMacro(TrajFrequency, double)
   vtkSetMacro(TrajFrequency, double)
 
+  vtkGetMacro(PlanarTrajectory, bool)
+  void SetPlanarTrajectory(bool planarTraj);
+
   // ---------------------------------------------------------------------------
   //   Graph parameters
   // ---------------------------------------------------------------------------
@@ -647,6 +650,18 @@ private:
 
   // Output trajectory require frequency (Hz)
   double TrajFrequency = -1;
+
+  // Boolean used in calibration with external poses
+  // to precise if the the trajectory was planar (one degree of liberty missing)
+  // so we consider there is no lever arm in world z direction
+  // This might be the case for vehicle acquisitions
+  // If the boolean is set to false and the trajectory is planar
+  // A big translation uncertainty might be added, leading to numerical unstability
+  bool PlanarTrajectory = false;
+
+  // Boolean to store the fact that a calibration has been supplied
+  // with external sensors info (used in recalibration)
+  bool CalibrationSupplied = false;
 };
 
 #endif // VTK_SLAM_H
