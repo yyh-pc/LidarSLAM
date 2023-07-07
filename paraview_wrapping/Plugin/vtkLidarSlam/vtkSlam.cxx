@@ -763,6 +763,8 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   }
 
   // Process Pose data
+  bool posesLoaded = false;
+  // 1_ Format XYZRPY (with PRY convention)
   if (csvTable->GetRowData()->HasArray("x")
    && csvTable->GetRowData()->HasArray("y")
    && csvTable->GetRowData()->HasArray("z")
@@ -793,7 +795,48 @@ void vtkSlam::SetSensorData(const std::string& fileName)
       meas.Covariance = LidarSlam::Utils::CreateDefaultCovariance();
       this->SlamAlgo->AddPoseMeasurement(meas);
     }
+    posesLoaded = true;
+  }
 
+  // 2_ Matrix format
+  if (csvTable->GetRowData()->HasArray("x")
+   && csvTable->GetRowData()->HasArray("y")
+   && csvTable->GetRowData()->HasArray("z")
+   && csvTable->GetRowData()->HasArray("x0")
+   && csvTable->GetRowData()->HasArray("x1")
+   && csvTable->GetRowData()->HasArray("x2"))
+  {
+    this->SlamAlgo->SetPoseCalibration(base2Sensor);
+    auto arrayX   = csvTable->GetRowData()->GetArray("x");
+    auto arrayY   = csvTable->GetRowData()->GetArray("y");
+    auto arrayZ   = csvTable->GetRowData()->GetArray("z");
+    auto arrayX0  = csvTable->GetRowData()->GetArray("x0" );
+    auto arrayX1  = csvTable->GetRowData()->GetArray("x1" );
+    auto arrayX2  = csvTable->GetRowData()->GetArray("x2" );
+    auto arrayY0  = csvTable->GetRowData()->GetArray("y0" );
+    auto arrayY1  = csvTable->GetRowData()->GetArray("y1" );
+    auto arrayY2  = csvTable->GetRowData()->GetArray("y2" );
+    auto arrayZ0  = csvTable->GetRowData()->GetArray("z0" );
+    auto arrayZ1  = csvTable->GetRowData()->GetArray("z1" );
+    auto arrayZ2  = csvTable->GetRowData()->GetArray("z2" );
+
+    for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
+    {
+      LidarSlam::ExternalSensors::PoseMeasurement meas;
+      meas.Time = arrayTime->GetTuple1(i);
+      // Derive Isometry
+      meas.Pose.matrix() << arrayX0->GetTuple1(i), arrayY0->GetTuple1(i), arrayZ0->GetTuple1(i), arrayX->GetTuple1(i),
+                            arrayX1->GetTuple1(i), arrayY1->GetTuple1(i), arrayZ1->GetTuple1(i), arrayY->GetTuple1(i),
+                            arrayX2->GetTuple1(i), arrayY2->GetTuple1(i), arrayZ2->GetTuple1(i), arrayZ->GetTuple1(i),
+                            0, 0, 0, 1;
+      meas.Covariance = LidarSlam::Utils::CreateDefaultCovariance();
+      this->SlamAlgo->AddPoseMeasurement(meas);
+    }
+    posesLoaded = true;
+  }
+
+  if (posesLoaded)
+  {
     PRINT_INFO("Pose data successfully loaded")
     extSensorFit = true;
 
