@@ -796,7 +796,9 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     PRINT_INFO("Pose data successfully loaded")
     extSensorFit = true;
 
-    bool calibrationEstimated = this->SlamAlgo->CalibrateWithExtPoses();
+    bool calibrationEstimated = false;
+    if (!calibrationSupplied)
+      calibrationEstimated = this->SlamAlgo->CalibrateWithExtPoses();
     if (!calibrationSupplied && !calibrationEstimated)
       vtkWarningMacro(<< this->GetClassName() << " (" << this
                       << "): Calibration was not supplied for the external poses sensor, "
