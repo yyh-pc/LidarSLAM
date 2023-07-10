@@ -36,6 +36,7 @@ SlamControlPanel::SlamControlPanel(QWidget* parent)
   this->CommandPublisher = this->Nh.advertise<lidar_slam::SlamCommand>("slam_command", 1);
   this->ConfidenceSubscriber =
     this->Nh.subscribe("slam_confidence", 5, &SlamControlPanel::SlamConfidenceCallback, this);
+  this->ResetClient = this->Nh.serviceClient<lidar_slam::reset>("lidar_slam/reset");
 }
 
 //----------------------------------------------------------------------------
@@ -175,7 +176,11 @@ void SlamControlPanel::CreateLayout()
 //----------------------------------------------------------------------------
 void SlamControlPanel::ResetSlamState()
 {
+  // Send command to reset the SLAM algorithm
   this->SendCommand(lidar_slam::SlamCommand::RESET_SLAM);
+  // Call service for aggregation node
+  lidar_slam::reset srv;
+  this->ResetClient.call(srv);
 }
 
 //----------------------------------------------------------------------------

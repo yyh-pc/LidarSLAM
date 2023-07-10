@@ -23,6 +23,7 @@
 #include <QPushButton>
 #include <lidar_slam/Confidence.h>
 #include <lidar_slam/SlamCommand.h>
+#include <lidar_slam/reset.h>
 #include <ros/node_handle.h>
 #include <ros/publisher.h>
 #include <ros/subscriber.h>
@@ -149,6 +150,7 @@ private:
   ros::NodeHandle Nh;
   ros::Publisher CommandPublisher;
   ros::Subscriber ConfidenceSubscriber;
+  ros::ServiceClient ResetClient;
 
   // Path storage
   std::string TrajectoryPath;
