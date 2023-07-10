@@ -37,6 +37,7 @@ SlamControlPanel::SlamControlPanel(QWidget* parent)
   this->ConfidenceSubscriber =
     this->Nh.subscribe("slam_confidence", 5, &SlamControlPanel::SlamConfidenceCallback, this);
   this->ResetClient = this->Nh.serviceClient<lidar_slam::reset>("lidar_slam/reset");
+  this->SavePcClient = this->Nh.serviceClient<lidar_slam::save_pc>("lidar_slam/save_pc");
 }
 
 //----------------------------------------------------------------------------
@@ -223,7 +224,13 @@ void SlamControlPanel::SetTrajPath(const QString &text)
 //----------------------------------------------------------------------------
 void SlamControlPanel::SaveMaps()
 {
+  // Save SLAM maps of keypoints
   this->SendCommand(lidar_slam::SlamCommand::SAVE_FILTERED_KEYPOINTS_MAPS, this->MapsPath);
+  // Save aggregated points if available
+  lidar_slam::save_pc srv;
+  srv.request.output_prefix_path = this->MapsPath;
+  srv.request.format = 0;
+  this->SavePcClient.call(srv);
 }
 
 //----------------------------------------------------------------------------

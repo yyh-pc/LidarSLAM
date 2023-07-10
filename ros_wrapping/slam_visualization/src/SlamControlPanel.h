@@ -24,6 +24,7 @@
 #include <lidar_slam/Confidence.h>
 #include <lidar_slam/SlamCommand.h>
 #include <lidar_slam/reset.h>
+#include <lidar_slam/save_pc.h>
 #include <ros/node_handle.h>
 #include <ros/publisher.h>
 #include <ros/subscriber.h>
@@ -151,6 +152,7 @@ private:
   ros::Publisher CommandPublisher;
   ros::Subscriber ConfidenceSubscriber;
   ros::ServiceClient ResetClient;
+  ros::ServiceClient SavePcClient;
 
   // Path storage
   std::string TrajectoryPath;
