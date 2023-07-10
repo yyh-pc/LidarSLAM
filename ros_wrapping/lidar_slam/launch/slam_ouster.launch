@@ -14,7 +14,7 @@
   <arg name="udp_dest" default="" doc="Hostname or IP where the sensor will send data packets"/>
   <arg name="lidar_port" default="0" doc="Port to which the sensor should send lidar data"/>
   <arg name="imu_port" default="0" doc="Port to which the sensor should send imu data"/>
-  <arg name="metadata_in" default="$(find ouster_ros)/../tests/metadata/1_14_beta_os1-991937000062-64_legacy.json" doc="Configuration file for Ouster data to replay"/>
+  <arg name="metadata_in" default="$(find lidar_conversions)/config/OS1_64_metadata.json" doc="Configuration file to replay if there is no topic /ouster/metadata in the Ouster bag"/>
   <arg name="metadata_out" default="" doc="Output Ouster config file"/>
   <!-- lidar_mode must be linked to frequency / rpm -->
   <arg name="lidar_mode" default="1024x10" doc="Lidar mode : 1024x10, 2048x10, 1024x20, 2048x20"/>
@@ -35,32 +35,27 @@
   <group if="$(arg os_driver)">
     <!-- Replay -->
     <group if="$(arg replay)">
-      <node pkg="ouster_ros" name="os_node" type="os_node" output="screen" required="true">
-        <param name="~/replay" value="true"/>
-        <param name="~/metadata" value="$(arg metadata_in)"/>
-      </node>
+      <include file="$(find ouster_ros)/launch/replay.launch">
+        <arg name="metadata" value="$(arg metadata_in)"/>
+        <arg name="viz" value="false"/>
+      </include>
     </group>
 
 
     <!-- Live -->
     <group unless="$(arg replay)">
-      <node pkg="ouster_ros" name="os_node" type="os_node" output="screen" required="true">
-        <param name="~/metadata" value="$(arg metadata_out)"/>
-        <param name="~/sensor_hostname" value="$(arg sensor_hostname)"/>
-        <param name="~/udp_dest" value="$(arg udp_dest)"/>
-        <param name="~/lidar_port" value="$(arg lidar_port)"/>
-        <param name="~/imu_port" value="$(arg imu_port)"/>
-        <param name="~/lidar_mode" value="$(arg lidar_mode)"/>
-        <param name="~/timestamp_mode" value="TIME_FROM_INTERNAL_OSC"/>
-        <param name="~/udp_profile_lidar" value="LEGACY"/>
-      </node>
+      <include file="$(find ouster_ros)/launch/sensor.launch">
+        <arg name="sensor_hostname" value="$(arg sensor_hostname)"/>
+        <arg name="udp_dest" value="$(arg udp_dest)"/>
+        <arg name="lidar_port" value="$(arg lidar_port)"/>
+        <arg name="imu_port" value="$(arg imu_port)"/>
+        <arg name="udp_profile_lidar" value="LEGACY"/>
+        <arg name="lidar_mode" value="$(arg lidar_mode)"/>
+        <arg name="timestamp_mode" value="TIME_FROM_INTERNAL_OSC"/>
+        <arg name="metadata" value="$(arg metadata_out)"/>
+        <arg name="viz" value="false"/>
+      </include>
     </group>
-
-    <node pkg="ouster_ros" type="os_cloud_node" name="os_cloud_node" output="screen" required="true">
-      <remap from="~/os_config" to="/os_node/os_config"/>
-      <remap from="~/lidar_packets" to="/os_node/lidar_packets"/>
-      <remap from="~/imu_packets" to="/os_node/imu_packets"/>
-    </node>
   </group>
 
   <!-- Ouster points conversion -->
