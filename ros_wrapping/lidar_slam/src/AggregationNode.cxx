@@ -47,6 +47,9 @@ AggregationNode::AggregationNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
   // Init service
   this->SaveService = nh.advertiseService("lidar_slam/save_pc", &AggregationNode::SavePointcloudService, this);
 
+  // Init service
+  this->RstService = nh.advertiseService("lidar_slam/reset", &AggregationNode::ResetService, this);
+
   // Init rolling grid with parameters
   this->DenseMap = std::make_shared<LidarSlam::RollingGrid>();
   // Voxel size
@@ -93,6 +96,15 @@ bool AggregationNode::SavePointcloudService(lidar_slam::save_pcRequest& req, lid
   std::string outputFilePath = outputPrefixPath.string() + "_" + std::to_string(int(ros::Time::now().toSec())) + ".pcd";
   LidarSlam::savePointCloudToPCD<PointS>(outputFilePath, *this->Pointcloud, f);
   ROS_INFO_STREAM("Pointcloud saved to " << outputFilePath);
+  res.success = true;
+  return true;
+}
+
+//------------------------------------------------------------------------------
+bool AggregationNode::ResetService(lidar_slam::resetRequest& req, lidar_slam::resetResponse& res)
+{
+  this->DenseMap->Reset();
+  ROS_INFO_STREAM("Resetting aggregation");
   res.success = true;
   return true;
 }
