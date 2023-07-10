@@ -50,20 +50,22 @@ With velodyne launch file:
 roslaunch lidar_slam slam_velodyne.launch   # in 1st shell
 rosbag play --clock <my_bag_file>  # in 2nd shell
 ```
-- When using it in real live conditions, use :
+- When using it in real live conditions, with the velodyne driver in parallel :
 ```bash
-roslaunch lidar_slam slam_velodyne.launch use_sim_time:=false
+roslaunch lidar_slam slam_velodyne.launch use_sim_time:=false vlp16_driver:=true device_ip:=<my_device_ip>
 ```
 
+**NOTE** : Ouster_driver has been tested on [this version](https://github.com/ouster-lidar/ouster-ros/commit/3f01e1d7001d8d21ac984566d17505b98905fa86) of Ouster Driver.
+It is not guaranteed to work with a future version.
 With ouster launch file:
 - To start SLAM when replaying a ouster rosbag file, run :
 ```bash
 roslaunch lidar_slam slam_ouster.launch   # in 1st shell
 rosbag play --clock <my_bag_file>  # in 2nd shell
 ```
-- When using it in real live conditions, use :
+- When using it in real live conditions, with the ouster driver in parallel :
 ```bash
-roslaunch lidar_slam slam_ouster.launch replay:=false
+roslaunch lidar_slam slam_ouster.launch replay:=false os_driver:=true sensor_hostname:=<sensor_ip>
 ```
 
 These launch files will start :
