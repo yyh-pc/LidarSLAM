@@ -126,6 +126,13 @@ public:
 
   //----------------------------------------------------------------------------
   /*!
+   * @brief     Optional external pose callback, adding an external pose to the SLAM
+   * @param[in] msg camera calibration
+   */
+  void ExtPoseCallback(const geometry_msgs::PoseWithCovarianceStamped& poseMsg);
+
+  //----------------------------------------------------------------------------
+  /*!
    * @brief     Set SLAM pose from external guess.
    * @param[in] msg The pose to use.
    *
@@ -291,6 +298,10 @@ protected:
   // Camera
   ros::Subscriber CameraSub;
   ros::Subscriber CameraInfoSub;
+
+  // External poses
+  ros::Subscriber ExtPoseSub;
+  std::string ExtPoseFrameId;
 };
 
 #endif // LIDAR_SLAM_NODE_H
