@@ -1294,6 +1294,10 @@ bool Slam::MoveOdomToExtPosesRefFrame(double time)
 
     // Update maps from the beginning using the new trajectory
     this->UpdateMaps(true);
+
+    // Notify the pose manager that the poses are now represented
+    // in the same reference frame as the SLAM trajectory
+    this->PoseManager->SetOffset(Eigen::Isometry3d::Identity());
   }
 
   PRINT_VERBOSE(1, "SLAM pose is now represented in the external poses reference frame");

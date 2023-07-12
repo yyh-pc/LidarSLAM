@@ -636,6 +636,9 @@ public:
   GetSensorMacro(DistanceThreshold, double)
   SetSensorMacro(DistanceThreshold, double)
 
+  GetSensorMacro(Offset, Eigen::Isometry3d)
+  SetSensorMacro(Offset, const Eigen::Isometry3d&)
+
   Interpolation::Model GetInterpolationModel() const {return this->Interpolator.GetModel();}
   void SetInterpolationModel(Interpolation::Model model) {this->Interpolator.SetModel(model);}
 
@@ -663,7 +666,15 @@ public:
   // Compute calibration using the poses and the SLAM trajectory
   bool ComputeCalibration(const std::list<LidarState>& states);
 
+  // Compute offset between the referential
+  // of external poses and the referential
+  // of SLAM poses using one of the poses
+  bool UpdateOffset(const std::list<LidarState>& states);
+
 protected:
+  // Rigid transfo between SLAM referential frame and
+  // the external poses referential frame (refSlam to refExt)
+  Eigen::Isometry3d Offset = Eigen::Isometry3d::Identity();
   double PrevLidarTime = -1.;
   Eigen::Isometry3d PrevPoseTransform = Eigen::Isometry3d::Identity();
   // Allow to rotate the covariance

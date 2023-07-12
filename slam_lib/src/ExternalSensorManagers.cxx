@@ -706,7 +706,13 @@ int PoseManager::ComputeEquivalentTrajectory(const std::list<LidarState>& states
     // Compute synchronized measures representing sensor frame
     PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
     if (this->ComputeSynchronizedMeasureBase(it->Time, synchMeas))
-      poseMeasurements[idxPose] = synchMeas;
+    {
+      poseMeasurements[idxPose].Time = synchMeas.Time;
+      // Apply offset to represent the pose in SLAM referential frame
+      poseMeasurements[idxPose].Pose = this->Offset * synchMeas.Pose;
+      Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(synchMeas.Pose);
+      poseMeasurements[idxPose].Covariance = CeresTools::RotateCovariance(xyzrpy, synchMeas.Covariance, this->Offset, true); // new = offset * init
+    }
     ++idxPose;
   }
 
@@ -794,6 +800,39 @@ bool PoseManager::ComputeCalibration(const std::list<LidarState>& states)
     PRINT_INFO(summary.BriefReport());
   if (this->Verbose)
     PRINT_INFO("External pose calibration estimated to : \n" << this->Calibration.matrix());
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+bool PoseManager::UpdateOffset(const std::list<LidarState>& states)
+{
+  // Use the first synchronized pose to estimate the offset
+  bool offsetComputed = false;
+  // We do not want output for the measure search
+  bool storeVerbose = this->Verbose;
+  this->Verbose = false;
+  for (auto& s : states)
+  {
+    PoseMeasurement synchMeas;
+    if (this->ComputeSynchronizedMeasureBase(s.Time, synchMeas)) // no verbose output
+    {
+      this->Offset = s.Isometry * synchMeas.Pose.inverse();
+      offsetComputed = true;
+      break;
+    }
+  }
+  this->Verbose = storeVerbose;
+  if (!offsetComputed)
+  {
+    PRINT_ERROR("Cannot compute offset, no synchronized pose measurement found"
+                << std::fixed << std::setprecision(9)
+                << "\t Measures contained in : ["
+                << this->Measures.front().Time << ","
+                << this->Measures.back().Time <<"]\n"
+                << std::scientific)
+    return false;
+  }
 
   return true;
 }
