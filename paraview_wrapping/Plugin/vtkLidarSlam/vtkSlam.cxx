@@ -85,6 +85,17 @@ vtkSmartPointer<T> CreateArray(const std::string& Name, int NumberOfComponents =
   array->SetName(Name.c_str());
   return array;
 }
+
+//-----------------------------------------------------------------------------
+bool CheckTableFields(vtkTable* csvTable, std::vector<std::string> fields)
+{
+  bool allFieldsHere = true;
+  for (const std::string& f : fields)
+    allFieldsHere = allFieldsHere && csvTable->GetRowData()->HasArray(f.c_str());
+
+  return allFieldsHere;
+}
+
 } // end of anonymous namespace
 } // end of Utils namespace
 
@@ -649,7 +660,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   vtkTable* csvTable = reader->GetOutput();
 
   // Check if time exists and extract it
-  if (!csvTable->GetRowData()->HasArray("time"))
+  if (!Utils::CheckTableFields(csvTable, {"time"}))
   {
     vtkErrorMacro(<< "No time found in external sensor file, loading aborted");
     return;
@@ -673,7 +684,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   bool extSensorFit = false;
 
   // Process wheel odometer data
-  if (csvTable->GetRowData()->HasArray("odom"))
+  if (Utils::CheckTableFields(csvTable, {"odom"}))
   {
     // this->SlamAlgo->SetWheelOdomCalibration(base2Sensor); // TODO : use calibration in SLAM process
     auto arrayOdom = csvTable->GetRowData()->GetArray("odom");
@@ -690,12 +701,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
 
   // Process IMU data
   #ifdef USE_GTSAM
-  if (csvTable->GetRowData()->HasArray("acc_x")
-   && csvTable->GetRowData()->HasArray("acc_y")
-   && csvTable->GetRowData()->HasArray("acc_z")
-   && csvTable->GetRowData()->HasArray("w_x")
-   && csvTable->GetRowData()->HasArray("w_y")
-   && csvTable->GetRowData()->HasArray("w_z"))
+  if (Utils::CheckTableFields(csvTable, {"acc_x", "acc_y", "acc_z", "w_x", "w_y", "w_z"}))
   {
     // Deduce frequency using time array
     // Build a frequency histogram and extract max bin
@@ -735,14 +741,10 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     PRINT_INFO("IMU data successfully loaded");
     extSensorFit = true;
   }
-  else if (csvTable->GetRowData()->HasArray("acc_x")
-        && csvTable->GetRowData()->HasArray("acc_y")
-        && csvTable->GetRowData()->HasArray("acc_z"))
+  else if (Utils::CheckTableFields(csvTable, {"acc_x", "acc_y", "acc_z"}))
   {
   #else
-  if (csvTable->GetRowData()->HasArray("acc_x")
-   && csvTable->GetRowData()->HasArray("acc_y")
-   && csvTable->GetRowData()->HasArray("acc_z"))
+  if (Utils::CheckTableFields(csvTable, {"acc_x", "acc_y", "acc_z"}))
   {
     // this->SlamAlgo->SetGravityCalibration(base2Sensor); // TODO : use calibration in SLAM process
   #endif
@@ -765,12 +767,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   // Process Pose data
   bool posesLoaded = false;
   // 1_ Format XYZRPY (with PRY convention)
-  if (csvTable->GetRowData()->HasArray("x")
-   && csvTable->GetRowData()->HasArray("y")
-   && csvTable->GetRowData()->HasArray("z")
-   && csvTable->GetRowData()->HasArray("roll")
-   && csvTable->GetRowData()->HasArray("pitch")
-   && csvTable->GetRowData()->HasArray("yaw"))
+  if (Utils::CheckTableFields(csvTable, {"x", "y", "z", "roll", "pitch", "yaw"}))
   {
     this->SlamAlgo->SetPoseCalibration(base2Sensor);
     auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
@@ -799,12 +796,10 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   }
 
   // 2_ Matrix format
-  if (csvTable->GetRowData()->HasArray("x")
-   && csvTable->GetRowData()->HasArray("y")
-   && csvTable->GetRowData()->HasArray("z")
-   && csvTable->GetRowData()->HasArray("x0")
-   && csvTable->GetRowData()->HasArray("x1")
-   && csvTable->GetRowData()->HasArray("x2"))
+  if (Utils::CheckTableFields(csvTable, {"x", "y", "z",
+                                         "x0", "x1", "x2",
+                                         "y0", "y1", "y2",
+                                         "z0", "z1", "z2"}))
   {
     this->SlamAlgo->SetPoseCalibration(base2Sensor);
     auto arrayX   = csvTable->GetRowData()->GetArray("x");
@@ -876,7 +871,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
   vtkTable* csvTable = reader->GetOutput();
 
   // Check if time exists and extract it
-  if (!csvTable->GetRowData()->HasArray("Time"))
+  if (!Utils::CheckTableFields(csvTable, {"Time"}))
   {
     vtkWarningMacro(<<"No time information in the trajectory file. Load trajectory failed.");
     return;
@@ -912,7 +907,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
   bool hasCovariance = true;
   for (int nCov = 0; nCov < 36; ++nCov)
   {
-    hasCovariance = hasCovariance && csvTable->GetRowData()->HasArray(("Covariance:" + std::to_string(nCov)).c_str());
+    hasCovariance = hasCovariance && Utils::CheckTableFields(csvTable, {"Covariance:" + std::to_string(nCov)});
     if (!hasCovariance)
       break;
   }
@@ -930,12 +925,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
   }
 
   // Process Pose data
-  if (csvTable->GetRowData()->HasArray("x")
-   && csvTable->GetRowData()->HasArray("y")
-   && csvTable->GetRowData()->HasArray("z")
-   && csvTable->GetRowData()->HasArray("roll")
-   && csvTable->GetRowData()->HasArray("pitch")
-   && csvTable->GetRowData()->HasArray("yaw"))
+  if (Utils::CheckTableFields(csvTable, {"x", "y", "z", "roll", "pitch", "yaw"}))
   {
     auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
     auto arrayY     = csvTable->GetRowData()->GetArray("y"    );
@@ -960,13 +950,8 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
       trajectoryManager.AddMeasurement(meas);
     }
   }
-  else if (csvTable->GetRowData()->HasArray("Orientation(AxisAngle):0")
-        && csvTable->GetRowData()->HasArray("Orientation(AxisAngle):1")
-        && csvTable->GetRowData()->HasArray("Orientation(AxisAngle):2")
-        && csvTable->GetRowData()->HasArray("Orientation(AxisAngle):3")
-        && csvTable->GetRowData()->HasArray("Points:0"                )
-        && csvTable->GetRowData()->HasArray("Points:1"                )
-        && csvTable->GetRowData()->HasArray("Points:2"                ))
+  else if (Utils::CheckTableFields(csvTable, {"Orientation(AxisAngle):1", "Orientation(AxisAngle):2", "Orientation(AxisAngle):3",
+                                              "Points:0", "Points:1", "Points:2"}))
   {
     auto arrayAxisX = csvTable->GetRowData()->GetArray("Orientation(AxisAngle):0");
     auto arrayAxisY = csvTable->GetRowData()->GetArray("Orientation(AxisAngle):1");
