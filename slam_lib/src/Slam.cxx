@@ -909,7 +909,7 @@ void Slam::SaveMapsToPCD(const std::string& filePrefix, PCDFormat pcdFormat, boo
 
   // Save keypoint maps
   for (auto k : this->UsableKeypoints)
-    savePointCloudToPCD(filePrefix + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k, filtered),  pcdFormat, true);
+    savePointCloudToPCD(filePrefix + "_" + Utils::Plural(KeypointTypeNames.at(k)) + ".pcd",  *this->GetMap(k, filtered),  pcdFormat, true);
 
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("Keypoints maps saving to PCD"));
 }

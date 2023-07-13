@@ -28,6 +28,7 @@
 #include <LidarSlam/RollingGrid.h>
 
 #include "lidar_slam/save_pc.h"
+#include "lidar_slam/reset.h"
 
 class AggregationNode
 {
@@ -64,6 +65,8 @@ public:
 
   bool SavePointcloudService(lidar_slam::save_pcRequest& req, lidar_slam::save_pcResponse& res);
 
+  bool ResetService(lidar_slam::resetRequest& req, lidar_slam::resetResponse& res);
+
 private:
 
   // ROS node handles, subscribers and publishers
@@ -71,6 +74,7 @@ private:
   ros::Subscriber FrameSubscriber;
   ros::Publisher PointsPublisher;
   ros::ServiceServer SaveService;
+  ros::ServiceServer RstService;
 
   // Dense map containing aggregated points from all frames
   std::shared_ptr<LidarSlam::RollingGrid> DenseMap;

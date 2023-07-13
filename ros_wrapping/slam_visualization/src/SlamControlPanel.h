@@ -23,6 +23,8 @@
 #include <QPushButton>
 #include <lidar_slam/Confidence.h>
 #include <lidar_slam/SlamCommand.h>
+#include <lidar_slam/reset.h>
+#include <lidar_slam/save_pc.h>
 #include <ros/node_handle.h>
 #include <ros/publisher.h>
 #include <ros/subscriber.h>
@@ -104,12 +106,6 @@ public Q_SLOTS:
    */
   void Calibrate();
 
-  //----------------------------------------------------------------------------
-  /*!
-   * @brief Set the path to save the trajectory
-   */
-  void SetPosesPath(const QString &text);
-
 private:
   //----------------------------------------------------------------------------
   /*!
@@ -141,19 +137,14 @@ private:
   QLabel* ComplyMotionLimitsValueLabel = nullptr;
   QLabel* StdPositionErrorValueLabel = nullptr;
   QLabel* ComputationTimeValueLabel = nullptr;
-  QPushButton* SaveTrajButton = nullptr;
-  QPushButton* SaveMapsButton = nullptr;
-  QPushButton* CalibrateButton = nullptr;
 
   // ROS interface
   ros::NodeHandle Nh;
   ros::Publisher CommandPublisher;
   ros::Subscriber ConfidenceSubscriber;
+  ros::ServiceClient ResetClient;
+  ros::ServiceClient SavePcClient;
 
-  // Path storage
-  std::string TrajectoryPath;
-  std::string MapsPath;
-  std::string PosesPath;
 };
 
 } // namespace lidar_visualization.

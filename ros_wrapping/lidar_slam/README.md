@@ -403,4 +403,11 @@ All possible formats are :
 - **Binary** : 1
 - **Binary compressed** : 2
 
-**NOTE** : **aggregation_node** can be directly run from the launch files, adding the argument *aggregation:=true* to the launch command.
+Another service called **reset** allows to reset the ongoing map with current input.
+```bash
+rosservice call lidar_slam/reset
+```
+
+**NOTE** : **aggregation_node** can be directly run from the launch files, adding the argument *aggregate:=true* to the launch command.
+
+**NOTE** : The services are available through the visualization plugin.
