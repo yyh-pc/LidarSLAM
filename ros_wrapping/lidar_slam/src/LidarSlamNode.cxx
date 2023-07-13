@@ -1385,8 +1385,6 @@ void LidarSlamNode::SetSlamParameters()
 
   // Graph parameters
   SetSlamParam(std::string, "graph/g2o_file_name", G2oFileName)
-  SetSlamParam(bool,        "graph/fix_first", FixFirstVertex)
-  SetSlamParam(bool,        "graph/fix_last", FixLastVertex)
   SetSlamParam(float,       "graph/covariance_scale", CovarianceScale)
   SetSlamParam(int,         "graph/iterations_nb", NbGraphIterations)
 

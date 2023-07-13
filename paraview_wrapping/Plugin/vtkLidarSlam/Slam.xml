@@ -1824,28 +1824,6 @@
         </Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="Fix first vertex"
-                         command="SetFixFirstVertex"
-                         number_of_elements="1"
-                         default_values="1"
-                         panel_visibility="advanced">
-        <BooleanDomain name="bool" />
-        <Documentation>
-          Fix first vertex in pose graph.
-        </Documentation>
-      </IntVectorProperty>
-
-      <IntVectorProperty name="Fix last vertex"
-                         command="SetFixLastVertex"
-                         number_of_elements="1"
-                         default_values="0"
-                         panel_visibility="advanced">
-        <BooleanDomain name="bool" />
-        <Documentation>
-          Fix last vertex in pose graph.
-        </Documentation>
-      </IntVectorProperty>
-
       <IntVectorProperty name="Use loop closure constraint"
                          command="EnablePGOConstraintLoopClosure"
                          number_of_elements="1"
@@ -1894,8 +1872,6 @@
         <Property name="Optimize Graph With IMU" />
         <Property name="Optimize Graph" />
         <Property name="Save g2o file" />
-        <Property name="Fix first vertex" />
-        <Property name="Fix last vertex" />
         <Property name="Covariance scale" />
         <Property name="Graph iterations" />
         <Property name="Use loop closure constraint" />

@@ -123,10 +123,6 @@ external_sensors:
 
 graph:
   g2o_file_name: ""    # File where to store the g2o log info (viewable with g2o_viewer tool)
-  fix_first: false     # Fix the first pose of the graph. Can be done if one is sure
-                       # about the first pose or want a map at the first pose origin
-  fix_last: false      # Fix the last pose of the graph. Can be done if one wants to ensure
-                       # the continuity of the motion
   publish_path: false  # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic
   covariance_scale: 1. # Scale to apply to SLAM pose covariances in pose graph optimization
   iterations_nb: 100   # Number of iterations to perform to optimize the graph

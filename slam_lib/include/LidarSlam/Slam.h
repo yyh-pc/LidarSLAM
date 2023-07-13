@@ -435,12 +435,6 @@ public:
   GetMacro(G2oFileName, std::string)
   SetMacro(G2oFileName, std::string)
 
-  GetMacro(FixFirstVertex, bool)
-  SetMacro(FixFirstVertex, bool)
-
-  GetMacro(FixLastVertex, bool)
-  SetMacro(FixLastVertex, bool)
-
   GetMacro(CovarianceScale, float)
   SetMacro(CovarianceScale, float)
 
@@ -1202,9 +1196,6 @@ private:
   // Log info from g2o, if empty, log is not stored
   std::string G2oFileName;
 
-  // Boolean to decide if we want to some vertices of the graph
-  bool FixFirstVertex = false;
-  bool FixLastVertex = false;
   // Scale to increase or decrease SLAM pose covariances
   float CovarianceScale = 1.f;
   int NbGraphIterations = 100;

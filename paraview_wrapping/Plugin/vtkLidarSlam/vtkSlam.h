@@ -206,12 +206,6 @@ public:
   vtkCustomGetMacro(G2oFileName, std::string)
   vtkCustomSetMacro(G2oFileName, std::string)
 
-  vtkCustomGetMacro(FixFirstVertex, bool)
-  vtkCustomSetMacro(FixFirstVertex, bool)
-
-  vtkCustomGetMacro(FixLastVertex, bool)
-  vtkCustomSetMacro(FixLastVertex, bool)
-
   vtkCustomGetMacro(CovarianceScale, float)
   vtkCustomSetMacro(CovarianceScale, float)
 

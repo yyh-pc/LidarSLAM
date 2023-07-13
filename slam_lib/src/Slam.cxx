@@ -719,8 +719,6 @@ bool Slam::OptimizeGraph()
   }
 
   PoseGraphOptimizer graphManager;
-  graphManager.SetFixFirst(this->FixFirstVertex);
-  graphManager.SetFixLast(this->FixLastVertex);
   // Clear the graph
   graphManager.ResetGraph();
   // Init pose graph optimizer
@@ -817,13 +815,6 @@ bool Slam::OptimizeGraph()
   // Look for ext pose constraints
   if (this->UsePGOConstraints[PGO_EXT_POSE] && this->PoseHasData())
   {
-    if (this->FixFirstVertex || this->FixLastVertex)
-    {
-      PRINT_WARNING("External poses are processed as anchors in pose graph"
-                     << " but a SLAM pose is also fixed,"
-                     << " this may give inconsistent results...")
-    }
-
     // Compute offset between SLAM referential frame
     // and external poses referential frame
     // if it has not been computed or set before (e.g. in MoveToExtPosesRefFrame)
