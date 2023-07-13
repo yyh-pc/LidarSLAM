@@ -838,7 +838,8 @@ void vtkSlam::SetSensorData(const std::string& fileName)
 
     bool calibrationEstimated = false;
     if (!this->CalibrationSupplied)
-      calibrationEstimated = this->SlamAlgo->CalibrateWithExtPoses(this->PlanarTrajectory);
+      // Reset calibration, do not trust previous one
+      calibrationEstimated = this->SlamAlgo->CalibrateWithExtPoses(true, this->PlanarTrajectory);
     if (!this->CalibrationSupplied && !calibrationEstimated)
       vtkWarningMacro(<< this->GetClassName() << " (" << this
                       << "): Calibration was not supplied for the external poses sensor, "
@@ -2037,7 +2038,7 @@ void vtkSlam::SetPlanarTrajectory(bool planarTraj)
     {
       // Estimate calibration with new planarTraj value
       // Reset calibration, do not trust previous one
-      if (this->SlamAlgo->CalibrateWithExtPoses(this->PlanarTrajectory))
+      if (this->SlamAlgo->CalibrateWithExtPoses(true, this->PlanarTrajectory))
         vtkWarningMacro(<< "Calibration of the external poses sensor has been estimated using the trajectory provided to\n"
                         << SlamAlgo->GetPoseCalibration().matrix());
     }

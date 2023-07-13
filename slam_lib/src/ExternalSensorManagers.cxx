@@ -725,8 +725,11 @@ int PoseManager::ComputeEquivalentTrajectory(const std::list<LidarState>& states
 }
 
 // ---------------------------------------------------------------------------
-bool PoseManager::ComputeCalibration(const std::list<LidarState>& states, bool planarTrajectory)
+bool PoseManager::ComputeCalibration(const std::list<LidarState>& states, bool reset, bool planarTrajectory)
 {
+  if (reset)
+    this->Calibration = Eigen::Isometry3d::Identity();
+
   if (states.size() <= 2)
   {
     PRINT_WARNING("Cannot estimate the calibration for ext poses: not enough logged states");
