@@ -19,7 +19,7 @@ SLAM expects that the lowest/bottom laser ring is 0, and is increasing upward. I
 Currently, this package implements the following nodes :
 - **velodyne_conversion_node** : converts pointclouds output by Velodyne spinning sensors using the [ROS Velodyne driver](https://github.com/ros-drivers/velodyne) to SLAM pointcloud format.
 - **robosense_conversion_node** : converts pointclouds output by RoboSense spinning sensors using the [ROS RoboSense-LiDAR driver](https://github.com/RoboSense-LiDAR/ros_rslidar) to SLAM pointcloud format. This has been tested only with RS16 sensor, and could need additional changes to support other RS sensors.
-- **ouster_conversion_node** : converts pointclouds output by Ouster spinning sensors using the [ROS Ouster driver](https://github.com/ouster-lidar/ouster_example) to SLAM pointcloud format.
+- **ouster_conversion_node** : converts pointclouds output by Ouster spinning sensors using the [ROS Ouster driver at this version](https://github.com/ouster-lidar/ouster-ros/tree/3f01e1d7001d8d21ac984566d17505b98905fa86) to SLAM pointcloud format.
 
 ## Usage
 
