@@ -790,6 +790,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
                            );
       meas.Pose.translation() = Eigen::Vector3d(arrayX->GetTuple1(i), arrayY->GetTuple1(i), arrayZ->GetTuple1(i));
       meas.Pose.makeAffine();
+      meas.Covariance = LidarSlam::Utils::CreateDefaultCovariance();
       this->SlamAlgo->AddPoseMeasurement(meas);
     }
 
