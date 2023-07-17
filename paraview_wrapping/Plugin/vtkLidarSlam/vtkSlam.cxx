@@ -103,6 +103,7 @@ bool CheckTableFields(vtkTable* csvTable, std::vector<std::string> fields)
 vtkSlam::vtkSlam()
 : SlamAlgo(new LidarSlam::Slam)
 {
+  this->InitPose << 0.,0.,0.,0.,0.,0.;
   this->SetNumberOfInputPorts(INPUT_PORT_COUNT);
   this->SetNumberOfOutputPorts(OUTPUT_PORT_COUNT);
   // If auto-detect mode is disabled, user needs to specify input arrays to use
