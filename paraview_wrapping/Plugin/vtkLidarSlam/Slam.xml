@@ -2592,6 +2592,7 @@
         <Property name="Min neighbors nb" />
         <Property name="Min neighborhood radius" />
         <Property name="Min distance to sensor" />
+        <Property name="Max distance to sensor" />
         <Property name="Min azimuth angle" />
         <Property name="Max azimuth angle" />
         <Property name="Min laser beam to surface angle" />
