@@ -749,7 +749,7 @@ bool Slam::OptimizeGraph()
     // Detect loop closure
     auto itRevisitedState = this->LogStates.begin();
     auto itQueryState = itRevisitedState;
-    if (DetectLoopClosureIndices(itQueryState, itRevisitedState))
+    if (this->DetectLoopClosureIndices(itQueryState, itRevisitedState))
     {
       // Compute a loopClosureTransform from the revisited frame to the query frame
       // by registering the keypoints of the query frame onto the keypoints of the revisited frame
