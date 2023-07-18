@@ -975,7 +975,8 @@ void LidarSlamNode::SlamCommandCallback(const lidar_slam::SlamCommand& msg)
       }
 
       ROS_INFO_STREAM("Optimizing the pose graph");
-      this->LidarSlam.OptimizeGraph();
+      if (!this->LidarSlam.OptimizeGraph())
+        break;
       // Broadcast new calibration offset (GPS to base)
       // if GPS used
       if (this->LidarSlam.GpsHasData())

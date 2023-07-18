@@ -709,6 +709,12 @@ bool Slam::OptimizeGraph()
 {
   #ifdef USE_G2O
   // Check if graph can be optimized
+  if (this->LogStates.size() < 2)
+  {
+    PRINT_WARNING("Not enough states logged, graph cannot be optimized");
+    return false;
+  }
+
   if ((!this->UsePGOConstraints[LANDMARK]     || !this->LmHasData())  &&
       (!this->UsePGOConstraints[PGO_GPS]      || !this->GpsHasData()) &&
       (!this->UsePGOConstraints[PGO_EXT_POSE] || !this->PoseHasData()) &&

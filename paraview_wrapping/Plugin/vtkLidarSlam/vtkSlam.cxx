@@ -185,9 +185,8 @@ void vtkSlam::OptimizeGraphWithIMU()
 void vtkSlam::OptimizeGraph()
 {
   const std::list<LidarSlam::LidarState>& initLidarStates = this->SlamAlgo->GetLogStates();
-  if (initLidarStates.size() < 2)
+  if (!this->SlamAlgo->OptimizeGraph())
     return;
-  this->SlamAlgo->OptimizeGraph();
   // Update trajectory poses that have been optimized by the SLAM
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
   // Keep old poses that have not been optimized
