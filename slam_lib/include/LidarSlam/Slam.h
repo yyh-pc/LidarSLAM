@@ -393,6 +393,10 @@ public:
   // Reset trajectory pose in LogStates
   void ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager);
 
+  // Notify the IMU and the ego-motion that
+  // there has been a discontinuity in the trajectory
+  void NotifyDiscontinuity();
+
   // ---------------------------------------------------------------------------
   //   General parameters
   // ---------------------------------------------------------------------------

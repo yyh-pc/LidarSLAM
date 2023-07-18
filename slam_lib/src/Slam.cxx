@@ -293,6 +293,8 @@ void Slam::StartRecovery(double duration)
 
   // Recompute the maps with inlier poses
   this->UpdateMaps();
+  // Notify discontinuity in trajectory (for ego-motion registration and IMU)
+  this->NotifyDiscontinuity();
 
   // Store timestamp to handle trajectory after recovery
   this->RecoveryTimes.push_back(this->LogStates.back().Time);
@@ -891,6 +893,9 @@ bool Slam::OptimizeGraph()
   // Update the maps from the beginning using the new trajectory
   // Points older than the first logged state remain untouched
   this->UpdateMaps();
+  // Notify discontinuity in trajectory (for ego-motion registration and IMU)
+  this->NotifyDiscontinuity();
+
   IF_VERBOSE(3, Utils::Timer::StopAndDisplay("PGO : maps and trajectory update"));
 
   IF_VERBOSE(1, Utils::Timer::StopAndDisplay("Pose graph optimization"));
@@ -1083,6 +1088,21 @@ void Slam::ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager)
 
   // Update LocalMaps with new poses
   this->UpdateMaps();
+  // Notify discontinuity in trajectory (for ego-motion registration and IMU)
+  this->NotifyDiscontinuity();
+}
+
+//-----------------------------------------------------------------------------
+void Slam::NotifyDiscontinuity()
+{
+  this->Tworld = this->LogStates.empty()? this->TworldInit
+                                          : Eigen::Isometry3d(this->LogStates.back().Isometry);
+  // Current frame keypoints are reset so that ego-motion registration is skipped for next frame if required
+  for (auto k : this->UsableKeypoints)
+    this->CurrentRawKeypoints[k].reset(new PointCloud);
+  // Reset Imu base pose to notify the discontinuity
+  if (this->ImuManager)
+    this->ImuManager->SetInitBasePose(this->Tworld);
 }
 
 //==============================================================================
@@ -3184,6 +3204,8 @@ bool Slam::CalibrateWithGps()
 
   // Update the maps and the pose with the new trajectory
   this->UpdateMaps();
+  // Notify discontinuity in trajectory (for ego-motion registration and IMU)
+  this->NotifyDiscontinuity();
 
   // Set refined offset : first Lidar pose + initial offset
   firstInverse.translation() += offset.translation();
