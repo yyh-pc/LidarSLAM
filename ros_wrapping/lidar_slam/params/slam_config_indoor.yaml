@@ -76,7 +76,10 @@ external_sensors:
                        # use header timestamp to synchronize data.
                        # If not, we use message reception time as reference.
   time_offset: 0.      # [s] Offset to apply on external sensor time data to get lidar time
-  # Optional GPS position use (if 'gps/use_gps'=true), subscribing to Odometry msg on 'gps_odom' topic.
+  calibration:
+    planar_trajectory: false # Notify that the trajectory to use to calibrate
+                             # is planar so a degree of liberty is missing
+  # Optional GPS position use (if 'gps/enable'=true), subscribing to Odometry msg on 'gps_odom' topic.
   # It allows to estimate calibration between GPS and SLAM trajectories,
   # or post-optimize SLAM trajectory with pose graph optimization (PGO).
   gps:
@@ -84,11 +87,11 @@ external_sensors:
     # Optional GPS positions use to calibrate output SLAM pose to world coordinates and/or optimize SLAM trajectory.
     # If true, subscribes to topic 'gps_odom' (nav_msgs/Odometry), and logs GPS positions during 'slam/logging_timeout' seconds.
     # (WARNING Can be overridden launch files with 'gps' arg).
-    use_gps: false
+    enable: false
 
   # Optional landmark detector (e.g. camera) use
   landmark_detector:
-    use_tags: false          # [bool] To receive and use tags
+    enable: false            # [bool] To receive and use tags
     weight: 0.               # Weight to apply to one landmark constraint in the local optimization
                              # 0 disables the feature
                              # It is to be compared to each geometric constraint defined by a keypoint match
@@ -109,18 +112,17 @@ external_sensors:
                              # /!\ The order of the elements matters.
     publish_tags: false      # [bool] To publish the tags as tf
   camera:
-    use_camera: false        # [bool] To receive and use RGB images from a camera
+    enable: false            # [bool] To receive and use RGB images from a camera
     weight: 0.               # Weight to apply to one pixel match constraint in the local optimization
                              # 0 disables the feature
                              # It is to be compared to each geometric constraint defined by a keypoint match
     saturation_distance: 10. # Pixelic distance threshold to discard a pixel match from optical flow
+  external_poses:
+    enable: false            # [bool] To receive and use the external poses in SLAM (local opt or pose graph opt)
+    weight: 0.               # Weight to apply to the constraint built on external poses
 
 graph:
   g2o_file_name: ""    # File where to store the g2o log info (viewable with g2o_viewer tool)
-  fix_first: false     # Fix the first pose of the graph. Can be done if one is sure
-                       # about the first pose or want a map at the first pose origin
-  fix_last: false      # Fix the last pose of the graph. Can be done if one wants to ensure
-                       # the continuity of the motion
   publish_path: false  # If true, publish optimized SLAM trajectory to 'pgo_slam_path' latched topic
   covariance_scale: 1. # Scale to apply to SLAM pose covariances in pose graph optimization
   iterations_nb: 100   # Number of iterations to perform to optimize the graph

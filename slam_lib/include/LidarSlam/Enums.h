@@ -215,6 +215,11 @@ enum PGOConstraint
 
   //! GPS
   PGO_GPS = 2,
+
+  //! External pose
+  PGO_EXT_POSE = 3,
+
+  nbPGOConstraints
 };
 
 //------------------------------------------------------------------------------

@@ -354,15 +354,34 @@ public:
   // the computation time if this function is to be called on successive timestamps.
   Eigen::Isometry3d GetTworld(double time = -1., bool trackTime = false);
 
-  // Set world transform with an initial guess (usually from GPS after calibration).
-  void SetWorldTransformFromGuess(const Eigen::Isometry3d& poseGuess);
+  // Set current pose and notify a discontinuity in the trajectory
+  // For interpolations/extrapolations and IMU preintegration
+  // WARNING : this function may break the map, a reset might be needed
+  // before calling this function
+  void SetTworld(const Eigen::Isometry3d& pose);
 
-  // Initialize pose using pose measurements
-  // This allows to represent the maps and the trajectory of Lidar
-  // in an external frame (not first Lidar frame)
-  // the time of the synchronized pose is input so no Lidar frame needs
-  // to have been loaded to use this function
-  bool InitTworldWithPoseMeasurement(double time = -1);
+  // Change the reference frame of the Lidar trajectory and maps
+  // odom <- odom * transform
+  // This can allow to recenter the trajectory to origin and to limit
+  // errors due to numbers precision
+  // It can also be used to place the Lidar in a map initially
+  void TransformOdom(const Eigen::Isometry3d& transform);
+
+  // Make TworldInit the first logged pose
+  // This is useful to keep a consistent map
+  // even after the logged poses have been updated
+  // and allow to keep odom frame consistent after PGO
+  // WARNING : the maps are not updated with the new trajectory
+  void ResetTrajWithTworldInit();
+
+  // Move odom to reference frame of external pose measurements:
+  // the whole trajectory is moved rigidly.
+  // As the trajectory may have drifted, a time is required to choose
+  // which poses to superimpose to derive the reference frames offset.
+  // If no time is input, the last logged state is used.
+  // If no Lidar frames are logged, the external pose
+  // at time is used as initial SLAM pose
+  bool MoveOdomToExtPosesRefFrame(double time = -1);
 
   // Save keypoints maps to disk for later use
   // Keypoints maps are rebuilt to recover removed points if the time threshold (DecayingThreshold) is set
@@ -373,6 +392,10 @@ public:
 
   // Reset trajectory pose in LogStates
   void ResetStatePoses(ExternalSensors::PoseManager& newTrajectoryManager);
+
+  // Notify the IMU and the ego-motion that
+  // there has been a discontinuity in the trajectory
+  void NotifyDiscontinuity();
 
   // ---------------------------------------------------------------------------
   //   General parameters
@@ -415,12 +438,6 @@ public:
 
   GetMacro(G2oFileName, std::string)
   SetMacro(G2oFileName, std::string)
-
-  GetMacro(FixFirstVertex, bool)
-  SetMacro(FixFirstVertex, bool)
-
-  GetMacro(FixLastVertex, bool)
-  SetMacro(FixLastVertex, bool)
 
   GetMacro(CovarianceScale, float)
   SetMacro(CovarianceScale, float)
@@ -659,7 +676,7 @@ public:
 
   // Find the calibration offset between the base frame and the frame tracked by the external poses
   // The two trajectories can be represented in different global frames
-  bool CalibrateWithExtPoses();
+  bool CalibrateWithExtPoses(bool reset = false, bool planarTrajectory = false);
 
   Eigen::Isometry3d GetPoseCalibration() const;
   void SetPoseCalibration(const Eigen::Isometry3d& calib);
@@ -912,8 +929,11 @@ private:
   // This pose is the pose of BASE in WORLD coordinates, at the time
   // corresponding to the timestamp in the header of input Lidar scan.
   Eigen::Isometry3d Tworld = Eigen::Isometry3d::Identity();
-  // Variable to store initial Tworld value (might be set by SetWorldTransformFromGuess)
+  // Variable to store the oldest logged pose
+  // before logging, it is set to the first pose that is found
+  // (set from outside or set using the external poses)
   // It is used to reset the pose in case of failure
+  // or to keep the odom frame link in case of PGO
   Eigen::Isometry3d TworldInit = Eigen::Isometry3d::Identity();
 
   // Reflect the success of the optimization for current input frames
@@ -1180,15 +1200,15 @@ private:
   // Log info from g2o, if empty, log is not stored
   std::string G2oFileName;
 
-  // Boolean to decide if we want to some vertices of the graph
-  bool FixFirstVertex = false;
-  bool FixLastVertex = false;
   // Scale to increase or decrease SLAM pose covariances
   float CovarianceScale = 1.f;
   int NbGraphIterations = 100;
 
   // Booleans to decide whether to use a pose graph constraint for the optimization
-  std::map<PGOConstraint, bool> UsePGOConstraints = {{LOOP_CLOSURE, true}, {LANDMARK, true}, {PGO_GPS, true}};
+  std::map<PGOConstraint, bool> UsePGOConstraints = {{LOOP_CLOSURE, true},
+                                                     {LANDMARK, true},
+                                                     {PGO_GPS, true},
+                                                     {PGO_EXT_POSE, true}};
 
   // ---------------------------------------------------------------------------
   //   Confidence estimation

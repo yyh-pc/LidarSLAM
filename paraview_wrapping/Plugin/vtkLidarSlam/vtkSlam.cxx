@@ -85,6 +85,17 @@ vtkSmartPointer<T> CreateArray(const std::string& Name, int NumberOfComponents =
   array->SetName(Name.c_str());
   return array;
 }
+
+//-----------------------------------------------------------------------------
+bool CheckTableFields(vtkTable* csvTable, std::vector<std::string> fields)
+{
+  bool allFieldsHere = true;
+  for (const std::string& f : fields)
+    allFieldsHere = allFieldsHere && csvTable->GetRowData()->HasArray(f.c_str());
+
+  return allFieldsHere;
+}
+
 } // end of anonymous namespace
 } // end of Utils namespace
 
@@ -92,6 +103,7 @@ vtkSmartPointer<T> CreateArray(const std::string& Name, int NumberOfComponents =
 vtkSlam::vtkSlam()
 : SlamAlgo(new LidarSlam::Slam)
 {
+  this->InitPose << 0.,0.,0.,0.,0.,0.;
   this->SetNumberOfInputPorts(INPUT_PORT_COUNT);
   this->SetNumberOfOutputPorts(OUTPUT_PORT_COUNT);
   // If auto-detect mode is disabled, user needs to specify input arrays to use
@@ -124,7 +136,12 @@ void vtkSlam::Reset()
   // Init the SLAM state (map + pose)
   if (!this->InitMapPrefix.empty())
     this->SlamAlgo->LoadMapsFromPCD(this->InitMapPrefix);
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
+  // Setting initial SLAM pose is equivalent to move odom frame
+  // so the first pose corresponds to the input in this new frame
+  // T_base = offset * T_base_new
+  // offset = T_base * T_base_new^-1
+  // T_base is identity at initialization
+  this->SlamAlgo->TransformOdom(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose).inverse());
 
   // Init the output SLAM trajectory
   this->ResetTrajectory();
@@ -168,9 +185,8 @@ void vtkSlam::OptimizeGraphWithIMU()
 void vtkSlam::OptimizeGraph()
 {
   const std::list<LidarSlam::LidarState>& initLidarStates = this->SlamAlgo->GetLogStates();
-  if (initLidarStates.size() < 2)
+  if (!this->SlamAlgo->OptimizeGraph())
     return;
-  this->SlamAlgo->OptimizeGraph();
   // Update trajectory poses that have been optimized by the SLAM
   const std::list<LidarSlam::LidarState>& lidarStates = this->SlamAlgo->GetLogStates();
   // Keep old poses that have not been optimized
@@ -201,6 +217,12 @@ void vtkSlam::EnablePGOConstraintGPS(bool enabled)
   this->SlamAlgo->EnablePGOConstraint(LidarSlam::PGOConstraint::PGO_GPS, enabled);
 }
 
+void vtkSlam::EnablePGOConstraintExtPose(bool enabled)
+{
+  vtkDebugMacro(<< "Enabling ext pose constraint for pose graph optimization");
+  this->SlamAlgo->EnablePGOConstraint(LidarSlam::PGOConstraint::PGO_EXT_POSE, enabled);
+}
+
 //-----------------------------------------------------------------------------
 bool vtkSlam::GetPGOConstraintLoopClosure()
 {
@@ -229,6 +251,16 @@ bool vtkSlam::GetPGOConstraintGPS()
     vtkDebugMacro(<< "GPS constraint for PGO is enabled");
   else
     vtkDebugMacro(<< "GPS constraint for PGO is disabled");
+  return enabled;
+}
+
+bool vtkSlam::GetPGOConstraintExtPose()
+{
+  bool enabled = this->SlamAlgo->IsPGOConstraintEnabled(LidarSlam::PGOConstraint::PGO_EXT_POSE);
+  if (enabled)
+    vtkDebugMacro(<< "Ext pose constraint for PGO is enabled");
+  else
+    vtkDebugMacro(<< "Ext pose constraint for PGO is disabled");
   return enabled;
 }
 
@@ -263,7 +295,9 @@ void vtkSlam::SetInitialPoseTranslation(double x, double y, double z)
   this->InitPose.x() = x;
   this->InitPose.y() = y;
   this->InitPose.z() = z;
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
+  // Setting initial SLAM pose is equivalent to move odom frame
+  // so the first pose corresponds to the input in this new frame
+  this->SlamAlgo->TransformOdom(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose).inverse());
   this->ParametersModificationTime.Modified();
 }
 
@@ -274,7 +308,9 @@ void vtkSlam::SetInitialPoseRotation(double roll, double pitch, double yaw)
   this->InitPose(3) = roll;
   this->InitPose(4) = pitch;
   this->InitPose(5) = yaw;
-  this->SlamAlgo->SetWorldTransformFromGuess(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose));
+  // Setting initial SLAM pose is equivalent to move odom frame
+  // so the first pose corresponds to the input in this new frame
+  this->SlamAlgo->TransformOdom(LidarSlam::Utils::XYZRPYtoIsometry(this->InitPose).inverse());
   this->ParametersModificationTime.Modified();
 }
 
@@ -624,7 +660,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   vtkTable* csvTable = reader->GetOutput();
 
   // Check if time exists and extract it
-  if (!csvTable->GetRowData()->HasArray("time"))
+  if (!Utils::CheckTableFields(csvTable, {"time"}))
   {
     vtkErrorMacro(<< "No time found in external sensor file, loading aborted");
     return;
@@ -643,12 +679,12 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   std::string calibFileName = (path.parent_path() / "calibration_external_sensor.mat").string();
   // Set calibration
   Eigen::Isometry3d base2Sensor;
-  bool calibrationSupplied = this->GetCalibrationMatrix(calibFileName, base2Sensor);
+  this->CalibrationSupplied = this->GetCalibrationMatrix(calibFileName, base2Sensor);
 
   bool extSensorFit = false;
 
   // Process wheel odometer data
-  if (csvTable->GetRowData()->HasArray("odom"))
+  if (Utils::CheckTableFields(csvTable, {"odom"}))
   {
     // this->SlamAlgo->SetWheelOdomCalibration(base2Sensor); // TODO : use calibration in SLAM process
     auto arrayOdom = csvTable->GetRowData()->GetArray("odom");
@@ -665,12 +701,7 @@ void vtkSlam::SetSensorData(const std::string& fileName)
 
   // Process IMU data
   #ifdef USE_GTSAM
-  if (csvTable->GetRowData()->HasArray("acc_x")
-   && csvTable->GetRowData()->HasArray("acc_y")
-   && csvTable->GetRowData()->HasArray("acc_z")
-   && csvTable->GetRowData()->HasArray("w_x")
-   && csvTable->GetRowData()->HasArray("w_y")
-   && csvTable->GetRowData()->HasArray("w_z"))
+  if (Utils::CheckTableFields(csvTable, {"acc_x", "acc_y", "acc_z", "w_x", "w_y", "w_z"}))
   {
     // Deduce frequency using time array
     // Build a frequency histogram and extract max bin
@@ -710,14 +741,10 @@ void vtkSlam::SetSensorData(const std::string& fileName)
     PRINT_INFO("IMU data successfully loaded");
     extSensorFit = true;
   }
-  else if (csvTable->GetRowData()->HasArray("acc_x")
-        && csvTable->GetRowData()->HasArray("acc_y")
-        && csvTable->GetRowData()->HasArray("acc_z"))
+  else if (Utils::CheckTableFields(csvTable, {"acc_x", "acc_y", "acc_z"}))
   {
   #else
-  if (csvTable->GetRowData()->HasArray("acc_x")
-   && csvTable->GetRowData()->HasArray("acc_y")
-   && csvTable->GetRowData()->HasArray("acc_z"))
+  if (Utils::CheckTableFields(csvTable, {"acc_x", "acc_y", "acc_z"}))
   {
     // this->SlamAlgo->SetGravityCalibration(base2Sensor); // TODO : use calibration in SLAM process
   #endif
@@ -738,12 +765,9 @@ void vtkSlam::SetSensorData(const std::string& fileName)
   }
 
   // Process Pose data
-  if (csvTable->GetRowData()->HasArray("x")
-   && csvTable->GetRowData()->HasArray("y")
-   && csvTable->GetRowData()->HasArray("z")
-   && csvTable->GetRowData()->HasArray("roll")
-   && csvTable->GetRowData()->HasArray("pitch")
-   && csvTable->GetRowData()->HasArray("yaw"))
+  bool posesLoaded = false;
+  // 1_ Format XYZRPY (with PRY convention)
+  if (Utils::CheckTableFields(csvTable, {"x", "y", "z", "roll", "pitch", "yaw"}))
   {
     this->SlamAlgo->SetPoseCalibration(base2Sensor);
     auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
@@ -765,14 +789,57 @@ void vtkSlam::SetSensorData(const std::string& fileName)
                            );
       meas.Pose.translation() = Eigen::Vector3d(arrayX->GetTuple1(i), arrayY->GetTuple1(i), arrayZ->GetTuple1(i));
       meas.Pose.makeAffine();
+      meas.Covariance = LidarSlam::Utils::CreateDefaultCovariance();
       this->SlamAlgo->AddPoseMeasurement(meas);
     }
+    posesLoaded = true;
+  }
 
+  // 2_ Matrix format
+  if (Utils::CheckTableFields(csvTable, {"x", "y", "z",
+                                         "x0", "x1", "x2",
+                                         "y0", "y1", "y2",
+                                         "z0", "z1", "z2"}))
+  {
+    this->SlamAlgo->SetPoseCalibration(base2Sensor);
+    auto arrayX   = csvTable->GetRowData()->GetArray("x");
+    auto arrayY   = csvTable->GetRowData()->GetArray("y");
+    auto arrayZ   = csvTable->GetRowData()->GetArray("z");
+    auto arrayX0  = csvTable->GetRowData()->GetArray("x0" );
+    auto arrayX1  = csvTable->GetRowData()->GetArray("x1" );
+    auto arrayX2  = csvTable->GetRowData()->GetArray("x2" );
+    auto arrayY0  = csvTable->GetRowData()->GetArray("y0" );
+    auto arrayY1  = csvTable->GetRowData()->GetArray("y1" );
+    auto arrayY2  = csvTable->GetRowData()->GetArray("y2" );
+    auto arrayZ0  = csvTable->GetRowData()->GetArray("z0" );
+    auto arrayZ1  = csvTable->GetRowData()->GetArray("z1" );
+    auto arrayZ2  = csvTable->GetRowData()->GetArray("z2" );
+
+    for (vtkIdType i = 0; i < arrayTime->GetNumberOfTuples(); ++i)
+    {
+      LidarSlam::ExternalSensors::PoseMeasurement meas;
+      meas.Time = arrayTime->GetTuple1(i);
+      // Derive Isometry
+      meas.Pose.matrix() << arrayX0->GetTuple1(i), arrayY0->GetTuple1(i), arrayZ0->GetTuple1(i), arrayX->GetTuple1(i),
+                            arrayX1->GetTuple1(i), arrayY1->GetTuple1(i), arrayZ1->GetTuple1(i), arrayY->GetTuple1(i),
+                            arrayX2->GetTuple1(i), arrayY2->GetTuple1(i), arrayZ2->GetTuple1(i), arrayZ->GetTuple1(i),
+                            0, 0, 0, 1;
+      meas.Covariance = LidarSlam::Utils::CreateDefaultCovariance();
+      this->SlamAlgo->AddPoseMeasurement(meas);
+    }
+    posesLoaded = true;
+  }
+
+  if (posesLoaded)
+  {
     PRINT_INFO("Pose data successfully loaded")
     extSensorFit = true;
 
-    bool calibrationEstimated = this->SlamAlgo->CalibrateWithExtPoses();
-    if (!calibrationSupplied && !calibrationEstimated)
+    bool calibrationEstimated = false;
+    if (!this->CalibrationSupplied)
+      // Reset calibration, do not trust previous one
+      calibrationEstimated = this->SlamAlgo->CalibrateWithExtPoses(true, this->PlanarTrajectory);
+    if (!this->CalibrationSupplied && !calibrationEstimated)
       vtkWarningMacro(<< this->GetClassName() << " (" << this
                       << "): Calibration was not supplied for the external poses sensor, "
                       << "and could not be estimated. It is set to identity.");
@@ -805,7 +872,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
   vtkTable* csvTable = reader->GetOutput();
 
   // Check if time exists and extract it
-  if (!csvTable->GetRowData()->HasArray("Time"))
+  if (!Utils::CheckTableFields(csvTable, {"Time"}))
   {
     vtkWarningMacro(<<"No time information in the trajectory file. Load trajectory failed.");
     return;
@@ -841,7 +908,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
   bool hasCovariance = true;
   for (int nCov = 0; nCov < 36; ++nCov)
   {
-    hasCovariance = hasCovariance && csvTable->GetRowData()->HasArray(("Covariance:" + std::to_string(nCov)).c_str());
+    hasCovariance = hasCovariance && Utils::CheckTableFields(csvTable, {"Covariance:" + std::to_string(nCov)});
     if (!hasCovariance)
       break;
   }
@@ -859,12 +926,7 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
   }
 
   // Process Pose data
-  if (csvTable->GetRowData()->HasArray("x")
-   && csvTable->GetRowData()->HasArray("y")
-   && csvTable->GetRowData()->HasArray("z")
-   && csvTable->GetRowData()->HasArray("roll")
-   && csvTable->GetRowData()->HasArray("pitch")
-   && csvTable->GetRowData()->HasArray("yaw"))
+  if (Utils::CheckTableFields(csvTable, {"x", "y", "z", "roll", "pitch", "yaw"}))
   {
     auto arrayX     = csvTable->GetRowData()->GetArray("x"    );
     auto arrayY     = csvTable->GetRowData()->GetArray("y"    );
@@ -889,13 +951,8 @@ void vtkSlam::SetTrajectory(const std::string& fileName)
       trajectoryManager.AddMeasurement(meas);
     }
   }
-  else if (csvTable->GetRowData()->HasArray("Orientation(AxisAngle):0")
-        && csvTable->GetRowData()->HasArray("Orientation(AxisAngle):1")
-        && csvTable->GetRowData()->HasArray("Orientation(AxisAngle):2")
-        && csvTable->GetRowData()->HasArray("Orientation(AxisAngle):3")
-        && csvTable->GetRowData()->HasArray("Points:0"                )
-        && csvTable->GetRowData()->HasArray("Points:1"                )
-        && csvTable->GetRowData()->HasArray("Points:2"                ))
+  else if (Utils::CheckTableFields(csvTable, {"Orientation(AxisAngle):1", "Orientation(AxisAngle):2", "Orientation(AxisAngle):3",
+                                              "Points:0", "Points:1", "Points:2"}))
   {
     auto arrayAxisX = csvTable->GetRowData()->GetArray("Orientation(AxisAngle):0");
     auto arrayAxisY = csvTable->GetRowData()->GetArray("Orientation(AxisAngle):1");
@@ -1964,6 +2021,26 @@ void vtkSlam::SetLoopRevisitedIdx(unsigned int loopClosureRevisitedIdx)
   if (this->SlamAlgo->GetLoopRevisitedIdx() != loopClosureRevisitedIdx)
   {
     this->SlamAlgo->SetLoopRevisitedIdx(loopClosureRevisitedIdx);
+    this->ParametersModificationTime.Modified();
+  }
+}
+
+//-----------------------------------------------------------------------------
+void vtkSlam::SetPlanarTrajectory(bool planarTraj)
+{
+  if (planarTraj != this->PlanarTrajectory)
+  {
+    this->PlanarTrajectory = planarTraj;
+    vtkDebugMacro(<< "Setting planarTrajectory argument to " << planarTraj);
+    bool calibrationEstimated = false;
+    if (!this->CalibrationSupplied && this->SlamAlgo->PoseHasData())
+    {
+      // Estimate calibration with new planarTraj value
+      // Reset calibration, do not trust previous one
+      if (this->SlamAlgo->CalibrateWithExtPoses(true, this->PlanarTrajectory))
+        vtkWarningMacro(<< "Calibration of the external poses sensor has been estimated using the trajectory provided to\n"
+                        << SlamAlgo->GetPoseCalibration().matrix());
+    }
     this->ParametersModificationTime.Modified();
   }
 }

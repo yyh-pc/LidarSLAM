@@ -706,7 +706,13 @@ int PoseManager::ComputeEquivalentTrajectory(const std::list<LidarState>& states
     // Compute synchronized measures representing sensor frame
     PoseMeasurement synchMeas; // Virtual measure with synchronized timestamp and calibration applied
     if (this->ComputeSynchronizedMeasureBase(it->Time, synchMeas))
-      poseMeasurements[idxPose] = synchMeas;
+    {
+      poseMeasurements[idxPose].Time = synchMeas.Time;
+      // Apply offset to represent the pose in SLAM referential frame
+      poseMeasurements[idxPose].Pose = this->Offset * synchMeas.Pose;
+      Eigen::Vector6d xyzrpy = Utils::IsometryToXYZRPY(synchMeas.Pose);
+      poseMeasurements[idxPose].Covariance = CeresTools::RotateCovariance(xyzrpy, synchMeas.Covariance, this->Offset, true); // new = offset * init
+    }
     ++idxPose;
   }
 
@@ -719,8 +725,11 @@ int PoseManager::ComputeEquivalentTrajectory(const std::list<LidarState>& states
 }
 
 // ---------------------------------------------------------------------------
-bool PoseManager::ComputeCalibration(const std::list<LidarState>& states)
+bool PoseManager::ComputeCalibration(const std::list<LidarState>& states, bool reset, bool planarTrajectory)
 {
+  if (reset)
+    this->Calibration = Eigen::Isometry3d::Identity();
+
   if (states.size() <= 2)
   {
     PRINT_WARNING("Cannot estimate the calibration for ext poses: not enough logged states");
@@ -754,7 +763,8 @@ bool PoseManager::ComputeCalibration(const std::list<LidarState>& states)
   std::vector<CeresTools::Residual> residuals;
   residuals.reserve(states.size()); // reserve max size
 
-  Eigen::Vector7d calibXYZQuat = Utils::IsometryToXYZQuat(this->Calibration);
+  Eigen::Vector7d calibXYZQuat;
+  calibXYZQuat << 0, 0, 0, 0, 0, 0, 1;
   int idxPose = startIdxPose;
   for (auto it = itStart; it != states.end(); ++it)
   {
@@ -789,11 +799,73 @@ bool PoseManager::ComputeCalibration(const std::list<LidarState>& states)
   // Run optimization
   ceres::Solver::Summary summary;
   ceres::Solve(LMoptions, &problem, &summary);
-  this->Calibration = Utils::XYZQuatToIsometry(calibXYZQuat);
+  this->Calibration = this->Calibration * Utils::XYZQuatToIsometry(calibXYZQuat);
   if (this->Verbose)
     PRINT_INFO(summary.BriefReport());
   if (this->Verbose)
     PRINT_INFO("External pose calibration estimated to : \n" << this->Calibration.matrix());
+
+  // If the trajectories are planar (vehicle case)
+  // An uncertainty remains in translation (z world axes).
+  // So we remove the translation on this direction to get rid of numerical issues
+  if (planarTrajectory)
+  {
+    // Compute direction of less translation variance (eq. normal)
+    pcl::PointCloud<pcl::PointXYZ> positions;
+    for (auto it = itStart; it != states.end(); ++it)
+    {
+      pcl::PointXYZ point;
+      point.getVector3fMap() = (refSLAMInv * it->Isometry).translation().cast<float>();
+      positions.push_back(point);
+    }
+    std::vector<int> indices(positions.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    Eigen::Vector3d centroid;
+    Eigen::Matrix3d eigenVectors;
+    Eigen::Vector3d eigenValues;
+    Utils::ComputeMeanAndPCA(positions, indices, centroid, eigenVectors, eigenValues);
+    Eigen::Vector3d trajNormal = eigenVectors.col(0);
+    // Represent the trajectory normal into base frame
+    // We use the first synchronized base pose but
+    // if it is a planar trajectory trajNormal should be the same in all
+    // base poses (it should be the only rotation axis)
+    trajNormal = itStart->Isometry.linear().inverse() * trajNormal;
+    this->Calibration.translation() = this->Calibration.translation() -
+                                      this->Calibration.translation().dot(trajNormal) * trajNormal;
+  }
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+bool PoseManager::UpdateOffset(const std::list<LidarState>& states)
+{
+  // Use the first synchronized pose to estimate the offset
+  bool offsetComputed = false;
+  // We do not want output for the measure search
+  bool storeVerbose = this->Verbose;
+  this->Verbose = false;
+  for (auto& s : states)
+  {
+    PoseMeasurement synchMeas;
+    if (this->ComputeSynchronizedMeasureBase(s.Time, synchMeas)) // no verbose output
+    {
+      this->Offset = s.Isometry * synchMeas.Pose.inverse();
+      offsetComputed = true;
+      break;
+    }
+  }
+  this->Verbose = storeVerbose;
+  if (!offsetComputed)
+  {
+    PRINT_ERROR("Cannot compute offset, no synchronized pose measurement found"
+                << std::fixed << std::setprecision(9)
+                << "\t Measures contained in : ["
+                << this->Measures.front().Time << ","
+                << this->Measures.back().Time <<"]\n"
+                << std::scientific)
+    return false;
+  }
 
   return true;
 }
