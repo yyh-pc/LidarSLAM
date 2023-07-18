@@ -888,8 +888,9 @@ bool Slam::OptimizeGraph()
   IF_VERBOSE(3, Utils::Timer::Init("PGO : maps and trajectory update"));
   // Replace Lidar SLAM poses in odom frame
   this->ResetTrajWithTworldInit();
-  // Update offset of referential frames with new de-skewed trajectory
-  this->PoseManager->UpdateOffset(this->LogStates);
+  if (this->UsePGOConstraints[PGO_EXT_POSE] && this->PoseHasData())
+    // Update offset of referential frames with new de-skewed trajectory
+    this->PoseManager->UpdateOffset(this->LogStates);
   // Update the maps from the beginning using the new trajectory
   // Points older than the first logged state remain untouched
   this->UpdateMaps();
