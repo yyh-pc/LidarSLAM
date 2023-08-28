@@ -130,6 +130,8 @@ namespace LidarSlam
 {
 // Parameters for pose estimation by ICP-LM optimization
 // Useful for EgoMotion, Localization and LoopClosureRegistration
+
+// Step:优化问题相关参数
 namespace Optimization
 {
 struct Parameters
@@ -170,6 +172,7 @@ struct Parameters
 } // end of Optimization namespace
 
 // Parameters for recovery mode
+// Step:恢复模式相关参数
 namespace Recovery
 {
 struct Parameters
@@ -184,6 +187,7 @@ struct Parameters
 } // end of Recovery namespace
 
 // Parameters for loop closure
+// Step:回环检测相关参数
 namespace LoopClosure
 {
 struct Parameters
@@ -259,6 +263,7 @@ struct Parameters
 };
 } // end of LoopClosure namespace
 
+// Step:Slam类的申明
 class Slam
 {
 public:
@@ -267,6 +272,8 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   // Usefull types
+  using Point2 = PointXYZITR;
+  using He_Point = hesai_point;
   using Point = LidarPoint;
   using PointCloud = pcl::PointCloud<Point>;
   using KeypointExtractorPtr = std::shared_ptr<SpinningSensorKeypointExtractor>;
@@ -274,7 +281,9 @@ public:
   using Maps = std::map<Keypoint, std::shared_ptr<RollingGrid>>;
 
   // Initialization
+  // 构造函数 用于初始化特征点提取器以及初始化三种类型的特征点地图
   Slam();
+
   // Reset internal state : maps and trajectory are cleared,
   // current pose is set back to origin and the external sensor data are emptied.
   // This keeps parameters unchanged.
@@ -283,6 +292,7 @@ public:
   // Init map with default values
   // This function is useful to keep a set of initial map parameters which are not SLAM members
   // Maps can only be removed when reset is called but they don't depend on UseKeypoint
+  // 在构造函数中会被调用
   void InitMap(Keypoint k);
 
   // ---------------------------------------------------------------------------
@@ -295,6 +305,7 @@ public:
   // - ego-motion: estimate motion since last pose to init localization step
   // - localization: estimate global pose of current frame in map
   // - maps update: update maps using current registered frame
+  // Step:核心的雷达帧处理函数
   void AddFrame(const PointCloud::Ptr& pc) { this->AddFrames({pc}); }
 
   // Add a set of frames to SLAM process.

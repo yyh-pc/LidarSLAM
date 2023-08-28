@@ -81,6 +81,38 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (LidarSlam::LidarPoint,
                                    (std::uint8_t, label, label)
 )
 
+namespace LidarSlam {
+struct EIGEN_ALIGN16 PointXYZITR {
+    PCL_ADD_POINT4D;
+    float intensity;
+    float time;
+    std::uint16_t ring;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+}
+
+// clang-format off
+POINT_CLOUD_REGISTER_POINT_STRUCT(LidarSlam::PointXYZITR,
+                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)
+                                      (float, time, time)(std::uint16_t, ring, ring))
+
+
+namespace LidarSlam {
+struct EIGEN_ALIGN16 hesai_point {
+    PCL_ADD_POINT4D;
+    float intensity;
+    double timestamp;
+    std::uint16_t ring;
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+};
+}
+
+// clang-format off
+POINT_CLOUD_REGISTER_POINT_STRUCT(LidarSlam::hesai_point,
+                                  (float, x, x)(float, y, y)(float, z, z)(float, intensity, intensity)
+                                      (double, timestamp, timestamp)(std::uint16_t, ring, ring))
+const inline bool hesai_ring_list(LidarSlam::hesai_point &x, LidarSlam::hesai_point &y) {return (x.ring < y.ring);};
+
 #ifdef USE_TEASERPP
 // Instantiate PCL base filters with LidarPoint
 PCL_INSTANTIATE_PCLBase(LidarSlam::LidarPoint)

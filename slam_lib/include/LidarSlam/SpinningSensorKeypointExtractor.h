@@ -267,6 +267,7 @@ private:
   std::map<Keypoint, VoxelGrid> Keypoints;
 
   // Current point cloud stored in two differents formats
+  // 存储当前帧点云的两种不同格式
   PointCloud::Ptr Scan;
   std::vector<PointCloud::Ptr> ScanLines;
 };

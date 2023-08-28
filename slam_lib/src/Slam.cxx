@@ -146,22 +146,31 @@ inline size_t PointCloudMemorySize(const Slam::PointCloud& cloud)
 //==============================================================================
 
 //-----------------------------------------------------------------------------
+// SLAM类的构造函数
 Slam::Slam()
 {
+  // 在C++中，this是一个特殊的指针，指向当前对象的地址。它是一个隐式的指针，可以在类的成员函数中使用
+  // 用于访问当前对象的成员变量和成员函数。
+
   // Allocate a default Keypoint Extractor for device 0
+  // 默认生成一个特征点提取器
   this->KeyPointsExtractors[0] = std::make_shared<SpinningSensorKeypointExtractor>();
 
   // Allocate maps
+  // 分配地图（实际上只用到了这三种 EDGE, INTENSITY_EDGE, PLANE）
   for (auto k : this->UsableKeypoints)
     this->LocalMaps[k] = std::make_shared<RollingGrid>();
 
   // Set default maps parameters
+  // 是否使用这种类型的特征并进行相应的地图初始化
   if (this->UseKeypoints[EDGE])
     this->InitMap(EDGE);
   if (this->UseKeypoints[INTENSITY_EDGE])
     this->InitMap(INTENSITY_EDGE);
   if (this->UseKeypoints[PLANE])
     this->InitMap(PLANE);
+
+  // ?:spherical local structure球面局部结构,这个好像是额外勾选,可以不用
   if (this->UseKeypoints[BLOB])
     this->InitMap(BLOB);
 
@@ -395,6 +404,31 @@ bool Slam::IsExtSensorForLocalOpt()
 }
 
 //-----------------------------------------------------------------------------
+/* Step:雷达帧处理函数
+（1）检查点云，调用了CheckFrames
+
+（2）设置初始位姿（this->Tworld)
+
+（3）提取关键点，调用了ExtractKeypoints
+
+（4）计算帧间运动，调用了ComputeEgoMotion
+
+（5）如果有其他传感器数据，则计算对应传感器约束，调用了ComputeSensorConstraints
+
+（6）定位，优化当前帧位姿，并可以进行点云运动畸变的去除，调用了Localization
+
+（7）检查重叠度，调用了EstimateOverlap及CheckMotionLimits
+
+（8）检查是否为关键帧，调用了CheckKeyFrame
+
+（9）更新地标点位姿，使用了LandmarkManager类中的UpdateAbsolutePose
+
+（10）将关键点加入到当前地图中，调用了UpdateMapsUsingTworld
+
+（11）记录当前帧轨迹：位姿，协方差矩阵及关键点
+
+（12）使用新位姿更新IMU，优化IMU零偏 */
+
 void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
 {
   Utils::Timer::Init("SLAM frame processing");
@@ -402,6 +436,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   // Check that input frames are correct and can be processed
   if (!this->CheckFrames(frames))
     return;
+  // 检查完数据的正确性后，进行赋值，同时记录，也就是当前帧变成了上一帧
   this->CurrentFrames = frames;
   this->CurrentTime = Utils::PclStampToSec(this->CurrentFrames[0]->header.stamp);
 
@@ -418,6 +453,7 @@ void Slam::AddFrames(const std::vector<PointCloud::Ptr>& frames)
   // The keypoints cannot be chosen while processing a frame
   // because it impacts all the maps structure along the process
   this->UsableKeypoints.clear();
+  // 如果使用这种类型的特征点则进行标记
   for (auto k : KeypointTypes)
   {
     if (this->UseKeypoints[k])
@@ -1205,6 +1241,8 @@ Slam::PointCloud::Ptr Slam::GetKeypoints(Keypoint k, bool worldCoordinates)
 //==============================================================================
 
 //-----------------------------------------------------------------------------
+
+// 检查当前输入帧的数据是否可用于slam算法。该方式适配多雷达模式，因此传入参数为点云的数组
 bool Slam::CheckFrames(const std::vector<PointCloud::Ptr>& frames)
 {
   // Check input frames and return if they are all empty
@@ -1216,6 +1254,7 @@ bool Slam::CheckFrames(const std::vector<PointCloud::Ptr>& frames)
     else
       PRINT_WARNING("SLAM input frame " << i << " is an empty pointcloud : frame ignored.");
   }
+  // 只要有一帧点云有数据，返回true。所有点云都为空，返回false
   if (allFramesEmpty)
   {
     PRINT_ERROR("SLAM input only contains empty pointclouds : exiting.");
@@ -1223,6 +1262,7 @@ bool Slam::CheckFrames(const std::vector<PointCloud::Ptr>& frames)
   }
 
   // Skip frames if it has the same timestamp as previous ones (will induce problems in extrapolation)
+  // 当前帧点云的时间抽和上一帧一样，则跳过该帧数据
   if (frames[0]->header.stamp == this->CurrentFrames[0]->header.stamp)
   {
     PRINT_ERROR("SLAM frames have the same timestamp (" << frames[0]->header.stamp << ") as previous ones : frames ignored.");
@@ -1242,6 +1282,7 @@ bool Slam::CheckFrames(const std::vector<PointCloud::Ptr>& frames)
 }
 
 //-----------------------------------------------------------------------------
+// 调用了SpinningSensorKeypointExtractor类进行点云关键点提取，在邻域内计算点的曲率，根据曲率大小判断边缘点和平面点。
 void Slam::ExtractKeypoints()
 {
   PRINT_VERBOSE(2, "========== Keypoints extraction ==========");
@@ -1251,6 +1292,7 @@ void Slam::ExtractKeypoints()
 
   // Extract keypoints from each input cloud
   std::map<Keypoint, std::vector<PointCloud::Ptr>> keypoints;
+  // 当前帧里面可能含有很多帧点云？多个激光雷达？
   for (const auto& frame: this->CurrentFrames)
   {
     // If the frame is empty, ignore it
@@ -1277,10 +1319,13 @@ void Slam::ExtractKeypoints()
         continue;
       }
     }
+    // 引用关键点提取器
     KeypointExtractorPtr& ke = this->KeyPointsExtractors[lidarDevice];
+    // 使能关键点类型
     ke->Enable(this->UsableKeypoints);
-    // Extract keypoints from this frame
+    // 从当前帧提取关键点
     ke->ComputeKeyPoints(frame);
+    // 将提取到的关键点统一存储在keypoints中
     for (auto k : this->UsableKeypoints)
       keypoints[k].push_back(ke->GetKeypoints(k));
   }

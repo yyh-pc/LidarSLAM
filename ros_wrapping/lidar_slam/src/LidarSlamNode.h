@@ -34,6 +34,8 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/CameraInfo.h>
 
+#include <pcl/point_cloud.h>
+
 // SLAM
 #include <LidarSlam/Slam.h>
 
@@ -42,7 +44,12 @@ class LidarSlamNode
 public:
 
   using PointS = LidarSlam::Slam::Point;
-  using CloudS = pcl::PointCloud<PointS>;  ///< Pointcloud needed by SLAM
+  using Point2 = LidarSlam::Slam::Point2;
+  using Point3 = LidarSlam::Slam::He_Point;
+  using CloudS = pcl::PointCloud<PointS>; ///< Pointcloud needed by SLAM
+
+  // using Point = LidarSlam::Slam::Point;
+  // using Cloud = pcl::PointCloud<Point>;  ///< Pointcloud needed by SLAM
 
   //----------------------------------------------------------------------------
   /*!
@@ -65,6 +72,7 @@ public:
    * @brief     New main LiDAR frame callback, running SLAM and publishing TF.
    * @param[in] cloud New frame, published by conversion node.
    *
+  // Step:这里点云回调函数接收点云话题的格式很奇怪，包括XYZIT以及线数、设备id等信息
    * Input pointcloud must have following fields :
    *  - x, y, z (float): point coordinates
    *  - time (double): time offset to add to the pointcloud header timestamp to
@@ -76,8 +84,8 @@ public:
    *    This id should be the same for all points of the cloud acquired by the same sensor.
    *  - label (uint8): optional input, not yet used.
    */
-  virtual void ScanCallback(const CloudS::Ptr cloudS_ptr);
-
+  virtual void ScanCallback(const sensor_msgs::PointCloud2::ConstPtr &msg);
+  void ScanCallbackTest(const sensor_msgs::PointCloud2::ConstPtr &msg);
   //----------------------------------------------------------------------------
   /*!
    * @brief     New secondary lidar frame callback, buffered to be latered processed by SLAM.
@@ -229,6 +237,9 @@ protected:
   //----------------------------------------------------------------------------
 
   // SLAM stuff
+  // Step:这里实例化了一个Slam的类对象作为LidarSlamNode类的一个成员变量LidarSlam
+  // 其中前面那个LidarSlam指的是Slam类的工作空间
+
   LidarSlam::Slam LidarSlam;
   std::vector<CloudS::Ptr> Frames;
   bool SlamEnabled = true;
@@ -274,7 +285,7 @@ protected:
   // If lidar time contained in the header is not POSIX
   // The offset between network reception time
   // and Lidar time is computed
-  bool LidarTimePosix = true;
+  bool LidarTimePosix = false;
   // Offset to apply to external sensors to get lidar time
   float SensorTimeOffset = 0.;
 

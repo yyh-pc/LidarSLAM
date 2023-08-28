@@ -37,7 +37,8 @@ set(Boost_USE_STATIC_LIBS OFF)
 #  Find dependencies
 #-------------------------
 
-find_package(Boost REQUIRED)
+# find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS thread timer serialization)
 
 # If the Paraview plugin needs to be compiled, we must find Paraview before PCL.
 # Otherwise, if PCL is built with pcl_visualization module and uses another VTK
@@ -52,7 +53,8 @@ if (SLAM_PARAVIEW_PLUGIN)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif()
 
-find_package(nanoflann REQUIRED)
+#find_package(nanoflann REQUIRED)
+set(OpenGL_GL_PREFERENCE LEGACY)
 
 # Find Eigen3. If it defines the target, this is used. If not,
 # fall back to the using the module form.
@@ -66,6 +68,8 @@ else()
   include_directories(${EIGEN3_INCLUDE_DIR})
 endif()
 
+# 指定ceres版本为2.0
+set(Ceres_DIR /usr/local/ceres/lib/cmake/Ceres)
 find_package(Ceres REQUIRED)
 
 # pcl_for_teaser registers pcl components only when teaserpp is required

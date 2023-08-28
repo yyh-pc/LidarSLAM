@@ -25,6 +25,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <nav_msgs/Path.h>
 
+
 #ifdef USE_CV_BRIDGE
 #include <cv_bridge/cv_bridge.h>
 #endif
@@ -151,15 +152,19 @@ LidarSlamNode::LidarSlamNode(ros::NodeHandle& nh, ros::NodeHandle& priv_nh)
 
   // LiDAR inputs
   std::vector<std::string> lidarTopics;
+  ros::Subscriber sub;
   if (!priv_nh.getParam("input", lidarTopics))
     lidarTopics.push_back(priv_nh.param<std::string>("input", "lidar_points"));
-  this->CloudSubs.push_back(nh.subscribe(lidarTopics[0], 1, &LidarSlamNode::ScanCallback, this));
-  ROS_INFO_STREAM("Using LiDAR frames on topic '" << lidarTopics[0] << "'");
-  for (unsigned int lidarTopicId = 1; lidarTopicId < lidarTopics.size(); lidarTopicId++)
-  {
-    this->CloudSubs.push_back(nh.subscribe(lidarTopics[lidarTopicId], 1, &LidarSlamNode::SecondaryScanCallback, this));
-    ROS_INFO_STREAM("Using secondary LiDAR frames on topic '" << lidarTopics[lidarTopicId] << "'");
-  }
+  // this代表当前LidarSlamNode实例
+
+  // this->CloudSubs.push_back(nh.subscribe<sensor_msgs::PointCloud2>("points_raw", 1, &LidarSlamNode::ScanCallbackTest, this));
+  this->CloudSubs.push_back(nh.subscribe("hesai/pandar", 1, &LidarSlamNode::ScanCallbackTest, this));
+  // ROS_INFO_STREAM("Using LiDAR frames on topic '" << lidarTopics[0] << "'");
+  // for (unsigned int lidarTopicId = 1; lidarTopicId < lidarTopics.size(); lidarTopicId++)
+  // {
+  //   this->CloudSubs.push_back(nh.subscribe(lidarTopics[lidarTopicId], 1, &LidarSlamNode::SecondaryScanCallback, this));
+  //   ROS_INFO_STREAM("Using secondary LiDAR frames on topic '" << lidarTopics[lidarTopicId] << "'");
+  // }
 
   // Set SLAM pose from external guess
   this->SetPoseSub = nh.subscribe("set_slam_pose", 1, &LidarSlamNode::SetPoseCallback, this);
@@ -230,9 +235,40 @@ LidarSlamNode::~LidarSlamNode()
 }
 
 //------------------------------------------------------------------------------
-void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
+void LidarSlamNode::ScanCallbackTest(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
-  if (!this->SlamEnabled)
+  std::cout << "----ros time------" << ros::Time::now().toSec() << std::endl;
+  pcl::PointCloud<Point3> pl_orig;
+  pcl::fromROSMsg(*msg, pl_orig);
+  CloudS::Ptr cloudS_ptr(new CloudS);
+
+  int plsize = pl_orig.points.size();
+  cloudS_ptr->header.frame_id = "base_link";
+  cloudS_ptr->header.stamp = msg->header.stamp.toSec() * 1000000;
+  cloudS_ptr->header.seq = msg->header.seq;
+
+  std::cout << "----msg stamp------" <<  cloudS_ptr->header.stamp << std::endl;
+
+  for (int i = 0; i < plsize; i++)
+  {
+    PointS lidar_point;
+    lidar_point.x = pl_orig.points[i].x;
+    lidar_point.y = pl_orig.points[i].y;
+    lidar_point.z = pl_orig.points[i].z;
+    //?:这里有个问题是，点云的时间戳是否需要乘上这个time_scale
+    lidar_point.time = pl_orig.points[i].timestamp -  msg->header.stamp.toSec();
+    // cout << "~~~~~~~test time: " << lidar_point.time << endl;
+    //?:bag 包里点云好像没有intensity属性
+    lidar_point.intensity = pl_orig.points[i].intensity;
+    lidar_point.laser_id = pl_orig.points[i].ring;
+    lidar_point.device_id = 0;
+    lidar_point.label = 0;
+
+    cloudS_ptr->points.push_back(lidar_point);
+  }
+  cout << cloudS_ptr->back().time << endl;
+
+    if (!this->SlamEnabled)
     return;
 
   if(cloudS_ptr->empty())
@@ -242,26 +278,7 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
   }
 
   this->MainLidarId = cloudS_ptr->header.frame_id;
-
   this->StartTime = ros::Time::now().toSec();
-
-  if (!this->LidarTimePosix)
-  {
-    // Compute time offset
-    // Get ROS frame reception time
-    double TimeFrameReceptionPOSIX = ros::Time::now().toSec();
-    // Get last acquired point timestamp
-    double TimeLastPoint = LidarSlam::Utils::PclStampToSec(cloudS_ptr->header.stamp) + cloudS_ptr->back().time;
-    // Compute offset
-    double potentialOffset = TimeLastPoint - TimeFrameReceptionPOSIX;
-    // Get current offset
-    double absCurrentOffset = std::abs(this->LidarSlam.GetSensorTimeOffset());
-    // If the current computed offset is more accurate, replace it
-    if (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset)
-      this->LidarSlam.SetSensorTimeOffset(potentialOffset + this->SensorTimeOffset);
-  }
-  else
-    this->LidarSlam.SetSensorTimeOffset(this->SensorTimeOffset);
 
   // Update TF from BASE to LiDAR
   if (!this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id))
@@ -306,6 +323,137 @@ void LidarSlamNode::ScanCallback(const CloudS::Ptr cloudS_ptr)
   }
 
   // Publish SLAM output as requested by user
+  // !:加上这个可视化程序就会导致程序死机，需要解决
+  this->PublishOutput();
+
+  this->Frames.clear();
+}
+
+void LidarSlamNode::ScanCallback(const sensor_msgs::PointCloud2::ConstPtr &msg)
+{
+  std::cout << "----ros time------" << ros::Time::now().toSec() << std::endl;
+  // 这里能不能把它改成接收msg格式的话题信息，然后再在转化为CloudS::Ptr形式
+  pcl::PointCloud<Point2> pl_orig;
+  pcl::fromROSMsg(*msg, pl_orig);
+  std::cout << "----point num------" <<  pl_orig.points.size() << std::endl;
+  int plsize = pl_orig.points.size();
+
+  CloudS::Ptr cloudS_ptr(new CloudS);
+  cloudS_ptr->header.frame_id = "base_link";
+  // 时间单位：微秒
+  cout << "header.stamp " << msg->header.stamp << endl;
+  cloudS_ptr->header.stamp = msg->header.stamp.toNSec() * 1e-3;
+  cout << "header.stamp " << cloudS_ptr->header.stamp << endl;
+
+  cloudS_ptr->header.seq = msg->header.seq;
+  for (int i = 0; i < plsize; i++)
+  {
+    PointS lidar_point;
+    lidar_point.x = pl_orig.points[i].x;
+    lidar_point.y = pl_orig.points[i].y;
+    lidar_point.z = pl_orig.points[i].z;
+    //?:这里有个问题是，点云的时间戳是否需要乘上这个time_scale
+    lidar_point.time = pl_orig.points[i].time * 1e-6;    //unit:s
+    cout << "time-----" << pl_orig.points[i].time << endl;
+    lidar_point.intensity = pl_orig.points[i].intensity;
+    lidar_point.laser_id = pl_orig.points[i].ring;
+    lidar_point.device_id = 0;
+    lidar_point.label = 0;
+
+    cloudS_ptr->points.push_back(lidar_point);
+  }
+
+  std::cout << "----point S num------" << cloudS_ptr->points.size() << std::endl;
+
+
+  if (!this->SlamEnabled)
+    return;
+
+  if(cloudS_ptr->empty())
+  {
+    ROS_WARN_STREAM("Input point cloud sent by Lidar sensor driver is empty -> ignoring message");
+    return;
+  }
+
+  this->MainLidarId = cloudS_ptr->header.frame_id;
+
+  this->StartTime = ros::Time::now().toSec();
+
+  // if (!this->LidarTimePosix)
+  if (1)
+  {
+    std::cout << "time compute" << std::endl;
+    // Compute time offset
+    // Get ROS frame reception time
+    double TimeFrameReceptionPOSIX = ros::Time::now().toSec();
+    std::cout << " now time: " << ros::Time::now().toSec() << std::endl;
+    // Get last acquired point timestamp
+    std::cout << " msg time: " << LidarSlam::Utils::PclStampToSec(cloudS_ptr->header.stamp) << std::endl;
+    std::cout << " back time: " << cloudS_ptr->back().time << std::endl;
+    double TimeLastPoint = LidarSlam::Utils::PclStampToSec(cloudS_ptr->header.stamp) + cloudS_ptr->back().time;
+    // double TimeLastPoint = msg->header.stamp.toSec() + cloudS_ptr->back().time;
+    std::cout << " final time: " << TimeLastPoint << std::endl;
+    // Compute offset
+    double potentialOffset = TimeLastPoint - TimeFrameReceptionPOSIX;
+    std::cout << " potentialOffset: " << potentialOffset << std::endl;
+    // Get current offset
+    double absCurrentOffset = std::abs(this->LidarSlam.GetSensorTimeOffset());
+    std::cout << " absCurrentOffset: " << absCurrentOffset << std::endl;
+    // If the current computed offset is more accurate, replace it
+    if (absCurrentOffset < 1e-6 || std::abs(potentialOffset) < absCurrentOffset) {
+      this->LidarSlam.SetSensorTimeOffset(potentialOffset + this->SensorTimeOffset);
+      cout << "********time compute is use" << endl;
+    }
+
+  }
+  else
+    this->LidarSlam.SetSensorTimeOffset(this->SensorTimeOffset);
+
+  // Update TF from BASE to LiDAR
+  if (!this->UpdateBaseToLidarOffset(cloudS_ptr->header.frame_id, cloudS_ptr->front().device_id))
+    return;
+
+  // Set the SLAM main input frame at first position
+  this->Frames.insert(this->Frames.begin(), cloudS_ptr);
+
+  // Run SLAM : register new frame and update localization and map.
+  // ?:这里的LidarSlam是在LidarSlamNode中声明的Slam类的实例化对象
+  this->LidarSlam.AddFrames(this->Frames);
+
+  // TMP
+  // Check if SLAM has failed
+  if (this->LidarSlam.IsRecovery())
+  {
+    // TMP : in the future, the user should have a look
+    // at the result to validate recovery
+    // Check if the SLAM can go on and pose has to be displayed
+    if (this->LidarSlam.GetOverlapEstimation() > 0.2f &&
+        this->LidarSlam.GetPositionErrorStd()  < 0.1f)
+    {
+      ROS_WARN_STREAM("Getting out of recovery mode");
+      // Frame is relocalized, reset params
+      this->LidarSlam.EndRecovery();
+    }
+    else
+      ROS_WARN_STREAM("Still waiting for recovery");
+  }
+  else if (this->LidarSlam.HasFailed())
+  {
+    ROS_WARN_STREAM("SLAM has failed : entering recovery mode :\n"
+                    << "\t -Maps will not be updated\n"
+                    << "\t -Egomotion and undistortion are disabled\n"
+                    << "\t -The number of ICP iterations is increased\n"
+                    << "\t -The maximum distance between a frame point and a map target point is increased");
+    // Enable recovery mode :
+    // Last frames are removed
+    // Maps are not updated
+    // Param are tuned to handle bigger motions
+    // Warning : real time is not ensured
+    this->LidarSlam.StartRecovery(this->RecoveryTime);
+  }
+
+  // Publish SLAM output as requested by user
+  // !:加上这个可视化程序就会导致程序死机，需要解决
   this->PublishOutput();
 
   this->Frames.clear();
@@ -1373,7 +1521,7 @@ void LidarSlamNode::SetSlamParameters()
   // External sensors
   SetSlamParam(float,  "external_sensors/max_measures", SensorMaxMeasures)
   SetSlamParam(float,  "external_sensors/time_threshold", SensorTimeThreshold)
-  this->LidarTimePosix = this->PrivNh.param("external_sensors/lidar_is_posix", true);
+  this->LidarTimePosix = this->PrivNh.param("external_sensors/lidar_is_posix", false);
   SetSlamParam(float,   "external_sensors/time_offset", SensorTimeOffset)
   this->SensorTimeOffset = this->LidarSlam.GetSensorTimeOffset();
   SetSlamParam(float,  "external_sensors/landmark_detector/weight", LandmarkWeight)

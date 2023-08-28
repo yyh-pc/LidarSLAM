@@ -42,7 +42,7 @@ add_library(LidarSlam
 
 target_link_libraries(LidarSlam
   PUBLIC
-    nanoflann::nanoflann
+    # nanoflann::nanoflann
     ceres
     ${PCL_LIBRARIES} # Add boost targets too
     ${g2o_targets}
